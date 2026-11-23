@@ -7,9 +7,12 @@ export function isSettingsSection(value: string | null | undefined): value is Se
   return SETTINGS_SECTIONS.includes(value as SettingsSection)
 }
 
+/** `lastFm`: Last.fm sent the browser back with this answer (`?lastfm=`), said in the Scrobbling section. */
+export type SettingsOpenOptions = { lastFm?: string }
+
 type SettingsDialogController = {
   /** Opens the settings dialog, on a section when one is given. */
-  openSettings: (section?: SettingsSection) => void
+  openSettings: (section?: SettingsSection, options?: SettingsOpenOptions) => void
 }
 
 export const SettingsDialogContext = createContext<SettingsDialogController | null>(null)

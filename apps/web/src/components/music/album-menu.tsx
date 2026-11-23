@@ -1,7 +1,7 @@
 import type { ArtistRef, PlaylistSummary } from '@squirmy/contracts'
-import { BookmarkCheck, BookmarkPlus, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, Play, Plus } from 'lucide-react'
+import { ListEnd, ListMusic, ListPlus, ListStart, MicVocal, Play, Plus } from 'lucide-react'
 import type { MenuEntry } from '@/components/ui/menu'
-import { librarySaveEntry } from './library-save-entry'
+import { librarySaveEntry, wantEntry } from './library-save-entry'
 
 export type AlbumMenuOptions = {
   artists: ArtistRef[]
@@ -9,10 +9,12 @@ export type AlbumMenuOptions = {
   playable: boolean
   /** Offered where nothing else plays the album, such as on a card. */
   onPlay?: () => void
-  onEnqueue: (placement: 'next' | 'last') => void
+  /** Waits for the album's songs when it has to fetch them; a failure is said on the entry. */
+  onEnqueue: (placement: 'next' | 'last') => void | Promise<unknown>
   /** The user's own playlists; `null` is a new one. */
   playlists: PlaylistSummary[]
-  onAddToPlaylist: (playlist: PlaylistSummary | null) => void
+  /** As `LibraryActions.addToPlaylist`: resolves true once added, false when it asked about songs already there. */
+  onAddToPlaylist: (playlist: PlaylistSummary | null) => void | Promise<unknown>
   /**
    * False while the album's songs are not known yet (the server is still looking them up): there
    * is nothing to add, and a new playlist would start empty.
@@ -20,9 +22,9 @@ export type AlbumMenuOptions = {
   songsKnown?: boolean
   /** Whether it is saved, undefined until the album is loaded: the entry waits for it. */
   liked: boolean | undefined
-  onToggleSaved: () => void
+  onToggleSaved: () => void | Promise<unknown>
   /** For music that does not play, while the server has the Wantlist on. */
-  want?: { wanted: boolean; onToggle: () => void }
+  want?: { wanted: boolean; onToggle: () => void | Promise<unknown> }
   onGoToArtist: (artist: ArtistRef) => void
 }
 
@@ -34,8 +36,9 @@ export function albumMenuEntries(options: AlbumMenuOptions): MenuEntry[] {
   const { artists, playable, onPlay, onEnqueue, playlists, onAddToPlaylist, songsKnown = true, liked, onToggleSaved, want, onGoToArtist } = options
   return [
     ...(onPlay ? [{ label: 'Play', icon: <Play />, disabled: !playable, onSelect: onPlay }] : []),
-    { label: 'Play next', icon: <ListStart />, disabled: !playable, onSelect: () => onEnqueue('next') },
-    { label: 'Add to queue', icon: <ListEnd />, disabled: !playable, onSelect: () => onEnqueue('last') },
+    // The queue may be out of sight: the entry says it worked.
+    { label: 'Play next', icon: <ListStart />, disabled: !playable, onSelect: () => onEnqueue('next'), done: 'Playing next' },
+    { label: 'Add to queue', icon: <ListEnd />, disabled: !playable, onSelect: () => onEnqueue('last'), done: 'Added to queue' },
     {
       kind: 'submenu',
       label: 'Add to playlist',
@@ -44,11 +47,11 @@ export function albumMenuEntries(options: AlbumMenuOptions): MenuEntry[] {
       items: [
         { label: 'New playlist…', icon: <Plus />, onSelect: () => onAddToPlaylist(null) },
         ...(playlists.length ? [{ kind: 'separator' as const }] : []),
-        ...playlists.map(playlist => ({ label: playlist.name, icon: <ListMusic />, onSelect: () => onAddToPlaylist(playlist) })),
+        ...playlists.map(playlist => ({ label: playlist.name, icon: <ListMusic />, onSelect: () => onAddToPlaylist(playlist), done: `Added to ${playlist.name}` })),
       ],
     },
     { ...librarySaveEntry({ liked: liked ?? false }, onToggleSaved), disabled: liked === undefined },
-    ...(want ? [{ label: want.wanted ? 'Remove from Wantlist' : 'Add to Wantlist', icon: want.wanted ? <BookmarkCheck /> : <BookmarkPlus />, onSelect: want.onToggle }] : []),
+    ...(want ? [wantEntry(want.wanted, want.onToggle)] : []),
     { kind: 'separator' },
     ...artists.map(artist => ({ label: `Go to ${artist.name}`, icon: <MicVocal />, onSelect: () => onGoToArtist(artist) })),
   ]

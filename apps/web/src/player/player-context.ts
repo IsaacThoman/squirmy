@@ -1,6 +1,7 @@
 import { type AwayDevice, deviceLabel, listedDevices, type DeviceLabel, type SessionMoveResult, type SessionOutage } from '@squirmy/client-core'
 import type { DeviceInfo, Lyrics, PlaybackContext, QueueEntry, RepeatMode, TrackSummary } from '@squirmy/contracts'
 import { createContext, useContext, useSyncExternalStore } from 'react'
+import type { PlayerStatus } from './status'
 
 /** A queue entry with the track it points at, hydrated for display. */
 export type QueueItem = { entry: QueueEntry; track: TrackSummary }
@@ -45,13 +46,21 @@ export type PlayerState = {
   detached: boolean
   /** `detach` can work: this tab plays and the server supports it. */
   canDetach: boolean
+  /** The line under the song: what just happened to playback, or what is on its way. Left out by fixtures. */
+  status?: PlayerStatus | null
+  /** The radio being started, while it is. Left out by fixtures. */
+  radioPending?: RadioSeed | null
   /** Why playback stopped on a failed current entry, when the server said (client-core's `SessionOutage`). */
   outage?: SessionOutage | null
 }
 
 export type LyricsStatus = 'none' | 'loading' | 'failed' | 'ready'
 
-export type PlayOptions = { shuffle?: boolean }
+/**
+ * `collection`: the listener played the list as a whole (a header's or card's Play), not one of
+ * its songs by name, so a first song that cannot be had is passed over. Shuffle always is.
+ */
+export type PlayOptions = { shuffle?: boolean; collection?: boolean }
 export type RadioSeed = { type: 'track' | 'artist'; id: string }
 
 /** The commands the UI sends. They mirror `SessionCommand` in the contracts. */
@@ -75,6 +84,7 @@ export type PlayerControls = {
   /** `toIndex` counts the entries shown in the queue. */
   moveEntry: (entryId: string, toIndex: number) => void
   clearQueue: () => void
+  /** Clears the history at once; the queue asks first. */
   clearHistory: () => void
   transfer: (deviceId: string) => void
   /** Gets this tab ready to take over what another device plays, so a transfer here starts sooner. For this tab’s row in the device picker. */
@@ -85,7 +95,16 @@ export type PlayerControls = {
   attach: (options?: { bringQueue?: boolean }) => Promise<SessionMoveResult>
   /** Renames this browser in every device list; null goes back to the name from the user agent. */
   renameDevice: (name: string | null) => void
+  /**
+   * Says something on the player's status line, under the song: a playback command that failed
+   * (an album that did not load to play, a device that could not be moved to), or what one
+   * changed out of sight. It goes away by itself, an error a little later.
+   */
+  tell: (line: StatusMessage) => void
 }
+
+/** A line for `tell`: `info` for what happened, `error` for what the listener asked for and did not happen. */
+export type StatusMessage = { message: string; detail?: string; tone: 'info' | 'error' }
 
 export type Player = { state: PlayerState; controls: PlayerControls }
 
@@ -93,6 +112,15 @@ export const PlayerContext = createContext<Player | null>(null)
 
 /** The controls alone. They keep one identity, so readers that only send commands skip every session update. */
 export const PlayerControlsContext = createContext<PlayerControls | null>(null)
+
+/** The radio being started, while it is: a value of its own, so the control that started it re-renders only when it changes. */
+export const RadioPendingContext = createContext<RadioSeed | null>(null)
+
+/** Whether a radio is starting from `seed`: its control shows that it is on its way. */
+export function useRadioStarting(seed: RadioSeed): boolean {
+  const pending = useContext(RadioPendingContext)
+  return pending?.type === seed.type && pending.id === seed.id
+}
 
 /**
  * How `device` is named here: "This browser", "Another tab" for this browser's other tabs,

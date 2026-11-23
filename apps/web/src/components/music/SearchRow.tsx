@@ -31,13 +31,15 @@ type SearchRowBodyProps = {
   explicit?: boolean
   /** Said to screen readers after the title, such as "Not available". */
   note?: string
+  /** The detail line's id, for the row's control to be described by it. */
+  detailId?: string
 }
 
 /**
  * The inside of a result row: artwork, then the title over "Kind · Artist". The search
  * dialog and the search page both draw their rows with it, so the two read the same.
  */
-export function SearchRowBody({ art, title, detail, strong = true, dimmed, current, explicit, note }: SearchRowBodyProps) {
+export function SearchRowBody({ art, title, detail, strong = true, dimmed, current, explicit, note, detailId }: SearchRowBodyProps) {
   return (
     <>
       {art}
@@ -47,7 +49,7 @@ export function SearchRowBody({ art, title, detail, strong = true, dimmed, curre
           {explicit && <ExplicitBadge />}
           {note && <span className="sr-only">({note})</span>}
         </span>
-        {detail && <span dir="auto" className="block truncate text-xs text-muted-foreground">{detail}</span>}
+        {detail && <span id={detailId} dir="auto" className="block truncate text-xs text-muted-foreground">{detail}</span>}
       </span>
     </>
   )

@@ -2,12 +2,10 @@ import type { AlbumSummary, TrackSummary } from '@squirmy/contracts'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
-import { errorMessage } from '@/api/errors'
 import { albumQuery } from '@/api/queries'
 import { useApi } from '@/api/services'
 import { albumMenuEntries } from '@/components/music/album-menu'
 import { albumPresentation, isPlayable } from '@/lib/catalog'
-import { toast } from '@/lib/toast'
 import { useLibrary } from './library-context'
 import { useViewer } from './on-demand-context'
 import { usePlayerControls } from './player-context'
@@ -30,13 +28,10 @@ export function useAlbumMenu(album: AlbumSummary, onPlay?: () => void) {
   const detail = useQuery({ ...albumQuery(api, album.id), enabled: open }).data
   const dimmed = albumPresentation(album, viewer) === 'dimmed'
 
-  const withTracks = async (then: (tracks: TrackSummary[]) => void) => {
-    try {
-      const loaded = await queryClient.fetchQuery(albumQuery(api, album.id))
-      then(loaded.discs.flatMap(disc => disc.tracks))
-    } catch (error) {
-      toast({ title: errorMessage(error) })
-    }
+  // The entry waits for the album's songs, and says on itself when they did not load.
+  const withTracks = async <T,>(then: (tracks: TrackSummary[]) => T) => {
+    const loaded = await queryClient.fetchQuery(albumQuery(api, album.id))
+    return then(loaded.discs.flatMap(disc => disc.tracks))
   }
   const wanted = library.isWanted(album.id, detail?.wanted)
 
@@ -44,23 +39,16 @@ export function useAlbumMenu(album: AlbumSummary, onPlay?: () => void) {
     artists: album.artists,
     playable: !dimmed,
     onPlay: onPlay ?? (() => void playAlbum(album)),
-    onEnqueue: placement => void withTracks(tracks => {
-      controls.enqueue(tracks.filter(track => isPlayable(track, viewer)), placement)
-      toast({ title: placement === 'next' ? 'Playing next' : 'Added to queue', description: album.title })
-    }),
+    onEnqueue: placement => withTracks(tracks => controls.enqueue(tracks.filter(track => isPlayable(track, viewer)), placement)),
     playlists: library.playlists,
-    onAddToPlaylist: playlist => void withTracks(tracks => (playlist ? library.addToPlaylist(playlist, tracks) : library.newPlaylist(tracks))),
+    onAddToPlaylist: playlist => withTracks(tracks => {
+      if (playlist) return library.addToPlaylist(playlist, tracks)
+      library.newPlaylist(tracks)
+      return false
+    }),
     liked: detail?.liked,
-    onToggleSaved: () => { if (detail) library.setSaved({ type: 'album', id: album.id, title: album.title }, !detail.liked) },
-    want: library.wantlistEnabled && dimmed
-      ? {
-          wanted,
-          onToggle: () => {
-            library.setWanted({ type: 'album', album }, !wanted)
-            toast({ title: wanted ? 'Removed from Wantlist' : 'Added to Wantlist', description: album.title })
-          },
-        }
-      : undefined,
+    onToggleSaved: () => (detail ? library.setSaved({ type: 'album', id: album.id, title: album.title }, !detail.liked) : undefined),
+    want: library.wantlistEnabled && dimmed ? { wanted, onToggle: () => library.setWanted({ type: 'album', album }, !wanted) } : undefined,
     onGoToArtist: artist => void navigate(`/artist/${artist.id}`),
   })
   return { entries, onOpenChange: setOpen }

@@ -6,11 +6,8 @@ import { Spinner } from '@/components/ui/feedback'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 
-/**
- * Saves a settings patch. `inline` says the caller shows the failure itself, next to the
- * field, so the page should not also toast it.
- */
-export type SavePatch<P> = (patch: P, how?: { inline: true }) => Promise<unknown>
+/** Saves a settings patch; a refusal rejects, and the control that sent it says why. */
+export type SavePatch<P> = (patch: P) => Promise<unknown>
 
 type DraftFieldProps<P extends object, K extends keyof P & string> = {
   id: string
@@ -51,7 +48,7 @@ export function DraftField<P extends object, K extends keyof P & string>({
     setError(undefined)
     if (next === value) return setDraft(null)
     try {
-      await onSave({ [field]: next } as P, { inline: true })
+      await onSave({ [field]: next } as P)
       setDraft(null)
     } catch (failure) {
       setError(errorMessage(failure))

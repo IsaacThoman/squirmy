@@ -9,7 +9,7 @@ const isAuthKey = (key: readonly unknown[]) => key.length === 1 && (key[0] === s
 
 export function useSetupStatus() {
   const api = useApi()
-  return useQuery({ queryKey: setupStatusKey, queryFn: () => api.auth.setupStatus(), meta: { silent: true } })
+  return useQuery({ queryKey: setupStatusKey, queryFn: () => api.auth.setupStatus() })
 }
 
 /** Whether the server has the wantlist on. Off (the default), the app shows no trace of it. */
@@ -26,7 +26,6 @@ export function useMe() {
       if (error instanceof ApiError && error.status === 401) return null
       throw error
     }),
-    meta: { silent: true },
   })
 }
 

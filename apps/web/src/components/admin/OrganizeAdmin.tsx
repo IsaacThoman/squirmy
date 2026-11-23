@@ -1,6 +1,6 @@
 import { ORGANIZE_TAGS_NOT_REVERTED, type LibraryRoot, type OrganizeAlbumMoves, type OrganizeBatch, type OrganizeBatchStatus, type OrganizeBatchSummary, type OrganizeMove } from '@squirmy/contracts'
 import { ArrowRight, Check, ChevronRight, Eye, FolderTree, Undo2, Wand2 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/dialog'
@@ -11,7 +11,8 @@ import { Switch } from '@/components/ui/switch'
 import { formatRelative, plural } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { AdminHeader } from './AdminLayout'
-import { cardClass, FolderPath, Panel } from './Panel'
+import { useNote } from './note'
+import { cardClass, FolderPath, InlineNote, Panel } from './Panel'
 
 export type OrganizeOptions = { includeUnmatched: boolean; writeTags: boolean }
 
@@ -33,16 +34,20 @@ type OrganizeAdminProps = {
   onApply: (albumIds: string[] | null) => Promise<unknown>
   onRevert: (batch: OrganizeBatchSummary) => Promise<unknown>
   onFixMatch: (albumId: string) => void
+  /** Said in place of the folders when they did not load. */
+  failure?: ReactNode
 }
 
-export function OrganizeAdmin({ roots, rootId, onRootChange, preview, defaultTemplate, running, history, onPreview, onApply, onRevert, onFixMatch }: OrganizeAdminProps) {
+export function OrganizeAdmin({ roots, rootId, onRootChange, preview, defaultTemplate, running, history, onPreview, onApply, onRevert, onFixMatch, failure }: OrganizeAdminProps) {
   const [options, setOptions] = useState<OrganizeOptions>({ includeUnmatched: false, writeTags: false })
   const [previewing, setPreviewing] = useState(false)
   const [undoing, setUndoing] = useState<OrganizeBatchSummary | null>(null)
+  const previewNote = useNote()
   const root = roots?.find(item => item.id === rootId)
+  // The preview shows below once it is planned; a refusal is said under the folder.
   const requestPreview = async () => {
     setPreviewing(true)
-    await onPreview(options).catch(() => {})
+    await previewNote.run(() => onPreview(options))
     setPreviewing(false)
   }
   return (
@@ -58,13 +63,13 @@ export function OrganizeAdmin({ roots, rootId, onRootChange, preview, defaultTem
             action={<Button asChild variant="primary"><Link to="/admin/library">Go to Library</Link></Button>}
           />
         )}
-        {!roots && <Skeleton className="h-48 rounded-xl" />}
+        {!roots && (failure ?? <Skeleton className="h-48 rounded-xl" />)}
         {root && (
           <Section
             title="Folder"
             action={roots!.length > 1 && <Select label="Managed folder" size="sm" value={root.id} onValueChange={onRootChange} options={roots!.map(item => ({ value: item.id, label: item.name }))} />}
           >
-            <Row label={root.name} description={<FolderPath path={root.path} />}>
+            <Row label={root.name} description={<><FolderPath path={root.path} /><InlineNote note={previewNote.note} className="mt-1" /></>}>
               <Button size="sm" variant={preview && !running ? 'outline' : 'primary'} pending={previewing} disabled={!!running} onClick={() => void requestPreview()}>{!previewing && <Eye />}Preview</Button>
             </Row>
             <Row label="Include unidentified music" description="Also file albums that are not identified, named from their own tags. Off: only identified or approved albums move.">
@@ -161,11 +166,13 @@ function Preview({ batch, defaultTemplate, onApply, onFixMatch }: { batch: Organ
   const selectable = batch.albums.filter(album => album.albumId && album.moves.some(move => move.status === 'planned'))
   const [selected, setSelected] = useState<Set<string>>(() => new Set(selectable.map(album => album.albumId!)))
   const [applying, setApplying] = useState(false)
+  const applyNote = useNote()
   const { counts } = batch
   const all = selected.size === selectable.length
+  // An applied batch shows as its progress in place of the preview; a refusal is said here.
   const apply = async () => {
     setApplying(true)
-    await onApply(all ? null : [...selected]).catch(() => {})
+    await applyNote.run(() => onApply(all ? null : [...selected]))
     setApplying(false)
   }
   const toggle = (albumId: string, on: boolean) => setSelected(current => {
@@ -191,6 +198,7 @@ function Preview({ batch, defaultTemplate, onApply, onFixMatch }: { batch: Organ
         </Button>
       )}
     >
+      <InlineNote note={applyNote.note} />
       <p className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
         <span>{defaultTemplate === undefined ? 'Template' : batch.template === defaultTemplate ? 'Default template' : 'This folder’s template'}</span>
         <code className="break-all font-mono text-foreground">{batch.template}</code>

@@ -4,8 +4,9 @@ import type { ComponentProps } from 'react'
 import { cn } from '@/lib/utils'
 import { Spinner } from './feedback'
 
+/** On a touch screen every size is at least 44 px tall and wide, a finger's target. */
 const buttonVariants = cva(
-  "inline-flex shrink-0 select-none items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium outline-none transition-[color,background-color,border-color,box-shadow,opacity] focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex shrink-0 select-none items-center pointer-coarse:min-h-11 pointer-coarse:min-w-11 justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium outline-none transition-[color,background-color,border-color,box-shadow,opacity] focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -24,7 +25,8 @@ const buttonVariants = cva(
       },
     },
     // A link is as tall and wide as its text whatever the size; compound classes come after the size's.
-    compoundVariants: [{ variant: 'link', class: 'h-auto px-0 has-[>svg]:px-0 shadow-none' }],
+    // On a touch screen it is pressed through a 44 px square instead (`touch-target`).
+    compoundVariants: [{ variant: 'link', class: 'relative h-auto px-0 has-[>svg]:px-0 shadow-none touch-target pointer-coarse:min-h-0 pointer-coarse:min-w-0' }],
     defaultVariants: { variant: 'secondary', size: 'md' },
   },
 )

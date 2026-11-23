@@ -31,7 +31,7 @@ import { remoteImage } from '../artwork/index.js'
 import { recordingOwned } from '../catalog/availability.js'
 import { mergeAlbum, mergeRecording } from '../matching/merge.js'
 import { resolveMerged } from '../catalog/redirects.js'
-import { uuidArray } from '../catalog/sql.js'
+import { placeholderArtist, uuidArray } from '../catalog/sql.js'
 import { editionFreeKey, guessAlbumType, labelFreeKey, prefixEnd, releaseKey, sameArtist, textArray, type ArtistTitles } from './keys.js'
 import { artistOwned } from './library.js'
 import type { IdSource, ProviderAlbum, ProviderArtist, ProviderCredit, ProviderResults, ProviderTrack } from './providers.js'
@@ -249,7 +249,8 @@ async function resolveArtists(tx: Transaction, source: IdSource, inputs: ArtistI
   await addExternalIds(tx, source, 'artist', [...refs].map(([key, ref]) => [ref.id, resolved.get(key)!]))
   for (const [key, ref] of refs) {
     const assetId = assets.get(ref.imageUrl ?? '')
-    if (assetId) await tx.execute(sql`update artists set image_asset_id = ${assetId} where id = ${resolved.get(key)!} and image_asset_id is null`)
+    // Not on a placeholder (Various Artists): the stores' picture of it is a stock photo.
+    if (assetId) await tx.execute(sql`update artists a set image_asset_id = ${assetId} where a.id = ${resolved.get(key)!} and a.image_asset_id is null and not ${placeholderArtist('a')}`)
   }
   return resolved
 }

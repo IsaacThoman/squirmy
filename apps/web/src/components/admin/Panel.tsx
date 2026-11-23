@@ -1,5 +1,8 @@
+import { CircleAlert } from 'lucide-react'
 import type { ComponentProps, ReactNode } from 'react'
+import { Row } from '@/components/ui/section'
 import { cn } from '@/lib/utils'
+import { useNote, type Note } from './note'
 
 /** The surface admin pages put their content on. */
 export const cardClass = 'rounded-xl border bg-card'
@@ -70,4 +73,35 @@ export function OptionRow({ label, description, children }: { label: ReactNode; 
 /** A folder's path. A long one keeps its end, since the last folders are what tell paths apart. */
 export function FolderPath({ path, className }: { path: string; className?: string }) {
   return <p dir="rtl" className={cn('truncate text-left font-mono text-xs text-muted-foreground', className)} title={path}><bdi>{path}</bdi></p>
+}
+
+/**
+ * A note in place, under the row or panel that started the action. The polite live region stays
+ * mounted while empty, so a screen reader announces what appears in it; it takes no room then.
+ */
+export function InlineNote({ note, className }: { note: Note | null; className?: string }) {
+  return (
+    <div role="status" className="contents">
+      {note && (
+        <p data-tone={note.tone} className={cn('flex items-start gap-1.5 text-xs', note.tone === 'error' ? 'text-destructive' : 'text-muted-foreground', className)}>
+          {note.tone === 'error' && <CircleAlert aria-hidden className="mt-px size-3.5 shrink-0" />}
+          <span className="min-w-0 wrap-anywhere">{note.text}</span>
+        </p>
+      )}
+    </div>
+  )
+}
+
+type SettingRowProps = Omit<ComponentProps<typeof Row>, 'children'> & {
+  /** The control; it saves with `save`, which answers once the server did. */
+  children: (save: (work: () => Promise<unknown>) => Promise<unknown>) => ReactNode
+}
+
+/**
+ * A setting saved as soon as it changes (a switch, a select). The control shows what is saved;
+ * a change the server refused leaves it as it was and says why under the setting's label.
+ */
+export function SettingRow({ description, children, ...props }: SettingRowProps) {
+  const { note, run } = useNote()
+  return <Row {...props} description={<>{description}<InlineNote note={note} className="mt-1" /></>}>{children(work => run(work))}</Row>
 }

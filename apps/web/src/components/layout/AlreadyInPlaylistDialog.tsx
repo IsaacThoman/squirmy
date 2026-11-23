@@ -1,6 +1,9 @@
 import type { PlaylistSummary, TrackSummary } from '@squirmy/contracts'
+import { useState } from 'react'
+import { errorMessage } from '@/api/errors'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog'
+import { FormError } from '@/components/ui/input'
 import { plural } from '@/lib/format'
 
 /** Songs about to be added to a playlist, `repeated` of which are in it already. */
@@ -10,20 +13,42 @@ type AlreadyInPlaylistDialogProps = {
   add: RepeatedAdd | null
   onOpenChange: (open: boolean) => void
   /** Adds every song, the repeated ones a second time. */
-  onAddAnyway: () => void
+  onAddAnyway: () => Promise<unknown>
   /** Adds only the songs not in the playlist yet, if any. */
-  onSkip: () => void
+  onSkip: () => Promise<unknown>
 }
 
-/** Asks before a playlist gets a song a second time: a silent duplicate is rarely wanted. */
+/**
+ * Asks before a playlist gets a song a second time: a silent duplicate is rarely wanted. It
+ * closes once the songs are added, and says so here when the server refused them.
+ */
 export function AlreadyInPlaylistDialog({ add, onOpenChange, onAddAnyway, onSkip }: AlreadyInPlaylistDialogProps) {
+  const [pending, setPending] = useState<'skip' | 'add' | null>(null)
+  const [error, setError] = useState<string>()
+  const change = (open: boolean) => {
+    if (!open) setError(undefined)
+    onOpenChange(open)
+  }
+  const run = async (which: 'skip' | 'add', action: () => Promise<unknown>) => {
+    setPending(which)
+    setError(undefined)
+    try {
+      await action()
+      change(false)
+    } catch (failure) {
+      setError(errorMessage(failure))
+    } finally {
+      setPending(null)
+    }
+  }
   return (
-    <Dialog open={add !== null} onOpenChange={onOpenChange}>
+    <Dialog open={add !== null} onOpenChange={change}>
       {add && (
         <DialogContent title="Already in playlist" description={describe(add)}>
+          <FormError message={error} />
           <DialogFooter>
-            <Button variant="outline" onClick={onSkip}>Skip</Button>
-            <Button variant="primary" onClick={onAddAnyway}>Add anyway</Button>
+            <Button variant="outline" pending={pending === 'skip'} disabled={pending === 'add'} onClick={() => void run('skip', onSkip)}>Skip</Button>
+            <Button variant="primary" pending={pending === 'add'} disabled={pending === 'skip'} onClick={() => void run('add', onAddAnyway)}>Add anyway</Button>
           </DialogFooter>
         </DialogContent>
       )}

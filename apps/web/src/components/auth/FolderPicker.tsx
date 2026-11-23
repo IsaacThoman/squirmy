@@ -53,7 +53,7 @@ export function FolderPicker({ path, listing, error, onBrowse }: FolderPickerPro
                 <button
                   type="button"
                   onClick={() => onBrowse(directory.path)}
-                  className="flex h-9 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-sm outline-none transition-colors hover:bg-accent/60 focus-visible:bg-accent"
+                  className="flex h-9 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-sm outline-none transition-colors hover:bg-accent/60 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring pointer-coarse:h-11"
                 >
                   <Folder aria-hidden className="size-4 shrink-0 text-muted-foreground" />
                   <span className="min-w-0 flex-1 truncate">{directory.name}</span>

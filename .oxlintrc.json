@@ -8,7 +8,20 @@
     "react/exhaustive-deps": "warn",
     "react/no-object-type-as-default-prop": "warn",
     "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
+    "react/only-export-components": ["warn", { "allowConstantExport": true }],
+    "no-restricted-imports": ["error", {
+      "paths": [
+        { "name": "sonner", "message": "The app has no toasts: say it where it happened (the control, the form, the player status line)." },
+        { "name": "react-hot-toast", "message": "The app has no toasts: say it where it happened (the control, the form, the player status line)." },
+        { "name": "react-toastify", "message": "The app has no toasts: say it where it happened (the control, the form, the player status line)." },
+        { "name": "@radix-ui/react-toast", "message": "The app has no toasts: say it where it happened (the control, the form, the player status line)." },
+        { "name": "radix-ui", "importNames": ["Toast"], "message": "The app has no toasts: say it where it happened (the control, the form, the player status line)." },
+        { "name": "@/lib/toast", "message": "The app has no toasts: say it where it happened (the control, the form, the player status line)." }
+      ],
+      "patterns": [
+        { "group": ["**/toast", "**/toast.*", "**/toaster", "**/toaster.*"], "message": "The app has no toasts: say it where it happened (the control, the form, the player status line)." }
+      ]
+    }]
   },
   "overrides": [
     {

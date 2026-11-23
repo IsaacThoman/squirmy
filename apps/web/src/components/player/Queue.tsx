@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent, type PointerEve
 import { Equalizer } from '@/components/music/Equalizer'
 import { Cover } from '@/components/music/Cover'
 import { SaveHeart } from '@/components/music/LibrarySave'
+import { ConfirmDialog } from '@/components/ui/dialog'
 import { Spinner } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -18,7 +19,7 @@ import { touchTarget } from './Transport'
 const rowHeight = 48
 
 const labelClass = 'text-[11px] font-medium uppercase tracking-wider text-muted-foreground'
-const toggleClass = 'inline-flex h-7 items-center gap-1.5 rounded-md border px-2 text-xs font-medium text-muted-foreground outline-none transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring aria-pressed:border-primary/30 aria-pressed:bg-primary/10 aria-pressed:text-foreground aria-pressed:[&_svg]:text-primary [&_svg]:size-3.5'
+const toggleClass = 'inline-flex h-7 pointer-coarse:h-11 items-center gap-1.5 rounded-md border px-2 text-xs font-medium text-muted-foreground outline-none transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring aria-pressed:border-primary/30 aria-pressed:bg-primary/10 aria-pressed:text-foreground aria-pressed:[&_svg]:text-primary [&_svg]:size-3.5'
 
 /**
  * The whole queue: what is playing, up next, autoplay and history. `modes` shows shuffle and repeat
@@ -28,6 +29,7 @@ export function QueueContent({ player, modes = true }: { player: Player; modes?:
   const { state, controls } = player
   // The queue can be on screen twice, as the panel and as a pane of Now Playing.
   const id = useId()
+  const [clearingHistory, setClearingHistory] = useState(false)
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-2">
@@ -74,19 +76,28 @@ export function QueueContent({ player, modes = true }: { player: Player; modes?:
 
       {state.history.length > 0 && (
         <section aria-labelledby={`${id}-history`}>
-          <QueueHeading id={`${id}-history`} action={<ClearButton label="Clear history" onClick={controls.clearHistory} />}>
+          <QueueHeading id={`${id}-history`} action={<ClearButton label="Clear history" onClick={() => setClearingHistory(true)} />}>
             History
           </QueueHeading>
           <ul>{[...state.history].reverse().map(item => <li key={item.entry.id}><QueueRow item={item} onPlay={() => controls.playEntry(item.entry.id)} faded /></li>)}</ul>
         </section>
       )}
+      {/* Nothing brings a cleared history back, so it is asked first. */}
+      <ConfirmDialog
+        open={clearingHistory}
+        onOpenChange={setClearingHistory}
+        title="Clear history?"
+        description="The songs you played leave the history on all your devices. This can’t be undone."
+        confirmLabel="Clear history"
+        onConfirm={async () => controls.clearHistory()}
+      />
     </div>
   )
 }
 
 function QueueHeading({ id, children, detail, action }: { id: string; children: ReactNode; detail?: string; action?: ReactNode }) {
   return (
-    <div className="flex h-7 items-center gap-2 px-2">
+    <div className="flex h-7 pointer-coarse:h-11 items-center gap-2 px-2">
       <h3 id={id} className={labelClass}>{children}</h3>
       {detail && <span className="text-xs tabular text-muted-foreground">{detail}</span>}
       {action && <span className="ml-auto flex">{action}</span>}
@@ -96,7 +107,7 @@ function QueueHeading({ id, children, detail, action }: { id: string; children: 
 
 function ClearButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <button type="button" aria-label={label} onClick={onClick} className="-mr-1.5 h-6 rounded-md px-1.5 text-xs font-medium text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+    <button type="button" aria-label={label} onClick={onClick} className="-mr-1.5 h-6 rounded-md px-1.5 pointer-coarse:h-11 pointer-coarse:min-w-11 text-xs font-medium text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
       Clear
     </button>
   )
@@ -128,7 +139,8 @@ function QueueRow({ item, current, playing = false, waiting = false, outage = nu
   const onPlay = failed ? undefined : play
   const body = (
     <>
-      <div className="relative size-9 shrink-0">
+      {/* Faded rows (history, autoplay) fade their artwork only: their words stay readable. */}
+      <div className={cn('relative size-9 shrink-0 transition-opacity', faded && 'opacity-60 group-hover/queue:opacity-100 group-focus-within/queue:opacity-100')}>
         <Cover artwork={track.album?.artwork ?? null} size={96} dimmed={failed} className="size-9 rounded-[5px]" />
         {current && (
           <div className="absolute inset-0 flex items-center justify-center rounded-[5px] bg-black/50">
@@ -137,13 +149,13 @@ function QueueRow({ item, current, playing = false, waiting = false, outage = nu
         )}
       </div>
       <span className="min-w-0 flex-1 text-left">
-        <span title={track.title} className={cn('block truncate text-sm font-medium', current && 'text-primary', failed && 'text-muted-foreground')}>{track.title}</span>
+        <span title={track.title} className={cn('block truncate text-sm font-medium', failed && 'text-muted-foreground')}>{track.title}</span>
         <span className="block truncate text-xs text-muted-foreground">{failed ? UNAVAILABLE_LABEL : track.artistCredit}</span>
       </span>
     </>
   )
   return (
-    <div title={failed ? UNAVAILABLE_LABEL : undefined} className={cn('group/queue flex h-12 items-center rounded-lg pr-1 transition-[background-color,opacity]', onPlay && 'hover:bg-accent/60', faded && 'opacity-70 focus-within:opacity-100 hover:opacity-100')}>
+    <div title={failed ? UNAVAILABLE_LABEL : undefined} className={cn('group/queue flex h-12 items-center rounded-lg pr-1 transition-colors', onPlay && 'hover:bg-accent/60')}>
       {onPlay
         ? <button type="button" aria-label={`Play ${track.title}`} onClick={onPlay} className="flex min-w-0 flex-1 items-center gap-3 self-stretch rounded-lg px-2 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">{body}</button>
         : <div className="flex min-w-0 flex-1 items-center gap-3 px-2">{body}</div>}
@@ -152,6 +164,7 @@ function QueueRow({ item, current, playing = false, waiting = false, outage = nu
         * the title is what truncates. Unsaved, it waits for the row's hover where a pointer hovers.
         */}
       <SaveHeart
+        id={track.id}
         liked={track.liked}
         onToggle={() => library.setSaved({ type: 'track', id: track.id, title: track.title }, !track.liked)}
         title={track.title}
@@ -308,7 +321,7 @@ export function SortableQueue({ items, onMove, onRemove, onPlay }: SortableQueue
                     pointer.current = null
                     setDrag(null)
                   }}
-                  className={cn('flex h-8 w-6 touch-none items-center justify-center rounded-md pointer-coarse:h-11 pointer-coarse:w-9 text-muted-foreground/70 outline-none transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-ring', held ? 'cursor-grabbing text-foreground' : 'cursor-grab')}
+                  className={cn('flex h-8 w-6 touch-none items-center justify-center rounded-md pointer-coarse:h-11 pointer-coarse:w-11 text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-ring', held ? 'cursor-grabbing text-foreground' : 'cursor-grab')}
                 >
                   <GripVertical aria-hidden className="size-4" />
                 </button>
@@ -329,7 +342,8 @@ export function QueuePanel({ player, onClose }: { player: Player; onClose: () =>
     <div className="flex h-full w-full flex-col">
       <div className="flex h-12 shrink-0 items-center justify-between border-b pl-4 pr-2">
         <h2 className="text-sm font-semibold">Queue</h2>
-        <IconButton label="Close queue" size="sm" onClick={onClose} className={touchTarget}><X /></IconButton>
+        {/* No tooltip: the floating queue puts focus here as it opens, and a tooltip shown on focus would take the first Escape, so closing would need two. */}
+        <IconButton label="Close queue" tooltip={false} size="sm" onClick={onClose} className={touchTarget}><X /></IconButton>
       </div>
       <ScrollArea className="min-h-0 flex-1">
         <div className="px-2 pb-4 pt-3"><QueueContent player={player} /></div>

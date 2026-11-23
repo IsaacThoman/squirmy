@@ -2,6 +2,7 @@ import { queryKeys, type ScrobblingStatus, type ScrobbleTarget, type UpdateUserS
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
+import { errorMessage } from '@/api/errors'
 import { useScrobbling, useUserSettings } from '@/api/queries'
 import { useApi } from '@/api/services'
 import { useLogout } from '@/auth/actions'
@@ -10,10 +11,19 @@ import type { SettingsDialogState } from '@/components/layout/AppShell'
 import { SettingsDialog } from '@/components/settings/SettingsDialog'
 import { loadFailure } from '@/components/ui/load-failure'
 import { browserName, deviceName } from '@/lib/device'
-import { toast } from '@/lib/toast'
 import { usePlayerControls } from '@/player/player-context'
 
 const appPasswordsKey = ['app-passwords'] as const
+
+/** What Last.fm's return to `/settings?lastfm=` says, in the Scrobbling section it opens. */
+const lastFmReturns: Record<string, { message: string; ok: boolean }> = {
+  connected: { message: 'Connected to Last.fm.', ok: true },
+  denied: { message: 'Last.fm was not connected. The connection was not approved.', ok: false },
+  invalid_state: { message: 'That Last.fm link expired. Start connecting again.', ok: false },
+  error: { message: 'Last.fm did not answer. Try again in a moment.', ok: false },
+}
+
+const scrobbleSettings: (keyof UpdateUserSettings)[] = ['scrobbleListenBrainz', 'scrobbleLastFm']
 
 /** The user's playback settings, saved as they change. */
 function useSettingsUpdate() {
@@ -35,7 +45,7 @@ function useScrobbleConnections() {
   const api = useApi()
   const queryClient = useQueryClient()
   const save = (status: ScrobblingStatus) => queryClient.setQueryData(queryKeys.scrobbling(), status)
-  const listenBrainz = useMutation({ mutationFn: (token: string) => api.scrobble.connectListenBrainz({ token }), onSuccess: save, meta: { inline: true } })
+  const listenBrainz = useMutation({ mutationFn: (token: string) => api.scrobble.connectListenBrainz({ token }), onSuccess: save })
   const lastFm = useMutation({ mutationFn: () => api.scrobble.startLastFm(), onSuccess: ({ url }) => window.location.assign(url) })
   const disconnect = useMutation({
     mutationFn: (target: ScrobbleTarget) => (target === 'listenbrainz' ? api.scrobble.disconnectListenBrainz() : api.scrobble.disconnectLastFm()),
@@ -45,7 +55,7 @@ function useScrobbleConnections() {
 }
 
 /** The settings dialog with the signed-in user's settings, connections and app passwords. */
-export function SettingsDialogHost({ open, section, onOpenChange, onSectionChange }: SettingsDialogState) {
+export function SettingsDialogHost({ open, section, lastFm, onOpenChange, onSectionChange }: SettingsDialogState) {
   const api = useApi()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -58,32 +68,36 @@ export function SettingsDialogHost({ open, section, onOpenChange, onSectionChang
   const update = useSettingsUpdate()
   const connections = useScrobbleConnections()
   const [name, setName] = useState(browserName)
-  // Silent: the section says it did not load, with a retry, where the list would be.
-  const passwords = useQuery({ queryKey: appPasswordsKey, queryFn: () => api.auth.appPasswords(), enabled: open, meta: { silent: true } })
+  const passwords = useQuery({ queryKey: appPasswordsKey, queryFn: () => api.auth.appPasswords(), enabled: open })
   const refreshPasswords = () => queryClient.invalidateQueries({ queryKey: appPasswordsKey })
-  const createPassword = useMutation({ mutationFn: api.auth.createAppPassword, onSuccess: refreshPasswords, meta: { inline: true } })
-  const revokePassword = useMutation({
-    mutationFn: api.auth.deleteAppPassword,
-    onSuccess: () => {
-      toast({ title: 'App password revoked' })
-      return refreshPasswords()
-    },
-  })
-  const changePassword = useMutation({
-    mutationFn: api.auth.changePassword,
-    onSuccess: () => toast({ title: 'Password changed', description: 'Your other sessions were signed out.' }),
-    meta: { inline: true },
-  })
+  const createPassword = useMutation({ mutationFn: api.auth.createAppPassword, onSuccess: refreshPasswords })
+  // The revoked password leaves the list; the confirmation says a failure.
+  const revokePassword = useMutation({ mutationFn: api.auth.deleteAppPassword, onSuccess: refreshPasswords })
+  // Said in the Account section once the dialog that changed it closes.
+  const changePassword = useMutation({ mutationFn: api.auth.changePassword })
   // Only the admin route can rename a user, so only admins can rename themselves.
   const rename = useMutation({
     mutationFn: (displayName: string | null) => api.admin.updateUser(user.id, { displayName }),
     onSuccess: updated => queryClient.setQueryData(queryKeys.me(), updated),
-    meta: { inline: true },
   })
+  // A refused change is said under the controls that made it: a scrobbling switch in Scrobbling, the rest in Playback.
+  const refused = update.isError && update.variables
+    ? { [Object.keys(update.variables).some(key => scrobbleSettings.includes(key as keyof UpdateUserSettings)) ? 'scrobbling' : 'playback']: `Couldn’t save that change. ${errorMessage(update.error)}` }
+    : {}
+  const lastFmStart = connections.lastFm.isError ? `Couldn’t start connecting to Last.fm. ${errorMessage(connections.lastFm.error)}` : undefined
+  // What the dialog said goes with it: opened again, it starts afresh.
+  const change = (next: boolean) => {
+    if (!next) {
+      update.reset()
+      changePassword.reset()
+      connections.lastFm.reset()
+    }
+    onOpenChange(next)
+  }
   return (
     <SettingsDialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={change}
       section={section}
       onSectionChange={onSectionChange}
       user={user}
@@ -96,7 +110,6 @@ export function SettingsDialogHost({ open, section, onOpenChange, onSectionChang
       onDeviceNameChange={next => {
         controls.renameDevice(next)
         setName(browserName())
-        toast({ title: 'Browser renamed', description: browserName() })
       }}
       scrobbling={scrobbling.data}
       onConnectListenBrainz={token => connections.listenBrainz.mutateAsync(token)}
@@ -114,6 +127,9 @@ export function SettingsDialogHost({ open, section, onOpenChange, onSectionChang
         scrobbling: loadFailure(scrobbling, 'Your scrobbling connections did not load'),
         appPasswords: loadFailure(passwords, 'Your app passwords did not load'),
       }}
+      errors={{ ...refused, scrobbling: refused.scrobbling ?? lastFmStart }}
+      lastFm={lastFm === undefined ? undefined : lastFmReturns[lastFm] ?? lastFmReturns.error}
+      passwordChanged={changePassword.isSuccess}
     />
   )
 }

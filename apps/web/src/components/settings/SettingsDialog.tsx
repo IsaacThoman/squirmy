@@ -2,8 +2,8 @@ import {
   ChangePasswordRequest, ConnectListenBrainzRequest, CreateAppPasswordRequest, UpdateUserRequest,
   type AppPassword, type NormalizationMode, type ScrobbleService, type ScrobbleTarget, type ScrobblingStatus, type StreamQuality, type UpdateUserSettings, type User, type UserSettings,
 } from '@squirmy/contracts'
-import { AlertTriangle, AudioLines, Info, KeyRound, LogOut, Palette, Pencil, Plus, Radio, ShieldCheck, User as UserIcon, type LucideIcon } from 'lucide-react'
-import { useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { AlertTriangle, AudioLines, Check, CircleCheck, Info, KeyRound, LogOut, Palette, Pencil, Plus, Radio, ShieldCheck, User as UserIcon, type LucideIcon } from 'lucide-react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { useFormSubmit } from '@/api/errors'
 import { Button } from '@/components/ui/button'
 import { CopyField } from '@/components/ui/copy-field'
@@ -84,13 +84,30 @@ export type SettingsDialogProps = {
   onOpenAdmin?: () => void
   /** Said in place of a section's controls when its first read failed. */
   failures?: Partial<Record<'settings' | 'scrobbling' | 'appPasswords', ReactNode>>
+  /** A change the section's controls made that the server refused, said under them. */
+  errors?: Partial<Record<'playback' | 'scrobbling', string>>
+  /** What Last.fm answered when it sent the browser back here, said at the top of Scrobbling. */
+  lastFm?: { message: string; ok: boolean }
+  /** The password was changed while the dialog is open: the Account section says so. */
+  passwordChanged?: boolean
 }
+
+/** How long "Saved" stays beside a field that saves as it is left. */
+const SAVED_MS = 2500
 
 /** The user's settings in a dialog: sections down the left, the chosen one on the right. */
 export function SettingsDialog({
   open, onOpenChange, section, onSectionChange, user, serverName, version, settings, onSettingsChange, deviceName, defaultDeviceName, onDeviceNameChange,
   scrobbling, onConnectListenBrainz, onConnectLastFm, onDisconnect, appPasswords, onCreateAppPassword, onRevokeAppPassword, onChangePassword, onRename, onLogout, onOpenAdmin, failures,
+  errors, lastFm, passwordChanged,
 }: SettingsDialogProps) {
+  // The field shows the new name; "Saved" beside it says it reached the device lists.
+  const [nameSaved, setNameSaved] = useState(false)
+  useEffect(() => {
+    if (!nameSaved) return
+    const timer = setTimeout(() => setNameSaved(false), SAVED_MS)
+    return () => clearTimeout(timer)
+  }, [nameSaved])
   const [dialog, setDialog] = useState<'app-password' | 'password' | 'rename' | 'listenbrainz' | null>(null)
   const [revoking, setRevoking] = useState<AppPassword | null>(null)
   const [disconnecting, setDisconnecting] = useState<ScrobbleService | null>(null)
@@ -114,9 +131,10 @@ export function SettingsDialog({
             <DialogTitle className="px-2 pb-1.5 pr-8 text-sm font-semibold sm:pb-2 sm:pr-2">Settings</DialogTitle>
             {/*
               On a phone the sections are a grid of small tiles, every one in sight: a row that
-              scrolled sideways hid half of them with nothing to say they were there.
+              scrolled sideways hid half of them with nothing to say they were there. They start a little
+              lower than the title, clear of the dialog's Close, whose 44 px reaches below its box on touch.
             */}
-            <nav ref={nav} aria-label="Settings sections" className="grid grid-cols-3 gap-1 sm:block sm:space-y-0.5">
+            <nav ref={nav} aria-label="Settings sections" className="mt-3 grid grid-cols-3 gap-1 sm:mt-0 sm:block sm:space-y-0.5">
               {sections.map(({ id, label, icon: Icon }) => (
                 <button
                   key={id}
@@ -124,8 +142,11 @@ export function SettingsDialog({
                   aria-current={section === id ? 'page' : undefined}
                   onClick={() => onSectionChange(id)}
                   className={cn(
-                    'flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring sm:min-h-0 sm:w-full sm:flex-row sm:justify-start sm:gap-2.5 sm:px-2.5 sm:py-2 sm:text-sm sm:pointer-coarse:min-h-11',
-                    section === id ? 'bg-accent font-medium' : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
+                    'relative flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring sm:min-h-0 sm:w-full sm:flex-row sm:justify-start sm:gap-2.5 sm:px-2.5 sm:py-2 sm:text-sm sm:pointer-coarse:min-h-11',
+                    // The selected fill is close to the panel behind it, so the section that shows also gets
+                    // the sidebar's marker: a bar in the action color (under a phone's tile, beside a row) and its icon in that color.
+                    'before:absolute before:rounded-full before:bg-primary before:opacity-0 before:inset-x-4 before:bottom-0.5 before:h-[3px] sm:before:inset-x-auto sm:before:bottom-auto sm:before:inset-y-2 sm:before:left-0 sm:before:h-auto sm:before:w-[3px]',
+                    section === id ? 'bg-accent font-medium before:opacity-100 [&_svg]:text-primary' : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
                   )}
                 >
                   <Icon aria-hidden className="size-4 shrink-0" /><span className="max-w-full truncate">{label}</span>
@@ -134,7 +155,7 @@ export function SettingsDialog({
             </nav>
             {onOpenAdmin && (
               <div className="mt-auto hidden border-t pt-3 sm:block">
-                <button type="button" onClick={onOpenAdmin} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-muted-foreground outline-none transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+                <button type="button" onClick={onOpenAdmin} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 pointer-coarse:min-h-11 text-sm text-muted-foreground outline-none transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
                   <ShieldCheck aria-hidden className="size-4" />Admin panel
                 </button>
               </div>
@@ -157,9 +178,21 @@ export function SettingsDialog({
                     </Row>
                   </>
                 ) : failures?.settings ?? <LoadingRows rows={3} />}
+                <FormError message={errors?.playback} />
                 <Separator />
                 <Row htmlFor="device-name" label="This browser’s name" description="How your other devices list it when you move playback.">
-                  <DeviceNameField key={deviceName} name={deviceName} placeholder={defaultDeviceName} onChange={onDeviceNameChange} />
+                  <span role="status" className="flex items-center gap-1 text-xs text-muted-foreground">
+                    {nameSaved && <><Check aria-hidden className="size-3.5 text-primary" />Saved</>}
+                  </span>
+                  <DeviceNameField
+                    key={deviceName}
+                    name={deviceName}
+                    placeholder={defaultDeviceName}
+                    onChange={next => {
+                      onDeviceNameChange(next)
+                      setNameSaved(true)
+                    }}
+                  />
                 </Row>
               </Panel>
             )}
@@ -174,7 +207,12 @@ export function SettingsDialog({
                 >
                   {onRename && <Button size="sm" variant="outline" onClick={() => setDialog('rename')}><Pencil />Edit name</Button>}
                 </Row>
-                <Row label="Password" description="Changing it signs you out everywhere else.">
+                <Row
+                  label="Password"
+                  description={passwordChanged
+                    ? <span role="status" className="flex items-center gap-1.5 text-foreground"><CircleCheck aria-hidden className="size-3.5 shrink-0 text-primary" />Password changed. Your other sessions were signed out.</span>
+                    : 'Changing it signs you out everywhere else.'}
+                >
                   <Button size="sm" variant="outline" onClick={() => setDialog('password')}>Change password</Button>
                 </Row>
                 <Separator />
@@ -186,6 +224,12 @@ export function SettingsDialog({
 
             {section === 'scrobbling' && (
               <Panel title="Scrobbling" description="Send what you listen to to other services. Songs count once you have heard half of them, or four minutes.">
+                {lastFm && (
+                  <p role="status" className={cn('flex items-start gap-2 rounded-md border px-3 py-2 text-sm', lastFm.ok ? 'border-primary/30 bg-primary/10' : 'border-destructive/30 bg-destructive/10 text-destructive')}>
+                    {lastFm.ok ? <CircleCheck aria-hidden className="mt-0.5 size-4 shrink-0 text-primary" /> : <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />}
+                    {lastFm.message}
+                  </p>
+                )}
                 {scrobbling
                   ? scrobbling.services.map(service => (
                     <ScrobbleRow
@@ -197,6 +241,7 @@ export function SettingsDialog({
                     />
                   ))
                   : failures?.scrobbling ?? <LoadingRows rows={2} />}
+                <FormError message={errors?.scrobbling} />
               </Panel>
             )}
 

@@ -31,6 +31,8 @@ type DiscographyRow = {
   hasArtwork: boolean
   owned: boolean
   led: boolean
+  /** No artist but the page's is credited on it. */
+  soleCredit: boolean
   /** For an edition row (`albums.edition_of_id`), its release group's title: the two are one release. */
   releaseTitle?: string
 }
@@ -167,21 +169,31 @@ const sectionTitles: Record<ArtistSectionKey, string> = {
 const hasSecondary = (row: DiscographyRow, type: string) => row.secondaryTypes.some((one) => one.toLowerCase() === type)
 
 /**
- * The section each release of the page is listed under. Releases of others are "Appears
- * on". Mixtapes (MusicBrainz's "Mixtape/Street") are albums by type but listed apart, as
- * stores do. A soundtrack is listed among the albums of an artist whose albums are mostly
- * not soundtracks: The Beatles' Help! is one of their albums, Hans Zimmer's scores are
- * his soundtracks.
+ * A soundtrack that is a studio album of the artist alone: no secondary type but
+ * Soundtrack (not a compilation, remix or live record of a film's music) and no other
+ * artist credited (not The Lion King for Elton John, shared with Tim Rice and Hans Zimmer).
+ */
+const studioSoundtrack = (row: DiscographyRow) =>
+  row.type === 'soundtrack' && row.soleCredit && row.secondaryTypes.every((one) => one.toLowerCase() === 'soundtrack')
+
+/**
+ * The section each release of the page is listed under: its type's, with these exceptions.
+ * Releases of others are "Appears on". Mixtapes (MusicBrainz's "Mixtape/Street") are
+ * albums by type but listed apart, as stores do. A studio soundtrack of the artist alone
+ * (`studioSoundtrack`) is listed under Albums when the artist's albums outnumber such
+ * soundtracks: The Beatles' Help! and Yellow Submarine are among their albums, Hans
+ * Zimmer's scores are his soundtracks. Every other soundtrack is under Soundtracks. A
+ * single or EP from a film is typed single or EP to begin with (`musicbrainz.albumType`).
  */
 export function sectionOf(rows: readonly DiscographyRow[]): (row: DiscographyRow) => ArtistSectionKey {
   const led = rows.filter((row) => row.led)
-  const soundtracks = led.filter((row) => row.type === 'soundtrack').length
+  const studio = led.filter(studioSoundtrack).length
   const albums = led.filter((row) => row.type === 'album').length
-  const soundtracksAreAlbums = soundtracks > 0 && soundtracks < albums
+  const studioSoundtracksAreAlbums = studio > 0 && studio < albums
   return (row) => {
     if (!row.led) return 'appears_on'
     if (row.type === 'album' && hasSecondary(row, 'mixtape/street')) return 'mixtape'
-    if (row.type === 'soundtrack' && soundtracksAreAlbums) return 'album'
+    if (studioSoundtracksAreAlbums && studioSoundtrack(row)) return 'album'
     return (ARTIST_SECTION_KEYS as readonly string[]).includes(row.type) ? row.type as ArtistSectionKey : 'other'
   }
 }
@@ -200,7 +212,8 @@ async function discography(artistId: string): Promise<{ rows: DiscographyRow[]; 
       a.detail_level as "detailLevel", a.year, a.artwork_asset_id is not null as "hasArtwork",
       exists (select 1 from media_files f where f.album_id = a.id and f.missing_since is null) as owned,
       a.primary_artist_id = ${artistId} or exists (
-        select 1 from album_artists lead where lead.album_id = a.id and lead.position = 0 and lead.artist_id = ${artistId}) as led
+        select 1 from album_artists lead where lead.album_id = a.id and lead.position = 0 and lead.artist_id = ${artistId}) as led,
+      not exists (select 1 from album_artists other where other.album_id = a.id and other.artist_id <> ${artistId}) as "soleCredit"
     from albums a
     where a.merged_into_id is null
       -- Credited, or led without credit rows (the summary then credits the primary artist),
@@ -229,7 +242,7 @@ async function discography(artistId: string): Promise<{ rows: DiscographyRow[]; 
  * Top tracks are the artist's stored list (`artist_top_tracks`) in its order; an artist
  * without one (music only in the library) ranks its tracks by completed plays on this
  * server, then popularity. MusicBrainz's placeholders (Various Artists) have none, no
- * radio and no similar artists: they stand for no one in particular.
+ * radio, no similar artists and no profile beyond the name: they stand for no one in particular.
  */
 export async function artistDetail(userId: string, id: string): Promise<ArtistDetail> {
   const settled = await ensureArtistDetail(await resolveOrThrow('artists', id, 'artist'))
@@ -248,6 +261,9 @@ export async function artistDetail(userId: string, id: string): Promise<ArtistDe
     placeholder ? false : canStartArtistRadio(userId, artistId),
   ])
   if (!summary || !profile) throw notFound('No such artist', 'artist_not_found')
+  // Nor a bio, genres or disambiguation: MusicBrainz's is a note to its editors ("add
+  // compilations to this artist") and Wikipedia's article is about compilation albums.
+  if (placeholder) Object.assign(profile, { disambiguation: null, bio: null, bioUrl: null, genres: [] })
 
   const bySection = new Map<ArtistSectionKey, DiscographyRow[]>()
   for (const row of rows) {

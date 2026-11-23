@@ -4,7 +4,7 @@ import {
   type ServerSettings, type UpdateAcquisitionPolicy, type UpdateAcquisitionProviderRequest, type UpdateLibraryRootRequest, type UpdateServerSettings, type User,
   type UpdateUserRequest,
 } from '@squirmy/contracts'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { errorMessage } from '@/api/errors'
@@ -23,8 +23,6 @@ import { SearchIndexAdmin } from '@/components/admin/SearchIndexAdmin'
 import { ServerSettingsAdmin } from '@/components/admin/ServerSettingsAdmin'
 import { UsersAdmin } from '@/components/admin/UsersAdmin'
 import { loadFailure } from '@/components/ui/load-failure'
-import { plural } from '@/lib/format'
-import { toast } from '@/lib/toast'
 import { useServerEvent } from '@/realtime/realtime-context'
 
 const invitesKey = [...queryKeys.admin(), 'invites'] as const
@@ -42,14 +40,10 @@ const policyKey = [...acquisitionKey, 'policy'] as const
 const acquisitionJobsKey = [...acquisitionKey, 'jobs'] as const
 const usageKey = [...acquisitionKey, 'usage'] as const
 const JOBS_REFRESH_MS = 3000
+/** Requests come a page at a time, newest first; older ones load on asking. */
+const REQUESTS_PAGE = 100
 // Organize jobs and index imports report progress only in the database, so their screens poll while one runs.
 const RUNNING_REFRESH_MS = 1500
-/**
- * The reads a screen says it failed itself, in place of the part they leave empty, with a retry:
- * a toast would vanish and leave the skeleton waiting for nothing.
- */
-const silent = { silent: true }
-
 function useOpenReviewCount(): number | undefined {
   const api = useApi()
   return useQuery({
@@ -61,7 +55,6 @@ function useOpenReviewCount(): number | undefined {
 
 function useRoots() {
   const api = useApi()
-  // Not silent: several screens read the folders only for a choice or a name, and say nothing else when they fail.
   return useQuery({ queryKey: queryKeys.adminRoots(), queryFn: () => api.library.roots(), select: page => page.items })
 }
 
@@ -98,6 +91,7 @@ function useFixMatch() {
         query={query}
         onQueryChange={setQuery}
         albums={q ? results.data?.albums : undefined}
+        failure={loadFailure(results, 'The search did not answer')}
         onPick={album => {
           setFinding(false)
           setAlbumId(album.id)
@@ -115,7 +109,7 @@ export function AdminLibraryPage() {
   const roots = useRoots()
   const templateInfo = useTemplateInfo()
   const [params, setParams] = useSearchParams()
-  const stats = useQuery({ queryKey: statsKey, queryFn: () => api.library.stats(), meta: silent })
+  const stats = useQuery({ queryKey: statsKey, queryFn: () => api.library.stats() })
   const cache = useQuery({ queryKey: usageKey, queryFn: () => api.admin.acquisitionUsage() })
   const openReviews = useOpenReviewCount()
   const [progress, setProgress] = useState<Record<string, ScanProgress>>({})
@@ -130,38 +124,18 @@ export function AdminLibraryPage() {
     if (event.phase === 'idle' || (event.phase !== 'discovering' && event.processed >= event.total)) void queryClient.invalidateQueries({ queryKey: statsKey })
   })
 
-  const scan = useMutation({
-    mutationFn: api.library.scanRoot,
-    onSuccess: ({ queued }) => {
-      if (!queued) toast({ title: 'Already scanning', description: 'The folder is scanned once the current scan finishes.' })
-      return refresh()
-    },
-  })
-  const add = useMutation({
-    mutationFn: api.library.createRoot,
-    onSuccess: root => {
-      toast({ title: `Scanning ${root.name}`, description: 'Music shows up as its tags are read.' })
-      return refresh()
-    },
-    meta: { inline: true },
-  })
-  const rootUpdate = {
+  // Each action's failure is said where it was asked for: the folder's row, or its dialog. A
+  // folder added, scanning or removed shows in the list, so only a scan already running is said.
+  const scan = useMutation({ mutationFn: api.library.scanRoot, onSuccess: refresh })
+  const add = useMutation({ mutationFn: api.library.createRoot, onSuccess: refresh })
+  const update = useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: UpdateLibraryRootRequest }) => api.library.updateRoot(id, patch),
     onSuccess: (root: LibraryRoot) => {
       queryClient.setQueryData(queryKeys.adminRoots(), (page: { items: LibraryRoot[] } | undefined) => page && { ...page, items: page.items.map(item => item.id === root.id ? root : item) })
       return refresh()
     },
-  }
-  // The edit dialog shows its failures next to its fields; enabling from the menu has only a toast.
-  const edit = useMutation({ ...rootUpdate, meta: { inline: true } })
-  const toggle = useMutation(rootUpdate)
-  const remove = useMutation({
-    mutationFn: api.library.deleteRoot,
-    onSuccess: () => {
-      toast({ title: 'Folder removed', description: 'Nothing on disk was touched.' })
-      return refresh()
-    },
   })
+  const remove = useMutation({ mutationFn: api.library.deleteRoot, onSuccess: refresh })
   return (
     <>
       <LibraryAdmin
@@ -176,7 +150,7 @@ export function AdminLibraryPage() {
         folders={{ path: listing.data?.path ?? browsePath, listing: listing.data, error: listing.isError ? errorMessage(listing.error) : undefined, onBrowse: setBrowsePath }}
         onScan={id => scan.mutateAsync(id)}
         onAdd={request => add.mutateAsync(request)}
-        onUpdate={(id, patch) => (Object.keys(patch).length === 1 && patch.enabled !== undefined ? toggle : edit).mutateAsync({ id, patch })}
+        onUpdate={(id, patch) => update.mutateAsync({ id, patch })}
         onRemove={id => remove.mutateAsync(id)}
         onFixMatch={fixMatch.find}
         failures={{ roots: loadFailure(roots, 'The folders did not load'), stats: loadFailure(stats, 'The library’s numbers did not load') }}
@@ -185,8 +159,6 @@ export function AdminLibraryPage() {
     </>
   )
 }
-
-const resolvedTitle = (request: ResolveReviewRequest) => 'releaseMbid' in request ? 'Release applied' : request.action === 'keep_local' ? 'Kept as tagged' : 'Review dismissed'
 
 export function AdminReviewsPage() {
   const api = useApi()
@@ -207,8 +179,7 @@ export function AdminReviewsPage() {
   })
   const resolve = useMutation({
     mutationFn: ({ review, request }: { review: MatchReview; request: ResolveReviewRequest }) => api.matching.resolveReview(review.id, request),
-    onSuccess: (_result, { review, request }) => {
-      toast({ title: resolvedTitle(request), description: review.summary.album ?? undefined })
+    onSuccess: (_result, { review }) => {
       // The next album opens, so a queue can be worked through without going back to the list.
       const items = reviews.data?.items.filter(item => item.status === 'open') ?? []
       const index = items.findIndex(item => item.id === review.id)
@@ -228,6 +199,7 @@ export function AdminReviewsPage() {
         detail={detail.data}
         onResolve={(review, request) => resolve.mutateAsync({ review, request })}
         onSearch={fixMatch.open}
+        failures={{ reviews: loadFailure(reviews, 'The reviews did not load'), detail: loadFailure(detail, 'The album did not load') }}
       />
       {fixMatch.dialogs}
     </>
@@ -270,18 +242,10 @@ export function AdminOrganizePage() {
       const target = albumIds ? await api.organize.preview({ rootId: batch.rootId, albumIds, includeUnmatched: batch.includeUnmatched, writeTags: batch.writeTags }) : batch
       return api.organize.apply(target.id)
     },
-    onSuccess: batch => {
-      toast({ title: `Applying ${plural(batch.counts.planned, 'move')}`, description: 'Progress shows here; you can leave the page.' })
-      return refresh()
-    },
+    // The batch's progress takes the preview's place.
+    onSuccess: refresh,
   })
-  const revert = useMutation({
-    mutationFn: (batch: OrganizeBatchSummary) => api.organize.revert(batch.id),
-    onSuccess: () => {
-      toast({ title: 'Undoing the batch', description: 'Files move back to where they were.' })
-      return refresh()
-    },
-  })
+  const revert = useMutation({ mutationFn: (batch: OrganizeBatchSummary) => api.organize.revert(batch.id), onSuccess: refresh })
   return (
     <>
       <OrganizeAdmin
@@ -296,6 +260,7 @@ export function AdminOrganizePage() {
         onApply={albumIds => apply.mutateAsync(albumIds)}
         onRevert={batch => revert.mutateAsync(batch)}
         onFixMatch={fixMatch.open}
+        failure={loadFailure(roots, 'The folders did not load')}
       />
       {fixMatch.dialogs}
     </>
@@ -321,22 +286,10 @@ export function AdminSearchIndexPage() {
       setRequestedAfter(newestImport(status.data))
       return refresh()
     },
-    meta: { inline: true },
   })
-  const cancel = useMutation({
-    mutationFn: api.catalogIndex.cancelImport,
-    onSuccess: () => {
-      toast({ title: 'Import cancelled' })
-      return refresh()
-    },
-  })
-  const remove = useMutation({
-    mutationFn: api.catalogIndex.remove,
-    onSuccess: () => {
-      toast({ title: 'Search index removed' })
-      return refresh()
-    },
-  })
+  // A cancelled import and a removed index show in the page's state; failures stay in their dialog.
+  const cancel = useMutation({ mutationFn: api.catalogIndex.cancelImport, onSuccess: refresh })
+  const remove = useMutation({ mutationFn: api.catalogIndex.remove, onSuccess: refresh })
   return (
     <SearchIndexAdmin
       status={status.data}
@@ -344,6 +297,7 @@ export function AdminSearchIndexPage() {
       onStart={request => start.mutateAsync(request)}
       onCancel={() => cancel.mutateAsync()}
       onRemove={() => remove.mutateAsync()}
+      failure={loadFailure(status, 'The search index did not load')}
     />
   )
 }
@@ -352,25 +306,21 @@ export function AdminUsersPage() {
   const api = useApi()
   const queryClient = useQueryClient()
   const me = useCurrentUser()
-  const users = useQuery({ queryKey: queryKeys.adminUsers(), queryFn: () => api.admin.users(), meta: silent })
-  const invites = useQuery({ queryKey: invitesKey, queryFn: () => api.admin.invites(), meta: silent })
+  const users = useQuery({ queryKey: queryKeys.adminUsers(), queryFn: () => api.admin.users() })
+  const invites = useQuery({ queryKey: invitesKey, queryFn: () => api.admin.invites() })
   const refresh = (queryKey: readonly unknown[]) => () => queryClient.invalidateQueries({ queryKey })
-  const createUser = useMutation({ mutationFn: api.admin.createUser, onSuccess: refresh(queryKeys.adminUsers()), meta: { inline: true } })
-  const userUpdate = {
+  const createUser = useMutation({ mutationFn: api.admin.createUser, onSuccess: refresh(queryKeys.adminUsers()) })
+  // Failures (the last-admin rule, say) are said where the change was asked for: its dialog, its
+  // confirmation or the user's row.
+  const updateUser = useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: UpdateUserRequest }) => api.admin.updateUser(id, patch),
-    onSuccess: (user: User, { patch }: { patch: UpdateUserRequest }) => {
-      if (patch.password) toast({ title: `Password changed for @${user.username}` })
-      if (patch.disabled !== undefined) toast({ title: `${patch.disabled ? 'Disabled' : 'Enabled'} @${user.username}` })
+    onSuccess: (user: User) => {
       if (user.id === me.id) queryClient.setQueryData(queryKeys.me(), user)
       return refresh(queryKeys.adminUsers())()
     },
-  }
-  // The edit and password dialogs show failures (the last-admin rule, say) next to their fields;
-  // enabling and disabling come from the menu and a confirmation, so theirs become a toast.
-  const editUser = useMutation({ ...userUpdate, meta: { inline: true } })
-  const toggleUser = useMutation(userUpdate)
+  })
   const deleteUser = useMutation({ mutationFn: api.admin.deleteUser, onSuccess: refresh(queryKeys.adminUsers()) })
-  const createInvite = useMutation({ mutationFn: api.admin.createInvite, onSuccess: refresh(invitesKey), meta: { inline: true } })
+  const createInvite = useMutation({ mutationFn: api.admin.createInvite, onSuccess: refresh(invitesKey) })
   const revokeInvite = useMutation({ mutationFn: api.admin.deleteInvite, onSuccess: refresh(invitesKey) })
   return (
     <UsersAdmin
@@ -379,7 +329,7 @@ export function AdminUsersPage() {
       currentUserId={me.id}
       inviteLink={invite => `${location.origin}/register?invite=${encodeURIComponent(invite.code)}`}
       onCreateUser={request => createUser.mutateAsync(request)}
-      onUpdateUser={(id, patch) => (patch.disabled === undefined ? editUser : toggleUser).mutateAsync({ id, patch })}
+      onUpdateUser={(id, patch) => updateUser.mutateAsync({ id, patch })}
       onDeleteUser={id => deleteUser.mutateAsync(id)}
       onCreateInvite={request => createInvite.mutateAsync(request)}
       onRevokeInvite={id => revokeInvite.mutateAsync(id)}
@@ -394,15 +344,16 @@ export function AdminProvidersPage() {
   const roots = useRoots()
   const [params, setParams] = useSearchParams()
   const jobStatus = AcquisitionJobStatus.safeParse(params.get('status')).data ?? null
-  const providers = useQuery({ queryKey: providersKey, queryFn: () => api.acquisition.providers(), select: page => page.items, meta: silent })
-  const policy = useQuery({ queryKey: policyKey, queryFn: () => api.acquisition.policy(), meta: silent })
-  const usage = useQuery({ queryKey: usageKey, queryFn: () => api.admin.acquisitionUsage(), meta: silent })
-  const jobs = useQuery({
+  const providers = useQuery({ queryKey: providersKey, queryFn: () => api.acquisition.providers(), select: page => page.items })
+  const policy = useQuery({ queryKey: policyKey, queryFn: () => api.acquisition.policy() })
+  const usage = useQuery({ queryKey: usageKey, queryFn: () => api.admin.acquisitionUsage() })
+  const jobs = useInfiniteQuery({
     queryKey: [...acquisitionJobsKey, jobStatus],
-    queryFn: () => api.acquisition.jobs({ status: jobStatus ?? undefined, limit: 100 }),
-    select: page => page.items,
+    queryFn: ({ pageParam }) => api.acquisition.jobs({ status: jobStatus ?? undefined, cursor: pageParam, limit: REQUESTS_PAGE }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: page => page.nextCursor ?? undefined,
+    select: data => data.pages.flatMap(page => page.items),
     placeholderData: keepPreviousData,
-    meta: silent,
   })
   // A job that ends can change a provider's health too, and a delivery fills the cache.
   useServerEvent('acquisition.updated', () => {
@@ -413,52 +364,26 @@ export function AdminProvidersPage() {
   const refresh = () => queryClient.invalidateQueries({ queryKey: providersKey })
   const replace = (provider: AcquisitionProvider) => queryClient.setQueryData<{ items: AcquisitionProvider[] }>(providersKey, page => page && { ...page, items: page.items.map(item => item.id === provider.id ? provider : item) })
 
-  const create = useMutation({
-    mutationFn: api.acquisition.createProvider,
-    onSuccess: provider => {
-      toast(provider.lastError ? { title: `Added ${provider.name}`, description: `It did not answer yet: ${provider.lastError}` } : { title: `Added ${provider.name}`, description: 'Missing music can now play on demand.' })
-      return refresh()
-    },
-    meta: { inline: true },
-  })
-  const providerUpdate = {
+  // Each action says how it went where it was asked for: the provider's row, the list or its dialog.
+  const create = useMutation({ mutationFn: api.acquisition.createProvider, onSuccess: refresh })
+  const update = useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: UpdateAcquisitionProviderRequest }) => api.acquisition.updateProvider(id, patch),
     onSuccess: (provider: AcquisitionProvider) => {
       replace(provider)
       return refresh()
     },
-  }
-  // The edit dialog shows its failures next to its fields; the switch has only a toast.
-  const edit = useMutation({ ...providerUpdate, meta: { inline: true } })
-  const toggle = useMutation(providerUpdate)
-  const remove = useMutation({
-    mutationFn: api.acquisition.deleteProvider,
-    onSuccess: () => {
-      toast({ title: 'Provider deleted' })
-      return refresh()
-    },
   })
+  const remove = useMutation({ mutationFn: api.acquisition.deleteProvider, onSuccess: refresh })
   const test = useMutation({ mutationFn: api.acquisition.testProvider, onSuccess: replace })
-  const clearMisses = useMutation({
-    mutationFn: api.acquisition.clearProviderMisses,
-    onSuccess: ({ cleared, provider }) => {
-      replace(provider)
-      toast({
-        title: `Retrying ${cleared === 1 ? '1 track' : `${cleared} tracks`}`,
-        description: `They play on demand again, and ${provider.name} is asked for them the next time they are played.`,
-      })
-    },
-  })
-  const policyUpdate = {
+  const clearMisses = useMutation({ mutationFn: api.acquisition.clearProviderMisses, onSuccess: ({ provider }) => replace(provider) })
+  const savePolicy = useMutation({
     mutationFn: (patch: UpdateAcquisitionPolicy) => api.acquisition.updatePolicy(patch),
     onSuccess: (updated: AcquisitionPolicy) => {
       queryClient.setQueryData(policyKey, updated)
       // The usage carries the limit.
       return queryClient.invalidateQueries({ queryKey: usageKey })
     },
-  }
-  const savePolicy = useMutation(policyUpdate)
-  const savePolicyField = useMutation({ ...policyUpdate, meta: { inline: true } })
+  })
 
   return (
     <ProvidersAdmin
@@ -467,14 +392,15 @@ export function AdminProvidersPage() {
       usage={usage.data}
       managedRoots={managedOnly(roots.data)}
       jobs={jobs.data}
+      moreJobs={jobs.hasNextPage && !jobs.isPlaceholderData ? { loading: jobs.isFetchingNextPage, failed: jobs.isFetchNextPageError, load: () => void jobs.fetchNextPage() } : undefined}
       jobStatus={jobStatus}
       onJobStatusChange={status => setParams(status ? { status } : {}, { replace: true })}
       onCreate={request => create.mutateAsync(request)}
-      onUpdate={(id, patch) => (Object.keys(patch).length === 1 && patch.enabled !== undefined ? toggle : edit).mutateAsync({ id, patch })}
+      onUpdate={(id, patch) => update.mutateAsync({ id, patch })}
       onDelete={id => remove.mutateAsync(id)}
       onTest={id => test.mutateAsync(id)}
       onClearMisses={id => clearMisses.mutateAsync(id)}
-      onSavePolicy={(patch, how) => (how?.inline ? savePolicyField : savePolicy).mutateAsync(patch)}
+      onSavePolicy={patch => savePolicy.mutateAsync(patch)}
       failures={{
         providers: loadFailure(providers, 'The providers did not load'),
         policy: loadFailure(policy, 'The policy did not load'),
@@ -488,32 +414,30 @@ export function AdminProvidersPage() {
 export function AdminSettingsPage() {
   const api = useApi()
   const queryClient = useQueryClient()
-  const settings = useQuery({ queryKey: settingsKey, queryFn: () => api.admin.settings(), meta: silent })
+  const settings = useQuery({ queryKey: settingsKey, queryFn: () => api.admin.settings() })
   const roots = useRoots()
-  const settingsUpdate = {
+  // Every control says what the server refused under itself (an inbox that does not exist, say).
+  const save = useMutation({
     mutationFn: (patch: UpdateServerSettings) => api.admin.updateSettings(patch),
     onSuccess: (updated: ServerSettings) => {
       queryClient.setQueryData(settingsKey, updated)
       // The server name and the registration rule show on the sign-in screens; the import folder and limits on Add music.
       return Promise.all([setupStatusKey, importsKey].map(queryKey => queryClient.invalidateQueries({ queryKey })))
     },
-  }
-  // Text fields show what the server refused under themselves (an inbox that does not exist, say); switches toast.
-  const save = useMutation(settingsUpdate)
-  const saveField = useMutation({ ...settingsUpdate, meta: { inline: true } })
+  })
   return (
     <ServerSettingsAdmin
       settings={settings.data}
       failure={loadFailure(settings, 'The server settings did not load')}
       managedRoots={managedOnly(roots.data)}
-      onSave={(patch, how) => (how?.inline ? saveField : save).mutateAsync(patch)}
-      status={save.isPending || saveField.isPending ? 'saving' : save.isSuccess || saveField.isSuccess ? 'saved' : 'idle'}
+      onSave={patch => save.mutateAsync(patch)}
+      status={save.isPending ? 'saving' : save.isSuccess ? 'saved' : 'idle'}
     />
   )
 }
 
 export function AdminJobsPage() {
   const api = useApi()
-  const jobs = useQuery({ queryKey: queryKeys.adminJobs(), queryFn: () => api.admin.jobs(), refetchInterval: JOBS_REFRESH_MS, meta: silent })
+  const jobs = useQuery({ queryKey: queryKeys.adminJobs(), queryFn: () => api.admin.jobs(), refetchInterval: JOBS_REFRESH_MS })
   return <JobsAdmin jobs={jobs.data} updatedAt={jobs.dataUpdatedAt} onRefresh={() => void jobs.refetch()} failure={loadFailure(jobs, 'The queues did not load')} />
 }

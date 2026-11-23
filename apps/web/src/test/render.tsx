@@ -5,7 +5,6 @@ import { MemoryRouter } from 'react-router'
 import { createQueryClient } from '@/api/query-client'
 import { ServicesContext, type Services } from '@/api/services'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { Toaster } from '@/components/ui/toast'
 import { FixtureProviders } from '@/fixtures/FixtureProviders'
 import { EngineProvider } from '@/player/engine/EngineProvider'
 import { fakeServices } from './fake-services'
@@ -23,7 +22,7 @@ export function renderWithApp(ui: ReactElement, route = '/', services: Services 
         <MemoryRouter initialEntries={[route]}>
           <TooltipProvider>
             <EngineProvider>
-              <FixtureProviders>{ui}<Toaster /></FixtureProviders>
+              <FixtureProviders>{ui}</FixtureProviders>
             </EngineProvider>
           </TooltipProvider>
         </MemoryRouter>

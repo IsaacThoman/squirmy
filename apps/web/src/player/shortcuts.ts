@@ -5,8 +5,16 @@ import type { PlayerControls, PositionClock } from './player-context'
 const SEEK_STEP_MS = 5000
 const VOLUME_STEP = 0.05
 
-/** Elements that use these keys themselves: typing, sliders, menus, lists, and buttons for Space. */
-const ownsArrows = 'input, textarea, select, [contenteditable=""], [contenteditable="true"], [role="slider"], [role="menu"], [role="menuitem"], [role="listbox"], [role="option"], [role="tablist"], [role="tab"], [role="radiogroup"]'
+/**
+ * Elements that use these keys themselves: typing, sliders, menus, listboxes, grids and tabs,
+ * and anything in a list (the queue, a track list, lyrics), where the arrows scroll or move
+ * through it; and buttons for Space. A region with keys of its own says so with `data-own-keys`.
+ */
+const ownsArrows = [
+  'input', 'textarea', 'select', '[contenteditable=""]', '[contenteditable="true"]',
+  '[role="slider"]', '[role="menu"]', '[role="menuitem"]', '[role="listbox"]', '[role="option"]', '[role="tablist"]', '[role="tab"]', '[role="radiogroup"]',
+  'ul', 'ol', '[role="list"]', '[role="grid"]', '[role="treegrid"]', '[role="tree"]', '[data-own-keys]',
+].join(', ')
 const ownsSpace = `${ownsArrows}, button, a[href], summary, [role="button"], [role="switch"], [role="checkbox"]`
 /**
  * A dialog owns the keys pressed in it: arrows that read or move through Settings must not
@@ -23,7 +31,8 @@ export function keyIsTaken(event: Pick<KeyboardEvent, 'key' | 'target' | 'altKey
 
 /**
  * Space plays and pauses, ←/→ seek by five seconds and ↑/↓ change the volume of the
- * device that plays, unless the focused element uses the key itself.
+ * device that plays, unless the focused element uses the key itself or is inside something
+ * that does (`keyIsTaken`).
  */
 export function useShortcuts(controls: PlayerControls, clock: PositionClock, snapshot: SessionClientSnapshot, thisDeviceId: string) {
   const latest = useRef(snapshot)

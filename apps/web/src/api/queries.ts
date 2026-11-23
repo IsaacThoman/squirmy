@@ -8,8 +8,8 @@ import { useApi } from './services'
 
 /**
  * The queries the pages share. Keys start with `queryKeys`, so the server's invalidations
- * (likes, playlists, scans, plays) refresh whatever is on screen. Page queries are
- * `silent`: the page shows its own loading and error states.
+ * (likes, playlists, scans, plays) refresh whatever is on screen. Pages show their own
+ * loading and error states.
  */
 
 export const isNotFound = (error: unknown) => error instanceof ApiError && error.status === 404
@@ -35,20 +35,18 @@ async function everything<T>(load: (cursor: string | undefined) => Promise<Page<
   return { items, nextCursor: null }
 }
 
-const silent = { silent: true }
-
 /** Imports: their list, each one, and the upload options. `import.updated` refreshes them all. */
 export const importsKey = ['imports'] as const
 
-export const homeQuery = (api: ApiClient) => ({ queryKey: queryKeys.home(), queryFn: () => api.catalog.home(), meta: silent })
+export const homeQuery = (api: ApiClient) => ({ queryKey: queryKeys.home(), queryFn: () => api.catalog.home() })
 
 export function useHome() {
   return useQuery(homeQuery(useApi()))
 }
 
-export const albumQuery = (api: ApiClient, id: string) => ({ queryKey: queryKeys.album(id), queryFn: () => byId(id, () => api.catalog.album(id)), meta: silent })
-export const artistQuery = (api: ApiClient, id: string) => ({ queryKey: queryKeys.artist(id), queryFn: () => byId(id, () => api.catalog.artist(id)), meta: silent })
-export const playlistQuery = (api: ApiClient, id: string) => ({ queryKey: queryKeys.playlist(id), queryFn: () => byId(id, () => api.userdata.playlist(id)), meta: silent })
+export const albumQuery = (api: ApiClient, id: string) => ({ queryKey: queryKeys.album(id), queryFn: () => byId(id, () => api.catalog.album(id)) })
+export const artistQuery = (api: ApiClient, id: string) => ({ queryKey: queryKeys.artist(id), queryFn: () => byId(id, () => api.catalog.artist(id)) })
+export const playlistQuery = (api: ApiClient, id: string) => ({ queryKey: queryKeys.playlist(id), queryFn: () => byId(id, () => api.userdata.playlist(id)) })
 
 /**
  * How often, and for how long, an album whose songs are still being looked up asks again,
@@ -109,7 +107,6 @@ export function useArtistReleases(id: string, section: ArtistSectionKey, enabled
     initialPageParam: undefined as string | undefined,
     getNextPageParam: page => page.nextCursor ?? undefined,
     enabled,
-    meta: silent,
   })
 }
 
@@ -123,13 +120,12 @@ export function usePlaylists() {
   return useQuery({
     queryKey: queryKeys.playlists(),
     queryFn: () => everything(cursor => api.userdata.playlists({ cursor, limit: 200 })),
-    meta: silent,
   })
 }
 
 export function useWants(enabled = true) {
   const api = useApi()
-  return useQuery({ queryKey: queryKeys.wants(), queryFn: () => everything(cursor => api.userdata.wants({ cursor, limit: 200 })), enabled, meta: silent })
+  return useQuery({ queryKey: queryKeys.wants(), queryFn: () => everything(cursor => api.userdata.wants({ cursor, limit: 200 })), enabled })
 }
 
 export function useGenres() {
@@ -137,7 +133,6 @@ export function useGenres() {
   return useQuery({
     queryKey: [...queryKeys.library(), 'genres'],
     queryFn: () => everything(cursor => api.catalog.genres({ cursor, limit: 200 })),
-    meta: silent,
   })
 }
 
@@ -156,7 +151,6 @@ export const libraryListQuery = <K extends LibraryKind>(api: ApiClient, kind: K,
     queryFn: ({ pageParam }) => fetchers[kind]({ ...filter, cursor: pageParam, limit: pageSizes[kind] }) as Promise<Page<LibraryItems[K]>>,
     initialPageParam: undefined as string | undefined,
     getNextPageParam: page => page.nextCursor ?? undefined,
-    meta: silent,
   })
 }
 
@@ -191,7 +185,6 @@ export function useLibraryMatches(text: string, genre?: string) {
     enabled: searchesServer(q),
     placeholderData: keepPreviousData,
     staleTime: 60_000,
-    meta: silent,
   })
   return { ...query, pending: typed !== q || query.isFetching }
 }
@@ -203,7 +196,6 @@ export function useLikedTracks() {
     queryFn: ({ pageParam }) => api.userdata.likes('track', { cursor: pageParam, limit: 100 }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: page => page.nextCursor ?? undefined,
-    meta: silent,
   })
 }
 
@@ -237,10 +229,10 @@ export const searchQuery = (api: ApiClient, kind: 'library' | 'catalog', term: s
 
 export function useUserSettings() {
   const api = useApi()
-  return useQuery({ queryKey: queryKeys.settings(), queryFn: () => api.userdata.settings(), meta: silent })
+  return useQuery({ queryKey: queryKeys.settings(), queryFn: () => api.userdata.settings() })
 }
 
 export function useScrobbling() {
   const api = useApi()
-  return useQuery({ queryKey: queryKeys.scrobbling(), queryFn: () => api.scrobble.status(), meta: silent })
+  return useQuery({ queryKey: queryKeys.scrobbling(), queryFn: () => api.scrobble.status() })
 }

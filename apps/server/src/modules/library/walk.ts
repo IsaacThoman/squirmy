@@ -1,8 +1,10 @@
 import type { Dirent } from 'node:fs'
 import { lstat, readdir, realpath, stat } from 'node:fs/promises'
 import path from 'node:path'
+import { AUDIO_EXTENSIONS } from '@squirmy/contracts'
 
-export const audioExtensions = new Set(['mp3', 'flac', 'm4a', 'mp4', 'aac', 'ogg', 'oga', 'opus', 'wav', 'aiff', 'aif', 'wv', 'ape', 'wma', 'dsf'])
+// Shared with imports and clients, so an upload is refused for the same names the scanner skips.
+export const audioExtensions = new Set<string>(AUDIO_EXTENSIONS)
 
 // NAS metadata folders and recycle bins.
 const skippedNames = new Set(['@eaDir', '#recycle', '#snapshot', '$RECYCLE.BIN', 'System Volume Information', 'lost+found'])

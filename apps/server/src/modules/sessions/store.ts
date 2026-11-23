@@ -67,6 +67,12 @@ export type SessionRecord = {
   deferred: Map<string, string | null>
   /** The current entry autoplay suggestions were last asked for, so an empty answer is not asked again. */
   autoplayAskedFor: string | null
+  /**
+   * The entry the listener started by name (a song clicked in a list or the queue), while it
+   * is still the one they asked for. If it cannot be fetched, playback stays on it rather than
+   * starting a song they did not pick. Kept in memory only, like the counts above.
+   */
+  picked: string | null
   persistTimer: ReturnType<typeof setTimeout> | null
   /** The last write, so writes of one session never overtake each other. */
   writing: Promise<void>
@@ -141,6 +147,7 @@ function newRecord(userId: string, deviceId: string | null, fields: Pick<Session
     skippedTracks: new Set(),
     deferred: new Map(),
     autoplayAskedFor: null,
+    picked: null,
     persistTimer: null,
     writing: Promise.resolve(),
     lastSeenAt: 0,

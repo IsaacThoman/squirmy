@@ -155,6 +155,13 @@
       "when": 1795395331400,
       "tag": "0021_artist_copy_checks",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1795395332400,
+      "tag": "0022_artist_page_repairs",
+      "breakpoints": true
     }
   ]
 }

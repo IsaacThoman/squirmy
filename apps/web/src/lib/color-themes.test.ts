@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { contrastRatio, flattenHex, lightness, mixHex, normalizeHex } from './color'
 import {
   COLOR_THEMES, colorThemeStylesheet, CONTROL_SURFACES, DEFAULT_COLOR_THEME_ID, findColorTheme, headerTints, NON_TEXT_CONTRAST, paletteVariables,
-  resolvePalette, THEME_APPEARANCES, THEME_ROLES, type ColorTheme, type ThemeColors, type ThemeRole,
+  resolvePalette, THEME_APPEARANCES, THEME_ROLES, type ColorTheme, type ThemeColors, type ThemePalette, type ThemeRole,
 } from './color-themes'
 
 const indexCss = readFileSync(join(import.meta.dirname, '../index.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
@@ -249,5 +249,45 @@ describe('contrast of text drawn in derived colors', () => {
 
   it.each(palettes)('%s: the selected appearance mode, action text on the action color, reads at 4.5:1', (_name, palette) => {
     expect(contrastRatio(palette.actionText, palette.action)).toBeGreaterThanOrEqual(READABLE)
+  })
+})
+
+describe('contrast of the player, the queue and Settings', () => {
+  /** A fill of `role` at `alpha` over `behind`, as `bg-accent/40` draws it. */
+  const fill = (palette: ThemePalette, role: ThemeRole, alpha: number, behind: string) => mixSrgb(palette[role], behind, alpha)
+
+  it.each(palettes)('%s: "Play here" and other action fills, hovered (`bg-primary-hover`), keep their words at 4.5:1', (_name, palette) => {
+    // `--color-primary-hover` in index.css: the action color 12 % of the way to the text.
+    expect(contrastRatio(palette.actionText, mixSrgb(palette.text, palette.action, 0.12))).toBeGreaterThanOrEqual(READABLE)
+  })
+
+  it.each(palettes)('%s: the current song\'s title, in the text color, reads at 4.5:1 on its row\'s fill (`bg-accent/40`)', (_name, palette) => {
+    expect(contrastRatio(palette.text, fill(palette, 'hover', 0.4, palette.background))).toBeGreaterThanOrEqual(READABLE)
+  })
+
+  it.each(palettes)('%s: queue titles, the current one too, in the text color, read at 4.5:1 on the queue and its hovered row', (_name, palette) => {
+    // The action color fell under 4.5:1 on the hovered row in Forest and Ember light: the
+    // current song is marked by its glyph over the artwork instead.
+    for (const behind of [palette.background, fill(palette, 'hover', 0.6, palette.background)]) {
+      expect(contrastRatio(palette.text, behind)).toBeGreaterThanOrEqual(READABLE)
+    }
+  })
+
+  it.each(palettes)('%s: history and autoplay credits, unfaded muted text, read at 4.5:1 on the queue and its hovered row', (_name, palette) => {
+    for (const behind of [palette.background, fill(palette, 'hover', 0.6, palette.background)]) {
+      expect(contrastRatio(flattenHex(palette.mutedText, behind), behind)).toBeGreaterThanOrEqual(READABLE)
+    }
+  })
+
+  it.each(palettes)('%s: the queue\'s reorder grip, in muted text, stands 3:1 off the queue and its hovered row', (_name, palette) => {
+    for (const behind of [palette.background, fill(palette, 'hover', 0.6, palette.background)]) {
+      expect(contrastRatio(flattenHex(palette.mutedText, behind), behind)).toBeGreaterThanOrEqual(NON_TEXT_CONTRAST)
+    }
+  })
+
+  it.each(palettes)('%s: the selected Settings section\'s marker stands 3:1 off its fill', (_name, palette) => {
+    // The section list is `bg-muted/30` on the dialog; the selected row is `bg-accent` on that.
+    const panel = fill(palette, 'raisedSurface', 0.3, palette.surface)
+    expect(contrastRatio(palette.action, flattenHex(palette.hover, panel))).toBeGreaterThanOrEqual(NON_TEXT_CONTRAST)
   })
 })

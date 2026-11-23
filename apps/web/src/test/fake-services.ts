@@ -57,6 +57,9 @@ export class FakeSocket {
     return { emit: (event: string, payload: unknown, ack: Ack) => queueMicrotask(() => this.answer(event, payload, ack)) }
   }
 
+  /** Every session command the app sent, in order, for tests that check what a button asked. */
+  commands: AnySessionCommand[] = []
+
   /** Engine reports; nothing to answer. */
   emit() {
     return this
@@ -72,6 +75,7 @@ export class FakeSocket {
     }
     if (event === 'time:sync') return ack(null, { clientTime: payload, serverTime: Date.now() })
     const { command, commandId } = payload as CommandEnvelope
+    this.commands.push(command)
     const next = reduceSession(this.session, { command, now: Date.now(), commandId, deviceId: this.deviceId })
     ack(null, { ok: true, version: this.version + (next === this.session ? 0 : 1) })
     this.commit(next)
