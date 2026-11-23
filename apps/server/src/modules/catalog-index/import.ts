@@ -68,11 +68,13 @@ export type Checkpoint = {
   /** Build statements completed. */
   built: number
   /**
-   * `pg_postmaster_start_time()` when the import began. The staging tables are unlogged,
-   * and Postgres empties those when it recovers from a crash; a different start time
-   * means they cannot be trusted, and the import starts again from the beginning.
+   * Every staging table that exists at this point, with the rows it holds. A resume counts
+   * them before trusting the checkpoint: most staging tables are unlogged, which a clean
+   * restart of Postgres keeps but crash recovery empties, and a database restored from a
+   * backup may lack them. Counted as the import writes them (lines copied, rows a statement
+   * reports), never by scanning a table.
    */
-  database: string
+  tables: Record<string, number>
   /** Resumes in a row that found the checkpoint where the previous one left it. */
   stalls: number
   /** The progress the last resume started from, to count stalls. */
@@ -290,6 +292,43 @@ function buildStatements(recordingsPerArtist: number | null): string[] {
   ]
 }
 
+/**
+ * What a build statement does to the staging tables' row counts. Read from the statement
+ * itself, which is ours and fixed: `create … table x [as …]` sets x to the rows it
+ * reports, `insert into x` adds them, `delete from x` takes them away, `drop table`
+ * removes tables; indexes, keys and `analyze` change nothing.
+ */
+function countRows(tables: Record<string, number>, statement: string, reported: number): Record<string, number> {
+  const next = { ...tables }
+  const sqlText = statement.trimStart()
+  let match: RegExpExecArray | null
+  if ((match = /^create (?:unlogged )?table (\w+)/.exec(sqlText))) next[match[1]!] = reported
+  else if ((match = /^insert into (\w+)/.exec(sqlText))) next[match[1]!] = (next[match[1]!] ?? 0) + reported
+  else if ((match = /^delete from (\w+)/.exec(sqlText))) next[match[1]!] = (next[match[1]!] ?? 0) - reported
+  else if ((match = /^drop table ([\w, ]+)/.exec(sqlText))) for (const table of match[1]!.split(',')) delete next[table.trim()]
+  return next
+}
+
+/**
+ * Whether the staging tables hold exactly what the checkpoint says. A clean restart of
+ * Postgres (a deploy that recreates its container) keeps them; crash recovery empties the
+ * unlogged ones, and a restored backup or a hand may have dropped or changed some. Costs
+ * one count per table, a few seconds on a full dump, once per resume.
+ */
+async function stagingIntact(sql: postgres.Sql, checkpoint: Checkpoint): Promise<boolean> {
+  // A checkpoint written before the tables were tracked cannot be checked.
+  if (!checkpoint.tables) return false
+  const known = new Set<string>(Object.values(staging))
+  for (const [table, rows] of Object.entries(checkpoint.tables)) {
+    if (!known.has(table)) return false
+    const [present] = await sql<{ present: boolean }[]>`select to_regclass(${table}) is not null as present`
+    if (!present?.present) return false
+    const [counted] = await sql.unsafe<{ rows: string }[]>(`select count(*) as rows from ${table}`)
+    if (Number(counted?.rows) !== rows) return false
+  }
+  return true
+}
+
 /** Drops every staging table an import creates. Safe to call when none exist. */
 async function dropStaging(sql: postgres.Sql) {
   await sql.unsafe(`drop table if exists ${Object.values(staging).join(', ')}`)
@@ -304,11 +343,6 @@ async function discardWork(sql: postgres.Sql, ids: string[] | 'all') {
   await dropStaging(sql)
   if (ids === 'all') await rm(downloadDir(), { recursive: true, force: true })
   else for (const id of ids) await rm(downloadFile(id), { force: true })
-}
-
-async function databaseStartedAt(sql: postgres.Sql) {
-  const [row] = await sql<{ started: string }[]>`select pg_postmaster_start_time()::text as started`
-  return row!.started
 }
 
 const isLockBusy = (error: unknown) => error instanceof AppError && error.code === lockBusy
@@ -396,7 +430,8 @@ export async function resumeImport(id: string, options: ResumeOptions = {}): Pro
         return null
       }
       let checkpoint = row.checkpoint as Checkpoint | null
-      if (checkpoint && checkpoint.database !== await databaseStartedAt(sql)) checkpoint = null
+      // Whatever the checkpoint says is lost (or changed) starts the import over; the download stays.
+      if (checkpoint && !await stagingIntact(sql, checkpoint)) checkpoint = null
       if (checkpoint) {
         const from = JSON.stringify({ files: checkpoint.files, built: checkpoint.built })
         checkpoint = { ...checkpoint, stalls: from === checkpoint.resumedFrom ? checkpoint.stalls + 1 : 0, resumedFrom: from }
@@ -443,7 +478,7 @@ async function execute(sql: postgres.ReservedSql, job: Job, options: Pick<Import
     if (controller.signal.aborted) throw controller.signal.reason
     running = sql.unsafe(statement)
     try {
-      await running
+      return await running
     } catch (error) {
       throw controller.signal.aborted ? controller.signal.reason : error
     } finally {
@@ -496,7 +531,6 @@ async function execute(sql: postgres.ReservedSql, job: Job, options: Pick<Import
   const startOver = async () => {
     await dropStaging(sql)
     progress.rows = 0
-    const database = await databaseStartedAt(sql)
     await commit(async () => {
       await run(`create unlogged table ${staging.raw} (
         recording_mbid uuid not null, recording_name text not null, recording_key text not null,
@@ -504,7 +538,10 @@ async function execute(sql: postgres.ReservedSql, job: Job, options: Pick<Import
         release_mbid uuid not null, release_name text not null, release_key text not null, rank integer not null)`)
       await run(`create unlogged table ${staging.releases} (release_mbid uuid not null, release_group_mbid uuid not null)`)
       await run(`create unlogged table ${staging.redirects} (canonical_recording_mbid uuid not null)`)
-    }, () => ({ files: {}, rows: 0, dumpDate: null, built: 0, database, stalls: checkpoint?.stalls ?? 0, resumedFrom: checkpoint?.resumedFrom ?? null }))
+    }, () => ({
+      files: {}, rows: 0, dumpDate: null, built: 0, tables: { [staging.raw]: 0, [staging.releases]: 0, [staging.redirects]: 0 },
+      stalls: checkpoint?.stalls ?? 0, resumedFrom: checkpoint?.resumedFrom ?? null,
+    }))
   }
 
   const load = async (source: string, at: Checkpoint) => {
@@ -523,6 +560,8 @@ async function execute(sql: postgres.ReservedSql, job: Job, options: Pick<Import
       // A chunk ends inside a CSV batch; the rest of the batch starts the next one.
       let batch: string[][] = []
       let position = 0
+      // Lines this chunk copied: the table's row count in the checkpoint.
+      let copied = 0
       async function* chunk(): AsyncGenerator<string> {
         let taken = 0
         while (taken < chunkRecords) {
@@ -549,6 +588,7 @@ async function execute(sql: postgres.ReservedSql, job: Job, options: Pick<Import
             const line = lines.line(row)
             if (!line) continue
             out += line
+            copied++
             if (spec.recordings) progress.rows++
           }
           if (out) yield out
@@ -556,10 +596,12 @@ async function execute(sql: postgres.ReservedSql, job: Job, options: Pick<Import
       }
       while (!ended) {
         const rowsBefore = progress.rows
+        copied = 0
         try {
           await commit(() => copyInto(spec.table, chunk()), () => ({
             ...checkpoint!, dumpDate: dumpDate?.toISOString() ?? null, rows: progress.rows,
             files: { ...checkpoint!.files, [file]: { records, done: ended } },
+            tables: { ...checkpoint!.tables, [spec.table]: (checkpoint!.tables[spec.table] ?? 0) + copied },
           }))
         } catch (error) {
           progress.rows = rowsBefore
@@ -597,7 +639,12 @@ async function execute(sql: postgres.ReservedSql, job: Job, options: Pick<Import
     await run(`set maintenance_work_mem = '256MB'`)
     const statements = buildStatements(job.recordingsPerArtist)
     for (let step = checkpoint!.built; step < statements.length; step++) {
-      await commit(() => run(statements[step]!), () => ({ ...checkpoint!, built: step + 1 }))
+      const statement = statements[step]!
+      let tables = checkpoint!.tables
+      await commit(async () => {
+        const result = await run(statement)
+        tables = countRows(checkpoint!.tables, statement, result.count ?? 0)
+      }, () => ({ ...checkpoint!, built: step + 1, tables }))
     }
   }
 
