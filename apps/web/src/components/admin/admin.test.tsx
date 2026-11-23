@@ -225,7 +225,7 @@ describe('search index admin', () => {
     active: null,
     latest: {
       id: id(30), state: 'running', phase: 'download', source: null, dumpDate: null, recordingsPerArtist: null, bytesRead: 512 * 1024 * 1024, totalBytes: 2048 * 1024 * 1024,
-      rowsRead: 1_200_000, error: null, startedAt: '2026-11-20T10:00:00.000Z', finishedAt: null,
+      rowsRead: 1_200_000, error: null, resumes: 0, resumedAt: null, startedAt: '2026-11-20T10:00:00.000Z', finishedAt: null,
     },
   }
 
@@ -239,6 +239,25 @@ describe('search index admin', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Stop import' }))
     expect(handlers.onCancel).toHaveBeenCalled()
     expect(handlers.onRemove).not.toHaveBeenCalled()
+  })
+
+  it('says when an import is waiting to resume after a restart, and when it has', () => {
+    const handlers = { onStart: ok(), onCancel: ok(), onRemove: ok() }
+    const { rerender } = renderWithApp(<SearchIndexAdmin status={{ ...status, latest: { ...status.latest!, state: 'interrupted' } }} starting={false} {...handlers} />)
+    const panel = screen.getByRole('region', { name: 'Import in progress' })
+    expect(panel).toHaveTextContent('Waiting to resume')
+    expect(panel).toHaveTextContent('The server restarted. The import carries on from where it stopped in a moment.')
+    // Still under way: no second import can be started, and it can be cancelled.
+    expect(screen.queryByRole('button', { name: 'Import again' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
+
+    const resumed = { ...status.latest!, resumes: 1, resumedAt: '2026-11-20T10:05:00.000Z' }
+    rerender(<SearchIndexAdmin status={{ ...status, latest: resumed }} starting={false} {...handlers} />)
+    expect(screen.getByRole('region', { name: 'Import in progress' })).toHaveTextContent('Resumed after a restart')
+    expect(screen.queryByText('Waiting to resume')).toBeNull()
+
+    rerender(<SearchIndexAdmin status={{ ...status, active: { ...resumed, state: 'active', resumes: 2 }, latest: null }} starting={false} {...handlers} />)
+    expect(screen.getByText(/imported .* \(resumed after 2 restarts\)\./)).toBeInTheDocument()
   })
 
   it('validates the size before starting', async () => {
