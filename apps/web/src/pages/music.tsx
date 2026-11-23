@@ -38,6 +38,7 @@ import { AlbumPreview, ArtistPreview } from '@/components/views/Previews'
 import { SearchView, type SearchList } from '@/components/views/SearchView'
 import { WantlistView } from '@/components/views/WantlistView'
 import { canFetch, isArtistSectionKey, isPlayable } from '@/lib/catalog'
+import { usePageTitle } from '@/lib/document-title'
 import { plural } from '@/lib/format'
 import { useRecentSearches } from '@/lib/recent-searches'
 import { useUrlDraft } from '@/lib/use-url-draft'
@@ -49,6 +50,7 @@ import { usePlayCollections } from '@/player/use-play-collections'
 import { useServerEvent } from '@/realtime/realtime-context'
 
 export function NotFoundPage() {
+  usePageTitle('Nothing here')
   return (
     <Page>
       <EmptyState icon={<Compass />} title="Nothing here" description="This page does not exist, or the music it pointed to is gone." headingLevel={1} action={<Button asChild variant="primary"><Link to="/">Go home</Link></Button>} />
@@ -57,6 +59,7 @@ export function NotFoundPage() {
 }
 
 function ErrorPage({ error, onRetry, retrying }: { error: unknown; onRetry: () => void; retrying?: boolean }) {
+  usePageTitle('Page did not load')
   return (
     <Page>
       <LoadError variant="page" title="This page did not load" error={error} onRetry={onRetry} retrying={retrying} />
@@ -67,7 +70,13 @@ function ErrorPage({ error, onRetry, retrying }: { error: unknown; onRetry: () =
 /** A page's main query: its skeleton while loading, "Nothing here" for a 404, a retry for other failures. */
 function Loaded<T>({ query, skeleton, children }: { query: UseQueryResult<T>; skeleton: ReactNode; children: (data: T) => ReactNode }) {
   return (
-    <QueryState query={query} loading={skeleton} errorTitle="This page did not load" variant="page" renderError={error => (isNotFound(error) ? <NotFoundPage /> : undefined)}>
+    <QueryState
+      query={query}
+      loading={skeleton}
+      errorTitle="This page did not load"
+      variant="page"
+      renderError={error => (isNotFound(error) ? <NotFoundPage /> : <ErrorPage error={error} retrying={query.isFetching} onRetry={() => void query.refetch()} />)}
+    >
       {children}
     </QueryState>
   )

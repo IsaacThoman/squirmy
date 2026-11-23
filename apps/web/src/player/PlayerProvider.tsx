@@ -12,6 +12,7 @@ import { apiArtUrl } from '@/lib/artwork'
 import { isPlayable } from '@/lib/catalog'
 import { playableCodecs } from '@/lib/codecs'
 import { browserName, claimTabDevice, saveBrowserName } from '@/lib/device'
+import { useDocumentTitle } from '@/lib/document-title'
 import { toast } from '@/lib/toast'
 import { useRealtime } from '@/realtime/realtime-context'
 import { useEngine } from './engine/engine-context'
@@ -257,9 +258,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   useMediaSession(client, engine, controls, snapshot, audible, clock, track ?? null)
   useShortcuts(controls, clock, snapshot, tab.device.id)
 
-  useEffect(() => {
-    document.title = track ? `${track.title} · ${track.artistCredit}` : 'Squirmy'
-  }, [track])
+  useDocumentTitle(track ?? null, session.playing && audible !== 'blocked')
 
   // Rebuilt on every render: summaries arriving re-render this provider, and nothing else does much.
   const thisDeviceId = tab.device.id
