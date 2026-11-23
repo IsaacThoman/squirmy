@@ -7,7 +7,6 @@ import { LikedCover, PlaylistCover } from '@/components/music/CollectionArt'
 import { Equalizer } from '@/components/music/Equalizer'
 import { Kbd, Spinner } from '@/components/ui/feedback'
 import { ContextMenu, DropdownMenu, type MenuEntry } from '@/components/ui/menu'
-import { Tooltip } from '@/components/ui/tooltip'
 import { canUploadMusic } from '@/lib/catalog'
 import { draggedTracks } from '@/lib/drag'
 import { modKey } from '@/lib/platform'
@@ -61,8 +60,6 @@ const SidebarView = memo(function SidebarView({
 }: SidebarProps & { playing: PlayingCollection | null }) {
   const library = useLibrary()
   const navigate = useNavigate()
-  const [navTooltip, setNavTooltip] = useState<string | null>(null)
-  if (!collapsed && navTooltip !== null) setNavTooltip(null)
   const name = user.displayName ?? user.username
   const runningIn = (type: PlayingCollection['type'], id: string | null) => (playing?.type === type && playing.id === id ? playing.running : null)
   // Songs dropped on Liked Songs are saved to the library; the row says when they all are.
@@ -82,33 +79,24 @@ const SidebarView = memo(function SidebarView({
   const logoControl = 'touch-target relative flex size-9 shrink-0 items-center justify-center rounded-lg outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring'
 
   const navItem = (to: string, label: string, Icon: LucideIcon, options: { end?: boolean; hint?: ReactNode } = {}) => (
-    <Tooltip
+    <NavLink
       key={to}
-      label={mobile ? null : label}
-      open={collapsed && navTooltip === to}
-      onOpenChange={open => {
-        if (collapsed) setNavTooltip(current => open ? to : current === to ? null : current)
-      }}
-      side="right"
+      to={to}
+      end={options.end}
+      onClick={onNavigate}
+      aria-label={label}
+      className={cn(
+        'relative flex h-8 pointer-coarse:h-11 items-center overflow-hidden rounded-lg text-sm text-sidebar-foreground/85 outline-none transition-colors hover:bg-sidebar-accent/60 focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-sidebar-accent aria-[current=page]:font-medium aria-[current=page]:text-sidebar-accent-foreground',
+        // The selected fill is close to the hover fill and to the sidebar itself, so the page you
+        // are on also gets a bar and an icon in the action color, which stand 3:1 off it.
+        'before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full before:bg-primary before:opacity-0 aria-[current=page]:before:opacity-100 aria-[current=page]:[&_svg]:text-primary',
+      )}
     >
-      <NavLink
-        to={to}
-        end={options.end}
-        onClick={onNavigate}
-        aria-label={label}
-        className={cn(
-          'relative flex h-8 pointer-coarse:h-11 items-center overflow-hidden rounded-lg text-sm text-sidebar-foreground/85 outline-none transition-colors hover:bg-sidebar-accent/60 focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-sidebar-accent aria-[current=page]:font-medium aria-[current=page]:text-sidebar-accent-foreground',
-          // The selected fill is close to the hover fill and to the sidebar itself, so the page you
-          // are on also gets a bar and an icon in the action color, which stand 3:1 off it.
-          'before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full before:bg-primary before:opacity-0 aria-[current=page]:before:opacity-100 aria-[current=page]:[&_svg]:text-primary',
-        )}
-      >
-        {/* The link grows with the sidebar, and the icon stays on the logo's centerline. */}
-        <span className="flex h-8 w-9 shrink-0 items-center justify-center"><Icon aria-hidden className="size-4" /></span>
-        <span className={cn('min-w-0 flex-1 truncate whitespace-nowrap pr-2', textTransition)}>{label}</span>
-        {options.hint && <span className={cn('pr-2', textTransition)}>{options.hint}</span>}
-      </NavLink>
-    </Tooltip>
+      {/* The link grows with the sidebar, and the icon stays on the logo's centerline. */}
+      <span className="flex h-8 w-9 shrink-0 items-center justify-center"><Icon aria-hidden className="size-4" /></span>
+      <span className={cn('min-w-0 flex-1 truncate whitespace-nowrap pr-2', textTransition)}>{label}</span>
+      {options.hint && <span className={cn('pr-2', textTransition)}>{options.hint}</span>}
+    </NavLink>
   )
 
   /*
@@ -159,25 +147,21 @@ const SidebarView = memo(function SidebarView({
       )}
     >
       <div className="flex items-center gap-1 p-2">
-        <Tooltip label={collapsed ? 'Open sidebar' : null} side="right">
-          {collapsed ? (
-            <button ref={toggleRef} type="button" onClick={toggle} onKeyDown={onToggleKeyDown} aria-label="Open sidebar" className={cn(logoControl, 'group/logo')}>
-              <LogoMark size={30} className="group-hover/logo:hidden" />
-              <PanelLeftOpen aria-hidden className="hidden size-4 group-hover/logo:block" />
-            </button>
-          ) : (
-            <Link to="/" onClick={onNavigate} aria-label="Squirmy home" className={logoControl}>
-              <LogoMark size={30} />
-            </Link>
-          )}
-        </Tooltip>
+        {collapsed ? (
+          <button ref={toggleRef} type="button" onClick={toggle} onKeyDown={onToggleKeyDown} aria-label="Open sidebar" className={cn(logoControl, 'group/logo')}>
+            <LogoMark size={30} className="group-hover/logo:hidden" />
+            <PanelLeftOpen aria-hidden className="hidden size-4 group-hover/logo:block" />
+          </button>
+        ) : (
+          <Link to="/" onClick={onNavigate} aria-label="Squirmy home" className={logoControl}>
+            <LogoMark size={30} />
+          </Link>
+        )}
         <span className={cn('min-w-0 flex-1 truncate whitespace-nowrap text-sm font-semibold', textTransition)}>Squirmy</span>
         {!collapsed && (
-          <Tooltip label={mobile ? null : 'Close sidebar'} side="right">
-            <button ref={toggleRef} type="button" onClick={toggle} onKeyDown={onToggleKeyDown} aria-label="Close sidebar" className={cn('relative flex size-8 shrink-0 items-center justify-center rounded-md pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring', !mobile && transitions && 'transition-opacity delay-100 duration-150 starting:opacity-0 motion-reduce:transition-none')}>
-              <PanelLeftClose aria-hidden className="size-4" />
-            </button>
-          </Tooltip>
+          <button ref={toggleRef} type="button" onClick={toggle} onKeyDown={onToggleKeyDown} aria-label="Close sidebar" className={cn('relative flex size-8 shrink-0 items-center justify-center rounded-md pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring', !mobile && transitions && 'transition-opacity delay-100 duration-150 starting:opacity-0 motion-reduce:transition-none')}>
+            <PanelLeftClose aria-hidden className="size-4" />
+          </button>
         )}
       </div>
 
@@ -194,7 +178,7 @@ const SidebarView = memo(function SidebarView({
 
         {/*
           * Folded, Liked Songs and the playlists stay as a column of covers under a rule, each named
-          * by a tooltip and to screen readers, so they are still one click away.
+          * for screen readers, so they are still one click away.
           */}
         <div className={cn('px-2', collapsed ? 'pb-2 pt-2' : 'pb-4 pt-4')}>
           {collapsed && <div aria-hidden className="mx-1.5 mb-2 border-t border-sidebar-border" />}
@@ -202,12 +186,9 @@ const SidebarView = memo(function SidebarView({
           <div aria-hidden={collapsed} inert={collapsed} className={cn('transition-opacity ease-[cubic-bezier(0.4,0,0.2,1)]', collapsed && 'h-0 overflow-hidden', contentTransition)}>
             <div className="flex items-center px-2 pb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               <Link to="/library?filter=playlists" onClick={onNavigate} className="rounded-sm underline-offset-2 outline-none pointer-coarse:flex pointer-coarse:h-11 pointer-coarse:items-center hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline">Playlists</Link>
-              {/* In the drawer the tooltip would only take the first Escape. */}
-              <Tooltip label={mobile ? null : 'New playlist'} side="right">
-                <button type="button" onClick={() => library.newPlaylist()} aria-label="New playlist" className="relative -my-0.5 ml-auto flex size-6 items-center justify-center rounded-md pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
-                  <Plus aria-hidden className="size-3.5" />
-                </button>
-              </Tooltip>
+              <button type="button" onClick={() => library.newPlaylist()} aria-label="New playlist" className="relative -my-0.5 ml-auto flex size-6 items-center justify-center rounded-md pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+                <Plus aria-hidden className="size-3.5" />
+              </button>
             </div>
           </div>
           <ul role="list" aria-label="Playlists" className="space-y-0.5">
@@ -345,8 +326,6 @@ function PlaylistRow({ to, title, detail, art, playing, entries, collapsed, labe
   const link = (
     <NavLink
       to={to}
-      // Open, a name cut short shows whole on hover; folded, the tooltip says it.
-      title={collapsed ? undefined : title}
       onClick={onNavigate}
       onDragOver={event => {
         if (!accepts(event)) return
@@ -385,11 +364,10 @@ function PlaylistRow({ to, title, detail, art, playing, entries, collapsed, labe
           : detail && <span className={cn('shrink-0 whitespace-nowrap text-xs text-muted-foreground', labelClass)}>{detail}</span>}
     </NavLink>
   )
-  // Folded, the tooltip names the cover. Its trigger is the link and the menu's is the box around it: each takes its props from an element of its own.
   return (
     <ContextMenu entries={entries}>
       <div>
-        <Tooltip label={collapsed ? title : null} side="right">{link}</Tooltip>
+        {link}
         {/* Read out apart from the link, whose name stays the playlist's. */}
         <span role="status" className="sr-only">
           {dropped?.state === 'done' && `${to === '/liked' ? 'Saved to' : 'Added to'} ${title}`}
