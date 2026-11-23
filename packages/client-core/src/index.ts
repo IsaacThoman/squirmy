@@ -1,6 +1,7 @@
 export * from './session/reducer.js'
 export * from './session/scope.js'
 export * from './session/client.js'
+export * from './session/stall.js'
 export * from './session/notices.js'
 export * from './session/fetched.js'
 export type * from './session/transport.js'

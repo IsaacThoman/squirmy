@@ -271,6 +271,22 @@ export const ServerSessionCommand = z.discriminatedUnion('type', [
 ])
 export type ServerSessionCommand = z.infer<typeof ServerSessionCommand>
 
+/**
+ * A song that would not play and that the client's stall watchdog reloaded, for the
+ * server's log. Track, timings and engine state only.
+ */
+export const PlaybackStall = z.object({
+  trackId: z.string(),
+  /** What it waited on: its stream address, the engine loading it, or data mid-song. */
+  state: z.enum(['resolving', 'loading', 'buffering']),
+  /** `recovered`: it plays again after `attempts` reloads; `gave_up`: it was skipped. */
+  outcome: z.enum(['recovered', 'gave_up']),
+  attempts: z.number().int().min(0).max(100),
+  /** How long it waited, until it played again or was given up on. */
+  stuckMs: z.number().nonnegative(),
+})
+export type PlaybackStall = z.infer<typeof PlaybackStall>
+
 /** Ground truth from the active device's audio engine. */
 export const EngineReport = z.object({
   entryId: z.string(),
@@ -278,6 +294,8 @@ export const EngineReport = z.object({
   positionMs: z.number().nonnegative(),
   /** Sender's estimate of server time when the position was read. */
   at: z.number(),
+  /** Sent once a stall the client handled is over. Older servers drop it. */
+  stall: PlaybackStall.optional(),
 })
 export type EngineReport = z.infer<typeof EngineReport>
 

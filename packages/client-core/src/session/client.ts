@@ -18,6 +18,7 @@ import type { EngineEvent, EngineState, EngineStatus, PlayerEngine } from '../en
 import { gainFor } from '../normalization.js'
 import { clearRepeating, setRepeating, setTimer } from '../timers.js'
 import { createInitialSession, joinSession, positionAt, reduceParsedSession, type Session, splitSession } from './reducer.js'
+import { PlaybackStallError, type StallAction, type StallReading, type StallState, StallWatchdog } from './stall.js'
 import type { SessionTransport } from './transport.js'
 
 /** Track failures remembered for `failureOf`: far more than are ever near the current entry. */
@@ -106,9 +107,27 @@ export type SessionPlayer = {
    * may pass (no connection, a server error), which is retried every few seconds while the
    * session reports a stall; false when the server refused the track (a 4xx), which the
    * client gives up on until play or a seek: the caller should move on, as for an engine
-   * `error`.
+   * `error`. Also called, with a `PlaybackStallError` and `willRetry` false, when the stall
+   * watchdog has reloaded the current entry a few times and it still will not play.
    */
   onLoadError?: (entry: QueueEntry, error: unknown, willRetry: boolean) => void
+  /** Each step of the stall watchdog, for the platform's log. */
+  onStall?: (event: PlaybackStallEvent) => void
+}
+
+/**
+ * The stall watchdog's steps: `recovering` when it reloads the current entry, `recovered`
+ * when that entry plays again, `gave_up` when it moves on.
+ */
+export type PlaybackStallEvent = {
+  phase: 'recovering' | 'recovered' | 'gave_up'
+  entryId: string
+  trackId: string
+  state: StallState
+  /** The reload this is (`recovering`), or how many it took (`recovered`, `gave_up`). */
+  attempts: number
+  stuckMs: number
+  positionMs: number
 }
 
 /**
@@ -158,6 +177,8 @@ const PLAYBACK_COMMANDS = new Set<SessionCommand['type']>([
 const REQUEST_TIMEOUT_MS = 10_000
 const CLOCK_SAMPLES = 5
 const RETRY_MS = 3000
+/** How often the stall watchdog looks at the current entry. */
+const STALL_CHECK_MS = 1000
 /** Signed URLs are refreshed this long before they expire. */
 const DESCRIPTOR_MARGIN_MS = 5 * 60_000
 const DESCRIPTOR_CACHE_SIZE = 50
@@ -304,6 +325,7 @@ export class SessionClient {
    * comes from here, so it holds while they play, whatever is forgotten meanwhile.
    */
   private readonly inEngine = new Map<string, PlaybackDescriptor>()
+  private readonly watchdog = new StallWatchdog()
 
   constructor(options: SessionClientOptions) {
     this.transport = options.transport
@@ -367,7 +389,8 @@ export class SessionClient {
     if (player) {
       this.cleanup.push(player.engine.subscribe(event => this.onEngineEvent(event)))
       const timer = setRepeating(() => this.report(player.engine.getStatus(), true), this.reportIntervalMs)
-      this.cleanup.push(() => clearRepeating(timer))
+      const watch = setRepeating(() => this.watchStall(), STALL_CHECK_MS)
+      this.cleanup.push(() => clearRepeating(timer), () => clearRepeating(watch))
       // A restored session this device was playing loads paused, ready to resume offline.
       this.syncEngine(this.local, false)
     }
@@ -940,13 +963,14 @@ export class SessionClient {
     if (this.player.engine.getStatus().state !== 'idle') this.player.engine.stop()
   }
 
-  private async load(entry: QueueEntry): Promise<void> {
+  /** Resolves `entry` and loads it into the engine; `resumeAt` overrides where it starts (a reload after a stall). */
+  private async load(entry: QueueEntry, resumeAt?: number): Promise<void> {
     const { engine, baseUrl } = this.player!
     const token = ++this.loadToken
     this.loadingEntryId = entry.id
     this.refusedEntryId = null
     const asked = this.local
-    const startMs = this.startPosition(asked)
+    const startMs = resumeAt ?? this.startPosition(asked)
     let descriptor: PlaybackDescriptor
     try {
       descriptor = await this.describe(entry)
@@ -984,7 +1008,7 @@ export class SessionClient {
     engine.load({
       entryId: entry.id,
       url: streamUrl(baseUrl, descriptor),
-      startMs: waited ? unloaded.startMs : this.startPosition(session),
+      startMs: resumeAt ?? (waited ? unloaded.startMs : this.startPosition(session)),
       autoplay: session.playing,
       gain: this.gain,
     })
@@ -1087,6 +1111,84 @@ export class SessionClient {
     // to start), but it is the one this device is playing: when the connection drops in
     // that moment and the server gives up on the device, it takes the session back all the same.
     return status.state === 'loading' && this.local.playing && status.entryId === this.local.current?.id
+  }
+
+  /**
+   * The stall watchdog's look at the current entry, every `STALL_CHECK_MS`. Only an entry
+   * this device should be playing is watched, and only once the server has it: one it is
+   * still fetching (`preparing`) shows "Still loading…" and may take minutes. A refused entry
+   * has its own path, and so does a load that failed for want of a connection.
+   */
+  private watchStall(): void {
+    const action = this.watchdog.check(this.stallReading(), this.now())
+    const entry = this.local.current
+    if (!action || !entry) return
+    if (action.type === 'recover') return this.recover(entry, action)
+    if (action.type === 'giveUp') return this.giveUp(entry, action)
+    this.tellStall(entry, action, 'recovered')
+  }
+
+  private stallReading(): StallReading | null {
+    const session = this.local
+    const current = session.current
+    if (!this.player || !this.isActive() || !session.playing || !current || current.state !== 'ready') return null
+    if (this.refusedEntryId === current.id) return null
+    const status = this.player.engine.getStatus()
+    const resolving = this.loadingEntryId === current.id || status.entryId !== current.id
+    const state = status.entryId === current.id ? status.state : null
+    return {
+      entryId: current.id,
+      trackId: current.trackId,
+      waiting: resolving ? 'resolving' : state === 'loading' || state === 'buffering' ? state : null,
+      playing: !resolving && state === 'playing',
+      canGiveUp: this.connection === 'online',
+    }
+  }
+
+  /**
+   * Loads the current entry again where it stood: a fresh stream address (the old one may
+   * have expired, or its request hung) and a new player, as skipping away and back would.
+   */
+  private recover(entry: QueueEntry, action: Extract<StallAction, { type: 'recover' }>): void {
+    const status = this.player!.engine.getStatus()
+    const held = status.entryId === entry.id && status.state !== 'idle' && status.state !== 'error'
+    const positionMs = held ? status.positionMs : this.startPosition(this.local)
+    this.descriptors.delete(descriptorKey(entry))
+    this.player!.onStall?.({ phase: 'recovering', entryId: entry.id, trackId: entry.trackId, state: action.state, attempts: action.attempt, stuckMs: action.stuckMs, positionMs })
+    void this.load(entry, positionMs)
+  }
+
+  /**
+   * Reloading did not help. The engine is stopped, which also ends the silence the phone's
+   * engine loops while it loads, and the platform moves on as for a failed load: it says so
+   * and skips, or pauses when the song before failed too. Pressing play or seeking tries
+   * the entry again, as for a refused one.
+   */
+  private giveUp(entry: QueueEntry, action: Extract<StallAction, { type: 'giveUp' }>): void {
+    const { engine, onLoadError } = this.player!
+    this.loadToken += 1
+    this.loadingEntryId = null
+    this.refusedEntryId = entry.id
+    if (engine.getStatus().state !== 'idle') engine.stop()
+    this.tellStall(entry, action, 'gave_up')
+    onLoadError?.(entry, new PlaybackStallError(action.state, action.attempts, action.stuckMs), false)
+  }
+
+  /** Logs the end of a stall here and in the server's log. */
+  private tellStall(entry: QueueEntry, action: Extract<StallAction, { type: 'recovered' | 'giveUp' }>, phase: 'recovered' | 'gave_up'): void {
+    const status = this.player!.engine.getStatus()
+    const positionMs = status.entryId === entry.id ? status.positionMs : positionAt(this.local, this.serverNow())
+    this.player!.onStall?.({ phase, entryId: entry.id, trackId: entry.trackId, state: action.state, attempts: action.attempts, stuckMs: action.stuckMs, positionMs })
+    if (!this.isActive() || this.connection !== 'online') return
+    const reported = phase === 'recovered' ? 'playing' : 'error'
+    this.lastReport = `${entry.id}:${reported}`
+    this.transport.report({
+      entryId: entry.id,
+      status: reported,
+      positionMs,
+      at: this.serverNow(),
+      stall: { trackId: entry.trackId, state: action.state, outcome: phase, attempts: action.attempts, stuckMs: action.stuckMs },
+    })
   }
 
   private onEngineEvent(event: EngineEvent): void {
