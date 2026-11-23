@@ -38,6 +38,8 @@ Most pages have a bar across the top with the page's name and, on some, links to
 
 Before you type, **Recently viewed** shows results you opened or played from Search. Use **×** beside a result to remove it, or **Clear all** to clear the list. Browse-by-genre tiles open your albums filtered to that genre. Recently viewed results are kept in this browser for your account.
 
+Album, artist, and playlist pages show a **Back to** breadcrumb when opened from another browsing page. **Back to Search** restores the same query, filters, and scroll position.
+
 ### Quick search
 
 Ctrl+K (⌘K on a Mac) opens a search box over whatever page you are on. It searches as you type and lists the first ten results of the search page, in the same order and drawn the same way.

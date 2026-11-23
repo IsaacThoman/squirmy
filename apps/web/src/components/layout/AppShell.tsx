@@ -9,6 +9,7 @@ import { SettingsDialogContext, type SettingsSection } from '@/components/settin
 import { cn } from '@/lib/utils'
 import { useLibrary } from '@/player/library-context'
 import { usePlayer } from '@/player/player-context'
+import { BackBreadcrumb } from './BackBreadcrumb'
 import { ErrorBoundary } from './ErrorBoundary'
 import { ScrollContainerContext } from './scroll-context'
 import { useScrollMemory } from './scroll-memory'
@@ -327,6 +328,7 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
               className="relative min-w-0 flex-1 overflow-y-auto outline-none [--gutter:1rem] md:[--gutter:1.5rem]"
             >
               <ScrollContainerContext value={scroller}>
+                <BackBreadcrumb />
                 {/* A page that fails shows a message in its place; the next page starts afresh. */}
                 <ErrorBoundary resetKey={pathname}>
                   <Outlet />

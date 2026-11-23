@@ -24,7 +24,7 @@ import { albumCollectionId, likedId as likedDownloadId, playlistCollectionId } f
 import { announce, useBriefFailures } from '../inlineFeedback';
 import { usePlaybackActions } from '../playback';
 import { createThemedStyles, useColors } from '../theme';
-import { AlbumNavButton, AlbumPlaybackButtons, type AlbumNavProps, type AlbumPlaybackProps } from './AlbumButtons';
+import { AlbumNavButton, AlbumPlaybackButtons, BrowseBackButton, type AlbumNavProps, type AlbumPlaybackProps } from './AlbumButtons';
 import { AlbumStatusBlur } from './AlbumStatusBlur';
 import { AlbumMetadata, type AlbumMetadataProps } from './AlbumMetadata';
 import { CollectionGridRow } from './BrowseControls';
@@ -147,7 +147,7 @@ function DetailPage({
       <AlbumStatusBlur solid />
     </Animated.View>
     <View pointerEvents="box-none" style={[styles.nav, { top: top + 6 }]}>
-      <AlbumNavButton icon="chevron.left" label="Go back" onPress={onBack} />
+      <BrowseBackButton onPress={onBack} />
       {/* Hidden from VoiceOver: the header's own title already names the page. */}
       {/* Cut in the middle: an edition's name ends its title ("… The Anthology"), and the bar is narrow. */}
       <Animated.Text numberOfLines={1} ellipsizeMode="middle" maxFontSizeMultiplier={displayFontScale} accessibilityElementsHidden
@@ -194,7 +194,7 @@ function PageFallback({ query, what, onBack }: { query: Parameters<typeof QueryS
   const styles = useStyles();
   const { top } = useSafeAreaInsets();
   return <View style={[styles.page, { paddingTop: top + 8 }]}>
-    <View style={styles.fallbackNav}><AlbumNavButton icon="chevron.left" label="Go back" onPress={onBack} /></View>
+    <View style={styles.fallbackNav}><BrowseBackButton onPress={onBack} /></View>
     {query.isError || query.isPending
       ? <QueryState query={query} what={what} />
       : <EmptyState icon="music.note" title="Not available" description="Go back to browse your library." />}
@@ -749,7 +749,7 @@ function CollectionGridPage({ title, detail, items, header, onBack, onRefresh, o
     actions: actionsFor(item),
   }))} />, [actionsFor, size]);
   return <View style={[styles.page, { paddingTop: top + 8 }]}>
-    <View style={styles.fallbackNav}><AlbumNavButton icon="chevron.left" label="Go back" onPress={onBack} /></View>
+    <View style={styles.fallbackNav}><BrowseBackButton onPress={onBack} /></View>
     <FlatList data={rows} renderItem={renderRow} keyExtractor={gridRowKey} refreshControl={refreshControl}
       initialNumToRender={listBatch} maxToRenderPerBatch={listBatch} windowSize={listWindow}
       contentContainerStyle={[styles.genreBody, { paddingBottom: bottomInset }]} showsVerticalScrollIndicator={false}
