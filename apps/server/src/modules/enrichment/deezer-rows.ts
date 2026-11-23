@@ -1,9 +1,19 @@
 /**
+ * A Deezer-only row Deezer typed an album that Deezer now says is a soundtrack (its genre or
+ * title, `deezer.deezerSoundtrack`). Only Deezer's own album type gives way: a row with a
+ * MusicBrainz id keeps MusicBrainz's type.
+ */
+const becomesSoundtrack = (type: string) => sql`(${albums.mbid} is null and ${albums.type} = 'album' and ${type} = 'soundtrack')`
+
+/** The type a row takes from Deezer: Deezer's for a guessed one, and soundtrack for an album Deezer now says is one. */
+const retyped = (guessed: SQL, type: string) => sql`case when ${guessed} then ${type} when ${becomesSoundtrack(type)} then ${type} else ${albums.type} end`
+
+/**
  * Catalog rows built from Deezer for music MusicBrainz does not know (yet), and the
  * Deezer ids of rows it does. Provider-only rows have no MBID; each carries its Deezer id
  * in `external_ids`, so a later bridge or a search result finds the same row.
  */
-import { and, asc, eq, isNull, not, notInArray, sql } from 'drizzle-orm'
+import { and, asc, eq, isNull, not, notInArray, sql, type SQL } from 'drizzle-orm'
 import { db, type Transaction } from '../../database/client.js'
 import { albumArtists, albums, artists, externalIds, recordingArtists, recordings, releases, releaseTracks } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
@@ -200,7 +210,7 @@ export async function buildFromDeezer(albumId: string, album: DeezerAlbum): Prom
     const guessed = sql`(${albums.typeGuessed} and ${albums.mbid} is null)`
     await tx.update(albums).set({
       canonicalReleaseId: sql`coalesce(${albums.canonicalReleaseId}, ${releaseId}::uuid)`,
-      type: sql`case when ${guessed} then ${album.type} else ${albums.type} end`,
+      type: retyped(guessed, album.type),
       typeGuessed: sql`${albums.typeGuessed} and not ${guessed}`,
       releaseDate: sql`coalesce(${albums.releaseDate}, ${album.releaseDate}::text)`,
       year: sql`coalesce(${albums.year}, ${album.releaseDate ? Number(album.releaseDate.slice(0, 4)) : null}::int)`,
@@ -332,11 +342,11 @@ export async function deezerDiscography(artistId: string, deezerArtistId: string
         await tx.update(albums).set({
           releaseDate: sql`coalesce(${albums.releaseDate}, ${album.releaseDate}::text)`,
           year: sql`coalesce(${albums.year}, ${year}::int)`,
-          type: sql`case when ${guessed} then ${album.type} else ${albums.type} end`,
+          type: retyped(guessed, album.type),
           typeGuessed: sql`${albums.typeGuessed} and not ${guessed}`,
           artworkAssetId: sql`coalesce(${albums.artworkAssetId}, ${artwork?.id ?? null}::uuid)`,
           updatedAt: new Date(),
-        }).where(and(eq(albums.id, existing), sql`(${albums.releaseDate} is null or ${guessed} or ${albums.artworkAssetId} is null)`))
+        }).where(and(eq(albums.id, existing), sql`(${albums.releaseDate} is null or ${guessed} or ${albums.artworkAssetId} is null or ${becomesSoundtrack(album.type)})`))
         return
       }
       const credit = album.artist.name || artist.name

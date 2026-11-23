@@ -77,6 +77,8 @@ type RawAlbum = {
   upc?: string
   label?: string
   genres?: { data: { name: string }[] }
+  /** The album's main genre (list and search answers carry only this). */
+  genre_id?: number
   artist?: RawArtist
   contributors?: RawContributor[]
 }
@@ -158,6 +160,29 @@ function image(url: string | undefined): string | null {
   return url && !/\/images\/(artist|cover)\/\//.test(url) ? url : null
 }
 
+/** Deezer's genre for film and video game music ("Films/Games"). */
+export const FILMS_GAMES_GENRE_ID = 173
+const soundtrackGenres = new Set(['films/games', 'soundtrack', 'soundtracks', 'film scores'])
+
+/**
+ * Words a store puts in a soundtrack's title: "(Original Motion Picture Soundtrack)",
+ * "Original Score", "Music from the Motion Picture", "Video Game Soundtrack". Kept to whole
+ * phrases a film's music says of itself, so an album merely called "Soundtrack to My Life"
+ * stays an album. `migration 0023` repeats it for rows stored before; change both together.
+ */
+export const SOUNDTRACK_TITLE = /\b(?:original\s+(?:motion\s+picture|film|movie|television|tv|series|video\s+game|game)\s+(?:sound\s?track|score)|original\s+(?:sound\s?track|score)|(?:motion\s+picture|film|movie|video\s+game)\s+(?:sound\s?track|score)|music\s+from\s+(?:and\s+inspired\s+by\s+)?the\s+(?:original\s+)?(?:motion\s+picture|film|movie|(?:television\s+|tv\s+)?series|video\s+game))\b/i
+
+/**
+ * Whether a release Deezer types as an album is a soundtrack. Deezer has no soundtrack type;
+ * its genre (Films/Games) or the title's own words tell it. Only albums: a single from a film
+ * stays a single, as MusicBrainz keeps it. A MusicBrainz type, once a row has one, wins over this.
+ */
+export function deezerSoundtrack(album: { title: string; genreId?: number | null; genres?: readonly string[] }): boolean {
+  return album.genreId === FILMS_GAMES_GENRE_ID
+    || (album.genres ?? []).some((genre) => soundtrackGenres.has(genre.trim().toLowerCase()))
+    || SOUNDTRACK_TITLE.test(album.title)
+}
+
 function albumType(recordType: string | undefined): AlbumType {
   switch (recordType) {
     case 'album': return 'album'
@@ -225,12 +250,19 @@ function albumSummary(raw: RawAlbum, fallbackArtist?: RawArtist): DeezerAlbumSum
     artist: main,
     artists: listed.some((one) => one.id === main.id) ? listed : [main, ...listed],
     coverUrl: image(raw.cover_xl),
-    type: albumType(raw.record_type),
+    type: refinedType(raw),
     explicit: raw.explicit_lyrics ?? false,
     releaseDate: raw.release_date && raw.release_date !== '0000-00-00' ? raw.release_date : null,
     trackCount: raw.nb_tracks ?? null,
     link: raw.link ?? `https://www.deezer.com/album/${raw.id}`,
   }
+}
+
+/** Deezer's record type, with an album that is a film's or a game's music typed a soundtrack. */
+function refinedType(raw: RawAlbum): AlbumType {
+  const type = albumType(raw.record_type)
+  const genres = (raw.genres?.data ?? []).map((genre) => text(genre.name))
+  return type === 'album' && deezerSoundtrack({ title: text(raw.title), genreId: raw.genre_id, genres }) ? 'soundtrack' : type
 }
 
 /** Every credited artist of a track, in Deezer's order (main artists first), once each. */

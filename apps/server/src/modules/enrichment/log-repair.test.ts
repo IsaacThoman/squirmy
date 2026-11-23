@@ -5,7 +5,7 @@ import type { RepairReport } from './repair.js'
 
 const report: RepairReport = {
   editions: 1, duplicateEditions: 0, unlinked: 2, artistCopies: 139, merged: 18, tagArtists: 0, decoded: 0, years: 0, explicitAlbums: 0,
-  topTrackArtists: 0, rankedArtists: 0, imageArtists: 0, twinAlbums: 11, twinsMerged: 20,
+  topTrackArtists: 0, rankedArtists: 0, imageArtists: 0, soundtrackChecks: 0, soundtracks: 0, twinAlbums: 11, twinsMerged: 20,
 }
 
 describe('logRepair', () => {
