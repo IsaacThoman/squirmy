@@ -74,7 +74,7 @@ describe('telling failures', () => {
       const { socket } = await playLowTide()
       act(() => socket.serverEmit('event', { type: 'playback.unavailable', trackId: song.id, kind, reason: kind === 'outage' ? 'Fetching is down.' : null }))
       act(() => socket.serverSet(session => ({ ...session, playing: false, current: session.current && { ...session.current, state: 'failed' } })))
-      await screen.findByText('Can’t load music right now')
+      await screen.findByText(/^Can’t load music right now/)
     }
     await pausedOn('outage')
     expect(screen.queryAllByTitle('Not available')).toEqual([])

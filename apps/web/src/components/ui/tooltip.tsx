@@ -1,6 +1,7 @@
 import { Tooltip as TooltipPrimitive } from 'radix-ui'
-import type { ReactElement, ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+import { onCloseTooltips } from './tooltip-signal'
 
 export const TooltipProvider = TooltipPrimitive.Provider
 
@@ -17,9 +18,17 @@ type TooltipProps = {
 
 /** Wraps a single focusable element. Pass `label={null}` to render the child alone. */
 export function Tooltip({ label, side = 'top', open, onOpenChange, tone, children }: TooltipProps) {
+  // Held here rather than left to Radix, so `closeTooltips()` can close it from outside.
+  const [shown, setShown] = useState(false)
+  const latest = useRef(onOpenChange)
+  useEffect(() => { latest.current = onOpenChange })
+  useEffect(() => onCloseTooltips(() => {
+    setShown(false)
+    latest.current?.(false)
+  }), [])
   if (label === null || label === undefined) return children
   return (
-    <TooltipPrimitive.Root open={open} onOpenChange={onOpenChange}>
+    <TooltipPrimitive.Root open={open ?? shown} onOpenChange={next => { setShown(next); onOpenChange?.(next) }}>
       <TooltipPrimitive.Trigger asChild>{children}</TooltipPrimitive.Trigger>
       <TooltipPrimitive.Portal>
         <TooltipPrimitive.Content

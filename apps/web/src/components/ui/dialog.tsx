@@ -5,6 +5,7 @@ import { errorMessage } from '@/api/errors'
 import { cn } from '@/lib/utils'
 import { Button } from './button'
 import { FormError } from './input'
+import { closeTooltips } from './tooltip-signal'
 
 /**
  * What takes focus back when a dialog closes: what had it as the dialog opened. A menu's item
@@ -58,6 +59,8 @@ function useCloseAutoFocus(onCloseAutoFocus?: (event: Event) => void) {
 /** Radix's dialog root, which gives focus back to what opened it. */
 export function Dialog({ open, onOpenChange, ...props }: ComponentProps<typeof DialogPrimitive.Root>) {
   const opener = useOpener(open)
+  // Whatever opened it (a click, a key, the wheel over the player bar), no tooltip stays over it.
+  useEffect(() => { if (open) closeTooltips() }, [open])
   return <OpenerContext value={opener}><DialogPrimitive.Root open={open} onOpenChange={onOpenChange} {...props} /></OpenerContext>
 }
 
