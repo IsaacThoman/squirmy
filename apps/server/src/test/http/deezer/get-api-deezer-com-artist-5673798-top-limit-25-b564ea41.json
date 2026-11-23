@@ -1,0 +1,48 @@
+{
+  "note": "Recorded 2026-11-22, trimmed to the fields the Deezer client reads.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/artist/5673798/top?limit=25"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": [
+        {
+          "id": 5672692,
+          "title": "Ain't She Sweet?",
+          "link": "https://www.deezer.com/track/5672692",
+          "duration": 164,
+          "rank": 118524,
+          "explicit_lyrics": false,
+          "contributors": [
+            {
+              "id": 191824,
+              "name": "Gene Austin",
+              "link": "https://www.deezer.com/artist/191824",
+              "picture_xl": "https://cdn-images.dzcdn.net/images/artist/c2d29cc10131d30025605daea8b6da0e/1000x1000-000000-80-0-0.jpg",
+              "type": "artist",
+              "role": "Main"
+            }
+          ],
+          "artist": {
+            "id": 191824,
+            "name": "Gene Austin",
+            "type": "artist"
+          },
+          "album": {
+            "id": 518138,
+            "title": "Voice Of The Southland",
+            "cover_xl": "https://cdn-images.dzcdn.net/images/cover/949e34fc16d1638c230c8a514cfe9bf9/1000x1000-000000-80-0-0.jpg",
+            "type": "album"
+          },
+          "type": "track"
+        }
+      ],
+      "total": 1
+    }
+  }
+}
