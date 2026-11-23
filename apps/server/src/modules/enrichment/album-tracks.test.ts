@@ -15,8 +15,11 @@ import { albumRow, albumStub, artistStub } from '../../test/enrichment-stubs.js'
 import { createLibraryRoot, createUser } from '../../test/factories.js'
 import { useHttpFixtures } from '../../test/http.js'
 import { albumDetail } from '../catalog/pages.js'
+import { lockUpserts, upsertRelease } from '../matching/apply.js'
+import type { MbRelease } from '../metadata/musicbrainz.js'
 import { hydrateAlbum } from './album.js'
-import { albumsWithTwins, repairAlbumTracks } from './album-tracks.js'
+import { albumsWithHeldCopies, albumsWithTwins, repairAlbumTracks } from './album-tracks.js'
+import { fitStrayRecordings } from './fit.js'
 import { setDetailBudget } from './runner.js'
 
 type Delivery = { durationMs: number; tags: FileTags }
@@ -115,11 +118,13 @@ describe('one row per song on an album', () => {
     expect(await albumsWithTwins()).toContain(albumId)
 
     const report = await repairAlbumTracks({ deezerEnabled: true })
-    expect(report).toMatchObject({ albums: 1, merged: 5, relinked: 1 })
+    // Five twins, and Red Bottoms joining the copy the single holds.
+    expect(report).toMatchObject({ albums: 1, merged: 6, relinked: 1 })
 
     const after = await pageTracks(listener, albumId)
     expect(after.map((track) => track.title)).toEqual(titles)
-    expect(after.map((track) => track.id)).toEqual(canonical)
+    // Track 5 is the stereo recording the single holds: the album's Atmos row joined it.
+    expect(after.map((track) => track.id)).toEqual(canonical.map((id, index) => (index === 4 ? single : id)))
     // Every song plays: Red Bottoms through its single, which carries the code Deezer lists for it here.
     expect(after.map((track) => track.availability)).toEqual(titles.map(() => 'server'))
     expect(after.map((track) => track.explicit)).toEqual(explicit)
@@ -133,12 +138,36 @@ describe('one row per song on an album', () => {
       const [row] = await db.select({ into: recordings.mergedIntoId }).from(recordings).where(eq(recordings.id, id))
       expect(row!.into).toBe(canonical[[0, 2, 3, 8, 10][index]!])
     }
-    const [redBottoms] = await db.select({ into: recordings.mergedIntoId }).from(recordings).where(eq(recordings.id, single))
-    expect(redBottoms!.into).toBe(canonical[4])
+    const [atmos] = await db.select({ into: recordings.mergedIntoId }).from(recordings).where(eq(recordings.id, canonical[4]!))
+    expect(atmos!.into).toBe(single)
 
     // Nothing is left to merge.
     expect(await albumsWithTwins()).not.toContain(albumId)
     expect(await repairAlbumTracks({ deezerEnabled: true })).toEqual({ albums: 0, merged: 0, relinked: 0 })
+  })
+
+  it('plays a song another release holds even when the album’s twins were folded before', async () => {
+    // As the test instance had it after the first repair: the twins were folded, and no run
+    // that merged something read PRIMA's Deezer track list again.
+    const { albumId, canonical, single } = await primaAsFound()
+    await fitNow(albumId)
+    expect(await albumsWithTwins()).not.toContain(albumId)
+    expect(await albumsWithHeldCopies()).toContain(albumId)
+
+    expect(await repairAlbumTracks({ deezerEnabled: true })).toMatchObject({ albums: 1, merged: 1 })
+    const tracks = await pageTracks(userId, albumId)
+    expect(tracks[4]).toMatchObject({ id: single, title: 'Red Bottoms', availability: 'server', explicit: true })
+    expect(tracks.map((track) => track.availability)).toEqual(titles.map(() => 'server'))
+
+    // MusicBrainz's Atmos release written again keeps the track on the held recording.
+    const [moved] = await db.select({ mbid: recordings.mbid }).from(recordings).where(eq(recordings.id, canonical[4]!))
+    await db.transaction((tx) => upsertRelease(tx, oneTrackRelease(moved!.mbid!, 'Red Bottoms', ['USUM72604715']), {}, { canonical: 'unless-owned' }))
+    const [held] = await db.select({ mbid: recordings.mbid, isrcs: recordings.isrcs, into: recordings.mergedIntoId }).from(recordings).where(eq(recordings.id, single))
+    expect(held).toMatchObject({ mbid: redBottomsMbid, into: null })
+    expect(held!.isrcs).toEqual(expect.arrayContaining(['USUM72604713', 'USUM72604715']))
+
+    // Nothing is left to do.
+    expect(await repairAlbumTracks({ deezerEnabled: true })).toMatchObject({ albums: 0, merged: 0 })
   })
 
   it('folds the delivered songs into their tracks when the album is opened', async () => {
@@ -152,6 +181,8 @@ describe('one row per song on an album', () => {
   })
 })
 
+const redBottomsMbid = 'eabbb286-caa7-4665-85f7-92745600a461'
+
 /** The "Red Bottoms" single, with the delivered file of its song. */
 async function deliveredSingle(artistId: string, rootId: string): Promise<string> {
   const albumId = newId()
@@ -161,6 +192,8 @@ async function deliveredSingle(artistId: string, rootId: string): Promise<string
   })
   const { releaseId, ids } = await deliveredTrackList(albumId, artistId, rootId, [prima.redBottomsSingle])
   await db.update(albums).set({ canonicalReleaseId: releaseId }).where(eq(albums.id, albumId))
+  // MusicBrainz's stereo recording of the song, as the single's release wrote it.
+  await db.update(recordings).set({ mbid: redBottomsMbid }).where(eq(recordings.id, ids[0]!))
   return ids[0]!
 }
 
@@ -206,4 +239,23 @@ async function primaAsFound() {
   const single = await deliveredSingle(artistId, root.id)
 
   return { albumId, canonical, stray, single }
+}
+
+const fitNow = (albumId: string) => db.transaction(async (tx) => {
+  await lockUpserts(tx)
+  return fitStrayRecordings(tx, albumId)
+})
+
+/** A MusicBrainz release of one track, enough for `upsertRelease`. */
+function oneTrackRelease(recordingMbid: string, title: string, isrcs: string[]): MbRelease {
+  const artistCredit = [{ name: 'ADÉLA', mbid: newId(), joinPhrase: '' }]
+  const group = { mbid: newId(), title: 'PRIMA', type: 'album' as const, primaryType: 'Album', secondaryTypes: [], disambiguation: '', artistCredit, artistName: 'ADÉLA', date: '2026-09-04', year: 2026 }
+  return {
+    mbid: newId(), title: 'PRIMA', status: 'official', country: 'XW', barcode: '00881061182931', disambiguation: 'Dolby Atmos mix', artistCredit, artistName: 'ADÉLA',
+    date: '2026-09-04', year: 2026, media: [{ format: 'Digital Media', trackCount: 1 }], trackCount: 1, labels: [], releaseGroup: group, urls: [],
+    mediums: [{ position: 1, format: 'Digital Media', title: '', tracks: [{
+      mbid: newId(), position: 5, number: '5', title, durationMs: 187000, artistCredit, artistName: 'ADÉLA',
+      recording: { mbid: recordingMbid, title, durationMs: 187000, disambiguation: '', video: false, artistCredit, artistName: 'ADÉLA', isrcs } as MbRelease['mediums'][number]['tracks'][number]['recording'],
+    }] }],
+  }
 }
