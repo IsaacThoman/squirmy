@@ -28,7 +28,8 @@ export function AppearanceSettings() {
               onClick={() => setAppearanceMode(id)}
               className={cn(
                 'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring @xl:flex-none',
-                appearance.mode === id ? 'bg-accent font-medium' : 'text-muted-foreground hover:text-foreground',
+                // Filled in the action color: a quiet fill is hard to tell from the segments beside it.
+                appearance.mode === id ? 'bg-primary font-medium text-primary-foreground focus-visible:ring-offset-1 focus-visible:ring-offset-background' : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
               )}
             >
               <Icon aria-hidden className="size-4" />{label}

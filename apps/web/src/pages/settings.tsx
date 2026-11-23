@@ -8,6 +8,7 @@ import { useLogout } from '@/auth/actions'
 import { useCurrentUser, useSetupStatus } from '@/auth/session'
 import type { SettingsDialogState } from '@/components/layout/AppShell'
 import { SettingsDialog } from '@/components/settings/SettingsDialog'
+import { loadFailure } from '@/components/ui/load-failure'
 import { browserName, deviceName } from '@/lib/device'
 import { toast } from '@/lib/toast'
 import { usePlayerControls } from '@/player/player-context'
@@ -52,12 +53,13 @@ export function SettingsDialogHost({ open, section, onOpenChange, onSectionChang
   const logout = useLogout()
   const controls = usePlayerControls()
   const status = useSetupStatus().data
-  const settings = useUserSettings().data
-  const scrobbling = useScrobbling().data
+  const settings = useUserSettings()
+  const scrobbling = useScrobbling()
   const update = useSettingsUpdate()
   const connections = useScrobbleConnections()
   const [name, setName] = useState(browserName)
-  const passwords = useQuery({ queryKey: appPasswordsKey, queryFn: () => api.auth.appPasswords(), enabled: open })
+  // Silent: the section says it did not load, with a retry, where the list would be.
+  const passwords = useQuery({ queryKey: appPasswordsKey, queryFn: () => api.auth.appPasswords(), enabled: open, meta: { silent: true } })
   const refreshPasswords = () => queryClient.invalidateQueries({ queryKey: appPasswordsKey })
   const createPassword = useMutation({ mutationFn: api.auth.createAppPassword, onSuccess: refreshPasswords, meta: { inline: true } })
   const revokePassword = useMutation({
@@ -87,7 +89,7 @@ export function SettingsDialogHost({ open, section, onOpenChange, onSectionChang
       user={user}
       serverName={status?.serverName ?? 'Squirmy'}
       version={status?.version ?? ''}
-      settings={settings}
+      settings={settings.data}
       onSettingsChange={patch => update.mutate(patch)}
       deviceName={name}
       defaultDeviceName={deviceName(navigator.userAgent)}
@@ -96,7 +98,7 @@ export function SettingsDialogHost({ open, section, onOpenChange, onSectionChang
         setName(browserName())
         toast({ title: 'Browser renamed', description: browserName() })
       }}
-      scrobbling={scrobbling}
+      scrobbling={scrobbling.data}
       onConnectListenBrainz={token => connections.listenBrainz.mutateAsync(token)}
       onConnectLastFm={() => connections.lastFm.mutate()}
       onDisconnect={target => connections.disconnect.mutateAsync(target)}
@@ -107,6 +109,11 @@ export function SettingsDialogHost({ open, section, onOpenChange, onSectionChang
       onRename={user.role === 'admin' ? displayName => rename.mutateAsync(displayName) : undefined}
       onLogout={logout}
       onOpenAdmin={user.role === 'admin' ? () => { onOpenChange(false); void navigate('/admin') } : undefined}
+      failures={{
+        settings: loadFailure(settings, 'Your playback settings did not load'),
+        scrobbling: loadFailure(scrobbling, 'Your scrobbling connections did not load'),
+        appPasswords: loadFailure(passwords, 'Your app passwords did not load'),
+      }}
     />
   )
 }

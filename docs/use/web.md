@@ -2,6 +2,8 @@
 
 The web app is served by your Squirmy server at its own address, such as `https://music.example.com`. Sign in, and it is your library, a player, and (for admins) the server's admin panel. This page is a short tour.
 
+To open it like an app, install it from your browser (**Install** in Chrome or Edge, **Add to Dock** in Safari on a Mac, **Add to Home Screen** on a phone). It opens in a window of its own, with the Squirmy icon.
+
 ## Getting around
 
 The sidebar has **Home**, **Search**, **Library**, the **Wantlist** (when your server has the Wantlist turned on) and **Add music** (for admins and people who may upload). Below them are your **Playlists**, with **Liked Songs** first. **New playlist** (the **+** next to Playlists) makes one, and the **Playlists** heading opens the page with all of them. Right-click a playlist to **Play** it.
@@ -51,7 +53,11 @@ Click a song, or the play button on an album or playlist. The player bar along t
 
 On a phone the player is a small bar at the bottom with the song, **Devices** and play or pause. Tap it for **Now Playing**, which is where the queue and the lyrics are.
 
-- **Song menus** (right-click or the **⋯** button): **Play next**, **Add to queue**, **Add to playlist** (or **New playlist…**), **Start radio**, **Save to library** or **Remove from library** (the same as the song's heart), **Go to album** (not on the album's own page), **Go to** each of its artists, and **Add to Wantlist** for music that is not available (when the Wantlist is turned on). You can also drag songs onto a playlist, or onto Liked Songs (which saves them), in the sidebar.
+On a touch screen, tap a song to play it, and tap an album's or playlist's artwork to open it; its page has **Play**. With a mouse, double-click a song, or use the play button that appears over its number or artwork.
+
+When something does not load (a page, a panel of **Settings** or **Admin**, the lyrics), it says so where it would be, with **Try again**; the rest of the screen keeps working.
+
+- **Song menus** (right-click or the **⋯** button): **Play next**, **Add to queue**, **Add to playlist** (or **New playlist…**), **Start radio**, **Save to library** or **Remove from library** (the same as the song's heart), **Go to album** (not on the album's own page), **Go to** each of its artists, and **Add to Wantlist** for music that is not available (when the Wantlist is turned on). You can also drag songs onto a playlist, or onto Liked Songs (which saves them), in the sidebar. From the keyboard, the menu is how to reach a song's album and artists: the links in its row are left out of the Tab order, since a narrow row cuts them short. An album's **Add to playlist** waits until its songs are known.
 - **Queue**: click a song in **Up next** to jump to it (the songs above it are skipped, except those you added yourself); reorder by dragging (hold a song near the top or bottom of the list to scroll it), or focus a song's handle and use the arrow keys; remove songs; **Clear** the queue or the history (a notice offers **Undo** for a few seconds). How Previous, Shuffle and Repeat treat the list a song was played from is in [The queue](../server/playback.md#the-queue). The queue holds up to 10,000 songs; adding more than fit does nothing. **Autoplay** keeps music going with similar songs when the queue runs out: the same artist, artists like it, and the same genre and era, favoring what you like. If you may fetch music, that includes songs the server doesn't have yet.
 - **Your settings** in **Settings → Playback**: **Volume normalization**, **Streaming quality**, **Cellular quality** (for the iOS app), and **This browser's name**. See [Playback](../server/playback.md).
 
@@ -59,7 +65,7 @@ On a phone the player is a small bar at the bottom with the song, **Devices** an
 
 Your library is the music on your server (what its owner scanned, uploaded or dropped in the inbox, shared by everyone) plus what you saved. Only you add to it, and only with the heart: playing or downloading music never does.
 
-- **The heart** is on every song, in an album's and an artist's header, in the player bar and in **Now Playing**. It saves the song, album or artist to your library at once, and a notice offers **Undo**. A song you save is in **Liked Songs** and under **Songs**; an album under **Albums**, with its songs; an artist under **Artists**. When the server can fetch music for you, it fetches anything an album or song is missing behind it. Click the heart again to remove it; your playlists and history keep it.
+- **The heart** is on every song (in lists, search results, the queue and its history, at any window size; a narrow row cuts the title short and drops the album, date added and length before it), in an album's and an artist's header, in the player bar and in **Now Playing**. It saves the song, album or artist to your library at once, and a notice offers **Undo**. A song you save is in **Liked Songs** and under **Songs**; an album under **Albums**, with its songs; an artist under **Artists**. When the server can fetch music for you, it fetches anything an album or song is missing behind it. Click the heart again to remove it; your playlists and history keep it.
 - Menus have **Save to library** or **Remove from library**, which does the same as the heart.
 - Music on your server is in everyone's library whether or not you heart it. Its heart shows only your own save.
 

@@ -2,6 +2,7 @@ import type { AlbumDetail, AlbumSummary, ArtistDetail } from '@squirmy/contracts
 import { MoreHorizontal, Music, Wand2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
+import { TRACK_LIST_POLL_FOR_MS } from '@/api/queries'
 import { useCurrentUser } from '@/auth/session'
 import { FixMatch } from '@/components/admin/FixMatch'
 import { ArtistLinks } from '@/components/music/ArtistLinks'
@@ -25,19 +26,22 @@ import { usePlayerControls } from '@/player/player-context'
 import { useTrackActions } from '@/player/use-track-actions'
 
 /**
- * How long a track list may stay "loading" before the page stops waiting on screen: about as
- * long as the page keeps asking the server (`useAlbum`). The server's invalidation still
- * brings the songs when they come.
+ * How long a track list may stay "loading" before the page stops waiting on screen: as long as
+ * the page keeps asking the server (`useAlbum`). The server's invalidation still brings the
+ * songs when they come.
  */
-export const TRACK_LIST_WAIT_MS = 60_000
+export const TRACK_LIST_WAIT_MS = TRACK_LIST_POLL_FOR_MS
 
 type AlbumViewProps = {
   album: AlbumDetail
   /** The lead artist's page, once loaded: other versions of the album and more by them follow the songs. */
   artist?: ArtistDetail
   onPlayAlbum?: (album: AlbumSummary) => void
-  /** Asks the server for the album again, from the "still looking" state. */
-  onRefresh?: () => void
+  /**
+   * Asks the server for the album again, from the "still looking" state, and keeps asking for
+   * another minute (`useAlbum`). The button is busy until this answer is in.
+   */
+  onRefresh?: () => Promise<unknown> | void
 }
 
 /**
@@ -61,6 +65,15 @@ export function AlbumView({ album, artist, onPlayAlbum, onRefresh }: AlbumViewPr
   // The songs are on their way. Play can be pressed already, for music that plays; it starts once they arrive.
   const awaiting = awaitsTrackList(album)
   const overdue = useOverdue(awaiting, album.id)
+  const [checking, setChecking] = useState(false)
+  const checkAgain = async () => {
+    setChecking(true)
+    try {
+      await onRefresh?.()
+    } finally {
+      setChecking(false)
+    }
+  }
   const listing = awaiting && !overdue
   const waiting = listing && !dimmed
   const { versions, more } = relatedAlbums(album, artist)
@@ -124,6 +137,7 @@ export function AlbumView({ album, artist, onPlayAlbum, onRefresh }: AlbumViewPr
                   onEnqueue: enqueue,
                   playlists: library.playlists,
                   onAddToPlaylist: playlist => (playlist ? library.addToPlaylist(playlist, tracks) : library.newPlaylist(tracks)),
+                  songsKnown: tracks.length > 0,
                   liked: album.liked,
                   onToggleSaved: toggleSaved,
                   want: library.wantlistEnabled && dimmed ? { wanted, onToggle: want } : undefined,
@@ -141,14 +155,14 @@ export function AlbumView({ album, artist, onPlayAlbum, onRefresh }: AlbumViewPr
         {listing
           ? <div role="status" aria-label="Loading songs" className="px-2 pt-2"><TrackRowsSkeleton rows={Math.min(Math.max(album.trackCount, 6), 14)} /></div>
           : tracks.length
-            ? <div className="-mx-2"><TrackList label={`${album.title} tracks`} tracks={tracks} discs={album.discs} variant="album" {...actions} /></div>
+            ? <div className="-mx-2"><TrackList label={`${album.title} tracks`} tracks={tracks} discs={album.discs} variant="album" albumCredit={album.artistCredit} {...actions} /></div>
             : overdue
               ? (
                 <EmptyState
                   icon={<Music />}
                   title="Still looking for the songs"
                   description="This is taking longer than usual. They will show up here when they arrive."
-                  action={onRefresh && <Button variant="outline" onClick={onRefresh}>Check again</Button>}
+                  action={onRefresh && <Button variant="outline" pending={checking} onClick={() => void checkAgain()}>Check again</Button>}
                 />
               )
               : <EmptyState icon={<Music />} title="No songs listed" description="The server doesn’t know this album’s songs yet." />}

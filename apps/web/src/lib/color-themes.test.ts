@@ -3,8 +3,8 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { contrastRatio, flattenHex, lightness, mixHex, normalizeHex } from './color'
 import {
-  COLOR_THEMES, colorThemeStylesheet, DEFAULT_COLOR_THEME_ID, findColorTheme, paletteVariables, resolvePalette, THEME_APPEARANCES, THEME_ROLES,
-  type ColorTheme, type ThemeColors, type ThemeRole,
+  COLOR_THEMES, colorThemeStylesheet, CONTROL_SURFACES, DEFAULT_COLOR_THEME_ID, findColorTheme, headerTints, NON_TEXT_CONTRAST, paletteVariables,
+  resolvePalette, THEME_APPEARANCES, THEME_ROLES, type ColorTheme, type ThemeColors, type ThemeRole,
 } from './color-themes'
 
 const indexCss = readFileSync(join(import.meta.dirname, '../index.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
@@ -193,5 +193,63 @@ describe('readability of muted text on the surfaces it sits on', () => {
 
   it('names only cases that exist', () => {
     for (const name of failing) expect(cases.map(([each]) => each)).toContain(name)
+  })
+})
+
+/** Every theme in both appearances, as `[name, palette]`. */
+const palettes = COLOR_THEMES.flatMap(theme => THEME_APPEARANCES.map(appearance => [`${theme.name} ${appearance}`, resolvePalette(theme[appearance]), appearance] as const))
+
+/** How `index.css` mixes two colors `in srgb`: a straight blend of the encoded channels, like painting with alpha. */
+function mixSrgb(color: string, behind: string, amount: number): string {
+  return flattenHex(`${color.slice(0, 7)}${Math.round(amount * 255).toString(16).padStart(2, '0')}`, behind)
+}
+
+describe('contrast of what identifies a control (3:1, WCAG non-text contrast)', () => {
+  const cases = palettes.flatMap(([name, palette]): [string, string, string][] => [
+    // Empty text fields, selects and the resting seek and volume tracks are drawn in the input color.
+    ...CONTROL_SURFACES.map((surface): [string, string, string] => [`${name}: the input edge on ${surface}`, flattenHex(palette.input, palette[surface]), palette[surface]]),
+    ...(['background', 'surface'] as const).map((surface): [string, string, string] => [`${name}: the focus ring on ${surface}`, palette.focus, palette[surface]]),
+    // The bar and icon that mark the sidebar's current page.
+    [`${name}: the current page's marker on its selected row`, palette.action, flattenHex(palette.sidebarSelection, palette.sidebar)],
+  ])
+
+  it.each(cases)('%s (%s on %s)', (_case, color, behind) => {
+    expect(contrastRatio(color, behind)).toBeGreaterThanOrEqual(NON_TEXT_CONTRAST)
+  })
+})
+
+describe('contrast of text drawn in derived colors', () => {
+  /** Cover colors from pale to vivid to dark, every 15° of hue, plus white, black and gray. */
+  const covers = ['#ffffff', '#000000', '#808080']
+  for (let hue = 0; hue < 360; hue += 15) {
+    for (const saturation of [1, 0.6, 0.3]) {
+      for (const value of [1, 0.8, 0.6, 0.4, 0.2]) {
+        const f = (n: number) => { const k = (n + hue / 60) % 6; return value - value * saturation * Math.max(0, Math.min(k, 4 - k, 1)) }
+        covers.push(`#${[5, 3, 1].map(n => Math.round(f(n) * 255).toString(16).padStart(2, '0')).join('')}`)
+      }
+    }
+  }
+  /** `--album-tint` in index.css: how much of the cover tints the top of a header. */
+  const strength = { light: 0.16, dark: 0.42 }
+
+  it.each(palettes)('%s: secondary words in a collection header read at 4.5:1 over any cover\'s tint', (_name, palette, appearance) => {
+    // `--color-tint-muted-foreground`: the text, a fifth of the way to the page.
+    const words = mixHex(palette.text, palette.background, 0.2)
+    const worst = Math.min(...covers.map(cover => contrastRatio(words, mixSrgb(headerTints(cover)[appearance], palette.background, strength[appearance]))))
+    expect(worst).toBeGreaterThanOrEqual(READABLE)
+  })
+
+  it.each(palettes)('%s: the explicit badge, the page color on muted text, reads at 4.5:1', (_name, palette) => {
+    expect(contrastRatio(palette.background, flattenHex(palette.mutedText, palette.background))).toBeGreaterThanOrEqual(READABLE)
+  })
+
+  it.each(palettes)('%s: the gray of music that does not play stays at 3:1 on the page, cards and the sidebar', (_name, palette) => {
+    // `--color-faded-foreground`: muted text a quarter of the way to the page.
+    const faded = mixHex(flattenHex(palette.mutedText, palette.background), palette.background, 0.25)
+    for (const surface of ['background', 'surface', 'sidebar'] as const) expect(contrastRatio(faded, palette[surface]), surface).toBeGreaterThanOrEqual(NON_TEXT_CONTRAST)
+  })
+
+  it.each(palettes)('%s: the selected appearance mode, action text on the action color, reads at 4.5:1', (_name, palette) => {
+    expect(contrastRatio(palette.actionText, palette.action)).toBeGreaterThanOrEqual(READABLE)
   })
 })

@@ -13,6 +13,11 @@ export type AlbumMenuOptions = {
   /** The user's own playlists; `null` is a new one. */
   playlists: PlaylistSummary[]
   onAddToPlaylist: (playlist: PlaylistSummary | null) => void
+  /**
+   * False while the album's songs are not known yet (the server is still looking them up): there
+   * is nothing to add, and a new playlist would start empty.
+   */
+  songsKnown?: boolean
   /** Whether it is saved, undefined until the album is loaded: the entry waits for it. */
   liked: boolean | undefined
   onToggleSaved: () => void
@@ -26,7 +31,7 @@ export type AlbumMenuOptions = {
  * add it to a playlist, the one library entry, the Wantlist for what does not play, and its artists.
  */
 export function albumMenuEntries(options: AlbumMenuOptions): MenuEntry[] {
-  const { artists, playable, onPlay, onEnqueue, playlists, onAddToPlaylist, liked, onToggleSaved, want, onGoToArtist } = options
+  const { artists, playable, onPlay, onEnqueue, playlists, onAddToPlaylist, songsKnown = true, liked, onToggleSaved, want, onGoToArtist } = options
   return [
     ...(onPlay ? [{ label: 'Play', icon: <Play />, disabled: !playable, onSelect: onPlay }] : []),
     { label: 'Play next', icon: <ListStart />, disabled: !playable, onSelect: () => onEnqueue('next') },
@@ -35,6 +40,7 @@ export function albumMenuEntries(options: AlbumMenuOptions): MenuEntry[] {
       kind: 'submenu',
       label: 'Add to playlist',
       icon: <ListPlus />,
+      disabled: !songsKnown,
       items: [
         { label: 'New playlist…', icon: <Plus />, onSelect: () => onAddToPlaylist(null) },
         ...(playlists.length ? [{ kind: 'separator' as const }] : []),

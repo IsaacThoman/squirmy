@@ -6,6 +6,29 @@ import { Button } from './button'
 import { holdsEscape, registerDialog } from './dialog-stack'
 import { FormError } from './input'
 
+/**
+ * Gives focus back to what had it before a dialog opened. Radix returns focus to the dialog's
+ * Trigger, and many dialogs have none (Quick Search from ⌘K, Settings from ⌘, or a menu, Now
+ * Playing): focus then falls to the page's body and the next Tab starts again from the top. A
+ * frame later, once Radix has done what it does, focus that is still nowhere goes back. Runs on
+ * closing and on unmounting both, since some hosts remove a dialog as it closes.
+ */
+function useReturnFocus(open: boolean | undefined) {
+  useEffect(() => {
+    if (!open) return
+    const before = document.activeElement
+    const opener = before instanceof HTMLElement && before !== document.body ? before : null
+    return () => {
+      if (!opener) return
+      requestAnimationFrame(() => {
+        const now = document.activeElement
+        const lost = now === null || now === document.body
+        if (lost && opener.isConnected && !opener.matches(':disabled')) opener.focus({ preventScroll: true })
+      })
+    }
+  }, [open])
+}
+
 /** Radix's dialog root, registered while open so a toast's Escape still reaches it. */
 export function Dialog({ open, onOpenChange, ...props }: ComponentProps<typeof DialogPrimitive.Root>) {
   const latest = useRef(onOpenChange)
@@ -15,6 +38,7 @@ export function Dialog({ open, onOpenChange, ...props }: ComponentProps<typeof D
     // Known to the toaster, which hands this dialog the Escape a toast hears first.
     return registerDialog(() => latest.current?.(false))
   }, [open])
+  useReturnFocus(open)
   return <DialogPrimitive.Root open={open} onOpenChange={onOpenChange} {...props} />
 }
 
@@ -24,9 +48,44 @@ export const DialogTitle = DialogPrimitive.Title
 
 export const dialogOverlayClass = 'fixed inset-0 z-50 animate-fade-in bg-black/50 data-[state=closed]:animate-fade-out'
 // The width leaves a margin on phones; a caller's `max-w-*` narrows it without undoing that margin.
-export const dialogSurfaceClass = 'fixed left-1/2 top-1/2 z-50 max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 animate-enter rounded-lg border bg-background text-foreground shadow-lg outline-none data-[state=closed]:animate-exit'
-// A 32px target; the icon sits where a 16px one would, 24px in from the corner.
-export const dialogCloseClass = 'absolute right-2 top-2 flex size-8 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-4'
+// The margins grow to the screen's safe area (the page draws under notches and the home bar, with
+// `viewport-fit=cover`), the larger inset on both sides since the dialog stays centered. A caller
+// sizing the dialog to the screen uses `--dialog-inset-x` and `--dialog-inset-y` the same way.
+export const dialogSurfaceClass = 'fixed left-1/2 top-1/2 z-50 [--dialog-inset-x:max(1rem,env(safe-area-inset-left),env(safe-area-inset-right))] [--dialog-inset-y:max(1rem,env(safe-area-inset-top),env(safe-area-inset-bottom))] max-h-[calc(100dvh-var(--dialog-inset-y)*2)] w-[calc(100%-var(--dialog-inset-x)*2)] -translate-x-1/2 -translate-y-1/2 animate-enter rounded-lg border bg-background text-foreground shadow-lg outline-none data-[state=closed]:animate-exit'
+// A 32px target; the icon sits where a 16px one would, 24px in from the corner. On a touch
+// screen the target reaches 44px past the box, without moving the icon.
+export const dialogCloseClass = 'absolute right-2 top-2 flex size-8 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 [&_svg]:size-4'
+
+const typesInto = (element: Element | null): element is HTMLElement =>
+  element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement || (element instanceof HTMLInputElement && !['button', 'checkbox', 'radio', 'range', 'submit', 'reset'].includes(element.type))
+
+/**
+ * Keeps the field being typed into in sight while the dialog gets shorter. A phone's keyboard
+ * shrinks the viewport after the field took focus, and the dialog (as tall as the viewport allows)
+ * shrinks with it, which can leave the focused field below its visible part: the browser scrolls a
+ * field into view when it takes focus, not when the space around it changes.
+ */
+function useFocusedFieldInView() {
+  useEffect(() => {
+    let frame = 0
+    const reveal = () => {
+      cancelAnimationFrame(frame)
+      // After the layout for the new size.
+      frame = requestAnimationFrame(() => {
+        const active = document.activeElement
+        if (typesInto(active) && active.closest('[role="dialog"]')) active.scrollIntoView({ block: 'nearest' })
+      })
+    }
+    const viewport = window.visualViewport
+    window.addEventListener('resize', reveal)
+    viewport?.addEventListener('resize', reveal)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener('resize', reveal)
+      viewport?.removeEventListener('resize', reveal)
+    }
+  }, [])
+}
 
 /**
  * Escape first clears a search field that has text, as it does outside a dialog; the next one
@@ -47,6 +106,7 @@ type DialogContentProps = ComponentProps<typeof DialogPrimitive.Content> & {
 
 /** A titled dialog. For a custom layout (the settings and search dialogs), use `DialogFrame`. */
 export function DialogContent({ title, description, className, children, onEscapeKeyDown, ...props }: DialogContentProps) {
+  useFocusedFieldInView()
   return (
     <DialogPrimitive.Portal>
       <DialogPrimitive.Overlay className={dialogOverlayClass} />
@@ -70,6 +130,7 @@ export function DialogContent({ title, description, className, children, onEscap
 
 /** The dialog surface alone: the caller lays it out and must render a `DialogTitle`. */
 export function DialogFrame({ className, children, showClose = true, onEscapeKeyDown, ...props }: ComponentProps<typeof DialogPrimitive.Content> & { showClose?: boolean }) {
+  useFocusedFieldInView()
   return (
     <DialogPrimitive.Portal>
       <DialogPrimitive.Overlay className={dialogOverlayClass} />

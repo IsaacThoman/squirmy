@@ -646,7 +646,8 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   primaryButtonCompact: { width: 56, height: 56 },
   volumeRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   volumeSlider: { flex: 1 },
-  systemVolume: { height: 34 },
+  // The whole bar takes touches, 44pt tall, laid out as the 34pt it was.
+  systemVolume: { height: 44, marginVertical: -5 },
   // 44pt to touch; the negative margins keep the row as it was laid out for the 36pt glyph.
   routePicker: { width: 44, height: 44, marginLeft: -2, marginVertical: -4 },
   footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingTop: 8 },
