@@ -36,7 +36,6 @@ import { useRealtime } from './data/realtime';
 import { SongList, useSongListItems } from './library/SongList';
 import { usePlayAll } from './library/usePlayAll';
 import type { SongRowItem } from './library/rows';
-import { ZoomLink, ZoomSource } from './library/ZoomLink';
 import { usePlaybackActions } from './playback';
 import { createThemedStyles, unavailableOpacity, useColors } from './theme';
 import { Cover, Icon } from './ui';
@@ -74,16 +73,17 @@ export function useAlbumPlayer() {
   return { play, pending: starts.pending };
 }
 
-/** The featured album. Its page zooms out of the whole card; the enclosing `ZoomLink` supplies `onPress`. */
-function HeroCard({ album, size, onPress }: { album: AlbumSummary; size: number; onPress?: () => void }) {
+/** The featured album. Its page zooms out of the whole card. */
+function HeroCard({ album, size, href }: { album: AlbumSummary; size: number; href: Href }) {
   const albumPlayer = useAlbumPlayer();
   const styles = useStyles();
-  return <ZoomSource style={[styles.hero, { minHeight: Math.min(350, size * 0.85), backgroundColor: album.artwork?.color ?? '#322940' }]}>
-    <Cover artwork={album.artwork} size={size} radius={0} style={styles.heroCover} />
-    <LinearGradient colors={['#100D1600', '#100D1660', '#100D16E8']} locations={[0, 0.40, 1]} style={StyleSheet.absoluteFill} />
-    <HeroActions title={album.title} artist={album.artistCredit} onOpen={() => onPress?.()}
-      onPlay={() => { tapFeedback(); albumPlayer.play(album.id); }} busy={albumPlayer.pending(album.id)} />
-  </ZoomSource>;
+  const height = Math.min(350, size * 0.85);
+  return <HeroActions title={album.title} artist={album.artistCredit} href={href} width={size} height={height}
+    art={<View style={[styles.heroArt, { width: size, height, backgroundColor: album.artwork?.color ?? '#322940' }]}>
+      <Cover artwork={album.artwork} size={size} radius={0} style={styles.heroCover} />
+      <LinearGradient colors={['#100D1600', '#100D1660', '#100D16E8']} locations={[0, 0.40, 1]} style={StyleSheet.absoluteFill} />
+    </View>}
+    onPlay={() => { tapFeedback(); albumPlayer.play(album.id); }} busy={albumPlayer.pending(album.id)} />;
 }
 
 function sectionSize(section: HomeSection) {
@@ -164,8 +164,8 @@ export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAcc
       {!home.data && <QueryState query={home} what="your music" />}
       {home.data && !sections.length && <EmptyState icon="music.note.house" title="No music yet"
         description={`Add music to a library folder on ${serverName}. It shows up here as soon as it has been scanned.`} />}
-      {hero && <View style={collectionDim(albumCollection(hero, link)).dim && styles.unavailable}>
-        <ZoomLink href={link('album', hero.id)}><HeroCard album={hero} size={heroSize} /></ZoomLink>
+      {hero && <View style={[styles.hero, collectionDim(albumCollection(hero, link)).dim && styles.unavailable]}>
+        <HeroCard album={hero} size={heroSize} href={link('album', hero.id)} />
       </View>}
       {sections.map(section => <HomeRail key={section.id} section={section} link={link} onOpen={onOpen} onTrackMenu={onTrackMenu} />)}
     </ScrollView>
@@ -567,7 +567,8 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   unavailable: { opacity: unavailableOpacity },
   pageTitle: { color: colors.text, fontSize: 37, letterSpacing: -1.65, fontWeight: '800' },
   pageHeader: { marginHorizontal: gutter, flexDirection: 'row', alignItems: 'center', minHeight: 48, gap: 12 },
-  hero: { marginHorizontal: gutter, borderRadius: 26, overflow: 'hidden', justifyContent: 'flex-end' },
+  hero: { marginHorizontal: gutter },
+  heroArt: { overflow: 'hidden' },
   heroCover: { position: 'absolute', top: 0, left: 0 },
   homeSection: { marginTop: 26 },
   statusFade: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1 },
