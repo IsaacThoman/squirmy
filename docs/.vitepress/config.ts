@@ -11,6 +11,7 @@ const sidebar = [
       { text: 'Quick start', link: '/server/quick-start' },
       { text: 'Configuration', link: '/server/configuration' },
       { text: 'Reverse proxies and HTTPS', link: '/server/reverse-proxy' },
+      { text: 'Deploying on Coolify', link: '/server/coolify' },
       { text: 'Backup, restore and moving', link: '/server/backup' },
       { text: 'Troubleshooting', link: '/server/troubleshooting' },
     ],
