@@ -58,7 +58,8 @@ def write_ico(source, destination, sizes=(16, 32, 48)):
 
 def main():
     icon = RENDERS / 'worm-icon.png'            # close-up of the head on the violet floor
-    mark = RENDERS / 'worm-mark.png'            # the head alone, transparent
+    mark = RENDERS / 'worm-mark.png'            # the close-up as a rounded tile
+    head = RENDERS / 'worm-head-mark.png'       # the head alone as a rounded tile
     small = RENDERS / 'worm-mark-bg.png'        # the head alone on the violet floor
 
     # iOS: Icon Composer layers, at the 1024 px canvas size. A larger render
@@ -77,8 +78,9 @@ def main():
     resize(mark, 256, MOBILE / 'squirmy-mark.png', optimize=True)
 
     # Web app: in-app logo and favicons.
-    resize(mark, 256, WEB / 'squirmy-mark.png', optimize=True)
-    resize(mark, 64, WEB / 'squirmy-mark-64.png', optimize=True)
+    # The web logo is small (30 px in the sidebar), where the head alone keeps the eyes readable.
+    resize(head, 256, WEB / 'squirmy-mark.png', optimize=True)
+    resize(head, 64, WEB / 'squirmy-mark-64.png', optimize=True)
     write_ico(small, WEB / 'favicon.ico')
     resize(icon, 192, WEB / 'icon-192.png', optimize=True)
     resize(icon, 512, WEB / 'icon-512.png', optimize=True)

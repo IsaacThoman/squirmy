@@ -8,9 +8,12 @@ worm-icon is the flattened icon. Its Icon Composer layers are worm-icon-body
 (the worm without its eyes) and worm-icon-face (eyes only, with the body held
 out so the hidden parts of the eyes stay hidden). Stack them without moving or
 resizing. The layers have no floor shadow and no depth of field: Icon Composer
-draws its own shadow, and its glass edges turn soft alpha into hard artifacts. worm-mark is worm-icon as a rounded tile on a transparent
-background, for the in-app logo and splash screen. worm-mark-bg is a tighter
-crop of the head, for favicons. See README.md for the full commands.
+draws its own shadow, and its glass edges turn soft alpha into hard artifacts.
+
+worm-mark is worm-icon as a rounded tile on a transparent background, for the
+mobile app's logo and splash screen. worm-mark-bg is a tighter crop of the
+head, for favicons, and worm-head-mark is that crop as a rounded tile, for the
+web app's logo. See README.md for the full commands.
 """
 
 import argparse
@@ -321,10 +324,12 @@ def main():
         print(f'Rendering {filename}', flush=True)
         bpy.ops.render.render(write_still=True)
 
-    icon_render = args.output / 'worm-icon.png'
-    if (not only or 'worm-mark' in only) and icon_render.exists():
-        print('Writing worm-mark', flush=True)
-        rounded_tile(icon_render.resolve(), (args.output / 'worm-mark.png').resolve())
+    # Rounded tiles, made from the renders above.
+    for tile, render in (('worm-mark', 'worm-icon'), ('worm-head-mark', 'worm-mark-bg')):
+        source = args.output / f'{render}.png'
+        if (not only or tile in only) and source.exists():
+            print(f'Writing {tile}', flush=True)
+            rounded_tile(source.resolve(), (args.output / f'{tile}.png').resolve())
 
     bpy.context.preferences.filepaths.save_version = 0
     bpy.ops.wm.save_as_mainfile(filepath=str(HERE / 'worm.blend'))

@@ -1,8 +1,9 @@
 import { cn } from '@/lib/utils'
 
 /**
- * The googly worm mascot, as a rounded tile like the app icon. The tile brings its own violet,
- * so it sits on every theme in light and dark alike. The 64 px file covers a 32 px mark on a 2x screen; a denser screen or a
+ * The googly worm's head, as a rounded tile like the app icon. The head alone keeps the eyes
+ * readable at sidebar size, and the tile brings its own violet, so it sits on every theme in light
+ * and dark alike. The 64 px file covers a 32 px mark on a 2x screen; a denser screen or a
  * larger mark gets the 256 px one.
  */
 export function LogoMark({ size = 24, className }: { size?: number; className?: string }) {
