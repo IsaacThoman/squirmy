@@ -46,12 +46,12 @@ describe('PlayerProvider', () => {
     renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
     await userEvent.click(await screen.findByRole('button', { name: 'Play Blue Hour' }))
     const player = await screen.findByRole('region', { name: 'Player' })
-    await userEvent.click(await within(player).findByRole('button', { name: 'Remove from library' }))
+    await userEvent.click(await within(player).findByRole('button', { name: `Remove ${first.title} from library` }))
     expect(api.userdata.unlike).toHaveBeenCalledWith('track', first.id)
-    expect(await within(player).findByRole('button', { name: 'Save to library' })).toBeInTheDocument()
+    expect(await within(player).findByRole('button', { name: `Save ${first.title} to library` })).toBeInTheDocument()
     expect(await screen.findByText('Removed from your library')).toBeInTheDocument()
     // The album page shows the same track, from its own cached answer.
-    expect(screen.getByRole('button', { name: `Save ${first.title} to library` })).toBeInTheDocument()
+    expect(within(screen.getByRole('list', { name: 'Blue Hour tracks' })).getByRole('button', { name: `Save ${first.title} to library` })).toBeInTheDocument()
   })
 
   it('clears the history with a moment to undo it', async () => {

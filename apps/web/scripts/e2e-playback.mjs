@@ -212,8 +212,8 @@ await step('queue', async () => {
 })
 
 await step('likes', async () => {
-  // The playing song's heart, in the player: the album page has its own Save to library.
-  await page.getByRole('region', { name: 'Player' }).getByRole('button', { name: 'Save to library', exact: true }).first().click()
+  // The playing song's heart, in the player, named after the song: the album page's is "Save to library".
+  await page.getByRole('region', { name: 'Player' }).getByRole('button', { name: /^Save .+ to library$/ }).first().click()
   await page.getByRole('link', { name: /Liked Songs/ }).first().click()
   await page.getByRole('heading', { name: 'Liked Songs', level: 1 }).waitFor()
   const row = page.getByRole('list', { name: 'Liked Songs tracks' }).getByText('Night Swimming', { exact: true })
