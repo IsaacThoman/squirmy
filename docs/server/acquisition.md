@@ -20,7 +20,7 @@ In **Admin → Providers**:
 2. **Tell the provider where to deliver**, under **Policy → Delivery address**, when it reaches the server at another address than `PUBLIC_URL` or `http://localhost:4747` (see below).
 3. **Allow people to fetch.** Admins always can. For members, turn on **Can fetch missing music** in **Admin → Users & invites**.
 
-The switch on a provider's card turns it off and on, and its menu edits or deletes it. **Cache** shows what fetched music takes: **Cached** (size and number of files), **Kept** (files that are never deleted because someone saved, liked, queued or put them in a playlist, or played them in the last day), **Can make room** (the rest, least recently played first), and the **Limit** with how much of it is used. **Requests**, at the bottom, lists every fetch with who asked, what for, the provider, the state and the error, as they happen; filter it by state.
+The switch on a provider's card turns it off and on, and its menu edits or deletes it. **Cache** shows what fetched music takes: **Cached** (size and number of files), **Kept** (files that are never deleted because someone saved, liked, queued or put them in a playlist, or played them in the last day), **Can make room** (the rest, least recently played first), and the **Limit** with how much of it is used. **Requests**, at the bottom, lists every fetch with who asked, what for, the provider, the state and the error, as they happen, newest first; filter it by state. It shows 100 at a time, and **Show older requests** under the list loads the next 100.
 
 ### Through the API
 

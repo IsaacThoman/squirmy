@@ -125,7 +125,7 @@ Both apply at once. They are kept in this browser, not in your account, so each 
 
 ## Admin
 
-Admins manage the server in the admin panel: choose **Admin panel** in the account menu, or under the sections of **Settings** (not on a phone). The bar at its top, titled **Admin**, links to the sections, and each has its own guide. The guides name them like **Admin → Library**.
+Admins manage the server in the admin panel: choose **Admin panel** in the account menu, or under the sections of **Settings** (not on a phone). The bar at its top, titled **Admin**, links to the sections; when the window is too narrow for all of them, the rest are under **More** at its end. Each section has its own guide. The guides name them like **Admin → Library**.
 
 | Section | Guide |
 |---|---|
