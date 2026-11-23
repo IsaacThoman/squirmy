@@ -6,7 +6,7 @@ import { createMockProvider, type MockProvider } from '@squirmy/adapter-mock'
 import { FakeEngine, SessionClient } from '@squirmy/client-core'
 import { createSocketTransport, type SquirmySocket } from '@squirmy/client-core/socket'
 import {
-  AcquireResponse, AcquisitionProviderList, AcquisitionUsage, ImportList, LibraryRootList, LibraryStats, MatchReviewList, PlaybackDescriptor, TrackSummary, type QueueEntry, type ServerEvent,
+  AcquireResponse, AcquisitionProviderList, AcquisitionUsage, ImportList, LibraryRootList, LibraryStats, MatchReviewList, PlaybackDescriptor, TrackSummary, type EntityChange, type QueueEntry, type ServerEvent,
 } from '@squirmy/contracts'
 import { deliver } from '@squirmy/provider-kit'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
@@ -141,6 +141,23 @@ describe('acquisition end to end', () => {
     return created
   }
 
+  /** Another user's open screens: every `invalidate` and `changes` their socket receives. */
+  async function observe(user: User) {
+    const token = user.headers.authorization.slice('Bearer '.length)
+    const socket: SquirmySocket = connect(url, { path: '/socket.io', transports: ['websocket'], reconnection: false, auth: { token } })
+    const seen = { keys: [] as (readonly unknown[])[], changes: [] as EntityChange[], close: () => socket.disconnect() }
+    socket.on('invalidate', ({ keys }) => seen.keys.push(...keys))
+    socket.on('changes', ({ changes }) => seen.changes.push(...changes))
+    await new Promise<void>((resolve, reject) => {
+      socket.once('connect', resolve)
+      socket.once('connect_error', reject)
+    })
+    return seen
+  }
+  const availabilityIn = (changes: readonly EntityChange[], id: string) => changes.flatMap((change) => change.kind === 'availability'
+    ? [...change.tracks, ...change.albums].filter((entity) => entity.id === id).map((entity) => entity.availability)
+    : [])
+
   const play = (target: Device, trackIds: string[], albumId: string) => target.client.dispatch({
     type: 'playTracks', tracks: trackIds.map((trackId) => ({ trackId, albumId, durationMs: 0 })), seed: 1,
   })
@@ -203,6 +220,31 @@ describe('acquisition end to end', () => {
     const statuses = () => phone.events.flatMap((event) => event.type === 'acquisition.updated' && event.jobId === job!.id ? [event.status] : [])
     await eventually(() => expect(statuses()).toEqual(['resolving', 'queued', 'downloading', 'importing', 'completed']), 5000)
     expect(phone.engine.calls.filter(([method]) => method === 'load')).toHaveLength(1)
+  })
+
+  it('tells other users of a delivery with patches and page refetches only: no search, library or Home runs again', async () => {
+    // One song: a play queues the whole album, and a prefetch of another would outlive the test.
+    const album = await createAlbum({ title: 'Quietly Delivered', tracks: [{ title: 'Arrives', durationMs: 4000 }] })
+    const wanted = album.tracks[0]!.recordingId
+    const other = await signIn()
+    const watching = await observe(other)
+    try {
+      const phone = await device(fan)
+      play(phone, [wanted], album.albumId)
+      await eventually(() => expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: wanted, state: 'ready' }))
+      await settle(wanted)
+      await eventually(() => expect(availabilityIn(watching.changes, wanted)).toContain('server'), 5000)
+      // The delivery is cache: in nobody's library. Rows show it in place; nothing that
+      // lists it is fetched again, and no search goes back to the providers for it.
+      const roots = new Set(watching.keys.map((key) => key[0]))
+      expect(roots.has('search')).toBe(false)
+      expect(roots.has('library')).toBe(false)
+      expect(roots.has('home')).toBe(false)
+      expect(availabilityIn(watching.changes, album.albumId).at(-1)).toBe('full')
+      expect(watching.changes).toContainEqual(expect.objectContaining({ kind: 'updated', entity: 'album', ids: expect.arrayContaining([album.albumId]) }))
+    } finally {
+      watching.close()
+    }
   })
 
   /**
@@ -316,12 +358,16 @@ describe('acquisition end to end', () => {
     const album = await createAlbum({ tracks: [{ title: 'For Sale', durationMs: 3000 }] })
     const wanted = album.tracks[0]!.recordingId
     mock.settings.priced = true
+    const watching = await observe(await signIn())
     body(await acquire(fan, wanted), AcquireResponse, 202)
     await settle(wanted)
     const [job] = await jobsFor(wanted)
     expect(job).toMatchObject({ status: 'failed', error: 'No provider has a free offer for it', importId: null })
     expect(await db.select().from(acquisitionMisses).where(eq(acquisitionMisses.entityId, wanted))).toHaveLength(1)
     expect((await trackAvailability([wanted])).get(wanted)).toBe('none')
+    // Every open list that shows it grays it out where it is.
+    await eventually(() => expect(availabilityIn(watching.changes, wanted).at(-1)).toBe('none'), 5000)
+    watching.close()
   })
 
   it('refuses users who may not fetch, and their session skips the track', async () => {
@@ -341,6 +387,7 @@ describe('acquisition end to end', () => {
     const album = await createAlbum({ tracks: [{ title: 'The Right One', durationMs: 4000 }, { title: 'Owned Next', durationMs: 3000 }], owned: [1] })
     const [wanted, owned] = album.tracks.map((track) => track.recordingId) as [string, string]
     mock.settings.wrongFile = true
+    const watching = await observe(await signIn())
     const phone = await device(fan)
     play(phone, [wanted, owned], album.albumId)
     await eventually(() => expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: wanted, state: 'preparing' }), 5000)
@@ -358,6 +405,8 @@ describe('acquisition end to end', () => {
     expect(requested!.mergedIntoId).toBeNull()
     expect(await db.select().from(acquisitionMisses).where(and(eq(acquisitionMisses.providerId, providerId), eq(acquisitionMisses.entityId, wanted)))).toHaveLength(1)
     expect((await trackAvailability([wanted])).get(wanted)).toBe('none')
+    await eventually(() => expect(availabilityIn(watching.changes, wanted).at(-1)).toBe('none'), 5000)
+    watching.close()
   })
 
   it('times out a provider that never delivers, and refuses its late delivery', async () => {

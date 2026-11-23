@@ -10,7 +10,7 @@ import { db } from '../../database/client.js'
 import { albums, assets, playlistItems, playlists, ratings, recordings, users, wants } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { updateServerSettings } from '../../lib/settings.js'
-import { invalidate } from '../../realtime/index.js'
+import { invalidate, publishChanges } from '../../realtime/index.js'
 import { body, errorCode, signIn } from '../../test/api.js'
 import { createAsset, createFile, createPlay } from '../../test/catalog.js'
 import { useTestDatabase } from '../../test/database.js'
@@ -21,8 +21,10 @@ import { refreshWants } from './wants.js'
 vi.mock('../../realtime/index.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../../realtime/index.js')>(),
   invalidate: vi.fn(async () => {}),
+  publishChanges: vi.fn(async () => {}),
 }))
 const invalidated = vi.mocked(invalidate)
+const changed = vi.mocked(publishChanges)
 
 describe('userdata', () => {
   useTestDatabase()
@@ -75,46 +77,38 @@ describe('userdata', () => {
       expect(body(await call(mira, { url: '/me/likes/track' }), TrackPage).items.map((track) => track.id)).toEqual([third, first])
     })
 
-    it('tells the user\'s other devices what changed', async () => {
+    it('tells the user\'s other devices what changed, refetching only the likes lists and Home', async () => {
       const album = await createAlbum()
       const track = album.tracks[0]!.recordingId
+      invalidated.mockClear()
+      changed.mockClear()
       await call(mira, { method: 'PUT', url: `/me/likes/track/${track}` })
-      expect(invalidated).toHaveBeenCalledTimes(1)
-      const [target, keys] = invalidated.mock.calls[0]!
-      expect(target).toEqual({ user: mira.id })
-      expect(keys).toEqual(expect.arrayContaining([
-        queryKeys.likes(), queryKeys.track(track), queryKeys.album(album.albumId), queryKeys.artist(album.artist.id), queryKeys.history(),
-        // The heart is the library save: every library list (a prefix of Songs) and search results move.
-        queryKeys.library(), queryKeys.search(),
-      ]))
-      // The playlists list shows no hearts: only playlists holding the track are refreshed.
-      expect(keys).not.toContainEqual(queryKeys.playlists())
-      const holding = body(await call(mira, { method: 'POST', url: '/playlists', payload: { name: 'Holding' } }), PlaylistSummary, 201)
-      await call(mira, { method: 'POST', url: `/playlists/${holding.id}/items`, payload: { tracks: [{ trackId: track }] } })
-      const other = body(await call(lune, { method: 'POST', url: '/playlists', payload: { name: 'Private elsewhere' } }), PlaylistSummary, 201)
-      await call(lune, { method: 'POST', url: `/playlists/${other.id}/items`, payload: { tracks: [{ trackId: track }] } })
-      invalidated.mockClear()
+      // Every copy of the track (album and artist pages, playlists, history, songs lists,
+      // search results) takes the heart and its library state from the patch; only the lists
+      // that gain or lose it are fetched again, and never a search.
+      expect(changed.mock.calls).toEqual([[{ user: mira.id }, [{ kind: 'patch', entity: 'track', id: track, fields: { liked: true, inLibrary: true, library: 'saved' } }]]])
+      expect(invalidated.mock.calls).toEqual([[{ user: mira.id }, [queryKeys.likes(), queryKeys.library(), queryKeys.home()]]])
+      changed.mockClear()
       await call(mira, { method: 'DELETE', url: `/me/likes/track/${track}` })
-      const [, unliked] = invalidated.mock.calls[0]!
-      expect(unliked).toContainEqual(queryKeys.playlist(holding.id))
-      expect(unliked).not.toContainEqual(queryKeys.playlist(other.id))
-      invalidated.mockClear()
+      expect(changed.mock.calls[0]![1]).toEqual([{ kind: 'patch', entity: 'track', id: track, fields: { liked: false, inLibrary: false, library: null } }])
+      changed.mockClear()
       await call(mira, { method: 'PUT', url: `/me/likes/album/${album.albumId}` })
-      // A saved album puts its tracks (their rows show `inLibrary` anywhere) and its artists in the library.
-      const [, albumKeys] = invalidated.mock.calls[0]!
-      expect(albumKeys).toEqual(expect.arrayContaining([
-        queryKeys.likes(), queryKeys.home(), queryKeys.library(), queryKeys.album(album.albumId), queryKeys.artist(album.artist.id),
-        queryKeys.track(track), queryKeys.playlists(),
-      ]))
+      // A saved album puts its artists in the library; its songs join as their files arrive.
+      const albumChanges = changed.mock.calls[0]![1]
+      expect(albumChanges[0]).toEqual({ kind: 'patch', entity: 'album', id: album.albumId, fields: { liked: true, library: 'saved' } })
+      expect(albumChanges).toContainEqual({ kind: 'patch', entity: 'artist', id: album.artist.id, fields: { inLibrary: true } })
+      expect(albumChanges).toContainEqual({ kind: 'patch', entity: 'track', id: track, fields: { inLibrary: false, library: null } })
     })
 
-    it('refreshes the album a liked bonus track is filed under', async () => {
+    it('patches the album page a hearted bonus track is filed under', async () => {
       const album = await createAlbum({ owned: true })
       // A recording the album's release does not list, owned through a file filed under the album.
       const bonus = (await createAlbum({ tracks: [{ title: 'Hidden Track' }] })).tracks[0]!.recordingId
       await createFile({ rootId: (await createLibraryRoot()).id, recordingId: bonus, albumId: album.albumId })
+      changed.mockClear()
       await call(mira, { method: 'PUT', url: `/me/likes/track/${bonus}` })
-      expect(invalidated.mock.calls[0]![1]).toEqual(expect.arrayContaining([queryKeys.album(album.albumId)]))
+      // By id: the row on that album's page is patched with the rest; nothing is refetched for it.
+      expect(changed.mock.calls[0]![1][0]).toMatchObject({ kind: 'patch', entity: 'track', id: bonus, fields: { liked: true } })
     })
 
     it('stores likes against the surviving row of a merge', async () => {
@@ -186,8 +180,14 @@ describe('userdata', () => {
       expect(updated).toMatchObject({ name: 'Evening', description: 'Slow start', isPublic: true })
       expect(body(await call(lune, { url: `/playlists/${mine.id}` }), PlaylistDetail).name).toBe('Evening')
 
+      changed.mockClear()
       body(await call(lune, { method: 'DELETE', url: `/playlists/${secret.id}` }), Ok)
       expect(errorCode(await call(lune, { url: `/playlists/${secret.id}` }), 404)).toBe('playlist_not_found')
+      // The owner's other devices close the playlist rather than keep the old copy.
+      expect(changed).toHaveBeenCalledWith({ user: lune.id }, [{ kind: 'deleted', entity: 'playlist', ids: [secret.id] }])
+      changed.mockClear()
+      body(await call(mira, { method: 'DELETE', url: `/playlists/${mine.id}` }), Ok)
+      expect(changed).toHaveBeenCalledWith([{ user: mira.id }, 'all'], [{ kind: 'deleted', entity: 'playlist', ids: [mine.id] }])
     })
 
     it('adds, moves and removes items, keeping unowned tracks', async () => {

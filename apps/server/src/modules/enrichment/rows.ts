@@ -1,9 +1,11 @@
 /** Small catalog helpers shared by the enrichment steps. */
+import { queryKeys } from '@squirmy/contracts'
 import { and, asc, eq, sql } from 'drizzle-orm'
 import { db, type Executor, type Transaction } from '../../database/client.js'
 import { albums, artists, externalIds, recordings, type CatalogEntityType } from '../../database/schema.js'
 import { ProviderError } from '../../lib/http.js'
 import { invalidate } from '../../realtime/index.js'
+import { holdsCollection, saversOf } from '../catalog/availability.js'
 import { lockUpserts } from '../matching/apply.js'
 import { mergeAlbum, mergeArtist, mergeRecording, resolveMerged } from '../matching/merge.js'
 import { warn } from './runner.js'
@@ -115,6 +117,19 @@ export async function attempt(label: string, step: () => Promise<unknown>): Prom
 /** Tells every client to refetch these query keys. */
 export async function changed(keys: readonly (readonly unknown[])[]) {
   if (keys.length > 0) await invalidate('all', keys).catch((error: unknown) => warn('Could not send invalidations', error))
+}
+
+/**
+ * An album's cover or description changed. Its page is refetched where it is open; the
+ * library's lists and Home, which show its cover, only for the users whose library holds
+ * it. An album of fetched music is in nobody else's, and every delivery enriches one.
+ */
+export async function albumChanged(albumId: string) {
+  if (await holdsCollection([albumId])) return changed([queryKeys.album(albumId), queryKeys.home(), queryKeys.library()])
+  await changed([queryKeys.album(albumId)])
+  for (const user of await saversOf([albumId], [])) {
+    await invalidate({ user }, [queryKeys.home(), queryKeys.library()]).catch((error: unknown) => warn('Could not send invalidations', error))
+  }
 }
 
 /** The 0..1 share of the largest value, for popularity. */

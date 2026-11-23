@@ -1,16 +1,17 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { createMockProvider, type MockProvider } from '@squirmy/adapter-mock'
-import { AcquisitionProviderList, ClearProviderMissesResponse, queryKeys } from '@squirmy/contracts'
+import { AcquisitionProviderList, ClearProviderMissesResponse } from '@squirmy/contracts'
 import { eq, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { buildApp } from '../../app.js'
-import { db, getSql } from '../../database/client.js'
+import { db } from '../../database/client.js'
 import { acquisitionJobs, acquisitionMisses, acquisitionProviders } from '../../database/schema.js'
 import { jobs, startJobs, stopJobs } from '../../jobs/index.js'
 import { newId } from '../../lib/ids.js'
 import { body, errorCode, signIn } from '../../test/api.js'
+import { listenRealtime } from '../../test/realtime.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createUser } from '../../test/factories.js'
 import { saysBusy } from './client.js'
@@ -21,16 +22,6 @@ import { checkProviders, createProvider, invalidateProviders, updateProvider } f
 import { recordMisses, resetResolveQueue, runResolveJob } from './resolve.js'
 
 type Handler = (request: IncomingMessage, response: ServerResponse) => void
-
-/** Collects `invalidate` keys published on the realtime channel. */
-async function invalidations() {
-  const keys: unknown[][] = []
-  const listener = await getSql().listen('squirmy_events', (payload) => {
-    const message = JSON.parse(payload) as { kind: string; keys?: unknown[][] }
-    if (message.kind === 'invalidate') keys.push(...message.keys!)
-  })
-  return { keys, stop: () => listener.unlisten() }
-}
 
 describe('provider misses', () => {
   useTestDatabase()
@@ -77,13 +68,13 @@ describe('provider misses', () => {
     await checkProviders()
     expect(await onDemandRecordings([one, two])).toEqual(new Set())
 
-    const events = await invalidations()
+    const events = await listenRealtime()
     mock.settings.version = '1.0.1'
     await checkProviders()
     await events.stop()
     expect(await onDemandRecordings([one, two])).toEqual(new Set([one, two]))
     expect(await listed(providerId)).toMatchObject({ unavailableTracks: 0, capabilities: { version: '1.0.1' } })
-    expect(events.keys).toContainEqual([...queryKeys.track(one)])
+    expect(events.availability.get(one)).toBe('on_demand')
     const history = await db.select().from(acquisitionMisses).where(eq(acquisitionMisses.providerId, providerId))
     expect(history).toHaveLength(2)
     expect(history[0]!.providerIdentity).toMatch(/^1\.0\.0#[0-9a-f]{16}$/)
@@ -205,12 +196,12 @@ describe('provider misses', () => {
     expect(errorCode(await clear(member.headers), 403)).toBe('forbidden')
     expect(errorCode(await app.inject({ method: 'POST', url: `/api/v1/admin/acquisition/providers/${newId()}/clear-misses`, headers: admin.headers }), 404)).toBe('provider_not_found')
 
-    const events = await invalidations()
+    const events = await listenRealtime()
     const cleared = body(await clear(admin.headers), ClearProviderMissesResponse)
     await events.stop()
     expect(cleared).toMatchObject({ cleared: 3, provider: { id: providerId, unavailableTracks: 0 } })
     expect(await onDemandRecordings(ids)).toEqual(new Set(ids))
-    expect(events.keys).toContainEqual([...queryKeys.track(ids[0]!)])
+    expect(events.availability.get(ids[0]!)).toBe('on_demand')
     expect(await db.$count(acquisitionMisses, eq(acquisitionMisses.providerId, providerId))).toBe(3)
     expect(body(await clear(admin.headers), ClearProviderMissesResponse).cleared).toBe(0)
   })

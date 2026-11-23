@@ -33,6 +33,7 @@ import { db } from '../../database/client.js'
 import { imports, libraryRoots, mediaFiles } from '../../database/schema.js'
 import { enqueue } from '../../jobs/index.js'
 import { invalidate } from '../../realtime/index.js'
+import { saversOf } from '../catalog/availability.js'
 import { resolveMerged } from '../catalog/redirects.js'
 import { uuidArray } from '../catalog/sql.js'
 import { incomingFolder } from '../imports/service.js'
@@ -40,7 +41,7 @@ import { fileKind } from '../imports/paths.js'
 import { lockCatalog, removeOrphans } from '../library/cleanup.js'
 import { isPinned, pinnedFile, queuedRecordings } from '../userdata/pins.js'
 import { getAcquisitionPolicy } from './policy.js'
-import { invalidateRecordings } from './resolve.js'
+import { announceAvailability } from './resolve.js'
 
 /** Eviction stops once the cache is this share of the limit, so it does not run on every delivery. */
 export const EVICT_TO = 0.9
@@ -115,6 +116,7 @@ export async function evictCache(): Promise<{ files: number; bytes: number }> {
   const target = Math.floor(storageQuotaBytes * EVICT_TO)
   const skipped = new Set<string>()
   const recordings = new Set<string>()
+  const albums = new Set<string>()
   while (usage > target) {
     const ranked = await candidates(await queuedRecordings(), [...skipped])
     if (ranked.length === 0) break
@@ -132,11 +134,12 @@ export async function evictCache(): Promise<{ files: number; bytes: number }> {
       evicted.files += 1
       evicted.bytes += deleted.size
       if (deleted.recordingId) recordings.add(deleted.recordingId)
+      if (deleted.albumId) albums.add(deleted.albumId)
     }
     if (ranked.length < RANK_BATCH) break
   }
   usageCache = undefined
-  if (evicted.files > 0) await announceDeleted([...recordings])
+  if (evicted.files > 0) await announceDeleted([...recordings], [...albums])
   return evicted
 }
 
@@ -230,9 +233,13 @@ async function tidyFolder(rootId: string, rootPath: string, relPath: string) {
   }
 }
 
-async function announceDeleted(recordingIds: string[]) {
-  await invalidateRecordings(recordingIds)
-  await invalidate('all', [queryKeys.library(), queryKeys.home()])
+/**
+ * Cached files are in no library but those of users who saved their album or recording, so
+ * only those users' songs lists move; everyone else sees the rows turn on demand or gray.
+ */
+async function announceDeleted(recordingIds: string[], albumIds: string[]) {
+  await announceAvailability(recordingIds)
+  for (const user of await saversOf(albumIds, recordingIds)) await invalidate({ user }, [queryKeys.libraryTracks()])
   await invalidate('admins', [queryKeys.admin()])
 }
 
@@ -270,6 +277,7 @@ export async function discardUnrequested(job: { id?: string; recordingIds: strin
   const wanted = new Set(job.recordingIds.map(target))
   const unwanted = files.filter((file) => !file.recordingId || !wanted.has(target(file.recordingId)))
   const recordings: string[] = []
+  const albums: string[] = []
   let deleted = 0
   for (const file of unwanted) {
     if (file.recordingId && await stillServing(file.id, file.recordingId, job.id)) continue
@@ -280,8 +288,9 @@ export async function discardUnrequested(job: { id?: string; recordingIds: strin
     if (!gone) continue
     deleted += 1
     if (gone.recordingId) recordings.push(gone.recordingId)
+    if (gone.albumId) albums.push(gone.albumId)
   }
-  if (deleted > 0) await announceDeleted(recordings)
+  if (deleted > 0) await announceDeleted(recordings, albums)
   return deleted
 }
 

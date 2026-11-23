@@ -15,7 +15,7 @@ import { sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { uuidArray } from '../catalog/sql.js'
 import { isFailing } from './providers.js'
-import { invalidateRecordings } from './resolve.js'
+import { announceAvailability } from './resolve.js'
 
 /** Recordings remembered per streak: enough to count and to clear their misses. */
 const REMEMBERED = 50
@@ -48,7 +48,7 @@ export async function noteProviderFailure(providerId: string, message: string, r
     where provider_id = ${providerId} and entity_type = 'recording'
       and entity_id = any(${uuidArray(row.failing)}) and created_at >= ${since.toISOString()}
     returning entity_id as id`)
-  await invalidateRecordings(cleared.map((miss) => miss.id))
+  await announceAvailability(cleared.map((miss) => miss.id))
   return true
 }
 
