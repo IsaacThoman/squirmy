@@ -1,7 +1,7 @@
 import { ApiError } from '@squirmy/client-core'
 import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, type Mock } from 'vitest'
 import { AppRoutes } from '@/App'
 import { album } from '@/fixtures/catalog'
 import { fakeServices } from '@/test/fake-services'
@@ -147,12 +147,19 @@ describe('a track the server refuses to stream', () => {
   it('is told and skipped when playback came to it by itself', async () => {
     const { services, socket, api } = fakeServices()
     const blueHour = album('blue-hour')
-    api.streaming.playback.mockRejectedValueOnce(new ApiError(404, 'not_found', 'Not found'))
+    // Next, not a song picked by name, brings it on. (A shuffle started on a random song, now and
+    // then one the fake server never fetches, which made this test fail a sixth of the time.)
+    const [first, refused] = blueHour.discs[0].tracks
+    // The rest fail as the fake's do: no audio in tests, a failure the client retries.
+    const playback = api.streaming.playback as unknown as Mock<(trackId: string) => Promise<never>>
+    playback.mockImplementation(async trackId => {
+      throw trackId === refused.id ? new ApiError(404, 'not_found', 'Not found') : new Error('No audio in tests')
+    })
     renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
-    // Shuffled, the first song is the session's choice, not the listener's.
-    await userEvent.click(await screen.findByRole('button', { name: 'Shuffle Blue Hour' }))
-    const told = (await screen.findByText(/^Couldn’t play “.+”\. Skipped\.$/)).textContent!
-    const refused = blueHour.discs[0].tracks.find(track => told.includes(`“${track.title}”`))!
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Play Blue Hour' }))[0]!)
+    await waitFor(() => expect(socket.session.current?.trackId).toBe(first.id))
+    await userEvent.click(screen.getAllByRole('button', { name: 'Next' })[0]!)
+    expect(await screen.findByText(`Couldn’t play “${refused.title}”. Skipped.`)).toBeInTheDocument()
     await waitFor(() => expect(socket.session.current?.trackId).not.toBe(refused.id))
   })
 })
