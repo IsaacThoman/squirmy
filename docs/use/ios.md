@@ -4,7 +4,7 @@ The iOS app connects to your Squirmy server, browses and searches the library, a
 
 ## Getting the app
 
-There is no App Store or TestFlight release yet. To use it today you build it yourself from the repository, on a Mac with Xcode. The app is in `apps/mobile` and uses Expo SDK 58. The system Liquid Glass tab bar and mini-player need iOS 26 or later.
+If you have a TestFlight invitation, open it on your iPhone or iPad and install Squirmy in TestFlight once a build is available. You can also build the app from the repository on a Mac with Xcode. The app is in `apps/mobile` and uses Expo SDK 58. The system Liquid Glass tab bar and mini-player need iOS 26 or later.
 
 You need Node.js 22.13 or newer. Install from the repository root, which also applies the patch in `patches/` that the app depends on:
 
@@ -35,7 +35,7 @@ Then pick one:
   npx expo run:ios --device --configuration Release
   ```
 
-  The native project is generated into `apps/mobile/ios/` (it is not committed). Signing needs your own Apple developer team, and the bundle identifier in `app.json` (`com.isaacthoman.music`) belongs to the maintainer, so set your own team and a bundle identifier of your own under **Signing & Capabilities** in Xcode (open `ios/Squirmy.xcworkspace`) if the build asks for one. This route has not been written up from a fresh machine yet; expect to know your way around Xcode signing.
+  Expo generates the native project in `apps/mobile/ios/`. To sign with your own Apple developer team, open `ios/Squirmy.xcworkspace` and set your team and your own bundle identifier under **Signing & Capabilities**. The default bundle identifier in `app.json` is `com.isaacthoman.squirmy`.
 
 For working on the app itself, the [README](https://github.com/IsaacThoman/squirmy#mobile-app) describes the **Squirmy Dev** development build, which installs next to the regular app and loads code from Metro.
 

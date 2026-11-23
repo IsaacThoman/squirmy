@@ -572,3 +572,15 @@ apps/mobile/
 - Pull requests target `dev`. `main` receives merges from `dev`; semantic-release tags a version on every push to `main`.
 - Every push to `main` is deployed to the test environment at once, without waiting for CI. So `main` changes only through a `dev` → `main` pull request whose checks have passed, never by a direct push. A fix made on `main` anyway is merged back into `dev` right away.
 - When CI fails on `main`, it opens an issue. Either fix the problem on `dev` and open another `dev` → `main` pull request, or revert the merge commit on `main` (and merge that revert back into `dev`).
+
+### TestFlight
+
+After semantic-release publishes a version on `main`, CI builds the tagged iOS app on macOS and uploads it to App Store Connect. The app uses the release version and a UTC Unix timestamp as its build number. If the upload job fails, rerun that job from the release's CI run.
+
+Register the Squirmy iOS app in App Store Connect with bundle ID `com.isaacthoman.squirmy`. In the repository's `testflight` GitHub Actions environment, allow deployments from `main` and set the `APPLE_TEAM_ID` variable to the Apple Developer team ID. Add these environment secrets:
+
+- `APP_STORE_CONNECT_API_KEY_ID` and `APP_STORE_CONNECT_API_ISSUER_ID` for a team API key with access to automatic signing and TestFlight uploads.
+- `APP_STORE_CONNECT_API_PRIVATE_KEY` with the complete contents of that key's `.p8` file.
+- `IOS_DEVELOPMENT_CERTIFICATE_P12_BASE64` with a base64-encoded PKCS#12 export of the team's Apple Development certificate and private key, and `IOS_DEVELOPMENT_CERTIFICATE_PASSWORD` with its export password.
+
+App Store Connect processes the upload before the build is available to testers. Manage tester groups and any export compliance questions there.

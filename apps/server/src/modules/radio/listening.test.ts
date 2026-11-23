@@ -110,10 +110,13 @@ describe('radio, as a listener hears it', () => {
 
     const user = await createUser({ role: 'admin' })
     userId = user.id
-    // One afternoon of people testing the account: the seed, then whatever came next.
+    // Keep these plays on one UTC day, the unit radio uses to count repeat co-listening.
+    const now = new Date()
+    const yesterdayEvening = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1, 17)
+    const minutesSinceYesterdayEvening = (now.getTime() - yesterdayEvening) / 60_000
     for (const [minutes, track] of [[300, 'Khruangbin - Texas Sun'], [296, 'Portishead - Glory Box'], [292, 'Fcukers - Lonely'], [288, 'Death Grips - Get Got'],
       [284, 'Tate McRae - greedy'], [240, 'Khruangbin - Texas Sun'], [236, 'Portishead - Glory Box'], [232, 'Fcukers - Lonely']] as const) {
-      await createPlay({ userId, recordingId: ids.get(track)!, minutesAgo: 24 * 60 + minutes })
+      await createPlay({ userId, recordingId: ids.get(track)!, minutesAgo: minutesSinceYesterdayEvening + minutes })
     }
     // What the owner likes, in more than one genre.
     await db.insert(likes).values([
