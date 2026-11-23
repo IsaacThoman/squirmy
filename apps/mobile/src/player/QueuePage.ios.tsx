@@ -1,32 +1,31 @@
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Button, Host, HStack, List, Spacer, SwipeActions, Text, VStack, ZStack } from '@expo/ui/swift-ui';
+import { Button, Host, HStack, List, Spacer, Text, VStack, ZStack } from '@expo/ui/swift-ui';
 import {
-  accessibilityAddTraits, accessibilityLabel, buttonStyle, dynamicTypeSize, environment, font, foregroundStyle, frame, labelStyle,
+  accessibilityAddTraits, accessibilityLabel, background, dynamicTypeSize, environment, font, foregroundStyle, frame,
   lineLimit, listRowBackground, listRowInsets, listRowSeparatorTint, listStyle, onGeometryChange, opacity, padding, scrollContentBackground,
-  scrollDisabled, tint,
+  scrollDisabled, shapes,
 } from '@expo/ui/swift-ui/modifiers';
 import { Alert, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { contextLabel } from '@squirmy/client-core';
 import type { TrackSummary } from '@squirmy/contracts';
 import { useWantlistEnabled } from '../account/AccountProvider';
 import { useRealtime } from '../data/realtime';
 import { useCanPlay, useTrackDownload, useViewer } from '../downloads/DownloadsProvider';
-import { useLiked, useLikeFailure, useTrack, useTrackStore, useWanted, useWantFailure } from '../data/library';
-import { heartButton, heartColor } from '../library/heart';
+import { useLiked, useLikeFailure, useTrack, useWanted, useWantFailure } from '../data/library';
 import { trackActions, useDownloadedOnItsOwn, useTrackActionRunner, type TrackAction } from '../library/trackActions';
-import { IconButton, Symbol, TrackActionsMenu, TrackCover, hitShape, plainButton } from '../native/Controls';
+import { Symbol, TrackActionsMenu, TrackCover, hitShape, plainButton } from '../native/Controls';
 import { useCurrentTrackState, usePlaybackActions, usePlaybackState, type QueueEntry } from '../playback';
 import type { QueueProps } from './QueuePage';
-import { pendingQueueRow, queuedEntryActions, queuedEntryCommand, queueRow, type QueuePosition } from './session';
+import { selectionFeedback } from './design';
+import { pendingQueueRow, queuedEntryActions, queuedEntryCommand, queueRow, upNextDetail, type QueuePosition } from './session';
 import { isAccessibilitySize } from '../fontScale';
 import { unavailableOpacity, useColors } from '../theme';
 
 /** A row's height at the default text size. Rows grow with their text; see `useRowHeights`. */
-const rowHeight = 58;
+const rowHeight = 62;
+const coverSize = 46;
 const listModifiers = [listStyle('plain'), scrollContentBackground('hidden'), scrollDisabled()];
-/**
- * Headings and the controls beside them stop growing here: past it "Play queue" and History
- * no longer fit side by side. The bands that hold them grow with their text up to it.
- */
+/** Headings and their quieter lines stop growing here, so they stay a line or two beside the lists. */
 const headingTextLimit = dynamicTypeSize({ max: 'xxxLarge' });
 const headingHeight = 44;
 /** Up next shows this many entries at first, and this many more each time more are asked for. */
@@ -35,6 +34,14 @@ const rowModifiers = [
   listRowInsets({ top: 0, bottom: 0, leading: 0, trailing: 0 }),
   listRowBackground('clear'),
 ];
+/**
+ * Up next and the suggestions are always in edit mode, so each row shows the system's reorder
+ * handle, as Apple Music's queue does, and a drag starts from it at once; a press and hold
+ * anywhere else on the row picks it up too. A tap still plays the row and its menu button still
+ * opens. Edit mode takes the swipes and a press and hold's menu, which is why the row keeps a
+ * menu button: everything a swipe did is in it.
+ */
+const reordering = environment({ key: 'editMode', value: 'active' });
 
 /**
  * The lists sit inside the page's scroll view, so each is exactly as tall as its rows, and rows
@@ -48,7 +55,7 @@ function useRowHeights() {
   // rows hold themselves to more than that, so a row is never taller than what it reports.
   const floor = Math.max(rowHeight, Math.ceil(44 * fontScale));
   // Two lines each of title and artist at accessibility sizes, one each below them.
-  const estimate = Math.max(floor, Math.ceil((isAccessibilitySize(fontScale) ? 80 : 40) * fontScale));
+  const estimate = Math.max(floor, Math.ceil((isAccessibilitySize(fontScale) ? 90 : 46) * fontScale));
   const [heights, setHeights] = useState<Readonly<Record<string, number>>>({});
   const measure = useCallback((id: string, height: number) => {
     setHeights(current => Math.abs((current[id] ?? -1) - height) < 0.5 ? current : { ...current, [id]: height });
@@ -57,10 +64,15 @@ function useRowHeights() {
   return { floor, measure, total };
 }
 
-const titleFont = font({ textStyle: 'headline', weight: 'semibold' });
+const headingFont = font({ textStyle: 'headline', weight: 'semibold' });
 const detailFont = font({ textStyle: 'footnote' });
-const iconOnly = labelStyle('iconOnly');
 
+/**
+ * Laid out as Apple Music's queue: Shuffle, Repeat and Autoplay as one row of toggles, Up next
+ * and the Autoplay suggestions as headed lists whose rows carry reorder handles, and the history
+ * above them, reached by scrolling up. A row is the song and one menu button, which holds what
+ * its heart did, alongside the rest of its actions.
+ */
 export default function QueuePage(_props: QueueProps) {
   const colors = useColors();
   const { session, queue, actions } = usePlaybackState();
@@ -72,33 +84,30 @@ export default function QueuePage(_props: QueueProps) {
   const historyOffset = useRef(historyHeight);
   const scrollY = useRef(historyHeight);
   const [viewport, setViewport] = useState(0);
-  const [historyVisible, setHistoryVisible] = useState(false);
-  const [editing, setEditing] = useState(false);
   const [upNextShown, setUpNextShown] = useState(upNextPage);
   const historyHandlers = useQueueHandlers(true);
   const upNext = useMemo(() => queue.queue.slice(0, upNextShown), [queue.queue, upNextShown]);
   const hidden = queue.queue.length - upNext.length;
-  const canEdit = queue.queue.length > 1 || (session.autoplay && queue.autoplayQueue.length > 1);
+  const context = contextLabel(session.context);
 
-  // Until the viewport is known the content is not yet tall enough to open at Up next, so a
-  // short queue opened partway into the history; once it is, start at Up next.
+  // Until the viewport is known the content is not yet tall enough to open at the toggles, so a
+  // short queue opened partway into the history; once it is, start there.
   const placed = useRef(false);
   useLayoutEffect(() => {
     if (!viewport || placed.current) return;
     placed.current = true;
     scrollY.current = historyOffset.current;
-    setHistoryVisible(false);
     const task = requestAnimationFrame(() => scroll.current?.scrollTo({ y: historyOffset.current, animated: false }));
     return () => cancelAnimationFrame(task);
   }, [viewport]);
 
+  // The history grows above what is on screen as songs finish; keep the view where it was.
   useLayoutEffect(() => {
     const shift = historyHeight - historyOffset.current;
     historyOffset.current = historyHeight;
     if (shift === 0) return;
     const y = Math.max(0, scrollY.current + shift);
     scrollY.current = y;
-    setHistoryVisible(y < historyHeight - 16);
     const task = requestAnimationFrame(() => scroll.current?.scrollTo({ y, animated: false }));
     return () => cancelAnimationFrame(task);
   }, [historyHeight]);
@@ -107,37 +116,20 @@ export default function QueuePage(_props: QueueProps) {
     { text: 'Cancel', style: 'cancel' },
     { text: 'Clear history', style: 'destructive', onPress: actions.clearHistory },
   ]);
+  const toggle = (run: () => void) => () => { selectionFeedback(); run(); };
 
   return <View style={styles.page}>
-    <QueueBand height={headingHeight}>
-      <HStack spacing={7}>
-        <Text modifiers={[titleFont, accessibilityAddTraits(['isHeader'])]}>Play queue</Text>
-        <Spacer minLength={4} />
-        {/* From the history it goes back down to Up next, not to Now Playing. */}
-        {history.length > 0 && <TextButton label={historyVisible ? 'Up next' : 'History'} color={colors.accent}
-          onPress={() => scroll.current?.scrollTo({
-            y: historyVisible ? historyHeight : Math.max(0, historyHeight - viewport * 0.8), animated: true,
-          })} />}
-        {(canEdit || editing) && <IconButton symbol={editing ? 'checkmark' : 'pencil'}
-          label={editing ? 'Finish reordering' : 'Reorder queue'} color={colors.accent} size={17}
-          selected={editing} onPress={() => setEditing(!editing)} />}
-      </HStack>
-    </QueueBand>
     <ScrollView ref={scroll} contentOffset={initialOffset.current} contentInsetAdjustmentBehavior="never"
       showsVerticalScrollIndicator={false} scrollEventThrottle={32}
       onLayout={({ nativeEvent }) => setViewport(nativeEvent.layout.height)}
       contentContainerStyle={{ minHeight: historyHeight + viewport, paddingBottom: 8 }}
-      onScroll={({ nativeEvent }) => {
-        const { y } = nativeEvent.contentOffset;
-        scrollY.current = y;
-        setHistoryVisible(y < historyHeight - 16);
-      }}>
+      onScroll={({ nativeEvent }) => { scrollY.current = nativeEvent.contentOffset.y; }}>
       {history.length > 0 && <>
         <QueueBand height={headingHeight}>
           <HStack>
-            <Text modifiers={[titleFont, accessibilityAddTraits(['isHeader'])]}>Listening history</Text>
+            <Text modifiers={[headingFont, accessibilityAddTraits(['isHeader'])]}>History</Text>
             <Spacer />
-            <TextButton label="Clear" color={colors.muted} onPress={clearHistory} />
+            <TextButton label="Clear" color={colors.accent} onPress={clearHistory} />
           </HStack>
         </QueueBand>
         <Host ignoreSafeArea="container" style={[styles.list, { height: historyRows.total(history) }]}>
@@ -148,41 +140,22 @@ export default function QueuePage(_props: QueueProps) {
           </List>
         </Host>
       </>}
-      <QueueBand height={52}>
-        <HStack spacing={12}>
-          <QueueMode symbol="shuffle" label="Shuffle" active={session.shuffle} onPress={actions.toggleShuffle} />
+      <QueueBand height={56}>
+        <HStack spacing={10}>
+          <QueueMode symbol="shuffle" label="Shuffle" active={session.shuffle} onPress={toggle(actions.toggleShuffle)} />
           <QueueMode symbol={session.repeat === 'one' ? 'repeat.1' : 'repeat'} label={`Repeat ${session.repeat}`}
-            active={session.repeat !== 'off'} onPress={actions.cycleRepeat} />
-          <QueueMode symbol="infinity" label="Autoplay" active={session.autoplay} onPress={actions.toggleAutoplay} />
-          <Spacer />
+            active={session.repeat !== 'off'} onPress={toggle(actions.cycleRepeat)} />
+          <QueueMode symbol="infinity" label="Autoplay" active={session.autoplay} onPress={toggle(actions.toggleAutoplay)} />
         </HStack>
       </QueueBand>
-      <QueueBand height={36}>
-        <HStack>
-          <Text modifiers={[titleFont, accessibilityAddTraits(['isHeader'])]}>Up next</Text>
-          <Spacer />
-          <Text modifiers={[detailFont, foregroundStyle(colors.quiet)]}>{queue.queue.length} {queue.queue.length === 1 ? 'track' : 'tracks'}</Text>
-        </HStack>
-      </QueueBand>
-      {queue.queue.length ? <QueueRows entries={upNext} total={queue.queue.length} editing={editing} /> : (
-        <QueueBand height={34}><Text modifiers={[detailFont, foregroundStyle(colors.muted)]}>Songs you queue appear here.</Text></QueueBand>
-      )}
+      <QueueHeading title="Up next" detail={upNextDetail(context, queue.queue) ?? 'Songs you queue appear here.'} />
+      {queue.queue.length > 0 && <QueueRows entries={upNext} total={queue.queue.length} />}
       {hidden > 0 && <QueueBand height={44}>
-        <Button label={`Show ${Math.min(upNextPage, hidden)} more`} onPress={() => setUpNextShown(shown => shown + upNextPage)}
-          modifiers={[plainButton, foregroundStyle(colors.accent)]} />
+        <TextButton label={`Show ${Math.min(upNextPage, hidden)} more`} color={colors.accent} onPress={() => setUpNextShown(shown => shown + upNextPage)} />
       </QueueBand>}
-      <QueueBand height={58}>
-        <VStack alignment="leading" spacing={4}>
-          <HStack spacing={6}>
-            <Symbol name="infinity" size={16} color={session.autoplay ? colors.accent : colors.quiet} />
-            <Text modifiers={[titleFont, accessibilityAddTraits(['isHeader'])]}>Autoplay</Text>
-          </HStack>
-          <Text modifiers={[detailFont, foregroundStyle(colors.muted)]}>
-            {session.autoplay ? 'Similar tracks continue when your queue ends.' : 'Turn on Autoplay to keep listening.'}
-          </Text>
-        </VStack>
-      </QueueBand>
-      {session.autoplay && <QueueRows entries={queue.autoplayQueue} editing={editing} autoplay />}
+      <QueueHeading title="Autoplay" symbol="infinity" symbolColor={session.autoplay ? colors.accent : colors.quiet}
+        detail={session.autoplay ? 'Similar music keeps playing when your queue ends.' : 'Turn on Autoplay to keep listening.'} />
+      {session.autoplay && <QueueRows entries={queue.autoplayQueue} autoplay />}
     </ScrollView>
   </View>;
 }
@@ -193,6 +166,22 @@ function QueueBand({ height, children }: { height: number; children: React.React
     modifiers={[headingTextLimit, frame({ maxWidth: Infinity, minHeight: height, alignment: 'leading' })]}>{children}</Host>;
 }
 
+/** A list's heading, with a quieter line under it, as Apple Music's "Continue Playing / From …". */
+function QueueHeading({ title, detail, symbol, symbolColor }: {
+  title: string; detail?: string | null; symbol?: string; symbolColor?: string;
+}) {
+  const colors = useColors();
+  return <QueueBand height={detail ? 62 : headingHeight}>
+    <VStack alignment="leading" spacing={2} modifiers={[padding({ top: 14, bottom: 6 })]}>
+      <HStack spacing={6}>
+        {symbol && <Symbol name={symbol} size={16} color={symbolColor} />}
+        <Text modifiers={[headingFont, accessibilityAddTraits(['isHeader'])]}>{title}</Text>
+      </HStack>
+      {detail ? <Text modifiers={[detailFont, foregroundStyle(colors.muted), lineLimit(2)]}>{detail}</Text> : null}
+    </VStack>
+  </QueueBand>;
+}
+
 /** A text button the full 44 pt tall, though its label is one short line. */
 function TextButton({ label, color, onPress }: { label: string; color: string; onPress: () => void }) {
   return <Button onPress={onPress} modifiers={[plainButton, accessibilityLabel(label)]}>
@@ -200,17 +189,18 @@ function TextButton({ label, color, onPress }: { label: string; color: string; o
   </Button>;
 }
 
+/** One of the row of toggles: a capsule a third of the width, filled while it is on. 44 pt tall to touch, 34 pt drawn. */
 function QueueMode({ symbol, label, active, onPress }: {
   symbol: string; label: string; active: boolean; onPress: () => void;
 }) {
   const colors = useColors();
   return <Button onPress={onPress} modifiers={[
-    buttonStyle(active ? 'borderedProminent' : 'bordered'),
-    tint(active ? colors.accent : colors.muted), accessibilityLabel(label),
-    ...(active ? [accessibilityAddTraits(['isSelected'])] : []),
+    plainButton, accessibilityLabel(label), ...(active ? [accessibilityAddTraits(['isSelected'])] : []),
   ]}>
-    {/* The bordered style adds 7 pt above and below, so the button is 44 pt tall. */}
-    <HStack modifiers={[frame({ width: 35, height: 30 })]}>
+    <HStack modifiers={[
+      frame({ maxWidth: Infinity, minHeight: 34 }), background(active ? colors.accent : colors.chip, shapes.capsule()),
+      padding({ vertical: 5 }), hitShape,
+    ]}>
       <Symbol name={symbol} size={17} color={active ? colors.onAccent : colors.text} />
     </HStack>
   </Button>;
@@ -218,22 +208,19 @@ function QueueMode({ symbol, label, active, onPress }: {
 
 type QueueHandlers = {
   play: (entry: QueueEntry, track: TrackSummary) => void;
-  promote: (entry: QueueEntry, autoplay: boolean) => void;
   move: (entry: QueueEntry, index: number) => void;
   remove: (entry: QueueEntry) => void;
   run: ReturnType<typeof useTrackActionRunner>['run'];
-  /** A queued row's menu: an action that places the song moves this entry, as the swipe does, rather than queue the song again. */
+  /** A queued row's menu: an action that places the song moves this entry, rather than queue the song again. */
   runQueued: (entry: QueueEntry, track: TrackSummary, action: TrackAction, position: QueuePosition) => void;
 };
 
 /** What queue rows do, in one object that changes only with the session runtime, so rows redraw only for their own entry. */
 function useQueueHandlers(history: boolean): QueueHandlers {
   const actions = usePlaybackActions();
-  const tracks = useTrackStore();
   const { run } = useTrackActionRunner();
   return useMemo(() => ({
     play: (entry, track) => history ? actions.playNow(track) : actions.playQueueEntry(entry.id),
-    promote: (entry, autoplay) => actions.promote(entry, tracks.get(entry.trackId, entry.albumId), autoplay),
     move: (entry, index) => actions.moveInQueue(entry.id, index),
     remove: entry => actions.removeFromQueue(entry.id),
     run,
@@ -249,11 +236,11 @@ function useQueueHandlers(history: boolean): QueueHandlers {
         default: return run(track, action);
       }
     },
-  }), [actions, history, run, tracks]);
+  }), [actions, history, run]);
 }
 
-function QueueRows({ entries, total = entries.length, editing, autoplay = false }: {
-  entries: readonly QueueEntry[]; total?: number; editing: boolean; autoplay?: boolean;
+function QueueRows({ entries, total = entries.length, autoplay = false }: {
+  entries: readonly QueueEntry[]; total?: number; autoplay?: boolean;
 }) {
   const colors = useColors();
   const actions = usePlaybackActions();
@@ -265,25 +252,20 @@ function QueueRows({ entries, total = entries.length, editing, autoplay = false 
     const entry = entries[source];
     if (!entry) return;
     const index = destination > source ? destination - 1 : destination;
-    if (source !== index) actions.moveInQueue(entry.id, index);
+    if (source !== index) {
+      selectionFeedback();
+      actions.moveInQueue(entry.id, index);
+    }
   };
 
   return <Host ignoreSafeArea="container" style={[styles.list, { height: rows.total(entries) }]}>
-    <List modifiers={[...listModifiers, environment({ key: 'editMode', value: editing ? 'active' : 'inactive' })]}>
+    <List modifiers={[...listModifiers, reordering]}>
       <List.ForEach data={entries} keyExtractor={entry => entry.id} recycling={false}
         onMove={entries.length > 1 ? onMove : undefined}>
-        {({ item, index }) => <SwipeActions modifiers={[...rowModifiers, listRowSeparatorTint(colors.stroke)]}>
-          <QueueTrack entry={item} handlers={handlers} position={{ index, total, autoplay }} editing={editing}
+        {({ item, index }) => <VStack modifiers={[...rowModifiers, listRowSeparatorTint(colors.stroke)]}>
+          <QueueTrack entry={item} handlers={handlers} position={{ index, total, autoplay }}
             minHeight={rows.floor} onHeight={rows.measure} />
-          <SwipeActions.Actions edge="leading">
-            <Button label="Play next" systemImage="text.line.first.and.arrowtriangle.forward"
-              modifiers={[iconOnly, tint(colors.swipeNext)]} onPress={() => handlers.promote(item, autoplay)} />
-          </SwipeActions.Actions>
-          <SwipeActions.Actions edge="trailing" allowsFullSwipe={false}>
-            <Button label="Remove from queue" systemImage="trash" role="destructive"
-              modifiers={[iconOnly]} onPress={() => handlers.remove(item)} />
-          </SwipeActions.Actions>
-        </SwipeActions>}
+        </VStack>}
       </List.ForEach>
     </List>
   </Host>;
@@ -294,19 +276,18 @@ type QueueTrackProps = {
   handlers: QueueHandlers;
   /** Where a queued entry sits, for its Move up and Move down; left out in the history. */
   position?: QueuePosition;
-  /**
-   * Reordering: the row is only something to drag, so it leaves out its heart and menu and does
-   * not play when touched. The system's reorder handle is narrow (27 pt) and cannot be widened,
-   * but with no button on the row a press and hold anywhere on it drags it too.
-   */
-  editing?: boolean;
   /** The least height of a row, which it grows from with its text. */
   minHeight: number;
   onHeight: (entryId: string, height: number) => void;
 };
 
-/** A queue row. A failed entry is gray and will be skipped, as is one that is not on the phone while offline. */
-const QueueTrack = memo(function QueueTrack({ entry, handlers, position, editing = false, minHeight, onHeight }: QueueTrackProps) {
+/**
+ * A queue row: the song and its menu, which holds Save to library with the rest. A tap plays
+ * it. History rows have the same menu button rather than a press and hold's, so every row of the
+ * page works alike. A failed entry is gray and will be skipped, as is one that is not on the phone
+ * while offline.
+ */
+const QueueTrack = memo(function QueueTrack({ entry, handlers, position, minHeight, onHeight }: QueueTrackProps) {
   const colors = useColors();
   const { fontScale } = useWindowDimensions();
   // At accessibility sizes a title and its artists wrap, and the row grows to hold them.
@@ -325,42 +306,42 @@ const QueueTrack = memo(function QueueTrack({ entry, handlers, position, editing
   const viewer = useViewer();
   const row = queueRow(entry, track, { playable, offline, viewer });
   const failed = row.unavailable;
-  // Without its summary a row has nothing to show or act on: it says why, and offers no heart or menu.
+  // Without its summary a row has nothing to show or act on: it says why, and offers no menu.
   const pending = track ? null : pendingQueueRow(offline);
   const title = track?.title ?? '';
   const detail = pending?.detail || row.detail;
   const listed = track ? trackActions(track, { liked: favorite, likeFailure, playable, offline, current, download, onItsOwn, wantlist, wanted, wantFailure, viewer }) : [];
   const actions = position ? queuedEntryActions(listed, position) : listed;
-  const heart = heartButton(favorite, title, likeFailure);
-  // A failed or gray song fades its cover, and its text takes colors that stay readable (3:1);
-  // the heart and menu keep their full color, since they still work.
+  // A failed or gray song fades its cover, and its text takes colors that stay readable (3:1).
   const label = accessibilityLabel([pending?.title ?? title, detail].filter(Boolean).join(', '));
-  const body = <HStack spacing={10} modifiers={[frame({ minHeight: 44 }), hitShape, ...(editing ? [label] : [])]}>
-    <ZStack modifiers={failed ? [opacity(unavailableOpacity)] : []}><TrackCover track={track} size={38} /></ZStack>
-    <VStack alignment="leading" spacing={3} modifiers={[padding({ vertical: 6 })]}>
-      <Text modifiers={[font({ textStyle: 'subheadline', weight: 'semibold' }), ...lines,
+  const body = <HStack spacing={12} modifiers={[frame({ minHeight: 44 }), padding({ vertical: 8 }), hitShape]}>
+    <ZStack modifiers={failed ? [opacity(unavailableOpacity)] : []}><TrackCover track={track} size={coverSize} radius={6} /></ZStack>
+    <VStack alignment="leading" spacing={2}>
+      <Text modifiers={[font({ textStyle: 'body' }), ...lines,
         ...(pending ? [foregroundStyle(colors.muted)] : failed ? [foregroundStyle(colors.fadedTitle)] : [])]}>{pending?.title ?? title}</Text>
-      {detail ? <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(failed ? colors.fadedCredit : colors.muted), ...lines]}>{detail}</Text> : null}
+      {detail ? <Text modifiers={[font({ textStyle: 'subheadline' }), foregroundStyle(failed ? colors.fadedCredit : colors.muted), ...lines]}>{detail}</Text> : null}
     </VStack>
     <Spacer minLength={4} />
   </HStack>;
+  const run = (action: TrackAction) => {
+    if (!track) return;
+    if (position) handlers.runQueued(entry, track, action, position);
+    else handlers.run(track, action);
+  };
+  // A queued song whose summary has not loaded can still be moved or taken out of the queue.
+  const placement = position && <>
+    {position.index > 0 && <Button label="Move up" systemImage="chevron.up" onPress={() => handlers.move(entry, position.index - 1)} />}
+    {position.index + 1 < position.total && <Button label="Move down" systemImage="chevron.down" onPress={() => handlers.move(entry, position.index + 1)} />}
+    <Button label="Remove from queue" systemImage="trash" role="destructive" onPress={() => handlers.remove(entry)} />
+  </>;
   return <HStack spacing={0} modifiers={[frame({ minHeight }), onGeometryChange(({ height }) => onHeight(entry.id, height))]}>
-    {/* While reordering the row is no button, so a press anywhere on it picks it up to drag, not only the handle. */}
-    {editing ? body : <Button onPress={() => { if (track && !failed) handlers.play(entry, track); }} modifiers={[plainButton, label]}>
-      {body}
-    </Button>}
-    {track && !editing && <IconButton symbol={heart.icon} size={17} label={heart.label}
-      color={heartColor(heart, colors, colors.muted)} selected={heart.selected}
-      onPress={() => handlers.run(track, { id: favorite ? 'unlike' : 'like', title, icon: 'heart' })} />}
-    {track && !editing && <TrackActionsMenu actions={actions} label={`More options for ${title}`}
-      onRun={action => position ? handlers.runQueued(entry, track, action, position) : handlers.run(track, action)}>
-      {position && position.index > 0 && <Button label="Move up" systemImage="chevron.up" onPress={() => handlers.move(entry, position.index - 1)} />}
-      {position && position.index + 1 < position.total && <Button label="Move down" systemImage="chevron.down" onPress={() => handlers.move(entry, position.index + 1)} />}
-      {position && <Button label="Remove from queue" systemImage="trash" role="destructive" onPress={() => handlers.remove(entry)} />}
+    <Button onPress={() => { if (track && !failed) handlers.play(entry, track); }} modifiers={[plainButton, label]}>{body}</Button>
+    {(track || position) && <TrackActionsMenu actions={actions} label={`More options for ${title || 'this song'}`} color={colors.muted} onRun={run}>
+      {placement}
     </TrackActionsMenu>}
   </HStack>;
 }, (a, b) => a.entry === b.entry && a.handlers === b.handlers && a.position?.index === b.position?.index
-  && a.position?.total === b.position?.total && a.position?.autoplay === b.position?.autoplay && a.editing === b.editing
+  && a.position?.total === b.position?.total && a.position?.autoplay === b.position?.autoplay
   && a.minHeight === b.minHeight && a.onHeight === b.onHeight);
 
 const styles = StyleSheet.create({
