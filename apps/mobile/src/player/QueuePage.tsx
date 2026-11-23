@@ -77,7 +77,7 @@ export default function QueuePage({ onTrackMenu }: QueueProps) {
         {history.length > 0 && (
           <Pressable style={styles.historyJump} accessibilityRole="button" onPress={historyVisible ? jumpToCurrent : showHistory}>
             <Icon name={historyVisible ? 'waveform' : 'clock.arrow.circlepath'} color={colors.accent} size={14} />
-            <Text style={styles.historyJumpText}>{historyVisible ? 'Now playing' : 'History'}</Text>
+            <Text style={styles.historyJumpText}>{historyVisible ? 'Up next' : 'History'}</Text>
           </Pressable>
         )}
       </View>
