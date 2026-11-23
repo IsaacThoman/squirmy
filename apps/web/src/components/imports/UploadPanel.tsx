@@ -1,9 +1,10 @@
 import type { ImportOptions, ImportUnavailable } from '@squirmy/contracts'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Check, FileArchive, FileAudio, FolderUp, Pause, Play, Upload, X } from 'lucide-react'
-import { useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
+import { IconButton } from '@/components/ui/icon-button'
 import { EmptyState, ProgressBar, Skeleton, Spinner } from '@/components/ui/feedback'
 import { formatBytes, plural } from '@/lib/format'
 import { rejectionLabels } from '@/lib/imports'
@@ -42,10 +43,12 @@ type UploadPanelProps = {
   onCancel: () => void
   /** Puts the chosen files away before anything was sent. */
   onClear: () => void
+  /** Takes one chosen file out before anything was sent. */
+  onRemove: (path: string) => void
 }
 
 /** Choosing music to upload and sending it, with progress for each file and for all of them. */
-export function UploadPanel({ options, isAdmin, upload, reading, onDrop, onPick, onStart, onPause, onCancel, onClear }: UploadPanelProps) {
+export function UploadPanel({ options, isAdmin, upload, reading, onDrop, onPick, onStart, onPause, onCancel, onClear, onRemove }: UploadPanelProps) {
   if (!options) return <Skeleton className="h-64 rounded-xl" />
   if (options.unavailable) {
     const text = unavailableText[options.unavailable]
@@ -56,17 +59,32 @@ export function UploadPanel({ options, isAdmin, upload, reading, onDrop, onPick,
     )
   }
   if (!upload) return <DropZone options={options} reading={reading} onDrop={onDrop} onPick={onPick} />
-  return <UploadQueue options={options} upload={upload} onStart={onStart} onPause={onPause} onCancel={onCancel} onClear={onClear} onDrop={onDrop} />
+  return <UploadQueue options={options} upload={upload} reading={reading} onStart={onStart} onPause={onPause} onCancel={onCancel} onClear={onClear} onRemove={onRemove} onDrop={onDrop} onPick={onPick} />
 }
 
-function DropZone({ options, reading, onDrop, onPick }: { options: ImportOptions; reading: boolean; onDrop: (transfer: DataTransfer) => void; onPick: (files: FileList) => void }) {
-  const [over, setOver] = useState(false)
+/** The browser's file and folder choosers, opened from buttons. A chosen folder keeps its paths. */
+function usePickers(onPick: (files: FileList) => void) {
   const files = useRef<HTMLInputElement>(null)
   const folder = useRef<HTMLInputElement>(null)
   const pick = (input: HTMLInputElement) => {
     if (input.files?.length) onPick(input.files)
     input.value = ''
   }
+  return {
+    chooseFiles: () => files.current?.click(),
+    chooseFolder: () => folder.current?.click(),
+    inputs: (
+      <>
+        <input ref={files} type="file" multiple hidden aria-label="Music files" onChange={event => pick(event.currentTarget)} />
+        <input ref={folder} type="file" hidden aria-label="Music folder" {...{ webkitdirectory: '' }} onChange={event => pick(event.currentTarget)} />
+      </>
+    ),
+  }
+}
+
+function DropZone({ options, reading, onDrop, onPick }: { options: ImportOptions; reading: boolean; onDrop: (transfer: DataTransfer) => void; onPick: (files: FileList) => void }) {
+  const [over, setOver] = useState(false)
+  const { chooseFiles, chooseFolder, inputs } = usePickers(onPick)
   return (
     <div
       onDragOver={event => {
@@ -90,12 +108,11 @@ function DropZone({ options, reading, onDrop, onPick }: { options: ImportOptions
         Album folders, single files or zip archives. Folders keep their structure, and the server identifies and files the albums.
       </p>
       <div className="mt-5 flex flex-wrap justify-center gap-2">
-        <Button variant="primary" onClick={() => folder.current?.click()} disabled={reading}><FolderUp />Choose a folder</Button>
-        <Button variant="outline" onClick={() => files.current?.click()} disabled={reading}><FileAudio />Choose files</Button>
+        <Button variant="primary" onClick={chooseFolder} disabled={reading}><FolderUp />Choose a folder</Button>
+        <Button variant="outline" onClick={chooseFiles} disabled={reading}><FileAudio />Choose files</Button>
       </div>
       <p className="mt-4 text-xs text-muted-foreground">Up to {formatBytes(options.maxFileBytes)} per file and {formatBytes(options.maxBytes)} per upload.</p>
-      <input ref={files} type="file" multiple hidden aria-label="Music files" onChange={event => pick(event.currentTarget)} />
-      <input ref={folder} type="file" hidden aria-label="Music folder" {...{ webkitdirectory: '' }} onChange={event => pick(event.currentTarget)} />
+      {inputs}
     </div>
   )
 }
@@ -104,10 +121,11 @@ function Problem({ children }: { children: ReactNode }) {
   return <p role="alert" className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{children}</p>
 }
 
-type UploadQueueProps = Omit<UploadPanelProps, 'options' | 'upload' | 'reading' | 'onPick' | 'isAdmin'> & { options: ImportOptions; upload: UploadSnapshot }
+type UploadQueueProps = Omit<UploadPanelProps, 'options' | 'upload' | 'isAdmin'> & { options: ImportOptions; upload: UploadSnapshot }
 
-function UploadQueue({ options, upload, onStart, onPause, onCancel, onClear, onDrop }: UploadQueueProps) {
+function UploadQueue({ options, upload, reading, onStart, onPause, onCancel, onClear, onRemove, onDrop, onPick }: UploadQueueProps) {
   const { phase, files, totalBytes, sentBytes } = upload
+  const { chooseFiles, chooseFolder, inputs } = usePickers(onPick)
   const rejected = files.filter(file => file.status === 'rejected').length
   const left = files.filter(file => file.status === 'waiting' || file.status === 'sending').length
   const tooBig = totalBytes > options.maxBytes
@@ -128,7 +146,7 @@ function UploadQueue({ options, upload, onStart, onPause, onCancel, onClear, onD
           <div className="min-w-0">
             <h2 className="text-base font-semibold">{phase === 'ready' ? 'Ready to upload' : phase === 'paused' ? 'Paused' : phase === 'failed' ? 'Upload stopped' : 'Uploading…'}</h2>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              {[folders > 0 && plural(folders, 'folder'), plural(files.length, 'file'), formatBytes(totalBytes), rejected > 0 && `${rejected.toLocaleString()} not taken`].filter(Boolean).join(' · ')}
+              {[folders > 0 && plural(folders, 'folder'), plural(files.length, 'file'), formatBytes(totalBytes), rejected > 0 && `${rejected.toLocaleString()} ${phase === 'ready' ? 'cannot be uploaded' : 'not taken'}`].filter(Boolean).join(' · ')}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -155,37 +173,58 @@ function UploadQueue({ options, upload, onStart, onPause, onCancel, onClear, onD
         )}
       </div>
 
-      <FileList files={files} className="border-t" />
-      {phase === 'ready' && <p className="border-t px-4 py-2.5 text-xs text-muted-foreground">Drop more files here to add them.</p>}
+      <FileList files={files} onRemove={phase === 'ready' ? onRemove : undefined} className="border-t" />
+      {phase === 'ready' && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t px-2 py-1.5">
+          <Button size="sm" variant="ghost" onClick={chooseFiles} disabled={reading}><FileAudio />Add files</Button>
+          <Button size="sm" variant="ghost" onClick={chooseFolder} disabled={reading}><FolderUp />Add a folder</Button>
+          <p className="px-1 text-xs text-muted-foreground">{reading ? 'Reading the folder…' : 'Or drop more here.'}</p>
+          {inputs}
+        </div>
+      )}
     </div>
   )
 }
 
 const rowHeight = 36
 
-/** Every chosen file, rendered only near the visible part of its box so thousands stay quick. */
-function FileList({ files, className }: { files: readonly UploadFileState[]; className?: string }) {
+/**
+ * Every chosen file, rendered only near the visible part of its box so thousands stay quick.
+ * With `onRemove`, each has a button that takes it out; focus moves to the next one's.
+ */
+function FileList({ files, onRemove, className }: { files: readonly UploadFileState[]; onRemove?: (path: string) => void; className?: string }) {
   const box = useRef<HTMLDivElement>(null)
+  const removed = useRef<number | null>(null)
   // oxlint-disable-next-line react/incompatible-library -- the virtualizer re-renders on scroll by design
   const virtualizer = useVirtualizer({ count: files.length, getScrollElement: () => box.current, estimateSize: () => rowHeight, overscan: 10, initialRect: { width: 800, height: 400 } })
+  useEffect(() => {
+    const index = removed.current
+    if (index === null || !files.length) return
+    removed.current = null
+    box.current?.querySelector<HTMLElement>(`[data-index="${Math.min(index, files.length - 1)}"] button`)?.focus()
+  }, [files])
   return (
     <div ref={box} className={cn('max-h-96 overflow-y-auto px-2 py-1 [scrollbar-width:thin]', className)}>
       <ul aria-label="Files to upload" className="relative" style={{ height: virtualizer.getTotalSize() }}>
         {virtualizer.getVirtualItems().map(item => {
           const file = files[item.index]
-          return <FileRow key={item.key} file={file} style={{ transform: `translateY(${item.start}px)` }} />
+          const remove = onRemove && (() => {
+            removed.current = item.index
+            onRemove(file.path)
+          })
+          return <FileRow key={item.key} index={item.index} file={file} onRemove={remove} style={{ transform: `translateY(${item.start}px)` }} />
         })}
       </ul>
     </div>
   )
 }
 
-function FileRow({ file, style }: { file: UploadFileState; style: CSSProperties }) {
+function FileRow({ file, index, onRemove, style }: { file: UploadFileState; index: number; onRemove?: () => void; style: CSSProperties }) {
   const Icon = file.path.toLowerCase().endsWith('.zip') ? FileArchive : FileAudio
   const slash = file.path.lastIndexOf('/')
   const progress = file.size ? file.sent / file.size : 1
   return (
-    <li style={style} className="absolute inset-x-0 top-0 flex h-9 items-center gap-2.5 px-2 text-sm">
+    <li style={style} data-index={index} className="absolute inset-x-0 top-0 flex h-9 items-center gap-2.5 px-2 text-sm">
       <Icon aria-hidden className={cn('size-4 shrink-0', file.status === 'rejected' ? 'text-destructive' : 'text-muted-foreground')} />
       <span className="min-w-0 flex-1 truncate" title={file.path}>
         {slash > 0 && <span className="text-muted-foreground max-sm:hidden">{file.path.slice(0, slash + 1)}</span>}
@@ -201,8 +240,11 @@ function FileRow({ file, style }: { file: UploadFileState; style: CSSProperties 
             <span className="w-9 text-right tabular text-foreground">{Math.round(progress * 100)}%</span>
           </>
         )}
-        {file.status === 'waiting' && <span className="text-muted-foreground">Waiting</span>}
+        {file.status === 'waiting' && !onRemove && <span className="text-muted-foreground">Waiting</span>}
       </span>
+      {onRemove && (
+        <IconButton label={`Remove ${file.path.slice(slash + 1)}`} size="xs" onClick={onRemove} className="-mr-1 pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5"><X /></IconButton>
+      )}
     </li>
   )
 }

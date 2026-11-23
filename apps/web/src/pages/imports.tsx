@@ -173,6 +173,11 @@ function AddMusic() {
               toast({ title: 'Upload cancelled', description: 'Nothing from it was kept.' })
             }}
             onClear={() => setActive(null)}
+            onRemove={path => {
+              if (!upload || !options.data) return
+              const rest = upload.picked.filter(file => file.path !== path)
+              setActive(rest.length ? new Upload(api.imports, rest, options.data) : null)
+            }}
           />
         )}
 

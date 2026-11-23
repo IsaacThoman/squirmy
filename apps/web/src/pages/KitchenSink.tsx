@@ -495,6 +495,7 @@ function AddingMusic() {
           onPause={() => setState('Paused')}
           onCancel={() => setState('Drop zone')}
           onClear={() => setState('Drop zone')}
+          onRemove={() => {}}
         />
         <ImportsList imports={imports} ownerOf={item => (item.kind === 'upload' ? 'you' : null)} onCancel={said('Import cancelled')} />
         <ImportsList imports={undefined} ownerOf={() => null} onCancel={() => {}} />
