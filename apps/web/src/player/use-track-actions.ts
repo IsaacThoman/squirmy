@@ -26,6 +26,7 @@ export function useTrackActions(tracks: TrackSummary[], context?: PlaybackContex
     trackId: current.track.id,
     playing: state.playing,
     loading,
+    failed: current.entry.state === 'failed',
     onTogglePlay: controls.togglePlay,
   }, [current, state.playing, loading, controls])
 

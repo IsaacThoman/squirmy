@@ -131,7 +131,7 @@ Each library root is read-only or managed. In a managed root the server renames 
 - **The active device advances by itself.** It holds the next few tracks, so gapless, background and brief disconnects work.
 - **Reconnect rule.** A returning device's state wins only if no other device took over.
 - **Queue and state are versioned separately,** so a long queue is not resent on every pause.
-- **The same socket carries invalidations** for likes, playlists and scan progress.
+- **The same socket carries invalidations and changes** for likes, library saves, playlists, availability and scan progress. A change names the entity and patches it where it is shown, so a song a fetch brought or failed for turns playable or gray in place, without a list moving or a search running again.
 
 A device is listed only while its socket is connected, so a paused phone that iOS has suspended drops off until reopened.
 

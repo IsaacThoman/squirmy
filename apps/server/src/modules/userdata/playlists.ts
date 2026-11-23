@@ -14,7 +14,7 @@ import { db, type Transaction } from '../../database/client.js'
 import { playlistItems, playlists } from '../../database/schema.js'
 import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js'
 import { newId } from '../../lib/ids.js'
-import { invalidate } from '../../realtime/index.js'
+import { invalidate, publishChanges } from '../../realtime/index.js'
 import { after, cursorKeys, orderBy, toPage, type Ordering } from '../catalog/pagination.js'
 import { isoTime, uuidArray } from '../catalog/sql.js'
 import { alignedTrackSummaries, servable } from '../catalog/summaries.js'
@@ -169,6 +169,8 @@ export async function deletePlaylist(userId: string, id: string): Promise<void> 
     await tx.delete(playlists).where(eq(playlists.id, id))
     return row
   })
+  // Before the lists: a page open on it closes rather than keep showing the old copy.
+  await publishChanges(row.isPublic ? [{ user: userId }, 'all'] : { user: userId }, [{ kind: 'deleted', entity: 'playlist', ids: [id] }])
   await invalidatePlaylist(userId, row.isPublic)
 }
 

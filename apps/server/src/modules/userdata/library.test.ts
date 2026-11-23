@@ -11,7 +11,7 @@ import { db } from '../../database/client.js'
 import { acquisitionJobs, acquisitionProviders, albums, likes } from '../../database/schema.js'
 import { drainJobs, jobs, startJobs, stopJobs } from '../../jobs/index.js'
 import { updateServerSettings } from '../../lib/settings.js'
-import { invalidate } from '../../realtime/index.js'
+import { invalidate, publishChanges } from '../../realtime/index.js'
 import { body, errorCode, signIn } from '../../test/api.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum } from '../../test/factories.js'
@@ -25,6 +25,7 @@ import { userdataModule } from './index.js'
 vi.mock('../../realtime/index.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../../realtime/index.js')>(),
   invalidate: vi.fn(async () => {}),
+  publishChanges: vi.fn(async () => {}),
 }))
 vi.mock('../enrichment/detail.js', () => ({
   ensureAlbumDetail: vi.fn(async () => {}),
@@ -33,6 +34,7 @@ vi.mock('../enrichment/detail.js', () => ({
   albumDetailRun: vi.fn(async () => {}),
 }))
 const invalidated = vi.mocked(invalidate)
+const changed = vi.mocked(publishChanges)
 
 /** `PUT/DELETE /me/likes/:type/:id` (the heart): saves, removals, merges, and fetching what a save lacks. */
 describe('library saves', () => {
@@ -61,6 +63,7 @@ describe('library saves', () => {
   })
   beforeEach(async () => {
     invalidated.mockClear()
+    changed.mockClear()
     await db.delete(acquisitionProviders)
     invalidateProviders()
   })
@@ -79,16 +82,23 @@ describe('library saves', () => {
       body(await call(mira, { method: 'PUT', url: `/me/likes/track/${track!.recordingId}` }), Ok)
     }
     expect((await saved(mira.id)).map((row) => row.entityType).sort()).toEqual(['album', 'recording'])
+    // The user's devices refetch the likes lists, the library's lists and Home, and patch the
+    // rest in place: the album page, the album's songs and artist wherever they show. No search runs again.
     const keys = invalidated.mock.calls.flatMap(([target, list]) => (expect(target).toEqual({ user: mira.id }), list))
-    for (const key of [queryKeys.library(), queryKeys.home(), queryKeys.album(album.albumId), queryKeys.track(track!.recordingId), queryKeys.artist(album.artist.id)]) {
-      expect(keys).toContainEqual(key)
-    }
+    expect(new Set(keys.map((key) => JSON.stringify(key)))).toEqual(new Set([queryKeys.likes(), queryKeys.library(), queryKeys.home()].map((key) => JSON.stringify(key))))
+    const changes = changed.mock.calls.flatMap(([target, list]) => (expect(target).toEqual({ user: mira.id }), list))
+    expect(changes).toContainEqual({ kind: 'patch', entity: 'album', id: album.albumId, fields: { liked: true, library: 'saved' } })
+    expect(changes).toContainEqual({ kind: 'patch', entity: 'artist', id: album.artist.id, fields: { inLibrary: true } })
+    expect(changes).toContainEqual({ kind: 'patch', entity: 'track', id: track!.recordingId, fields: { liked: true, inLibrary: true, library: 'saved' } })
+    changed.mockClear()
 
     for (let round = 0; round < 2; round++) {
       body(await call(mira, { method: 'DELETE', url: `/me/likes/album/${album.albumId}` }), Ok)
       body(await call(mira, { method: 'DELETE', url: `/me/likes/track/${track!.recordingId}` }), Ok)
     }
     expect(await saved(mira.id)).toEqual([])
+    expect(changed.mock.calls.at(-1)![1]).toEqual([{ kind: 'patch', entity: 'track', id: track!.recordingId, fields: { liked: false, inLibrary: false, library: null } }])
+    expect(changed.mock.calls.flatMap(([, list]) => list)).toContainEqual({ kind: 'patch', entity: 'album', id: album.albumId, fields: { liked: false, library: null } })
 
     const missing = '01900000-0000-7000-8000-000000000000'
     expect(errorCode(await call(mira, { method: 'PUT', url: `/me/likes/album/${missing}` }), 404)).toBe('album_not_found')

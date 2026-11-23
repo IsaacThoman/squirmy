@@ -11,7 +11,8 @@ import { imports, libraryRoots, matchReviews, mediaFiles, type MatchSource } fro
 import { enqueue } from '../../jobs/index.js'
 import { newId } from '../../lib/ids.js'
 import { getServerSettings } from '../../lib/settings.js'
-import { invalidate, publish } from '../../realtime/index.js'
+import { invalidate, publish, publishChanges } from '../../realtime/index.js'
+import { holdsCollection, saversOf } from '../catalog/availability.js'
 import { lockCatalog } from '../library/cleanup.js'
 import { acoustid, musicbrainz } from '../metadata/index.js'
 import type { MbRelease, MbReleaseSummary } from '../metadata/musicbrainz.js'
@@ -283,13 +284,24 @@ export async function closeReview(tx: Transaction, rootId: string, groupKey: str
     .where(and(eq(matchReviews.rootId, rootId), eq(matchReviews.groupKey, groupKey), eq(matchReviews.status, 'open')))
 }
 
-/** Tells open screens which albums and artists changed, and admins that reviews may have. */
-export async function announce(albumIds: string[], artistIds: string[]) {
+/**
+ * Tells open screens which albums and artists changed, and admins that reviews may have.
+ * The pages of those albums and artists are refetched where they are open. Library lists
+ * and Home move for everyone only when the albums hold collection files; music a provider
+ * delivered is in no library but the libraries of users who saved it. Searches are never
+ * run again for it: what they list changes availability, which comes as a patch.
+ */
+export async function announce(albumIds: string[], artistIds: string[], recordingIds: string[] = []) {
   if (albumIds.length + artistIds.length > 0) {
-    await invalidate('all', [
-      queryKeys.library(), queryKeys.home(), queryKeys.search(),
-      ...[...new Set(albumIds)].map(queryKeys.album), ...[...new Set(artistIds)].map(queryKeys.artist),
+    await publishChanges('all', [
+      { kind: 'updated', entity: 'album', ids: [...new Set(albumIds)] },
+      { kind: 'updated', entity: 'artist', ids: [...new Set(artistIds)] },
     ])
+    if (await holdsCollection(albumIds)) {
+      await invalidate('all', [queryKeys.library(), queryKeys.home()])
+    } else {
+      for (const user of await saversOf(albumIds, recordingIds)) await invalidate({ user }, [queryKeys.libraryTracks()])
+    }
   }
   await invalidate('admins', [queryKeys.adminReviews()])
 }

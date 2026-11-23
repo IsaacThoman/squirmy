@@ -62,7 +62,7 @@ import { announce } from '../matching/match.js'
 import { resolveMerged as resolveMergedIn } from '../matching/merge.js'
 import { editionFreeKey, textArray } from '../search/keys.js'
 import type { JobRow } from './jobs.js'
-import { invalidateRecordings } from './resolve.js'
+import { announceAvailability } from './resolve.js'
 import { asDelivered, deliveredFiles, mergeDelivered, sameRecording, type Recording } from './verify.js'
 
 const timing = {
@@ -429,8 +429,8 @@ export async function placeDelivery(job: Job, options: PlaceOptions = {}): Promi
     }
   }
   if (albumIds.length > 0) {
-    await announce(albumIds, artistIds)
-    await invalidateRecordings(recordingIds)
+    await announce(albumIds, artistIds, recordingIds)
+    await announceAvailability(recordingIds)
   }
   return outcome
 }

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { ClientDevice } from './auth.js'
 import { Id } from './common.js'
+import type { EntityChanges } from './realtime.js'
 
 /**
  * Playback session protocol.
@@ -530,8 +531,13 @@ export interface ServerToClientEvents {
    */
   'session:moved': (update: SessionHelloAck) => void
   devices: (devices: DeviceInfo[]) => void
-  /** TanStack Query keys to invalidate. See `queryKeys`. */
+  /**
+   * TanStack Query keys to invalidate: lists whose members or order changed. Changes to
+   * entities they show come as `changes` instead. See `queryKeys`.
+   */
   invalidate: (update: { keys: readonly (readonly unknown[])[] }) => void
+  /** What changed about entities, for patching cached answers in place. See `EntityChange`. */
+  changes: (update: EntityChanges) => void
   event: (event: ServerEvent) => void
 }
 

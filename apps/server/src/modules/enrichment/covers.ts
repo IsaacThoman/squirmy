@@ -16,12 +16,11 @@
  * existed.
  */
 import path from 'node:path'
-import { queryKeys } from '@squirmy/contracts'
 import { sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { albumArtFromFiles, assignAlbumArtwork, remoteImage } from '../artwork/index.js'
 import { deezer } from '../metadata/index.js'
-import { changed, currentId, day, externalIdOf } from './rows.js'
+import { albumChanged, currentId, day, externalIdOf } from './rows.js'
 
 /** Albums the sweep queues per run. */
 const batch = 200
@@ -54,7 +53,7 @@ export async function fallbackCover(id: string): Promise<boolean> {
     const url = deezerId ? (await deezer.getAlbum(Number(deezerId)))?.coverUrl : null
     if (url) assigned = await assignAlbumArtwork(albumId, (await remoteImage(url, { kind: 'cover' })).id, { onlyIfEmpty: true })
   }
-  if (assigned) await changed([queryKeys.album(albumId), queryKeys.home(), queryKeys.library()])
+  if (assigned) await albumChanged(albumId)
   return assigned
 }
 

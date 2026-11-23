@@ -1,8 +1,8 @@
 import {
-  PlaybackNoticeWatcher, randomSeed, refreshFetchedTracks, SessionClient, skipNotice, TrackStore, unavailableNotice, type ApiClient, type PlaybackNotice, type SessionClientSnapshot,
+  PlaybackNoticeWatcher, planChanges, randomSeed, refreshFetchedTracks, SessionClient, skipNotice, TrackStore, unavailableNotice, type ApiClient, type PlaybackNotice, type SessionClientSnapshot,
 } from '@squirmy/client-core'
 import { createSocketTransport, type SquirmySocket } from '@squirmy/client-core/socket'
-import { queryKeys, type ClientDevice, type QueueEntry, type QueueSeed, type SessionCommand, type StreamQuality, type TrackSummary } from '@squirmy/contracts'
+import { queryKeys, type ClientDevice, type EntityChanges, type QueueEntry, type QueueSeed, type SessionCommand, type StreamQuality, type TrackSummary } from '@squirmy/contracts'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { use, useCallback, useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { useUserSettings } from '@/api/queries'
@@ -349,17 +349,22 @@ function usePlaybackNotices(client: SessionClient, store: TrackStore) {
 }
 
 /**
- * Reads tracks' summaries again when their details change on the server: a song it just
- * fetched (its album and cover come with the file), and any track an invalidation names.
- * The queue, the player and the system's media controls all show the store's summaries.
+ * Keeps tracks' summaries current: a song it just fetched is read again (its album and cover
+ * come with the file), as is any track an invalidation names, and the values the server's
+ * `changes` carry (availability, so a song that could not be had turns gray in the queue too;
+ * hearts and library membership) are set on the stored summaries without a request. The
+ * queue, the player and the system's media controls all show the store's summaries.
  */
 function useFreshSummaries(client: SessionClient, store: TrackStore, socket: SquirmySocket) {
   useEffect(() => refreshFetchedTracks(client, store), [client, store])
   useEffect(() => {
     const refresh = ({ keys }: { keys: readonly (readonly unknown[])[] }) => store.refreshInvalidated(keys)
+    const patch = ({ changes }: EntityChanges) => store.patch(planChanges(changes).patches)
     socket.on('invalidate', refresh)
+    socket.on('changes', patch)
     return () => {
       socket.off('invalidate', refresh)
+      socket.off('changes', patch)
     }
   }, [socket, store])
 }
