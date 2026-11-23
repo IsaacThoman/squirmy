@@ -1,10 +1,11 @@
+import { getConfig } from '../../config.js'
 import { enqueue, schedule } from '../../jobs/index.js'
 import type { ServerModule } from '../types.js'
 import { fallbackCover } from './covers.js'
 import { artistDetailRun, lyricsRun } from './detail.js'
 import { enrichAlbum } from './owned.js'
 import { foldArtistCopy } from './artist-copies.js'
-import { repairReleases } from './repair.js'
+import { repairReleases, type RepairReport } from './repair.js'
 import { reconcileArtistAlbums } from './reconcile.js'
 import { refreshNewReleases } from './releases.js'
 import { sweep } from './sweep.js'
@@ -61,7 +62,10 @@ export const enrichmentModule: ServerModule = {
     registry.define<ReconcileJob>('enrichment.reconcile', { retryLimit: 1, timeoutSeconds: 60 * 60 }, async ({ artistId, artistCopy }) => {
       if (artistCopy) await foldArtistCopy(artistCopy)
       else if (artistId) await reconcileArtistAlbums(artistId)
-      else await repairReleases()
+      else {
+        const started = Date.now()
+        logRepair(await repairReleases(), Date.now() - started)
+      }
     })
     await schedule('enrichment.sweep', '*/30 * * * *')
     await schedule('enrichment.reconcile', '50 4 * * *')
@@ -73,4 +77,10 @@ export const enrichmentModule: ServerModule = {
       await enqueue('enrichment.reconcile', {}, { singletonKey: 'repair' })
     }
   },
+}
+
+/** One info line per release repair run, with what it changed, so the operator can see what a run did. */
+export function logRepair(report: RepairReport, durationMs: number) {
+  if (!['info', 'debug', 'trace'].includes(getConfig().LOG_LEVEL)) return
+  console.info(JSON.stringify({ level: 30, time: Date.now(), msg: 'release repair finished', durationMs, ...report }))
 }
