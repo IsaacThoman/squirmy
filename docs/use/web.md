@@ -49,7 +49,7 @@ Ctrl+K (⌘K on a Mac) opens a search box over whatever page you are on. It sear
 
 ## Playing music
 
-Click a song, or the play button on an album or playlist. The player bar along the bottom has the transport, the seek bar, volume, the heart (**Save to library**), **Lyrics**, **Queue** and **Devices**. **Queue** opens the queue in a panel beside the page; in a narrower window the panel floats over the page's right side and dims the page; click the page or press Escape to close it. Click the artwork in the bar, or **Now Playing** at its right end, to open **Now Playing**, full screen, with lyrics (synced lyrics follow the song, and clicking a line jumps to it) or the queue beside the artwork.
+Click a song, or the play button on an album or playlist. The player bar along the bottom has the transport, the seek bar, volume, the heart (**Save to library**), **Lyrics**, **Queue** and **Devices**. **Queue** opens the queue in a panel beside the page; in a narrower window the panel floats over the page's right side and dims the page; click the page or press Escape to close it. Scroll down over the player bar, click its artwork or click the up chevron to slide **Now Playing** into full screen. Scroll up over the artwork or controls, or click the down chevron, to return to the bar. Lyrics and the queue scroll within their own panes. Synced lyrics follow the song, and clicking a line jumps to it.
 
 On a phone the player is a small bar at the bottom with the song, **Devices** and play or pause. Tap it for **Now Playing**, which is where the queue and the lyrics are.
 
