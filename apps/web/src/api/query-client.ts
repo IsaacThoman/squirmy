@@ -1,5 +1,5 @@
 import { ApiError } from '@squirmy/client-core'
-import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query'
+import { MutationCache, notifyManager, QueryCache, QueryClient } from '@tanstack/react-query'
 import { errorMessage } from '@/api/errors'
 import { signedOut } from '@/auth/session'
 import { toast } from '@/lib/toast'
@@ -12,6 +12,13 @@ declare module '@tanstack/react-query' {
     mutationMeta: { inline?: boolean }
   }
 }
+
+// The cache tells its observers about a change in a microtask, not the library's default
+// zero-delay timeout. An optimistic update (the heart, a playlist change) then reaches the
+// screen before the browser paints the frame of the click: with a timeout the heart showed
+// its old state for a frame, and a check right after the click (the providers e2e script)
+// saw it empty. Changes in one task are still batched into one notification.
+notifyManager.setScheduler(queueMicrotask)
 
 const isUnauthorized = (error: unknown) => error instanceof ApiError && error.status === 401
 /** Client errors will not change on a retry; network failures and 5xx might. */

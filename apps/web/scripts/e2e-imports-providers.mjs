@@ -351,9 +351,12 @@ async function missingTrack(q) {
 }
 /** The search page's row for a song, in its one list of results: not an album or single of the same name. */
 const resultRow = (on, title) => on.getByRole('listbox', { name: /^Results for / }).getByRole('option').filter({ hasText: title }).filter({ hasText: 'Song · ' }).first()
-/** Searches in the app and plays a track from the results; returns its row. */
+/**
+ * Searches songs in the app (the Songs filter, `type=track`: the mixed list shows only the best
+ * few) and plays a track from the results; returns its row.
+ */
 async function playFromSearch(q, track) {
-  await page.goto(`${base}/search?q=${encodeURIComponent(q)}`)
+  await page.goto(`${base}/search?q=${encodeURIComponent(q)}&type=track`)
   const row = resultRow(page, track.title)
   await row.waitFor({ timeout: 30_000 })
   await row.hover()
@@ -411,7 +414,8 @@ await step('play missing music on demand', async () => {
   const track = await missingTrack(query)
   check('a track the library lacks shows on demand', track.availability === 'on_demand', `${track.title} · ${track.artistCredit}`)
   const row = await playFromSearch(query, track)
-  await row.getByRole('status', { name: 'Loading' }).waitFor({ timeout: 10_000 })
+  // The row's spinner sits over its cover and is hidden from assistive tech (the player bar's says it).
+  await row.locator('svg.spinner').waitFor({ timeout: 10_000 })
   check('the track shows the loading spinner in the list', true)
   check('and in the player bar, under its artist as always', await playerBar().getByRole('status', { name: 'Loading' }).isVisible() && await playerBar().getByText(track.artistCredit).first().isVisible())
   check('nothing says it is being fetched', !(await page.getByText(/Preparing|on demand/).count()))
@@ -435,7 +439,8 @@ await step('add an album to the library', async () => {
   const pick = unowned.find(album => ['single', 'ep'].includes(album.type)) ?? unowned[0]
   if (!pick) throw new Error('no album the library lacks')
   await page.goto(`${base}/album/${pick.id}`)
-  // The heart is the one way into the library.
+  // The heart is the one way into the library. The album's is the only "Save to library" on the
+  // page: the player's, for the song still playing from the step before, is named after that song.
   const add = button('Save to library')
   await add.waitFor({ timeout: minutes(1) })
   check('the album page says nothing of where its music is', !(await page.getByText(/on demand|Get this album|library yet/i).count()), pick.title)
@@ -448,20 +453,40 @@ await step('add an album to the library', async () => {
   check('and it is in the library', (await get('/library/albums?sort=recent&limit=50')).items.some(album => album.id === pick.id))
 })
 
+/**
+ * How a run of songs the provider cannot supply ends (#119): paused on the fifth in a row
+ * with one notice, or stopped when nothing after it plays.
+ */
+const runStopNotice = () => page.getByText(/^(Several songs in a row aren’t available|None of the remaining songs are available)$/).first()
+/**
+ * A skipped song's notice (one, which counts the run as it grows, #119), or the stop notice that
+ * takes its place once the run ends.
+ */
+const runNotice = () => page.getByText(/^(Skipped (“.+”|\d+ songs) — not available|Several songs in a row aren’t available|None of the remaining songs are available)$/).first()
+/** Playback is paused or stopped: the player bar offers Play. */
+const paused = async () => (await button('Play', playerBar()).count()) > 0 && !(await button('Pause', playerBar()).count())
+
+/**
+ * A provider that fails every job is down, not short of a song (#119): playback pauses on the
+ * first one with one notice that says so, and nothing is said per song.
+ */
+const outageNotice = () => page.getByText('Can’t load music right now', { exact: true }).first()
+
 await step('a provider that fails', async () => {
   mock.settings.fail = true
   const track = await missingTrack('Aphex Twin')
   try {
     await playFromSearch('Aphex Twin', track)
-    await toastText(`Couldn’t play “${track.title}”`).waitFor({ timeout: minutes(2) })
-    check('a failed fetch shows a brief notice', true, track.title)
-    await button('Pause').click()
+    await outageNotice().waitFor({ timeout: minutes(3) })
+    check('a provider that fails pauses playback with one notice', await paused(), track.title)
+    check('and says nothing per song', !(await page.getByText(/^Couldn’t play “/).count()) && !(await page.getByText(/^Skipped /).count()))
+    const providers = await get('/admin/acquisition/providers')
+    const shelf = (providers.items ?? providers).find(provider => provider.name === 'Shelf')
+    check('the provider is reported failing, not the songs missing', Boolean(shelf?.failingSince), shelf?.failingSince)
     await shoot('on-demand-failed', { toasts: true })
   } finally {
     mock.settings.fail = false
   }
-  const after = await until(() => get(`/tracks/${track.id}`), value => value.availability === 'none', 10_000)
-  check('and the track is gray after a refresh', after.availability === 'none')
   await page.goto(`${base}/admin/providers?status=failed`)
   const failedRow = page.getByRole('list', { name: 'Requests' }).getByRole('listitem').filter({ has: page.getByText(`${track.title} — ${track.artistCredit}`, { exact: true }) }).first()
   await failedRow.waitFor()
@@ -474,9 +499,11 @@ await step('a provider that delivers the wrong file', async () => {
   const track = await missingTrack('Autechre')
   try {
     await playFromSearch('Autechre', track)
-    await toastText(`Couldn’t play “${track.title}”`).waitFor({ timeout: minutes(4) })
-    check('a wrong delivery shows the notice too', true, track.title)
-    await button('Pause').click()
+    // A delivery that is not the song asked for is a song the provider cannot supply: skipped, the same way.
+    await runNotice().waitFor({ timeout: minutes(4) })
+    check('a wrong delivery is skipped with the same notice', true, await runNotice().textContent())
+    await runStopNotice().waitFor({ timeout: minutes(8) })
+    check('and a run of them stops playback too', await paused(), await runStopNotice().textContent())
   } finally {
     mock.settings.wrongFile = false
   }
@@ -490,11 +517,11 @@ await step('a member without the permission', async () => {
   await memberContext.request.post(`${base}/api/v1/auth/login`, { headers, data: member })
   const memberPage = await memberContext.newPage()
   const track = await missingTrack('Burial')
-  await memberPage.goto(`${base}/search?q=${encodeURIComponent('Burial')}`)
+  await memberPage.goto(`${base}/search?q=${encodeURIComponent('Burial')}&type=track`)
   const row = resultRow(memberPage, track.title)
   await row.waitFor({ timeout: 30_000 })
   const title = await row.getAttribute('title')
-  check('on-demand tracks show as unavailable', title === 'Not available', title)
+  check('on-demand tracks show as unavailable, in the one word every surface uses', title === 'Not available', title)
   check('with nothing to play', await row.getByRole('button', { name: `Play ${track.title}` }).count() === 0)
   await shoot('on-demand-not-allowed', { on: memberPage })
   const refused = await api('POST', `/tracks/${track.id}/acquire`, undefined, memberContext)
