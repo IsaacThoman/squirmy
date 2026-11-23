@@ -2,7 +2,7 @@
   "fill-specializations" : [
     {
       "value" : {
-        "solid" : "srgb:0.95686,0.94118,0.98824,1.00000"
+        "solid" : "srgb:0.61569,0.60000,0.83922,1.00000"
       }
     },
     {
@@ -19,8 +19,8 @@
           "blend-mode" : "normal",
           "fill" : "automatic",
           "glass" : true,
-          "image-name" : "earthworm-face.png",
-          "name" : "earthworm-face",
+          "image-name" : "worm-face.png",
+          "name" : "worm-face",
           "position" : {
             "scale" : 1,
             "translation-in-points" : [
@@ -31,8 +31,8 @@
         },
         {
           "hidden" : false,
-          "image-name" : "earthworm-body.png",
-          "name" : "earthworm-body",
+          "image-name" : "worm-body.png",
+          "name" : "worm-body",
           "position" : {
             "scale" : 1,
             "translation-in-points" : [
