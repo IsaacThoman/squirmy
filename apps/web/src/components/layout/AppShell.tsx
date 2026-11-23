@@ -325,7 +325,7 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
               id="main-content"
               ref={setScroller}
               tabIndex={-1}
-              className="relative min-w-0 flex-1 overflow-y-auto outline-none [--gutter:1rem] md:[--gutter:1.5rem]"
+              className="relative min-w-0 flex-1 overflow-y-auto outline-none [--gutter:1rem] has-[>[data-back-breadcrumb]]:[--breadcrumb-space:0.75rem] md:[--gutter:1.5rem]"
             >
               <ScrollContainerContext value={scroller}>
                 <BackBreadcrumb />

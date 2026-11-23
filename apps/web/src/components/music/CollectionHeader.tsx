@@ -30,7 +30,7 @@ export function CollectionHeader({ kind, title, art, byline, meta, description, 
   // Secondary words are a little nearer the text than muted text: over a strong tint, muted text drops under 4.5:1.
   const secondary = tints ? 'text-tint-muted-foreground' : 'text-muted-foreground'
   return (
-    <header className={cn('px-(--gutter) pb-6 pt-12 md:pt-10', tints && 'album-tint')} style={tints ? { '--tint': tints.light, '--tint-dark': tints.dark } as CSSProperties : undefined}>
+    <header className={cn('px-(--gutter) pb-6 pt-[calc(3rem+var(--breadcrumb-space,0px))] md:pt-[calc(2.5rem+var(--breadcrumb-space,0px))]', tints && 'album-tint')} style={tints ? { '--tint': tints.light, '--tint-dark': tints.dark } as CSSProperties : undefined}>
       <div className="flex flex-col items-center gap-5 text-center md:flex-row md:items-end md:gap-7 md:text-left">
         <div className="w-[min(56vw,13rem)] shrink-0 md:w-48 lg:w-56 [&>*]:shadow-cover">{art}</div>
         {/* A name with no spaces (a long unbroken title) breaks anywhere rather than run past the edge. */}

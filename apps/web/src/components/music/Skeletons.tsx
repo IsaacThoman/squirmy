@@ -54,7 +54,7 @@ export function TrackRowsSkeleton({ rows = 8, art }: { rows?: number; art?: bool
 export function CollectionSkeleton({ round }: { round?: boolean }) {
   return (
     <div role="status" aria-label="Loading">
-      <div className="flex flex-col items-center gap-5 px-(--gutter) pb-6 pt-12 md:flex-row md:items-end md:gap-7 md:pt-10">
+      <div className="flex flex-col items-center gap-5 px-(--gutter) pb-6 pt-[calc(3rem+var(--breadcrumb-space,0px))] md:flex-row md:items-end md:gap-7 md:pt-[calc(2.5rem+var(--breadcrumb-space,0px))]">
         <Skeleton className={cn('aspect-square w-[min(56vw,13rem)] shrink-0 md:w-48 lg:w-56', round ? 'rounded-full' : 'rounded-cover')} />
         <div className="flex w-full flex-col items-center gap-3 md:items-start md:pb-1">
           <Skeleton className="h-3 w-16" />
