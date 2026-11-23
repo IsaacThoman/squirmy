@@ -31,8 +31,14 @@ export type CollectionButtonProps = {
 /** The button a `ZoomLink` wraps. The link supplies `onPress`. */
 export type LinkedButtonProps<T> = Omit<T, 'href'> & { onPress?: () => void };
 export type GenreCardProps = { title: string; color: string; width: number; cover: ReactElement; onPress: () => void };
-/** `busy` shows that a play is waiting on the server; the play button ignores taps meanwhile. */
-export type HeroActionsProps = { title: string; artist: string; onOpen: () => void; onPlay: () => void; busy?: boolean };
+/**
+ * The featured album's card: `art` (its cover and gradient, `width` × `height`) under the title
+ * and credit, opening `href` (on iOS the page zooms out of the card), with a play button.
+ * `busy` shows that a play is waiting on the server; the play button ignores taps meanwhile.
+ */
+export type HeroActionsProps = {
+  title: string; artist: string; art: ReactElement; width: number; height: number; href: Href; onPlay: () => void; busy?: boolean;
+};
 /** One row of a grid of collections; a long grid is a virtualized list of these. */
 export type CollectionGridRowProps = { items: readonly (CollectionButtonProps & { id: string })[] };
 /** `columns`: two, or one when large text needs the width. */
@@ -145,17 +151,24 @@ export function GenreGrid({ items }: GenreGridProps) {
   </View>;
 }
 
-export function HeroActions({ title, artist, onOpen, onPlay, busy }: HeroActionsProps) {
+function HeroOpen({ title, artist, art, width, height, onPress }: LinkedButtonProps<Omit<HeroActionsProps, 'onPlay' | 'busy'>>) {
+  const styles = useStyles();
+  return <Pressable accessibilityRole="button" accessibilityLabel={`${title}, ${artist}`} onPress={onPress}
+    style={[styles.heroOpen, { width, minHeight: height }]}>
+    <View style={StyleSheet.absoluteFill}>{art}</View>
+    <Text style={styles.heroTitle}>{title}</Text>
+    <Text style={[styles.subtitle, styles.heroSubtitle]}>{artist}</Text>
+  </Pressable>;
+}
+
+export function HeroActions({ href, onPlay, busy, ...card }: HeroActionsProps) {
   const styles = useStyles();
   const colors = useColors();
-  return <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-    <Pressable accessibilityRole="button" accessibilityLabel={`Open ${title}`} onPress={onOpen} style={[StyleSheet.absoluteFill, styles.heroOpen]}>
-      <Text style={styles.heroTitle}>{title}</Text>
-      <Text style={[styles.subtitle, styles.heroSubtitle]}>{artist}</Text>
-    </Pressable>
+  return <View style={styles.hero}>
+    <ZoomLink href={href}><HeroOpen {...card} /></ZoomLink>
     <View style={styles.heroPlay}>{busy
-      ? <ActivityIndicator accessibilityLabel={`Starting ${title}`} color={colors.text} style={styles.busy} />
-      : <BrowseButton icon="play.fill" label={`Play ${title}`} onPress={onPlay} glass />}</View>
+      ? <ActivityIndicator accessibilityLabel={`Starting ${card.title}`} color={colors.text} style={styles.busy} />
+      : <BrowseButton icon="play.fill" label={`Play ${card.title}`} onPress={onPlay} glass />}</View>
   </View>;
 }
 
@@ -180,6 +193,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   genre: { minHeight: 106, padding: 12, borderRadius: 15, overflow: 'hidden' },
   genreTitle: { color: '#F5F2FF', fontSize: 17, fontWeight: '700' },
   genreCover: { position: 'absolute', bottom: -11, right: -6, transform: [{ rotate: '19deg' }] },
+  hero: { borderRadius: 26, overflow: 'hidden', backgroundColor: '#100D16' },
   heroOpen: { justifyContent: 'flex-end', padding: 20, paddingRight: 80 },
   heroTitle: { color: '#F5F2FF', fontSize: 36, fontWeight: '800', letterSpacing: -1.4 },
   heroSubtitle: { color: '#F0E6FA' },

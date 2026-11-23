@@ -1,8 +1,9 @@
 import { isPlayable } from '@squirmy/client-core';
 import type { TrackSummary } from '@squirmy/contracts';
 import type { ReactNode } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useRealtime } from '../data/realtime';
+import { isAccessibilitySize } from '../fontScale';
 import { useCollectionDownload, useDownloadActions, useViewer } from '../downloads/DownloadsProvider';
 import { downloadStatus, type CollectionDownload } from '../downloads/model';
 import { createThemedStyles, useColors } from '../theme';
@@ -54,7 +55,9 @@ function DownloadStatus({ download, onRetry }: { download: CollectionDownload; o
   const colors = useColors();
   const styles = useStyles();
   const { icon, text, retry } = downloadStatus(download);
-  return <View style={styles.status} accessibilityRole="text">
+  // At accessibility sizes the icon goes above the line, which then has the page's whole width.
+  const stacked = isAccessibilitySize(useWindowDimensions().fontScale);
+  return <View style={[styles.status, stacked && styles.stacked]} accessibilityRole="text">
     <Icon name={icon} size={13} color={download.state === 'failed' ? colors.danger : colors.muted} />
     <Text style={styles.text}>{text}</Text>
     {retry && <Pressable accessibilityRole="button" hitSlop={10} onPress={onRetry}>
@@ -64,7 +67,10 @@ function DownloadStatus({ download, onRetry }: { download: CollectionDownload; o
 }
 
 const useStyles = createThemedStyles(colors => StyleSheet.create({
-  status: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: 14 },
-  text: { color: colors.muted, fontSize: 13, fontWeight: '600' },
+  // Stretched to the header's width and the text allowed to wrap: a centered row as wide as
+  // its text overflowed both edges of the page at large sizes.
+  status: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: 14, alignSelf: 'stretch' },
+  stacked: { flexDirection: 'column', gap: 4 },
+  text: { color: colors.muted, fontSize: 13, fontWeight: '600', flexShrink: 1, textAlign: 'center' },
   retry: { color: colors.accent, fontSize: 13, fontWeight: '700' },
 }));
