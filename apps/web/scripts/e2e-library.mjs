@@ -1,12 +1,14 @@
 // Walks the single heart and the combined Library in real Chromium against a server that has
 // not been set up yet: the old list addresses land on the combined view, no separate "Add to
 // library" control is left, an album hearted from search shows under Albums and leaves when
-// unhearted, and a hearted song shows in Liked Songs and under Songs. Then the Library's rows
-// and cards: album cards carry the album page's menu (⋯ and right-click), list rows keep their
-// play buttons, a search under All lists the songs it matched, Undo of a removal keeps the
-// save's place, a failed playlist list or library search says so and recovers, a search keeps
-// to the genre chosen, a refused save replaces its toast, and Home's hero leaves its rail. The
-// failures are made in the browser (the server is never broken). The mock provider is
+// unhearted, and a hearted song shows in Liked Songs and under Songs. Each heart is its own
+// confirmation: nothing floats over the page to say what it did. Then the Library's rows and
+// cards: album cards carry the album page's menu (⋯ and right-click, its entries saying what they
+// did), list rows keep their play buttons, a search under All lists the songs it matched, a
+// removal offers no Undo and a save made again leads, a failed playlist list or library search
+// says so and recovers, a search keeps to the genre chosen, a refused save goes back and says so
+// beside its heart, and Home's hero leaves its rail. The failures are made in the browser (the
+// server is never broken). The mock provider is
 // registered so saving behaves as it does for someone the server fetches music for; it answers
 // slowly, so nothing it delivers lands while the checks run.
 // Catalog search talks to MusicBrainz and Deezer, so a run takes a few minutes.
@@ -73,7 +75,6 @@ page.on('pageerror', error => console.log(`page error: ${error.message}`))
 const heading = (name, scope = page) => scope.getByRole('heading', { name, exact: true })
 const button = (name, scope = page) => scope.getByRole('button', { name, exact: true }).filter({ visible: true }).first()
 const main = () => page.getByRole('main')
-const toastText = text => page.getByText(text, { exact: true }).first()
 /** Whether `locator` shows within a few seconds: pages draw a preview header before the real one. */
 const shows = (locator, timeout = 5000) => locator.waitFor({ timeout }).then(() => true, () => false)
 /** Titles as the catalog and the library spell them can differ in case ("At" and "at"). */
@@ -87,10 +88,9 @@ async function api(method, route, data) {
 }
 const get = async route => (await api('GET', route)).body
 
-/** What is on screen now, toasts and the pointer out of the way unless asked. */
-async function shoot(name, { toasts = false, width = 1440, height = 900, scheme = 'light' } = {}) {
+/** What is on screen now. */
+async function shoot(name, { width = 1440, height = 900, scheme = 'light' } = {}) {
   if (!shots) return
-  if (!toasts) for (const close of await page.getByRole('button', { name: 'Dismiss' }).all()) await close.click().catch(() => {})
   await page.emulateMedia({ colorScheme: scheme })
   await page.setViewportSize({ width, height })
   await sleep(400)
@@ -105,6 +105,12 @@ async function openLibrary(filter) {
   await heading('Library').waitFor()
   await main().getByRole('list').first().waitFor()
 }
+
+/**
+ * The server's answer to a heart's save or removal. A step that reloads the page right after a
+ * heart waits for it, as a reload drops a request still on its way.
+ */
+const answered = (method, kind) => page.waitForResponse(response => response.request().method() === method && new URL(response.url()).pathname.startsWith(`/api/v1/me/likes/${kind}/`))
 
 const titlesIn = list => list.getByRole('listitem').evaluateAll(items => items.map(item => item.querySelector('a')?.textContent ?? ''))
 
@@ -200,9 +206,11 @@ await step('heart an album from search', async () => {
   // Search is one ranked list (#117): an album's row links as "Title, Album · Artist".
   await main().getByRole('link', { name: new RegExp(`^${loosely(picked.title).source.slice(1, -1)}, `, 'i') }).first().click({ timeout: 30_000 })
   await heading(picked.title).waitFor()
+  const saved = answered('PUT', 'album')
   await button('Save to library').click()
-  await toastText('Saved to your library').waitFor()
-  check('the heart fills at once, with a toast', await shows(button('Remove from library')))
+  check('the heart fills at once', await shows(button('Remove from library'), 2000))
+  check('and nothing else says it was saved', !(await page.getByText(/^Saved to (your )?library$/).count()))
+  await saved
   await openLibrary('albums')
   const albums = main().getByRole('list', { name: 'Albums' })
   await albums.getByRole('link', { name: loosely(picked.title) }).first().waitFor({ timeout: 15_000 })
@@ -213,8 +221,10 @@ await step('unheart it', async () => {
   if (!picked) throw new Error('nothing was hearted')
   await page.goto(`${base}/album/${picked.id}`)
   await heading(picked.title).waitFor()
+  const removed = answered('DELETE', 'album')
   await button('Remove from library').click()
-  await toastText('Removed from your library').waitFor()
+  check('the heart empties at once', await shows(button('Save to library'), 2000))
+  await removed
   await openLibrary('albums')
   await sleep(1000)
   const titles = await titlesIn(main().getByRole('list', { name: 'Albums' }))
@@ -231,9 +241,10 @@ await step('heart a song', async () => {
   const row = main().getByRole('option').filter({ has: page.getByRole('button', { name }) }).first()
   await row.waitFor({ timeout: 30_000 })
   await row.hover()
+  const liked = answered('PUT', 'track')
   await row.getByRole('button', { name }).click()
-  await toastText('Saved to your library').waitFor()
   check('its heart fills at once', await shows(main().getByRole('button', { name: new RegExp(`^Remove ${loosely(song.title).source.slice(1, -1)} from library$`, 'i') }).first()))
+  await liked
   await page.goto(`${base}/liked`)
   await page.getByRole('list', { name: 'Liked Songs tracks' }).getByText(loosely(song.title)).first().waitFor()
   check('it shows in Liked Songs', true, song.title)
@@ -284,9 +295,11 @@ await step('album cards have the album page’s menu', async () => {
   check('⋯ on a card opens Play, Play next, Add to queue, Add to playlist, the library entry and Go to the artist',
     ['Play', 'Play next', 'Add to queue', 'Add to playlist'].every((item, index) => items[index] === item)
     && items.filter(item => /library/.test(item)).length === 1 && items.at(-1) === 'Go to Mira Vale', items.join(' | '))
-  await shootBoth('library-card-menu', { toasts: true })
+  await shootBoth('library-card-menu')
   await page.getByRole('menuitem', { name: 'Add to queue' }).click()
-  check('Add to queue from a card queues the album', await shows(toastText('Added to queue')))
+  // The entry says it worked for a moment, then its menu closes.
+  check('Add to queue from a card says so on the entry', await shows(page.getByRole('menuitem', { name: 'Added to queue' }), 2000))
+  check('and its menu then closes', await page.getByRole('menu').waitFor({ state: 'detached', timeout: 3000 }).then(() => true, () => false))
 
   await albums.getByRole('link', { name: 'Slow Motion', exact: true }).first().click({ button: 'right' })
   const context = await until(menuItems, list => list.includes('Go to Lune Park'))
@@ -332,7 +345,7 @@ await step('a search under All lists the songs it matched', async () => {
   await searchBox().fill('')
 })
 
-await step('Undo of a removal keeps the save’s place', async () => {
+await step('a removal offers no Undo, and a save made again leads', async () => {
   const titles = await albumsByTitle()
   const [older, newer] = [titles.get('Blue Hour'), titles.get('Slow Motion')]
   for (const album of [older, newer]) await api('DELETE', `/me/likes/album/${album.id}`)
@@ -341,7 +354,7 @@ await step('Undo of a removal keeps the save’s place', async () => {
     await page.goto(`${base}/album/${album.id}`)
     await heading(album.title).waitFor()
     await albumHeart(album.title, 'Save to library').click()
-    await toastText('Saved to your library').waitFor()
+    await albumHeart(album.title, 'Remove from library').waitFor()
     await sleep(1100)
   }
   const order = async () => (await get('/me/likes/album?limit=50')).items.map(item => item.id)
@@ -349,15 +362,15 @@ await step('Undo of a removal keeps the save’s place', async () => {
   check('the two saves are listed newest first', before.includes(older.id) && before.indexOf(newer.id) < before.indexOf(older.id), before.join(' | '))
   await page.goto(`${base}/album/${older.id}`)
   await heading(older.title).waitFor()
-  for (const close of await page.getByRole('button', { name: 'Dismiss' }).all()) await close.click().catch(() => {})
   await albumHeart(older.title, 'Remove from library').click()
-  await toastText('Removed from your library').waitFor()
-  await page.locator('[data-toast]').filter({ hasText: 'Removed from your library' }).getByRole('button', { name: 'Undo' }).click()
-  // The Undo's save, answered, is listed again.
-  const after = await until(order, ids => ids.includes(older.id) && ids.length === before.length, 10_000)
-  check('after Undo the album is back below the newer save, not on top', after.includes(newer.id) && after.indexOf(newer.id) < after.indexOf(older.id), after.join(' | '))
-  const recent = (await get('/library/albums?sort=recent&limit=50')).items.map(album => album.title)
-  console.log(`      Recently added now: ${recent.join(' | ')}`)
+  check('the heart empties at once', await shows(albumHeart(older.title, 'Save to library'), 2000))
+  check('and nothing offers to undo it', !(await page.getByRole('button', { name: 'Undo' }).count()))
+  const removed = await until(order, ids => !ids.includes(older.id), 10_000)
+  check('the server no longer lists it', !removed.includes(older.id), removed.join(' | '))
+  // The heart is the way back; the save is a new one, so it leads.
+  await albumHeart(older.title, 'Save to library').click()
+  const after = await until(order, ids => ids.includes(older.id), 10_000)
+  check('saved again from its heart, it is the newest save', after[0] === older.id && after.includes(newer.id), after.join(' | '))
 })
 
 await step('a failed playlist list keeps the rest of the Library', async () => {
@@ -416,21 +429,28 @@ await step('a search keeps to the genre chosen', async () => {
   if (!others.includes(genre)) check('an album of another genre is not found', await shows(heading('Nothing found'), 10_000), others.join(', '))
 })
 
-await step('a refused save replaces its toast', async () => {
+await step('a refused save goes back and says so beside its heart', async () => {
   const album = (await albumsByTitle()).get('OK Computer')
   await api('DELETE', `/me/likes/album/${album.id}`)
   const restore = await outage('/api/v1/me/likes/album/', 'PUT')
   await page.goto(`${base}/album/${album.id}`)
   await heading(album.title).waitFor()
-  for (const close of await page.getByRole('button', { name: 'Dismiss' }).all()) await close.click().catch(() => {})
   await albumHeart(album.title, 'Save to library').click()
-  check('the refusal says it did not save', await shows(toastText('Couldn’t save to your library')))
-  check('and the success toast is gone', !(await page.getByText('Saved to your library', { exact: true }).count()))
+  // The heart's tooltip holds the refusal open, in the error color.
+  const refusal = page.locator('[data-tone="error"]').filter({ hasText: 'Couldn’t save. Try again.' })
+  check('the refusal shows beside the heart', await shows(refusal))
+  const [tip, heart] = [await refusal.boundingBox(), await albumHeart(album.title, 'Save to library').boundingBox()]
+  // Above it, or below where the page's edge leaves no room, and over it side to side.
+  const gap = tip && heart ? Math.min(Math.abs(tip.y + tip.height - heart.y), Math.abs(heart.y + heart.height - tip.y)) : Infinity
+  check('right by it', gap < 24 && tip.x < heart.x + heart.width && tip.x + tip.width > heart.x, JSON.stringify({ tip, heart }))
   check('the heart is back', await shows(albumHeart(album.title, 'Save to library')))
-  await shootBoth('album-save-refused', { toasts: true })
+  check('a screen reader hears which album it was', await shows(page.getByRole('status').filter({ hasText: `Couldn’t save “${album.title}” to your library. Try again.` })))
+  check('and nothing says it was saved', !(await page.getByText(/^Saved to (your )?library$/).count()))
+  await shootBoth('album-save-refused')
   await restore()
-  await page.locator('[data-toast]').filter({ hasText: 'Couldn’t save to your library' }).getByRole('button', { name: 'Try again' }).click()
-  check('Try again saves it', await shows(toastText('Saved to your library')) && await shows(albumHeart(album.title, 'Remove from library')))
+  await albumHeart(album.title, 'Save to library').click()
+  check('pressing the heart again saves it', await shows(albumHeart(album.title, 'Remove from library')))
+  check('and the refusal goes', await refusal.waitFor({ state: 'detached', timeout: 3000 }).then(() => true, () => false))
   await api('DELETE', `/me/likes/album/${album.id}`)
 })
 
@@ -438,9 +458,12 @@ await step('Home’s hero leaves the rail it leads', async () => {
   await page.goto(`${base}/`)
   const featured = page.getByRole('region', { name: 'Featured' })
   await featured.waitFor()
-  const title = await featured.getByRole('heading', { level: 2 }).textContent()
-  const label = await featured.locator('p').first().textContent()
   const home = await get('/home')
+  // The page may draw what it kept from an earlier visit first: the steps before saved and
+  // removed albums, so it waits for the server's lead before it is compared.
+  const leads = home.sections.filter(section => ['recently-played', 'recently-added'].includes(section.id)).map(section => section.albums[0]?.title)
+  const title = await until(() => featured.getByRole('heading', { level: 2 }).textContent(), text => leads.includes(text), 10_000)
+  const label = await featured.locator('p').first().textContent()
   const source = home.sections.find(section => section.id === (/jump back/i.test(label) ? 'recently-played' : 'recently-added'))
   const rail = page.getByRole('region', { name: source.title, exact: true })
   const inRail = (await rail.count()) ? await rail.getByRole('link', { name: title, exact: true }).count() : 0

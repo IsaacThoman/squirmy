@@ -95,7 +95,6 @@ page.on('pageerror', error => console.log(`page error: ${error.message}`))
 await context.addInitScript(instrumentAudio)
 const heading = (name, scope = page) => scope.getByRole('heading', { name, exact: true })
 const button = (name, scope = page) => scope.getByRole('button', { name, exact: true }).filter({ visible: true }).first()
-const toastText = text => page.getByText(text, { exact: true }).first()
 const playerBar = (on = page) => on.getByRole('region', { name: 'Player', exact: true })
 
 async function api(method, route, data, on = context) {
@@ -138,10 +137,9 @@ async function advancing(on = page) {
 
 const widths = [{ width: 1440, height: 900 }, { width: 1024, height: 768 }, { width: 390, height: 844 }]
 
-/** Captures what is on screen now in both schemes at every width, then puts the page back. Toasts go first unless they are the point. */
-async function shoot(name, { height, toasts = false, on = page } = {}) {
+/** Captures what is on screen now in both schemes at every width, then puts the page back. */
+async function shoot(name, { height, on = page } = {}) {
   if (!shots) return
-  if (!toasts) for (const close of await on.getByRole('button', { name: 'Dismiss' }).all()) await close.click().catch(() => {})
   await on.mouse.move(0, 0)
   for (const scheme of ['light', 'dark']) {
     await on.emulateMedia({ colorScheme: scheme })
@@ -284,9 +282,13 @@ await step('cancel an upload', async () => {
   await button('Upload').click()
   await page.getByRole('progressbar', { name: 'Upload progress' }).waitFor()
   const created = await until(newestImport, item => item.status === 'receiving', 5000)
-  await shoot('upload-sending', { height: 1200, toasts: true })
+  await shoot('upload-sending', { height: 1200 })
   await button('Cancel').click()
-  await toastText('Upload cancelled').waitFor()
+  // The drop zone that takes the panel's place says what became of the upload.
+  const dropZone = page.locator('div.border-dashed').filter({ has: heading('Drop music here') })
+  const note = dropZone.getByRole('status').filter({ hasText: 'Upload cancelled. Nothing from it was kept.' })
+  check('the upload panel says it was cancelled', await note.waitFor().then(() => true, () => false))
+  await shoot('upload-cancelled', { height: 1200 })
   const cancelled = await until(() => get(`/imports/${created.id}`), item => item.status === 'failed', 5000)
   check('cancelling ends the import on the server', cancelled.status === 'failed' && cancelled.error === 'Cancelled', cancelled.error)
   await page.unroute('**/api/v1/imports/*/files')
@@ -483,7 +485,7 @@ await step('a provider that fails', async () => {
     const providers = await get('/admin/acquisition/providers')
     const shelf = (providers.items ?? providers).find(provider => provider.name === 'Shelf')
     check('the provider is reported failing, not the songs missing', Boolean(shelf?.failingSince), shelf?.failingSince)
-    await shoot('on-demand-failed', { toasts: true })
+    await shoot('on-demand-failed')
   } finally {
     mock.settings.fail = false
   }

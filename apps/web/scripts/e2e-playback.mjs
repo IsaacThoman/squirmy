@@ -321,11 +321,13 @@ await step('playlists', async () => {
     await page.getByRole('button', { name: `More options for ${title}` }).click()
     await page.getByRole('menuitem', { name: 'Add to playlist' }).click()
     await page.getByRole('menuitem', { name: 'E2E Mix' }).click()
-    await page.getByText('Added to E2E Mix').first().waitFor()
+    // The menu item says it worked for a moment before its menu closes.
+    await page.getByRole('menuitem', { name: 'Added to E2E Mix' }).waitFor()
   }
   const sidebarLink = sidebarPlaylists(page).getByRole('link', { name: /E2E Mix/ })
   await page.getByRole('list', { name: 'Blue Hour tracks' }).getByRole('listitem').filter({ hasText: 'Stay Until Morning' }).dragTo(sidebarLink)
-  await page.getByText('Added to E2E Mix').first().waitFor()
+  // The playlist the songs were dropped on says Added beside its name.
+  await sidebarLink.getByText('Added', { exact: true }).waitFor()
   await sidebarLink.click()
   const rows = () => page.getByRole('list', { name: 'E2E Mix tracks' }).getByRole('listitem').evaluateAll(items => items.map(item => item.querySelector('span.truncate')?.textContent))
   const added = await until(rows, value => value.length === 3)
@@ -392,11 +394,11 @@ await step('a second device', async () => {
   await a.page.getByRole('menuitem', { name: 'Settings' }).click()
   await a.page.getByLabel('This browser’s name').fill('E2E Speaker')
   await a.page.getByLabel('This browser’s name').press('Enter')
-  await a.page.getByText('Browser renamed', { exact: true }).first().waitFor({ timeout: 5000 }).catch(() => { throw new Error('no “Browser renamed” notice') })
-  await a.page.keyboard.press('Escape')
   const settings = a.page.getByRole('dialog', { name: 'Settings' })
+  await settings.getByRole('status').filter({ hasText: /^Saved$/ }).waitFor({ timeout: 5000 }).catch(() => { throw new Error('no “Saved” beside the browser’s name') })
+  await a.page.keyboard.press('Escape')
   const closed = await settings.waitFor({ state: 'detached', timeout: 2000 }).then(() => true, () => false)
-  check('Escape closes Settings while the “Browser renamed” notice shows', closed, closed ? '' : 'the first Escape only dismissed the notice')
+  check('Escape closes Settings at once while “Saved” shows', closed, closed ? '' : 'the first Escape did not close it')
   // A user presses it again.
   if (!closed) await a.page.keyboard.press('Escape')
   await settings.waitFor({ state: 'detached', timeout: 5000 }).catch(() => { throw new Error('Escape did not close Settings') })

@@ -1,6 +1,6 @@
 // Walks the account flows in real Chromium against a server that has not been set up yet:
 // setup, sign out and in, invites and registration, admin-only pages, the settings dialog
-// (opening it, its sections, the Last.fm return notice), appearance kept across reloads with no
+// (opening it, its sections, the Last.fm return said in Scrobbling), appearance kept across reloads with no
 // flash of the wrong colors, password changes, app passwords, server settings, the app shell
 // (folding and resizing the sidebar, the phone drawer) and the reconnect notice.
 // Usage: node scripts/e2e-auth.mjs <baseUrl> [--restart "<command that restarts the API>"]
@@ -234,8 +234,9 @@ await step('the settings dialog', async () => {
 
   await page.goto(`${base}/settings?lastfm=connected`)
   await settings(page).waitFor()
-  await page.getByText('Connected to Last.fm', { exact: true }).waitFor({ timeout: 5000 })
-  check('returning from Last.fm shows a notice and opens Scrobbling', await settingsSection(page, 'Scrobbling').getAttribute('aria-current') === 'page')
+  // Said at the top of the Scrobbling section it opens, not over the page.
+  await settings(page).getByRole('status').filter({ hasText: 'Connected to Last.fm.' }).waitFor({ timeout: 5000 })
+  check('returning from Last.fm says so in Scrobbling, which it opens', await settingsSection(page, 'Scrobbling').getAttribute('aria-current') === 'page')
   await page.keyboard.press('Escape')
   await settings(page).waitFor({ state: 'detached' })
 })
@@ -282,8 +283,9 @@ await step('change password', async () => {
   check('a wrong current password shows on its field', true)
   await dialog.getByLabel('Current password').fill(admin.password)
   await dialog.getByRole('button', { name: 'Change password' }).click()
-  await page.getByText('Password changed', { exact: true }).first().waitFor()
   await dialog.waitFor({ state: 'detached' })
+  // The Account section says it, where the password is changed.
+  check('the Account section says the password changed', await settings(page).getByRole('status').filter({ hasText: 'Password changed. Your other sessions were signed out.' }).waitFor({ timeout: 5000 }).then(() => true, () => false))
   const me = await page.request.get(`${base}/api/v1/auth/me`, { headers: { 'X-Squirmy-Request': '1' } })
   check('the password changes and this browser stays signed in', me.ok() && await settings(page).isVisible(), `me ${me.status()}`)
   check('the old password no longer works', await apiLogin(admin.username, admin.password) === 401)
