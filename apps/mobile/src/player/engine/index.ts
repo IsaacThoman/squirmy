@@ -1,5 +1,5 @@
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
-import NowPlaying from '../../../modules/now-playing';
+import NowPlaying, { type AudioOutput } from '../../../modules/now-playing';
 import { ExpoAudioEngine, type ExpoAudioEngineOptions } from './ExpoAudioEngine';
 
 export { ExpoAudioEngine } from './ExpoAudioEngine';
@@ -39,13 +39,17 @@ export function createPlayerEngine(options: Pick<ExpoAudioEngineOptions, 'onInte
   return new ExpoAudioEngine({
     ...options,
     log: message => console.info(`[engine] ${message}`),
-    createSilence: () => createAudioPlayer(silence, { keepAudioSessionActive: true }),
+    // Never AirPlay's external playback mode, in which iOS hands a player's URL to the receiver
+    // to fetch and play itself: a receiver cannot fetch the silence's local file, and with it
+    // and the song both handed over, the song waited forever (the spinner over AirPlay until
+    // AirPlay was turned off). Decoded here, the sound still goes to AirPlay through the audio route.
+    createSilence: () => createAudioPlayer(silence, { keepAudioSessionActive: true, allowsExternalPlayback: false }),
     // A player keeps the session active from its first play() until it is removed, so the
     // next entry can start without a gap. Before that first play() it keeps nothing; the
     // engine covers that time with silence.
     createPlayer: url => {
       ensureAudioMode();
-      return createAudioPlayer({ uri: url }, { updateInterval: updateIntervalMs, keepAudioSessionActive: true });
+      return createAudioPlayer({ uri: url }, { updateInterval: updateIntervalMs, keepAudioSessionActive: true, allowsExternalPlayback: false });
     },
   });
 }
@@ -62,11 +66,27 @@ export function connectAudioSession(engine: ExpoAudioEngine): () => void {
     if (event.type === 'began') engine.interrupt();
     else engine.endInterruption(event.shouldResume);
   });
-  const routes = native.addListener('onRouteChange', ({ reason }) => {
+  const routes = native.addListener('onRouteChange', ({ reason, outputs }) => {
+    if (outputs) console.info(`[audio] route changed (${reason}): ${describeOutputs(outputs)}`);
     if (reason === 'oldDeviceUnavailable') engine.routeLost();
   });
   return () => {
     interruptions.remove();
     routes.remove();
   };
+}
+
+/** Where the sound goes now, such as `AirPlay “Kitchen”`, for the log; null where it cannot be told. */
+export function currentOutput(): string | null {
+  const outputs = NowPlaying?.currentOutputs?.();
+  return outputs ? describeOutputs(outputs) : null;
+}
+
+/** The kind of output only, such as `AirPlay`, for what goes to the server. */
+export function currentOutputType(): string | undefined {
+  return NowPlaying?.currentOutputs?.()[0]?.type;
+}
+
+function describeOutputs(outputs: readonly AudioOutput[]): string {
+  return outputs.length ? outputs.map(output => `${output.type} “${output.name}”`).join(', ') : 'no output';
 }

@@ -900,7 +900,8 @@ function logStall(deviceId: string, stall: PlaybackStall): void {
   if (level === 'silent' || level === 'fatal' || level === 'error') return
   const tries = `${stall.attempts} ${stall.attempts === 1 ? 'reload' : 'reloads'}`
   const what = stall.outcome === 'recovered' ? `played after ${tries}` : `skipped after ${tries}`
-  console.warn(`[sessions] playback stall: track ${stall.trackId} on device ${deviceId} was ${stall.state} for ${Math.round(stall.stuckMs)} ms, ${what}`)
+  const via = stall.output ? ` via ${stall.output}` : ''
+  console.warn(`[sessions] playback stall: track ${stall.trackId} on device ${deviceId}${via} was ${stall.state} for ${Math.round(stall.stuckMs)} ms, ${what}`)
 }
 
 // Service functions for other modules

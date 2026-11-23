@@ -368,11 +368,13 @@ describe('ExpoAudioEngine', () => {
     vi.advanceTimersByTime(1000);
     expect(players[0].calls.filter(call => call === 'play')).toHaveLength(2);
     expect(engine.getStatus().state).toBe('loading');
-    expect(silences[0].playing).toBe(true);
+    // Its play() was asked for: the silence is gone, and stays gone.
+    expect(silences).toHaveLength(1);
+    expect(silences[0].released).toBe(true);
     players[0].refusePlay = false;
     vi.advanceTimersByTime(3000);
     expect(engine.getStatus().state).toBe('playing');
-    expect(silences[0].released).toBe(true);
+    expect(silences).toHaveLength(1);
     expect(states()).toEqual(['a:loading', 'a:playing']);
   });
 
@@ -408,6 +410,22 @@ describe('ExpoAudioEngine', () => {
     expect(silences[0].released).toBe(true);
   });
 
+  it('stops the silence when the new player is asked to play, even while its clock has not moved (AirPlay)', () => {
+    engine.load({ entryId: 'a', url: 'https://x/a', startMs: 0, autoplay: true, gain: 1 });
+    expect(silences[0].playing).toBe(true);
+    // Over AirPlay the player said it plays but waited for as long as the silence played.
+    players[0].frozen = true;
+    players[0].load();
+    expect(players[0].playing).toBe(true);
+    expect(silences[0].released).toBe(true);
+    vi.advanceTimersByTime(5000);
+    expect(engine.getStatus().state).not.toBe('playing');
+    expect(silences).toHaveLength(1);
+    players[0].frozen = false;
+    vi.advanceTimersByTime(1000);
+    expect(engine.getStatus().state).toBe('playing');
+  });
+
   it('ends the silence when the session gives up on a load and stops the engine', () => {
     engine.load({ entryId: 'a', url: 'https://x/a', startMs: 0, autoplay: true, gain: 1 });
     expect(silences[0].playing).toBe(true);
@@ -429,7 +447,11 @@ describe('ExpoAudioEngine', () => {
     });
     logged.load({ entryId: 'a', url: 'https://x/a', startMs: 0, autoplay: true, gain: 1 });
     players.at(-1)!.load();
-    expect(lines).toEqual(['a idle → loading at 0 ms', 'silence on', 'a loading → playing at 0 ms', 'silence off']);
+    expect(lines).toEqual(['a idle → loading at 0 ms', 'silence on', 'silence off', 'a loading → playing at 0 ms']);
+    players.at(-1)!.emit({ didJustFinish: false, timeControlStatus: 'waitingToPlayAtSpecifiedRate', reasonForWaitingToPlay: 'evaluatingBufferingRate' });
+    players.at(-1)!.emit({ didJustFinish: false, timeControlStatus: 'waitingToPlayAtSpecifiedRate', reasonForWaitingToPlay: 'evaluatingBufferingRate' });
+    players.at(-1)!.emit({ didJustFinish: false, timeControlStatus: 'playing' });
+    expect(lines.filter(line => line.includes('player'))).toEqual(['a player new → waiting (evaluatingBufferingRate)', 'a player waiting (evaluatingBufferingRate) → playing']);
     logged.stop();
   });
 

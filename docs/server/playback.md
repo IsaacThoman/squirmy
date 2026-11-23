@@ -74,7 +74,7 @@ The playing device loads the next track before the current one ends. In the web 
 
 The playing device watches the song it is supposed to be playing. When the song hasn't started, or has stopped mid-song, for six seconds, and the server isn't still fetching it (see below), the device loads it again where it was, with a fresh stream address. That is what skipping away and back would do. It tries again after 8 and then 12 more seconds. If the song still hasn't played 16 seconds after the third try, the device says it couldn't play the song and skips it, in the same way as a song that failed to load. Without a connection to the server it keeps trying instead of skipping. A stream that fails outright (the server answered with an error, or the connection dropped) is loaded again once, at once, before it counts as failed.
 
-Each stall that took a reload ends up as one line in the server's log, with the track id, how long it waited, what it was waiting on and whether a reload helped. For example: `[sessions] playback stall: track 0193… on device 4f2… was loading for 7012 ms, played after 1 reload`. Nothing else about the song or the user is sent. The device's own console logs each reload, and the iOS app also logs its player's state changes.
+Each stall that took a reload ends up as one line in the server's log, with the track id, the kind of output the sound went to (such as AirPlay), how long it waited, what it was waiting on and whether a reload helped. For example: `[sessions] playback stall: track 0193… on device 4f2… was loading for 7012 ms, played after 1 reload`. Nothing else about the song or the user is sent. The device's own console logs each reload, and the iOS app also logs its player's state changes.
 
 ## What "preparing" means
 

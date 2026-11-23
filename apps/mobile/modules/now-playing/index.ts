@@ -18,8 +18,14 @@ export type NowPlayingItem = {
 
 export type AudioInterruption = { type: 'began' } | { type: 'ended'; shouldResume: boolean };
 
-/** `oldDeviceUnavailable`: the output went away, such as headphones unplugged. */
-export type AudioRouteChange = { reason: 'oldDeviceUnavailable' | 'other' };
+/** An output of the audio route: `type` is the port type, such as `AirPlay`, `Speaker` or `BluetoothA2DPOutput`. */
+export type AudioOutput = { type: string; name: string };
+
+/**
+ * `oldDeviceUnavailable`: the output went away, such as headphones unplugged. `outputs` is
+ * the route after the change; missing in an app built before it was added.
+ */
+export type AudioRouteChange = { reason: 'oldDeviceUnavailable' | 'other'; outputs?: AudioOutput[] };
 
 type NowPlayingModule = {
   setItem(item: NowPlayingItem): Promise<void>;
@@ -30,6 +36,8 @@ type NowPlayingModule = {
    */
   setFavorite(available: boolean, active: boolean, label: string): Promise<void>;
   clear(): Promise<void>;
+  /** Where the sound goes now. Missing in an app built before it was added. */
+  currentOutputs?: () => AudioOutput[];
   addListener(event: 'onRemoteCommand', listener: (command: RemoteCommand) => void): EventSubscription;
   addListener(event: 'onInterruption', listener: (interruption: AudioInterruption) => void): EventSubscription;
   addListener(event: 'onRouteChange', listener: (change: AudioRouteChange) => void): EventSubscription;

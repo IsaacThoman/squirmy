@@ -24,7 +24,14 @@ export type NativePlayer = {
   addListener(event: 'playbackStatusUpdate', listener: (status: NativeStatus) => void): { remove(): void };
 };
 
-export type NativeStatus = { didJustFinish: boolean; error?: string | null };
+export type NativeStatus = {
+  didJustFinish: boolean;
+  error?: string | null;
+  /** AVPlayer's `timeControlStatus`: `playing`, `paused` or `waitingToPlayAtSpecifiedRate`. */
+  timeControlStatus?: string;
+  /** Why it waits, while it does: `evaluatingBufferingRate`, `toMinimizeStalls`, `noItemToPlay`. */
+  reasonForWaitingToPlay?: string;
+};
 
 /** A player that starts over at its end. */
 export type LoopingPlayer = Pick<NativePlayer, 'play' | 'pause' | 'remove' | 'release'> & { loop: boolean };
@@ -63,6 +70,10 @@ type Slot = {
   seeking: boolean;
   ready: boolean;
   started: boolean;
+  /** `play()` was called on it since it loaded: from then on its own player keeps the audio session. */
+  asked: boolean;
+  /** The last `timeControlStatus` and reason logged for it. */
+  control: string;
   finished: boolean;
   failed: boolean;
   /** The player's position when last read, and when it was last seen to change. */
@@ -253,7 +264,7 @@ export class ExpoAudioEngine implements PlayerEngine {
   private createSlot(entryId: string, url: string, gain: number): Slot {
     const player = this.options.createPlayer(url);
     const slot: Slot = {
-      entryId, url, gain, player, startMs: 0, seeking: false, ready: false, started: false, finished: false, failed: false, lastTime: 0, movedAt: -Infinity, nudgedAt: -Infinity,
+      entryId, url, gain, player, startMs: 0, seeking: false, ready: false, started: false, asked: false, control: '', finished: false, failed: false, lastTime: 0, movedAt: -Infinity, nudgedAt: -Infinity,
       subscription: { remove: () => undefined },
     };
     slot.subscription = player.addListener('playbackStatusUpdate', status => this.onNativeStatus(slot, status));
@@ -278,6 +289,13 @@ export class ExpoAudioEngine implements PlayerEngine {
       return;
     }
     if (slot !== this.current || slot.failed) return;
+    if (status.timeControlStatus) {
+      const control = status.timeControlStatus === 'waitingToPlayAtSpecifiedRate' ? `waiting (${status.reasonForWaitingToPlay ?? 'unknown'})` : status.timeControlStatus;
+      if (control !== slot.control) {
+        this.log(`${slot.entryId} player ${slot.control || 'new'} → ${control}`);
+        slot.control = control;
+      }
+    }
     if (status.error) return this.fail(slot, status.error);
     if (status.didJustFinish && slot.ready && !slot.finished) return this.finish(slot);
     this.update();
@@ -349,9 +367,15 @@ export class ExpoAudioEngine implements PlayerEngine {
    * could neither start the new song nor answer the server's heartbeat, so the server would
    * give up on the phone and pause everyone's session. The silence starts before the old
    * player is released, so the session never goes idle.
+   *
+   * It stops as soon as the new player is asked to play, not once its clock moves: over
+   * AirPlay a second player still playing kept the new one from starting, so its clock
+   * never moved, the silence never stopped, and the song spun forever until AirPlay was
+   * turned off or the song changed. The new player's own `play()` keeps the session.
    */
   private syncSilence(): void {
-    const loading = this.current !== null && this.wantsPlay && this.state === 'loading';
+    const slot = this.current;
+    const loading = slot !== null && !slot.asked && this.wantsPlay && this.state === 'loading';
     const wanted = loading || (this.holding && !this.current);
     if (wanted && !this.silence && this.options.createSilence) {
       this.log('silence on');
@@ -377,7 +401,11 @@ export class ExpoAudioEngine implements PlayerEngine {
   private start(slot: Slot): void {
     slot.player.muted = false;
     slot.player.play();
+    slot.asked = true;
     this.playCalledAt = this.now();
+    // Its play() made it the player that keeps the audio session, so the silence can go now,
+    // and must: see `syncSilence`.
+    this.syncSilence();
   }
 
   private seekTo(slot: Slot, positionMs: number, landed?: () => void): void {

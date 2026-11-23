@@ -1048,13 +1048,13 @@ describe('sessions', () => {
     process.env.LOG_LEVEL = 'info'
     resetConfig()
     try {
-      const stall = { trackId: 'track-1', state: 'loading', outcome: 'recovered', attempts: 1, stuckMs: 7012.4 }
+      const stall = { trackId: 'track-1', state: 'loading', outcome: 'recovered', attempts: 1, stuckMs: 7012.4 } as const
       a.socket.emit('session:report', { entryId: 'stl.0', status: 'playing', positionMs: 0, at: Date.now(), stall })
-      a.socket.emit('session:report', { entryId: 'stl.0', status: 'error', positionMs: 0, at: Date.now(), stall: { ...stall, outcome: 'gave_up', attempts: 3, stuckMs: 42_000 } })
+      a.socket.emit('session:report', { entryId: 'stl.0', status: 'error', positionMs: 0, at: Date.now(), stall: { ...stall, outcome: 'gave_up', attempts: 3, stuckMs: 42_000, output: 'AirPlay' } })
       await vi.waitFor(() => expect(warn).toHaveBeenCalledTimes(2))
       expect(warn.mock.calls.map(([line]) => line)).toEqual([
         '[sessions] playback stall: track track-1 on device device-a-0030 was loading for 7012 ms, played after 1 reload',
-        '[sessions] playback stall: track track-1 on device device-a-0030 was loading for 42000 ms, skipped after 3 reloads',
+        '[sessions] playback stall: track track-1 on device device-a-0030 via AirPlay was loading for 42000 ms, skipped after 3 reloads',
       ])
     } finally {
       process.env.LOG_LEVEL = level

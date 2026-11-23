@@ -284,6 +284,8 @@ export const PlaybackStall = z.object({
   attempts: z.number().int().min(0).max(100),
   /** How long it waited, until it played again or was given up on. */
   stuckMs: z.number().nonnegative(),
+  /** The kind of output the sound went to, such as `AirPlay` or `Speaker`; never its name. */
+  output: z.string().max(64).optional(),
 })
 export type PlaybackStall = z.infer<typeof PlaybackStall>
 

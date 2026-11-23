@@ -17,7 +17,7 @@ import { useLibraryActions, useLikeChanges, useTrack, useTrackStore } from './da
 import { useUserSettings } from './data/queries';
 import { useRealtime } from './data/realtime';
 import { useAvailability, useDownloadManager } from './downloads/DownloadsProvider';
-import { connectAudioSession, connectNowPlaying, createPlayerEngine } from './player/engine';
+import { connectAudioSession, connectNowPlaying, createPlayerEngine, currentOutput, currentOutputType } from './player/engine';
 import { favoriteState } from './player/engine/favorite';
 import { loadSession, sessionSaver } from './player/savedSession';
 import {
@@ -128,6 +128,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
           normalization: stream.current.settings?.normalization,
           onLoadError: (entry, error, willRetry) => loadFailed(entry, error, willRetry),
           onStall: logStall,
+          output: currentOutputType,
           onEngineError: (entry, message) => engineFailed(entry, message),
           resolvePlayback: entry => {
             const { settings: current, network: type } = stream.current;
@@ -378,7 +379,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
 
 /** The session's stall watchdog at work, in the app's console: what stuck, and whether reloading helped. */
 function logStall({ phase, entryId, trackId, state, attempts, stuckMs, positionMs }: PlaybackStallEvent): void {
-  const where = `entry ${entryId} (track ${trackId}) ${state} for ${Math.round(stuckMs)} ms at ${Math.round(positionMs)} ms`;
+  const where = `entry ${entryId} (track ${trackId}) ${state} for ${Math.round(stuckMs)} ms at ${Math.round(positionMs)} ms on ${currentOutput() ?? 'an unknown output'}`;
   if (phase === 'recovering') console.warn(`[playback] stall: ${where}, reload ${attempts}`);
   else if (phase === 'recovered') console.info(`[playback] stall over: ${where}, played after ${attempts} ${attempts === 1 ? 'reload' : 'reloads'}`);
   else console.warn(`[playback] stall: ${where}, gave up after ${attempts} reloads`);

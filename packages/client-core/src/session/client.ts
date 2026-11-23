@@ -113,6 +113,8 @@ export type SessionPlayer = {
   onLoadError?: (entry: QueueEntry, error: unknown, willRetry: boolean) => void
   /** Each step of the stall watchdog, for the platform's log. */
   onStall?: (event: PlaybackStallEvent) => void
+  /** The kind of output the sound goes to (`AirPlay`, `Speaker`), sent with a stall report: some stall on one output only. */
+  output?: () => string | undefined
   /**
    * The engine could not play the current entry (an `error` event), and a reload with a
    * fresh stream address failed too, or could not help (`retryable: false`). The caller
@@ -1195,7 +1197,7 @@ export class SessionClient {
       status: reported,
       positionMs,
       at: this.serverNow(),
-      stall: { trackId: entry.trackId, state: action.state, outcome: phase, attempts: action.attempts, stuckMs: action.stuckMs },
+      stall: { trackId: entry.trackId, state: action.state, outcome: phase, attempts: action.attempts, stuckMs: action.stuckMs, output: this.player!.output?.() },
     })
   }
 

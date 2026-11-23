@@ -89,6 +89,11 @@ public class NowPlayingModule: Module {
       self.applyFavorite()
     }.runOnQueue(.main)
 
+    // Where the sound goes now, for the log: a stall can depend on the output (AirPlay).
+    Function("currentOutputs") { () -> [[String: String]] in
+      Self.outputs()
+    }
+
     AsyncFunction("clear") {
       self.clear()
     }.runOnQueue(.main)
@@ -125,7 +130,14 @@ public class NowPlayingModule: Module {
     else {
       return
     }
-    sendEvent("onRouteChange", ["reason": reason == .oldDeviceUnavailable ? "oldDeviceUnavailable" : "other"])
+    sendEvent("onRouteChange", [
+      "reason": reason == .oldDeviceUnavailable ? "oldDeviceUnavailable" : "other",
+      "outputs": Self.outputs(),
+    ])
+  }
+
+  private static func outputs() -> [[String: String]] {
+    AVAudioSession.sharedInstance().currentRoute.outputs.map { ["type": $0.portType.rawValue, "name": $0.portName] }
   }
 
   private func clear() {
