@@ -1,6 +1,6 @@
 import {
-  ApiError, artworkUrl, createInitialSession, PlaybackNoticeWatcher, randomSeed, refreshFetchedTracks, SessionClient, skipNotice, splitSession, unavailableNotice,
-  type PlaybackNotice, type SessionClientSnapshot, type SessionMoveResult, type SessionPlayer,
+  ApiError, artworkUrl, createInitialSession, PlaybackNoticeWatcher, PlaybackStallError, randomSeed, refreshFetchedTracks, SessionClient, skipNotice, splitSession, unavailableNotice,
+  type PlaybackNotice, type PlaybackStallEvent, type SessionClientSnapshot, type SessionMoveResult, type SessionPlayer,
 } from '@squirmy/client-core';
 import { createSocketTransport } from '@squirmy/client-core/socket';
 import type {
@@ -127,6 +127,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
           systemVolume: SystemVolume !== null,
           normalization: stream.current.settings?.normalization,
           onLoadError: (entry, error, willRetry) => loadFailed(entry, error, willRetry),
+          onStall: logStall,
           resolvePlayback: entry => {
             const { settings: current, network: type } = stream.current;
             const kind = type === Network.NetworkStateType.CELLULAR ? 'cellular' : type === Network.NetworkStateType.WIFI ? 'wifi' : 'other';
@@ -376,8 +377,17 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
   return <RuntimeContext.Provider value={runtime}>{children}</RuntimeContext.Provider>;
 }
 
+/** The session's stall watchdog at work, in the app's console: what stuck, and whether reloading helped. */
+function logStall({ phase, entryId, trackId, state, attempts, stuckMs, positionMs }: PlaybackStallEvent): void {
+  const where = `entry ${entryId} (track ${trackId}) ${state} for ${Math.round(stuckMs)} ms at ${Math.round(positionMs)} ms`;
+  if (phase === 'recovering') console.warn(`[playback] stall: ${where}, reload ${attempts}`);
+  else if (phase === 'recovered') console.info(`[playback] stall over: ${where}, played after ${attempts} ${attempts === 1 ? 'reload' : 'reloads'}`);
+  else console.warn(`[playback] stall: ${where}, gave up after ${attempts} reloads`);
+}
+
 /** What the server said when it refused to serve a track. */
 function refusalMessage(error: unknown): string {
+  if (error instanceof PlaybackStallError) return 'It wouldn’t start, even after trying again.';
   if (error instanceof ApiError && (error.status === 404 || error.status === 410)) return 'The server couldn’t find this track.';
   return 'The server wouldn’t play this track.';
 }

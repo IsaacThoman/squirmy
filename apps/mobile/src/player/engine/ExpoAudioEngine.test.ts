@@ -8,6 +8,8 @@ class FakePlayer implements NativePlayer {
   isBuffering = false;
   /** Says it plays, but its clock stands still: a stream that has not started to arrive. */
   frozen = false;
+  /** Ignores play(), as AVPlayer waiting to play at the asked rate does. */
+  refusePlay = false;
   duration = 0;
   volume = 1;
   muted = false;
@@ -42,7 +44,7 @@ class FakePlayer implements NativePlayer {
   play() {
     this.calls.push('play');
     timeline.push(`play ${this.url}`);
-    if (this.isLoaded) this.playing = true;
+    if (this.isLoaded && !this.refusePlay) this.playing = true;
   }
   pause() {
     this.calls.push('pause');
@@ -354,6 +356,81 @@ describe('ExpoAudioEngine', () => {
     vi.advanceTimersByTime(2000);
     expect(engine.getStatus().state).toBe('playing');
     expect(silences[1].released).toBe(true);
+  });
+
+  it('asks a player whose play() did not take again every few seconds, without reporting it as playing', () => {
+    engine.load({ entryId: 'a', url: 'https://x/a', startMs: 0, autoplay: true, gain: 1 });
+    players[0].refusePlay = true;
+    players[0].load();
+    expect(players[0].calls.filter(call => call === 'play')).toHaveLength(1);
+    vi.advanceTimersByTime(2500);
+    expect(players[0].calls.filter(call => call === 'play')).toHaveLength(1);
+    vi.advanceTimersByTime(1000);
+    expect(players[0].calls.filter(call => call === 'play')).toHaveLength(2);
+    expect(engine.getStatus().state).toBe('loading');
+    expect(silences[0].playing).toBe(true);
+    players[0].refusePlay = false;
+    vi.advanceTimersByTime(3000);
+    expect(engine.getStatus().state).toBe('playing');
+    expect(silences[0].released).toBe(true);
+    expect(states()).toEqual(['a:loading', 'a:playing']);
+  });
+
+  it('asks again mid-song when the player stopped by itself and does not resume', () => {
+    engine.load({ entryId: 'a', url: 'https://x/a', startMs: 0, autoplay: true, gain: 1 });
+    players[0].load();
+    vi.advanceTimersByTime(5000);
+    players[0].refusePlay = true;
+    players[0].playing = false;
+    // The last play() was long ago, so it is asked at once, then every 3 s.
+    vi.advanceTimersByTime(1000);
+    expect(engine.getStatus().state).toBe('buffering');
+    expect(players[0].calls.filter(call => call === 'play')).toHaveLength(2);
+    vi.advanceTimersByTime(3000);
+    expect(players[0].calls.filter(call => call === 'play')).toHaveLength(3);
+    expect(engine.getStatus().state).toBe('buffering');
+    // Paused on purpose, nothing is asked again.
+    engine.pause();
+    vi.advanceTimersByTime(10_000);
+    expect(players[0].calls.filter(call => call === 'play')).toHaveLength(3);
+  });
+
+  it('reloads the same entry with a new player for a recovery, keeping the silence until it plays', () => {
+    engine.load({ entryId: 'a', url: 'https://x/a?1', startMs: 0, autoplay: true, gain: 1 });
+    vi.advanceTimersByTime(6000);
+    engine.load({ entryId: 'a', url: 'https://x/a?2', startMs: 0, autoplay: true, gain: 1 });
+    expect(players).toHaveLength(2);
+    expect(players[0].released).toBe(true);
+    expect(silences).toHaveLength(1);
+    expect(silences[0].playing).toBe(true);
+    players[1].load();
+    expect(engine.getStatus()).toMatchObject({ entryId: 'a', state: 'playing' });
+    expect(silences[0].released).toBe(true);
+  });
+
+  it('ends the silence when the session gives up on a load and stops the engine', () => {
+    engine.load({ entryId: 'a', url: 'https://x/a', startMs: 0, autoplay: true, gain: 1 });
+    expect(silences[0].playing).toBe(true);
+    engine.stop();
+    expect(silences[0].released).toBe(true);
+    expect(engine.getStatus().state).toBe('idle');
+  });
+
+  it('logs state changes and the silence', () => {
+    const lines: string[] = [];
+    const logged = new ExpoAudioEngine({
+      createPlayer: url => {
+        const player = new FakePlayer(url);
+        players.push(player);
+        return player;
+      },
+      createSilence: () => new FakeSilence(),
+      log: line => lines.push(line),
+    });
+    logged.load({ entryId: 'a', url: 'https://x/a', startMs: 0, autoplay: true, gain: 1 });
+    players.at(-1)!.load();
+    expect(lines).toEqual(['a idle → loading at 0 ms', 'silence on', 'a loading → playing at 0 ms', 'silence off']);
+    logged.stop();
   });
 
   it('reports buffering while the player waits for data', () => {

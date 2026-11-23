@@ -38,6 +38,7 @@ export function createPlayerEngine(options: Pick<ExpoAudioEngineOptions, 'onInte
   ensureAudioMode();
   return new ExpoAudioEngine({
     ...options,
+    log: message => console.info(`[engine] ${message}`),
     createSilence: () => createAudioPlayer(silence, { keepAudioSessionActive: true }),
     // A player keeps the session active from its first play() until it is removed, so the
     // next entry can start without a gap. Before that first play() it keeps nothing; the

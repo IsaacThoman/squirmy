@@ -1,5 +1,5 @@
 import {
-  PlaybackNoticeWatcher, planChanges, randomSeed, refreshFetchedTracks, SessionClient, skipNotice, TrackStore, unavailableNotice, type ApiClient, type PlaybackNotice, type SessionClientSnapshot,
+  PlaybackNoticeWatcher, PlaybackStallError, planChanges, randomSeed, refreshFetchedTracks, SessionClient, skipNotice, TrackStore, unavailableNotice, type ApiClient, type PlaybackNotice, type PlaybackStallEvent, type SessionClientSnapshot,
 } from '@squirmy/client-core'
 import { createSocketTransport, type SquirmySocket } from '@squirmy/client-core/socket'
 import { queryKeys, type ClientDevice, type EntityChanges, type QueueEntry, type QueueSeed, type SessionCommand, type StreamQuality, type TrackSummary } from '@squirmy/contracts'
@@ -47,16 +47,27 @@ function createSession(api: ApiClient, socket: SquirmySocket, device: ClientDevi
       canBoost: engine.canBoost,
       resolvePlayback: entry => api.streaming.playback(entry.trackId, { albumId: entry.albumId ?? undefined, quality, codecs: playableCodecs().join(',') }),
       // A failure that may pass is retried by the client. A track the server refused to stream
-      // (gone, or not allowed) is told once and skipped, as one the browser cannot play.
-      onLoadError: (entry, _error, willRetry) => {
+      // (gone, or not allowed), or one that would not start however often it was reloaded, is
+      // told once and skipped, as one the browser cannot play.
+      onLoadError: (entry, error, willRetry) => {
         if (willRetry || client.getSnapshot().session.current?.id !== entry.id) return
         const title = store.get(entry.trackId, entry.albumId)?.title
-        toast({ title: title ? `Couldn’t play “${title}”` : 'Couldn’t play this song', description: 'Skipped.' })
+        const description = error instanceof PlaybackStallError ? 'It wouldn’t start, even after trying again. Skipped.' : 'Skipped.'
+        toast({ title: title ? `Couldn’t play “${title}”` : 'Couldn’t play this song', description })
         client.dispatch({ type: 'next' })
       },
+      onStall: logStall,
     },
   })
   return { client, setQuality: (next: StreamQuality) => { quality = next } }
+}
+
+/** The session's stall watchdog at work, in the console: what stuck, and whether reloading it helped. */
+function logStall({ phase, entryId, trackId, state, attempts, stuckMs, positionMs }: PlaybackStallEvent) {
+  const where = `entry ${entryId} (track ${trackId}) ${state} for ${Math.round(stuckMs)} ms at ${Math.round(positionMs)} ms`
+  if (phase === 'recovering') console.warn(`[playback] stall: ${where}, reload ${attempts}`)
+  else if (phase === 'recovered') console.info(`[playback] stall over: ${where}, played after ${attempts} ${attempts === 1 ? 'reload' : 'reloads'}`)
+  else console.warn(`[playback] stall: ${where}, gave up after ${attempts} reloads`)
 }
 
 function hydrate(store: TrackStore, entries: readonly QueueEntry[]): QueueItem[] {

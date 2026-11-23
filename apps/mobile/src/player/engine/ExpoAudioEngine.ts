@@ -3,6 +3,9 @@ import type {
 } from '@squirmy/client-core';
 import { engineState, playbackErrorMessage, stillClockMs } from './state';
 
+/** How long a player told to play may sit still before `play()` is repeated. */
+const nudgeMs = 3000;
+
 /** The part of an `expo-audio` `AudioPlayer` the engine uses. Times are seconds. */
 export type NativePlayer = {
   readonly playing: boolean;
@@ -44,6 +47,8 @@ export type ExpoAudioEngineOptions = {
   now?: () => number;
   /** How often to look for stalls while playing, which no native event reports. */
   pollIntervalMs?: number;
+  /** State changes, the silence and nudges, for the app's console: a stall can be explained afterwards. */
+  log?: (message: string) => void;
 };
 
 type Slot = {
@@ -63,6 +68,8 @@ type Slot = {
   /** The player's position when last read, and when it was last seen to change. */
   lastTime: number;
   movedAt: number;
+  /** When `play()` was last repeated for a player that did not start; see `update`. */
+  nudgedAt: number;
 };
 
 /**
@@ -246,7 +253,7 @@ export class ExpoAudioEngine implements PlayerEngine {
   private createSlot(entryId: string, url: string, gain: number): Slot {
     const player = this.options.createPlayer(url);
     const slot: Slot = {
-      entryId, url, gain, player, startMs: 0, seeking: false, ready: false, started: false, finished: false, failed: false, lastTime: 0, movedAt: -Infinity,
+      entryId, url, gain, player, startMs: 0, seeking: false, ready: false, started: false, finished: false, failed: false, lastTime: 0, movedAt: -Infinity, nudgedAt: -Infinity,
       subscription: { remove: () => undefined },
     };
     slot.subscription = player.addListener('playbackStatusUpdate', status => this.onNativeStatus(slot, status));
@@ -292,6 +299,16 @@ export class ExpoAudioEngine implements PlayerEngine {
     }
     if (!this.wantsPlay && player.playing) player.pause();
     const now = this.now();
+    // A play() that did not take (AVPlayer still waiting to play at the asked rate, or a
+    // call made while the audio session could not be activated) is not made again by
+    // anything else: asked again every few seconds. Kept apart from `playCalledAt`, so a
+    // repeat never reads as a fresh start and hides the stall from the session's watchdog.
+    if (this.wantsPlay && slot.ready && !slot.finished && !player.playing && now - Math.max(this.playCalledAt, slot.nudgedAt) >= nudgeMs) {
+      slot.nudgedAt = now;
+      this.log(`${slot.entryId} not playing ${Math.round(now - this.playCalledAt)} ms after play(): asking again`);
+      slot.player.muted = false;
+      slot.player.play();
+    }
     if (player.currentTime !== slot.lastTime) {
       slot.lastTime = player.currentTime;
       slot.movedAt = now;
@@ -337,10 +354,12 @@ export class ExpoAudioEngine implements PlayerEngine {
     const loading = this.current !== null && this.wantsPlay && this.state === 'loading';
     const wanted = loading || (this.holding && !this.current);
     if (wanted && !this.silence && this.options.createSilence) {
+      this.log('silence on');
       this.silence = this.options.createSilence();
       this.silence.loop = true;
       this.silence.play();
     } else if (!wanted && this.silence) {
+      this.log('silence off');
       this.silence.pause();
       this.silence.remove();
       this.silence.release();
@@ -389,6 +408,7 @@ export class ExpoAudioEngine implements PlayerEngine {
       this.seekTarget = null;
       if (next.ready) this.start(next);
       this.state = next.ready ? 'playing' : 'loading';
+      this.log(`${slot.entryId} ended; ${next.entryId} ${this.state}`);
     } else {
       slot.finished = true;
       this.wantsPlay = false;
@@ -404,6 +424,7 @@ export class ExpoAudioEngine implements PlayerEngine {
     slot.failed = true;
     this.wantsPlay = false;
     slot.player.pause();
+    this.log(`${slot.entryId} failed: ${message}`);
     this.state = 'error';
     this.syncSilence();
     this.emit({ type: 'error', entryId: slot.entryId, message: playbackErrorMessage(message) });
@@ -411,7 +432,12 @@ export class ExpoAudioEngine implements PlayerEngine {
     this.schedulePoll();
   }
 
+  private log(message: string): void {
+    this.options.log?.(message);
+  }
+
   private setState(state: EngineState, always = false): void {
+    if (state !== this.state) this.log(`${this.current?.entryId ?? 'nothing'} ${this.state} → ${state} at ${Math.round(this.position())} ms`);
     const changed = state !== this.state || always;
     this.state = state;
     // Also when the state stays: a pause while loading keeps `loading` but needs no silence.
