@@ -53,10 +53,11 @@ describe('PlayerProvider', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Queue' }))
 
     const panel = await screen.findByRole('complementary', { name: 'Queue' })
-    expect(await within(panel).findByRole('button', { name: 'Reorder Soft Signal, position 1 of 5' })).toBeInTheDocument()
+    const next = within(panel).getByRole('region', { name: 'Up next' })
+    expect(await within(next).findByRole('button', { name: 'Play Soft Signal' })).toBeInTheDocument()
     await userEvent.click(within(panel).getByRole('button', { name: 'Remove Soft Signal from queue' }))
     await waitFor(() => expect(socket.session.queue.map(entry => entry.trackId)).not.toContain(blueHour.discs[0].tracks[1].id))
-    expect(within(panel).queryByRole('button', { name: /Reorder Soft Signal/ })).toBeNull()
+    expect(within(next).queryByRole('button', { name: 'Play Soft Signal' })).toBeNull()
   })
 
   it('changes the playing track’s heart at once and tells the server', async () => {

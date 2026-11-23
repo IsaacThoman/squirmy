@@ -2,7 +2,7 @@ import type { DeviceInfo, QueueEntry, TrackSummary } from '@squirmy/contracts';
 import { describe, expect, it } from 'vitest';
 import {
   codecsFor, deviceRows, isPlayable, pendingQueueRow, queuedEntryActions, queuedEntryCommand, queueRow, isRemote, nextDownloaded, nextRepeat, outputDevice, playableSeeds, qualityFor,
-  seedOf, whereItPlays,
+  seedOf, upNextDetail, whereItPlays,
 } from './session';
 
 const phone: DeviceInfo = { id: 'phone', name: 'Isa’s iPhone', kind: 'ios', canPlay: true, isActive: false };
@@ -213,5 +213,23 @@ describe('queued rows', () => {
 
   it('keeps the usual menu for an autoplay suggestion, which joins the queue', () => {
     expect(queuedEntryActions(menu, { index: 0, total: 3, autoplay: true })).toEqual(menu);
+  });
+});
+
+describe('upNextDetail', () => {
+  const songs = (count: number, queued?: boolean) => Array.from({ length: count }, () => ({ queued }));
+
+  it('says where the songs come from, as Apple Music does', () => {
+    expect(upNextDetail({ title: 'Dummy' }, songs(12))).toBe('From Dummy');
+  });
+
+  it('counts the songs once some were queued by hand, since they come from elsewhere', () => {
+    expect(upNextDetail({ title: 'Dummy' }, [...songs(1, true), ...songs(11)])).toBe('12 songs');
+  });
+
+  it('counts the songs when they come from nowhere in particular, and says nothing of an empty queue', () => {
+    expect(upNextDetail(null, songs(1))).toBe('1 song');
+    expect(upNextDetail(null, songs(25))).toBe('25 songs');
+    expect(upNextDetail({ title: 'Dummy' }, [])).toBeNull();
   });
 });
