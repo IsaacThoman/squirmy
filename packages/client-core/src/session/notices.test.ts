@@ -1,7 +1,7 @@
 import type { EntryFailure, QueueEntry } from '@squirmy/contracts'
 import { describe, expect, it } from 'vitest'
 import type { SessionOutage } from './client.js'
-import { PlaybackNoticeWatcher, skipNotice, stopNotice, unavailableNotice } from './notices.js'
+import { PlaybackNoticeWatcher, readsUnavailable, skipNotice, stopNotice, unavailableNotice } from './notices.js'
 import { createInitialSession, splitSession } from './reducer.js'
 
 const track = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
@@ -34,6 +34,16 @@ describe('skipNotice, unavailableNotice and stopNotice', () => {
     expect(stopNotice({ kind: 'failures', reason: null })).toEqual({ message: 'Can’t load music right now', detail: 'Playback is paused.' })
     expect(stopNotice({ kind: 'exhausted', reason: null })).toEqual({ message: 'None of the remaining songs are available' })
     expect(stopNotice({ kind: 'unavailable', reason: null })).toEqual({ message: 'Several songs in a row aren’t available', detail: 'Playback is paused.' })
+  })
+})
+
+describe('readsUnavailable', () => {
+  it('grays out a failed entry, except the one playback paused on in a provider outage', () => {
+    expect(readsUnavailable(entry(1, 'failed'), null)).toBe(true)
+    expect(readsUnavailable(entry(1, 'failed'), { kind: 'outage', trackId: track(1) })).toBe(false)
+    expect(readsUnavailable(entry(2, 'failed'), { kind: 'outage', trackId: track(1) })).toBe(true)
+    expect(readsUnavailable(entry(1, 'failed'), { kind: 'failures', trackId: track(1) })).toBe(true)
+    expect(readsUnavailable(entry(1, 'preparing'), null)).toBe(false)
   })
 })
 

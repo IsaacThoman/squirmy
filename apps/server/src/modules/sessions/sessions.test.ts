@@ -22,7 +22,7 @@ import { createSession } from '../auth/service.js'
 import { mergeRecording } from '../matching/merge.js'
 import { suggestAutoplay } from '../radio/suggest.js'
 import { onPlayStart, sessionsModule } from './index.js'
-import { configureSessions, getSnapshot, markRecordingFailed, markRecordingReady, recordExternalPlay, replaceQueue } from './service.js'
+import { configureSessions, getSnapshot, markRecordingFailed, markRecordingReady, markRecordingRestored, recordExternalPlay, replaceQueue } from './service.js'
 
 const onDemand = vi.hoisted(() => new Set<string>())
 vi.mock('../acquisition/coverage.js', () => ({
@@ -754,6 +754,50 @@ describe('sessions', () => {
       expect(await a.state(2)).toMatchObject({ playing: false, current: { trackId: remote.ids[0], state: 'failed' } })
       await new Promise((resolve) => setTimeout(resolve, 100))
       expect(a.events('event')).toEqual([{ type: 'playback.failed', trackId: remote.ids[0], failure: 'unavailable' }])
+    })
+
+    it('leaves an entry further down that failed in an outage preparing, and asks again once the current entry changes', async () => {
+      const remote = await remoteAlbum(4)
+      const ids = remote.ids
+      const a = await device('device-a-0043')
+      await a.send({ type: 'playTracks', tracks: remote.seeds, seed: 1 })
+      await a.state(1)
+      await eventually(requests, (value) => expect(value).toHaveLength(4))
+      await markRecordingFailed(ids[2]!, { failure: 'outage', reason: 'Fetching is down.' })
+      // Not marked, and nothing new to show: only why it failed was said.
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      expect(queued(a)).toEqual([[ids[1], 'preparing'], [ids[2], 'preparing'], [ids[3], 'preparing']])
+      expect(a.events('event')).toEqual([{ type: 'playback.failed', trackId: ids[2], failure: 'outage' }])
+      await markRecordingReady(ids[0]!)
+      await a.state(2)
+      expect(requests().filter(([id]) => id === ids[2])).toHaveLength(1)
+      // The first song plays out: the current entry changed, so it is asked for again.
+      await a.send({ type: 'trackEnded', entryId: (await a.state(2)).current!.id })
+      await eventually(requests, (value) => expect(value.filter(([id]) => id === ids[2])).toHaveLength(2))
+    })
+
+    it('puts songs skipped as not available back to preparing when their failure turns out to be an outage', async () => {
+      const remote = await remoteAlbum(4)
+      const ids = remote.ids
+      const a = await device('device-a-0044')
+      await a.send({ type: 'playTracks', tracks: remote.seeds, seed: 1 })
+      await a.state(1)
+      await markRecordingFailed(ids[2]!, { failure: 'unavailable' })
+      await a.state(2)
+      expect(queued(a)).toEqual([[ids[1], 'preparing'], [ids[2], 'failed'], [ids[3], 'preparing']])
+      await markRecordingFailed(ids[0]!, { failure: 'outage', reason: 'Fetching is down.' })
+      expect(await a.state(3)).toMatchObject({ playing: false, current: { trackId: ids[0], state: 'failed' } })
+      const asked = requests().length
+      // The provider was marked failing, and the miss that grayed the third is gone.
+      await markRecordingRestored(ids[2]!)
+      await a.state(4)
+      expect(queued(a)).toEqual([[ids[1], 'preparing'], [ids[2], 'preparing'], [ids[3], 'preparing']])
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      expect(requests()).toHaveLength(asked)
+      // Playing again moves on and asks for the restored song again (the fourth's first request is still out).
+      await a.send({ type: 'play' })
+      expect((await a.state(5)).current).toMatchObject({ trackId: ids[1], state: 'preparing' })
+      await eventually(requests, (value) => expect(value.slice(asked)).toEqual([[ids[1], 'play'], [ids[2], 'prefetch']]))
     })
 
     it('pauses on the first failure of an outage, with its reason, and fetches nothing more', async () => {

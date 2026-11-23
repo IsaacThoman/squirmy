@@ -328,9 +328,11 @@ function toPrepare(session: Session): Wanted[] {
 function requestUpcoming(record: SessionRecord): void {
   const { userId } = record
   const asks: (() => Promise<void>)[] = []
+  const currentId = record.session.current?.id ?? null
+  for (const [trackId, since] of record.deferred) if (since !== currentId) record.deferred.delete(trackId)
   for (const { entry, origin } of toPrepare(record.session)) {
     const asked = record.requested.get(entry.trackId)
-    if (asked === 'play' || asked === origin) continue
+    if (asked === 'play' || asked === origin || record.deferred.has(entry.trackId)) continue
     const recordingId = entry.trackId
     record.requested.set(recordingId, origin)
     const request = { userId, recordingId, albumId: entry.albumId, origin }
@@ -369,7 +371,9 @@ export type FetchFailure = { failure: EntryFailure; reason?: string }
  *   `exhausted`). Once `UNAVAILABLE_BEFORE_PAUSE` distinct songs have been skipped so with
  *   nothing delivered in between, it pauses on it instead, saying so once (`unavailable`).
  * - `outage` (the provider is failing or unreachable, so the next would fail too): the
- *   session pauses on it with the rest of the queue kept, and says why once.
+ *   session pauses on it with the rest of the queue kept, and says why once. Entries
+ *   further down that fail in an outage are not marked: they stay preparing, and are asked
+ *   for again once the current entry changes (`deferred`).
  * - `error` (anything else): skipped, unless it is the `FAILURES_BEFORE_PAUSE`th in a row
  *   with nothing ready in between: then it pauses as for an outage, without a reason, so
  *   a broken server does not run down the queue one failure at a time.
@@ -388,6 +392,13 @@ function applyFailure(record: SessionRecord, trackId: string, { failure, reason 
   const now = settings.now()
   const fail = (from: Session) => reduceSession(from, { command: { type: 'setEntryState', trackId, state: 'failed' }, now, commandId: newId() })
   if (!current || current.trackId !== trackId || current.state !== 'preparing') {
+    if (failure === 'outage') {
+      // The provider failed, not the track: an entry further down stays preparing, and is
+      // asked for again once the current entry changes (it plays on, or the user plays
+      // again after a pause), not straight away while fetching is down.
+      record.deferred.set(trackId, current?.id ?? null)
+      return
+    }
     finish(record, fail(session), now)
     return
   }
@@ -663,6 +674,7 @@ export function detach(userId: string, deviceId: string | null, socketId: string
       requested: new Map(shared.requested),
       failedInARow: shared.failedInARow,
       skippedTracks: new Set(shared.skippedTracks),
+      deferred: new Map(shared.deferred),
       autoplayAskedFor: shared.autoplayAskedFor,
       lastSeenAt: now,
     })
@@ -750,6 +762,7 @@ export function attach(userId: string, deviceId: string | null, socketId: string
       }
       shared.failedInARow = own.failedInARow
       shared.skippedTracks = new Set(own.skippedTracks)
+      shared.deferred = new Map(own.deferred)
       shared.autoplayAskedFor = own.autoplayAskedFor
       change = commit(shared, bringSession(shared.session, own.session, { now, commandId: newId(), deviceId: device.canPlay ? device.id : undefined }))
       if (change) void persist(shared).catch(report)
@@ -802,6 +815,8 @@ export function runCommand(userId: string, deviceId: string | null, raw: unknown
       record.failedInARow = 0
       record.skippedTracks.clear()
     }
+    // Playing again asks again for what an outage left waiting.
+    if (command.type === 'play' || command.type === 'playTracks') record.deferred.clear()
     const change = commit(record, next)
     ack({ ok: true, version: record.version })
     if (!change) return
@@ -989,6 +1004,24 @@ async function setRecordingState(recordingId: string, failure: FetchFailure | nu
       // Something was delivered: a run of songs not to be had is over.
       record.skippedTracks.clear()
       applyServer(record, { type: 'setEntryState', trackId: recordingId, state: 'ready' })
+    })))
+}
+
+/**
+ * Puts the failed entries of a recording back to preparing in the loaded sessions: its
+ * failure turned out to be part of a provider outage (acquisition/health.ts), so it is
+ * playable after all. It is asked for again once the current entry changes or the user
+ * plays again, not while fetching is still down. A current entry it held stays paused.
+ */
+export async function markRecordingRestored(recordingId: string): Promise<void> {
+  await Promise.all([...loadedRecords()].filter(record => holds(record, recordingId))
+    .map(({ userId, key }) => serial(userId, () => {
+      const record = recordOf(key)
+      const entries = record ? entriesOf(record.session).filter(entry => entry.trackId === recordingId) : []
+      if (!record || !entries.some(entry => entry.state === 'failed') || entries.some(entry => entry.state === 'ready')) return
+      record.requested.delete(recordingId)
+      record.deferred.set(recordingId, record.session.current?.id ?? null)
+      applyServer(record, { type: 'setEntryState', trackId: recordingId, state: 'preparing' })
     })))
 }
 
