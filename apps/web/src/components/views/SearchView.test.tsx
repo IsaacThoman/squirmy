@@ -15,11 +15,12 @@ function Where() {
   return <output data-testid="where">{location.pathname + location.search}</output>
 }
 
-const field = () => screen.getByRole('combobox', { name: 'Search' })
-const results = () => screen.findByRole('listbox', { name: /^Results for/ })
+const field = () => screen.getByRole('searchbox', { name: 'Search' })
+const results = () => screen.findByRole('list', { name: /^Results for/ })
+/** The results' rows, not the sidebar's. */
+const resultRows = () => within(screen.getByRole('list', { name: /^Results for/ })).getAllByRole('listitem')
 /** Each row's title and "Kind · Artist" line. */
-const rows = () => within(screen.getByRole('listbox', { name: /^Results for/ })).getAllByRole('option')
-  .map(option => [...option.querySelectorAll('span[dir=auto]')].map(span => span.textContent).join(' — '))
+const rows = () => resultRows().map(row => [...row.querySelectorAll('span[dir=auto]')].map(span => span.textContent).join(' — '))
 const recentKey = recentSearchesStorageKey(currentUser.id)
 type Params = { q: string; type?: SearchKind; offset?: number; limit?: number }
 
@@ -69,7 +70,7 @@ describe('search page', () => {
     const { services, api } = fakeServices()
     renderWithApp(<AppRoutes />, '/search?q=blue%20hour', services)
     await results()
-    const row = screen.getAllByRole('option').find(option => option.textContent?.startsWith('Blue Hour'))!
+    const row = resultRows().find(option => option.textContent?.startsWith('Blue Hour'))!
     await userEvent.click(within(row).getByRole('button', { name: 'More options for Blue Hour' }))
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Save to library' }))
     await waitFor(() => expect(api.userdata.like).toHaveBeenCalled())
@@ -77,16 +78,45 @@ describe('search page', () => {
     expect(await screen.findByRole('menuitem', { name: 'Remove from library' })).toBeInTheDocument()
   })
 
-  it('opens the best match with Enter, or the row picked with the arrow keys', async () => {
+  it('opens the best match with Enter from the field', async () => {
     renderWithApp(<><AppRoutes /><Where /></>, '/search?q=mira%20vale')
     await results()
     await waitFor(() => expect(rows()[0]).toBe('Mira Vale — Artist'))
-    await userEvent.type(field(), '{ArrowDown}{ArrowDown}')
-    const picked = screen.getByRole('option', { selected: true })
-    expect(field()).toHaveAttribute('aria-activedescendant', picked.id)
-    expect(picked.textContent).toContain(rows()[1]!.split(' — ')[0])
-    await userEvent.type(field(), '{ArrowUp}{Enter}')
+    await userEvent.type(field(), '{Enter}')
     expect(screen.getByTestId('where').textContent).toMatch(/^\/artist\//)
+  })
+
+  it('moves through the rows with the arrow keys, from the field and back up to it', async () => {
+    renderWithApp(<><AppRoutes /><Where /></>, '/search?q=mira%20vale')
+    await results()
+    await waitFor(() => expect(rows()[0]).toBe('Mira Vale — Artist'))
+    field().focus()
+    await userEvent.keyboard('{ArrowDown}')
+    expect(screen.getByRole('link', { name: 'Mira Vale, Artist' })).toHaveFocus()
+    await userEvent.keyboard('{ArrowDown}')
+    const second = document.activeElement as HTMLElement
+    expect(second).toHaveAttribute('data-search-row')
+    expect(resultRows()[1]).toContainElement(second)
+    await userEvent.keyboard('{ArrowUp}{ArrowUp}')
+    expect(field()).toHaveFocus()
+    await userEvent.keyboard('{ArrowDown}{Enter}')
+    expect(screen.getByTestId('where').textContent).toMatch(/^\/artist\//)
+  })
+
+  it('gives each row one control of its own, its heart and menu beside it rather than inside it', async () => {
+    renderWithApp(<AppRoutes />, '/search?q=blue')
+    await results()
+    expect(field()).not.toHaveAttribute('aria-activedescendant')
+    expect(screen.queryAllByRole('option')).toHaveLength(0)
+    for (const row of resultRows()) {
+      const controls = row.querySelectorAll('[data-search-row]')
+      expect(controls).toHaveLength(1)
+      expect(within(row).getByRole('button', { name: /^More options for / })).toBeInTheDocument()
+    }
+    // Every song keeps its heart, whatever the width; its play button is named for what it does and described by its row.
+    const song = resultRows().find(row => row.textContent?.includes('Song ·'))!
+    expect(within(song).getByRole('button', { name: /^Save .* to library$|^Remove .* from library$/ })).toBeInTheDocument()
+    expect(within(song).getByRole('button', { name: /^Play / })).toHaveAccessibleDescription(/^Song · /)
   })
 
   it('narrows to one kind with a filter, kept in the address, and pages through it', async () => {
@@ -122,7 +152,7 @@ describe('search page', () => {
     expect(rows().every(row => row.includes('Song ·'))).toBe(true)
     await userEvent.click(await screen.findByRole('button', { name: 'Show more' }))
     await waitFor(() => expect(api.search.library).toHaveBeenCalledWith(expect.objectContaining({ offset: 30 }), expect.anything()))
-    expect(await screen.findByRole('listbox', { name: /^Results for/ })).toBeInTheDocument()
+    expect(await results()).toBeInTheDocument()
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull())
   })
 
@@ -155,7 +185,9 @@ describe('search page', () => {
     await userEvent.type(field(), ' hour')
     await waitFor(() => expect(api.search.library).toHaveBeenLastCalledWith({ q: 'blue hour', limit: 20 }, expect.anything()))
     expect(rows()).toEqual(before)
-    expect(screen.getAllByRole('option')[0]).toHaveClass('opacity-60')
+    expect(resultRows()[0]).toHaveClass('opacity-60')
+    // Faded rows are not there to be opened: the list is inert until this query's answer comes.
+    expect(screen.getByRole('list', { name: /^Results for/ })).toHaveAttribute('inert')
     await userEvent.type(field(), '{Enter}')
     expect(screen.getByRole('heading', { level: 1, name: 'Search' })).toBeInTheDocument()
   })
@@ -169,7 +201,7 @@ describe('search page', () => {
     await userEvent.clear(field())
     await userEvent.type(field(), 'amber')
     await waitFor(() => expect(api.search.library).toHaveBeenLastCalledWith({ q: 'amber', limit: 20 }, expect.anything()))
-    expect(screen.queryByRole('listbox', { name: /^Results for/ })).toBeNull()
+    expect(screen.queryByRole('list', { name: /^Results for/ })).toBeNull()
     expect(screen.getByRole('status', { name: 'Searching' })).toBeInTheDocument()
   })
 
@@ -221,8 +253,83 @@ describe('search page', () => {
     const { services, api } = fakeServices()
     api.search.catalog.mockRejectedValue(new ApiError(502, 'provider_unavailable', 'Down'))
     renderWithApp(<AppRoutes />, '/search?q=mira%20vale', services)
-    expect(await screen.findByText(/the catalog could not be searched/, {}, { timeout: 4000 })).toBeInTheDocument()
+    expect(await screen.findByText('Couldn’t search the catalog', {}, { timeout: 4000 })).toBeInTheDocument()
+    expect(screen.getByText('Only music on this server is listed.')).toBeInTheDocument()
     expect(rows()[0]).toBe('Mira Vale — Artist')
+    api.search.catalog.mockImplementation(async (params: Params) => searchPage(searchFixtures(params.q).catalog, params))
+    await userEvent.click(within(screen.getByRole('alert')).getByRole('button', { name: 'Try again' }))
+    await waitFor(() => expect(screen.queryByText('Couldn’t search the catalog')).toBeNull())
+  })
+
+  it.each([['all', ''], ['a filter', '&type=artist']])('says the catalog could not be searched, not "No results", when the server has nothing either, in %s', async (_where, filter) => {
+    const { services, api } = fakeServices()
+    api.search.catalog.mockRejectedValue(new ApiError(503, 'provider_unavailable', 'Down'))
+    renderWithApp(<AppRoutes />, `/search?q=pale%20meridian${filter}`, services)
+    expect(await screen.findByText('Couldn’t search the catalog', {}, { timeout: 4000 })).toBeInTheDocument()
+    expect(screen.getByText('Nothing on this server matches “pale meridian”.')).toBeInTheDocument()
+    expect(screen.queryByText(/^No (results|artists) for/)).toBeNull()
+    expect(within(screen.getByRole('alert')).getByRole('button', { name: 'Try again' })).toBeInTheDocument()
+  })
+
+  it('ends a filter’s list with the failure and Try again when its next page fails, instead of asking again and again', async () => {
+    const { services, api } = fakeServices()
+    const many = Array.from({ length: 30 }, (_, n) => ({ ...track('amber'), id: `00000000-0000-4000-8f00-${String(n).padStart(12, '0')}`, title: `Blue ${n}` }))
+    const down = new ApiError(503, 'unavailable', 'The server is busy.')
+    api.search.library.mockImplementation(async (params: Params) => {
+      if (params.offset) throw down
+      return { artists: [], albums: [], tracks: many, provider: null } satisfies SearchResults
+    })
+    api.search.catalog.mockImplementation(async (params: Params) => {
+      if (params.offset) throw down
+      return searchPage(searchFixtures(params.q).catalog, params)
+    })
+    renderWithApp(<AppRoutes />, '/search?q=blue&type=track', services)
+    await waitFor(() => expect(rows().length).toBeGreaterThan(29))
+    await userEvent.click(await screen.findByRole('button', { name: 'Show more' }))
+    const failure = await screen.findByRole('alert', {}, { timeout: 4000 })
+    expect(within(failure).getByText('More results didn’t load')).toBeInTheDocument()
+    expect(within(failure).getByText('The server is busy.')).toBeInTheDocument()
+    const asked = api.search.library.mock.calls.length
+    // The rows already found stay, and nothing asks for the page again on its own.
+    await new Promise(resolve => setTimeout(resolve, 1500))
+    expect(api.search.library.mock.calls.length).toBe(asked)
+    expect(rows().length).toBeGreaterThan(29)
+    expect(screen.queryByText('Searching for more…')).toBeNull()
+    await userEvent.click(within(failure).getByRole('button', { name: 'Try again' }))
+    await waitFor(() => expect(api.search.library.mock.calls.length).toBeGreaterThan(asked))
+  }, 15_000)
+
+  it('never lets a filter’s results for an unrelated search stand in, and never opens faded ones', async () => {
+    const { services, api } = fakeServices()
+    renderWithApp(<><AppRoutes /><Where /></>, '/search?q=mira%20vale&type=artist', services)
+    await results()
+    await waitFor(() => expect(rows()).toContain('Mira Vale — Artist'))
+    api.search.library.mockReturnValue(new Promise<never>(() => {}))
+    api.search.catalog.mockReturnValue(new Promise<never>(() => {}))
+    // Typed on: the same search, so its rows stay, faded and inert.
+    await userEvent.type(field(), ' x')
+    expect(screen.getByRole('list', { name: /^Results for/ })).toHaveAttribute('inert')
+    // Something else: none of the earlier rows show.
+    await userEvent.clear(field())
+    await userEvent.type(field(), 'lune park')
+    await waitFor(() => expect(api.search.library).toHaveBeenLastCalledWith(expect.objectContaining({ q: 'lune park', type: 'artist' }), expect.anything()))
+    expect(screen.queryByRole('link', { name: 'Mira Vale, Artist' })).toBeNull()
+    expect(screen.getByTestId('where').textContent).toMatch(/^\/search/)
+  })
+
+  it('says what the page is for when there is nothing searched and no genre to browse', async () => {
+    const { services, api } = fakeServices()
+    api.catalog.genres.mockResolvedValue({ items: [], nextCursor: null })
+    renderWithApp(<AppRoutes />, '/search', services)
+    expect(await screen.findByRole('heading', { level: 2, name: 'Search your music' })).toBeInTheDocument()
+    expect(screen.getByText('Find songs, albums, artists and playlists by name.')).toBeInTheDocument()
+  })
+
+  it('leaves the guidance out while genres load, and once there are genres to browse', async () => {
+    renderWithApp(<AppRoutes />, '/search')
+    expect(screen.queryByRole('heading', { name: 'Search your music' })).toBeNull()
+    expect(await screen.findByRole('heading', { name: 'Browse by genre' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Search your music' })).toBeNull()
   })
 
   it('remembers what was searched and opened, and offers it before anything is typed', async () => {
@@ -236,17 +343,17 @@ describe('search page', () => {
   it('removes recent searches one by one or all at once, and searches one again', async () => {
     localStorage.setItem(recentKey, JSON.stringify([{ type: 'query', query: 'amber' }, { type: 'query', query: 'tate' }, { type: 'artist', artist: artists[1] }]))
     renderWithApp(<><AppRoutes /><Where /></>, '/search')
-    const recent = await screen.findByRole('listbox', { name: 'Recent searches' })
-    expect(within(recent).getAllByRole('option')).toHaveLength(3)
-    expect(screen.getByText('Recently viewed')).toBeInTheDocument()
+    const recent = await screen.findByRole('list', { name: 'Recent searches' })
+    expect(within(recent).getAllByRole('listitem')).toHaveLength(2)
+    expect(within(screen.getByRole('list', { name: 'Recently viewed' })).getAllByRole('listitem')).toHaveLength(1)
     await userEvent.click(screen.getByRole('button', { name: 'Remove tate from recent searches' }))
-    expect(within(recent).getAllByRole('option')).toHaveLength(2)
+    expect(within(recent).getAllByRole('listitem')).toHaveLength(1)
     await userEvent.click(screen.getByRole('button', { name: 'amber' }))
     expect(screen.getByTestId('where').textContent).toBe('/search?q=amber')
     expect(field()).toHaveValue('amber')
     await userEvent.clear(field())
     await userEvent.click(await screen.findByRole('button', { name: 'Clear all' }))
-    expect(screen.queryByRole('listbox', { name: 'Recent searches' })).toBeNull()
+    expect(screen.queryByRole('list', { name: 'Recent searches' })).toBeNull()
     expect(localStorage.getItem(recentKey)).toBeNull()
   })
 })
