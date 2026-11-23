@@ -31,6 +31,8 @@ type ProvidersAdminProps = {
   /** Managed library folders fetched music is kept in (under `_Fetched/`). */
   managedRoots: LibraryRoot[] | undefined
   jobs: AcquisitionJob[] | undefined
+  /** There are older requests than those listed: `load` asks for the next page. */
+  moreJobs?: MoreJobs
   jobStatus: AcquisitionJobStatus | null
   onJobStatusChange: (status: AcquisitionJobStatus | null) => void
   onCreate: (request: z.input<typeof CreateAcquisitionProviderRequest>) => Promise<unknown>
@@ -45,12 +47,14 @@ type ProvidersAdminProps = {
   failures?: Partial<Record<'providers' | 'policy' | 'usage' | 'jobs', ReactNode>>
 }
 
+type MoreJobs = { load: () => void; loading: boolean; failed: boolean }
+
 type ProviderDialog = { kind: 'add' } | { kind: 'edit' | 'delete'; provider: AcquisitionProvider }
 
 const coverageLabels = { assume_available: 'Offers everything', must_resolve: 'Checks each track' } as const
 
 /** Acquisition providers: the services that can supply missing music, how they are used, and what they were asked for. */
-export function ProvidersAdmin({ providers, policy, usage, managedRoots, jobs, jobStatus, onJobStatusChange, onCreate, onUpdate, onDelete, onTest, onClearMisses, onSavePolicy, failures }: ProvidersAdminProps) {
+export function ProvidersAdmin({ providers, policy, usage, managedRoots, jobs, moreJobs, jobStatus, onJobStatusChange, onCreate, onUpdate, onDelete, onTest, onClearMisses, onSavePolicy, failures }: ProvidersAdminProps) {
   const [dialog, setDialog] = useState<ProviderDialog | null>(null)
   const close = (open: boolean) => { if (!open) setDialog(null) }
   return (
@@ -93,7 +97,7 @@ export function ProvidersAdmin({ providers, policy, usage, managedRoots, jobs, j
 
         <CacheUsage usage={usage} failure={failures?.usage} />
         <PolicySettings policy={policy} managedRoots={managedRoots} onSave={onSavePolicy} failure={failures?.policy} />
-        <JobsList jobs={jobs} status={jobStatus} onStatusChange={onJobStatusChange} failure={failures?.jobs} />
+        <JobsList jobs={jobs} more={moreJobs} status={jobStatus} onStatusChange={onJobStatusChange} failure={failures?.jobs} />
       </div>
 
       <ProviderFormDialog open={dialog?.kind === 'add'} onOpenChange={close} onAdd={onCreate} />
@@ -385,7 +389,7 @@ const jobStatusLabels: Record<AcquisitionJobStatus, string> = {
 const runningStatuses = new Set<AcquisitionJobStatus>(['resolving', 'queued', 'downloading', 'importing'])
 const ALL = 'all'
 
-function JobsList({ jobs, status, onStatusChange, failure }: { jobs: AcquisitionJob[] | undefined; status: AcquisitionJobStatus | null; onStatusChange: (status: AcquisitionJobStatus | null) => void; failure?: ReactNode }) {
+function JobsList({ jobs, more, status, onStatusChange, failure }: { jobs: AcquisitionJob[] | undefined; more?: MoreJobs; status: AcquisitionJobStatus | null; onStatusChange: (status: AcquisitionJobStatus | null) => void; failure?: ReactNode }) {
   return (
     <Panel
       title="Requests"
@@ -423,6 +427,12 @@ function JobsList({ jobs, status, onStatusChange, failure }: { jobs: Acquisition
             </li>
           ))}
         </ul>
+      )}
+      {jobs && jobs.length > 0 && more && (
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
+          {more.failed && !more.loading && <p role="alert" className="text-sm text-destructive">The older requests did not load.</p>}
+          <Button variant="outline" size="sm" onClick={more.load} pending={more.loading}>{more.failed && !more.loading ? 'Try again' : 'Show older requests'}</Button>
+        </div>
       )}
     </Panel>
   )

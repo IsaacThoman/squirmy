@@ -4,7 +4,7 @@ import {
   type ServerSettings, type UpdateAcquisitionPolicy, type UpdateAcquisitionProviderRequest, type UpdateLibraryRootRequest, type UpdateServerSettings, type User,
   type UpdateUserRequest,
 } from '@squirmy/contracts'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { errorMessage } from '@/api/errors'
@@ -42,6 +42,8 @@ const policyKey = [...acquisitionKey, 'policy'] as const
 const acquisitionJobsKey = [...acquisitionKey, 'jobs'] as const
 const usageKey = [...acquisitionKey, 'usage'] as const
 const JOBS_REFRESH_MS = 3000
+/** Requests come a page at a time, newest first; older ones load on asking. */
+const REQUESTS_PAGE = 100
 // Organize jobs and index imports report progress only in the database, so their screens poll while one runs.
 const RUNNING_REFRESH_MS = 1500
 /**
@@ -397,10 +399,12 @@ export function AdminProvidersPage() {
   const providers = useQuery({ queryKey: providersKey, queryFn: () => api.acquisition.providers(), select: page => page.items, meta: silent })
   const policy = useQuery({ queryKey: policyKey, queryFn: () => api.acquisition.policy(), meta: silent })
   const usage = useQuery({ queryKey: usageKey, queryFn: () => api.admin.acquisitionUsage(), meta: silent })
-  const jobs = useQuery({
+  const jobs = useInfiniteQuery({
     queryKey: [...acquisitionJobsKey, jobStatus],
-    queryFn: () => api.acquisition.jobs({ status: jobStatus ?? undefined, limit: 100 }),
-    select: page => page.items,
+    queryFn: ({ pageParam }) => api.acquisition.jobs({ status: jobStatus ?? undefined, cursor: pageParam, limit: REQUESTS_PAGE }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: page => page.nextCursor ?? undefined,
+    select: data => data.pages.flatMap(page => page.items),
     placeholderData: keepPreviousData,
     meta: silent,
   })
@@ -467,6 +471,7 @@ export function AdminProvidersPage() {
       usage={usage.data}
       managedRoots={managedOnly(roots.data)}
       jobs={jobs.data}
+      moreJobs={jobs.hasNextPage && !jobs.isPlaceholderData ? { loading: jobs.isFetchingNextPage, failed: jobs.isFetchNextPageError, load: () => void jobs.fetchNextPage() } : undefined}
       jobStatus={jobStatus}
       onJobStatusChange={status => setParams(status ? { status } : {}, { replace: true })}
       onCreate={request => create.mutateAsync(request)}
