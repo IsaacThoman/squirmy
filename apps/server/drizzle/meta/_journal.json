@@ -148,6 +148,13 @@
       "when": 1795379664044,
       "tag": "0020_artist_read_model",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1795395331400,
+      "tag": "0021_artist_copy_checks",
+      "breakpoints": true
     }
   ]
 }
