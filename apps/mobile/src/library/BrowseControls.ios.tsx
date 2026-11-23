@@ -6,14 +6,15 @@ import {
 import {
   accessibilityLabel, autocorrectionDisabled, background, buttonBorderShape, buttonStyle, clipShape, controlSize, dynamicTypeSize, fixedSize,
   font, foregroundStyle, frame, lineLimit, menuIndicator, offset, padding, pickerStyle, shadow, truncationMode,
-  opacity, progressViewStyle, rotationEffect, submitLabel, tag, textInputAutocapitalization, tint,
+  progressViewStyle, rotationEffect, submitLabel, tag, textInputAutocapitalization, tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
+import { isAccessibilitySize } from '../fontScale';
 import { IconButton, Symbol, hitShape, plainButton } from '../native/Controls';
 import type {
   BrowseButtonProps, CollectionButtonProps, CollectionGridRowProps, FilterProps, GenreCardProps, GenreGridProps, HeroActionsProps,
-  LinkedButtonProps, SearchFieldProps,
+  LinkedButtonProps, RowAction, SearchFieldProps,
 } from './BrowseControls';
 import { unavailableOpacity, useColors } from '../theme';
 import { ZoomLink, ZoomSource } from './ZoomLink';
@@ -95,12 +96,20 @@ export function LibrarySort<T extends string>({ options, value, onChange }: Filt
   </Host>;
 }
 
-/** A React Native cover inside SwiftUI. With `zoom`, the linked page grows out of it. */
-function HostedCover({ cover, size, zoom }: { cover: React.ReactElement; size: number; zoom?: boolean }) {
-  const frame = { width: size, height: size };
+/**
+ * A React Native cover inside SwiftUI. With `zoom`, the linked page grows out of it. A `dim`
+ * cover fades, as a gray song's does; the text beside it takes `fadedTitle` and `fadedCredit`
+ * instead, which stay readable (3:1).
+ */
+function HostedCover({ cover, size, zoom, dim }: { cover: React.ReactElement; size: number; zoom?: boolean; dim?: boolean }) {
+  const frame = { width: size, height: size, opacity: dim ? unavailableOpacity : 1 };
   return <RNHostView matchContents>
     {zoom ? <ZoomSource style={frame}>{cover}</ZoomSource> : <View style={frame}>{cover}</View>}
   </RNHostView>;
+}
+
+function menuItems(actions: readonly RowAction[]) {
+  return actions.map(action => <Button key={action.title} label={action.title} systemImage={action.icon as ButtonSymbol} onPress={action.onPress} />);
 }
 
 export function CollectionTile(props: CollectionButtonProps) {
@@ -121,19 +130,26 @@ function CollectionTileButton({ href, ...props }: CollectionButtonProps) {
   return <ZoomLink href={href}><TileButton {...props} /></ZoomLink>;
 }
 
-function TileButton({ title, subtitle, cover, size, dim, onPress }: LinkedButtonProps<CollectionButtonProps>) {
+function TileButton({ title, subtitle, cover, size, dim, onPress, actions }: LinkedButtonProps<CollectionButtonProps>) {
   const colors = useColors();
-  return <Button modifiers={[plainButton, accessibilityLabel(`${title}, ${subtitle}`)]} onPress={onPress}>
-    <VStack alignment="leading" spacing={6} modifiers={[frame({ width: size, alignment: 'leading' }), hitShape, ...(dim ? [opacity(unavailableOpacity)] : [])]}>
-      <HostedCover cover={cover} size={size} zoom />
+  const large = isAccessibilitySize(useWindowDimensions().fontScale);
+  const button = <Button modifiers={[plainButton, accessibilityLabel(`${title}, ${subtitle}`)]} onPress={onPress}>
+    <VStack alignment="leading" spacing={6} modifiers={[frame({ width: size, alignment: 'leading' }), hitShape]}>
+      <HostedCover cover={cover} size={size} zoom dim={dim} />
       <VStack alignment="leading" spacing={2}>
-        {/* Two lines, cut in the middle: editions of one release differ at the end of the title
-            ("… (Acoustic Version)"), which a cut at the end would hide. */}
-        <Text modifiers={[labelFont, lineLimit(2), truncationMode('middle')]}>{title}</Text>
-        <Text modifiers={[footnote, foregroundStyle(colors.muted), lineLimit(1)]}>{subtitle}</Text>
+        {/* Up to four lines (five at accessibility sizes), cut in the middle: editions of one
+            release differ at the end of the title ("… (Acoustic Version)"), which a cut at the
+            end would hide, and in a narrow grid tile the qualifier alone can take two lines. */}
+        <Text modifiers={[labelFont, ...(dim ? [foregroundStyle(colors.fadedTitle)] : []), lineLimit(large ? 5 : 4), truncationMode('middle')]}>{title}</Text>
+        <Text modifiers={[footnote, foregroundStyle(dim ? colors.fadedCredit : colors.muted), lineLimit(large ? 2 : 1)]}>{subtitle}</Text>
       </VStack>
     </VStack>
   </Button>;
+  // A long press shows what can be done with it, as on a song row, rather than opening it.
+  return actions?.length ? <ContextMenu>
+    <ContextMenu.Trigger>{button}</ContextMenu.Trigger>
+    <ContextMenu.Items>{menuItems(actions)}</ContextMenu.Items>
+  </ContextMenu> : button;
 }
 
 export function CollectionRow({ href, ...props }: CollectionButtonProps) {
@@ -144,15 +160,14 @@ export function CollectionRow({ href, ...props }: CollectionButtonProps) {
 
 function RowButton({ title, subtitle, cover, size, dim, onPress, onSelect, actions }: LinkedButtonProps<CollectionButtonProps>) {
   const colors = useColors();
-  const menu = actions?.length ? actions.map(action => <Button key={action.title} label={action.title} systemImage={action.icon as ButtonSymbol}
-    onPress={action.onPress} />) : null;
+  const menu = actions?.length ? menuItems(actions) : null;
   const button = <Button modifiers={[plainButton, accessibilityLabel(`${title}, ${subtitle}`)]} onPress={() => { onSelect?.(); onPress?.(); }}>
-    <HStack spacing={12} modifiers={[padding({ vertical: 7 }), hitShape, ...(dim ? [opacity(unavailableOpacity)] : [])]}>
-      <HostedCover cover={cover} size={size} zoom />
+    <HStack spacing={12} modifiers={[padding({ vertical: 7 }), hitShape]}>
+      <HostedCover cover={cover} size={size} zoom dim={dim} />
       <VStack alignment="leading" spacing={3}>
         {/* Cut in the middle, as on tiles: editions differ at the end of a title. */}
-        <Text modifiers={[labelFont, lineLimit(2), truncationMode('middle')]}>{title}</Text>
-        <Text modifiers={[footnote, foregroundStyle(colors.muted), lineLimit(1)]}>{subtitle}</Text>
+        <Text modifiers={[labelFont, ...(dim ? [foregroundStyle(colors.fadedTitle)] : []), lineLimit(2), truncationMode('middle')]}>{title}</Text>
+        <Text modifiers={[footnote, foregroundStyle(dim ? colors.fadedCredit : colors.muted), lineLimit(1)]}>{subtitle}</Text>
       </VStack>
       <Spacer minLength={4} />
       {!menu && <Symbol name="chevron.right" size={12} color={colors.muted} />}
