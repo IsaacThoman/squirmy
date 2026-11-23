@@ -371,8 +371,8 @@ describe('sectionOf', () => {
   const row = (id: string, type: string, extra: Partial<Parameters<typeof sectionOf>[0][number]> = {}) => ({
     id, title: id, type, typeGuessed: false, secondaryTypes: [] as string[], hasMbid: true, detailLevel: 1, year: 2000, hasArtwork: true, owned: false, led: true, soleCredit: true, ...extra,
   })
-  const sections = (rows: ReturnType<typeof row>[]) => {
-    const section = sectionOf(rows)
+  const sections = (rows: ReturnType<typeof row>[], options?: { placeholder?: boolean }) => {
+    const section = sectionOf(rows, options)
     return Object.fromEntries(rows.map((one) => [one.id, section(one)]))
   }
 
@@ -395,6 +395,18 @@ describe('sectionOf', () => {
       'Help!': 'album', 'Yellow Submarine': 'album', 'A Hard Day’s Night': 'album',
       'Yellow Submarine Songtrack': 'soundtrack', 'Love': 'soundtrack', 'Extracts From the Film': 'ep',
     })
+  })
+
+  it('keeps Various Artists’ soundtracks under Soundtracks, however many compilations it has', () => {
+    // Its releases credit it alone only because MusicBrainz has no one to name.
+    const page = [
+      row('Now 100', 'album'), row('Pure Disco', 'album'), row('Rock Ballads', 'album'),
+      row('Grand Theft Auto VI', 'soundtrack', { secondaryTypes: ['Soundtrack'] }),
+      row('Cyberpunk 2077', 'soundtrack', { secondaryTypes: ['Soundtrack'] }),
+    ]
+    expect(sections(page, { placeholder: true })).toMatchObject({ 'Grand Theft Auto VI': 'soundtrack', 'Cyberpunk 2077': 'soundtrack', 'Now 100': 'album' })
+    // The same rows for a real artist credited alone would be studio albums.
+    expect(sections(page)['Cyberpunk 2077']).toBe('album')
   })
 
   it('keeps a film composer’s scores and soundtracks shared with others under Soundtracks', () => {

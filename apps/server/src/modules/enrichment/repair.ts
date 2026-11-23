@@ -26,9 +26,13 @@
  * 9. Albums that list a song twice (the canonical track and a row of another of the album's
  *    track lists) have the two rows merged, and read their Deezer track list again
  *    (`album-tracks.ts`), a bounded number per run.
+ * 10. Albums only Deezer knows, typed an album, of artists with soundtracks, are read from
+ *    Deezer once: one it files under Films/Games is a soundtrack (`retypeDeezerSoundtracks`),
+ *    a bounded number per run. Titles that say so were retyped by migration 0023.
  */
-import { sql } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
+import { albums } from '../../database/schema.js'
 import { getServerSettings } from '../../lib/settings.js'
 import { creditKey, matchKey } from '../../lib/text.js'
 import { deezer } from '../metadata/index.js'
@@ -49,10 +53,14 @@ const explicitBatch = 200
 
 /** Artists whose picture is chosen again per run: a MusicBrainz request (a second) and a Deezer one or two each. */
 const imageBatch = 100
+/** Deezer-only albums read per run to tell a soundtrack by its genre. */
+const soundtrackBatch = 100
 
 export type RepairReport = {
   editions: number; duplicateEditions: number; unlinked: number; artistCopies: number; merged: number; tagArtists: number; decoded: number; years: number; explicitAlbums: number
   topTrackArtists: number; rankedArtists: number; imageArtists: number
+  /** Deezer-only albums read for their genre, and those that turned out to be soundtracks. */
+  soundtrackChecks: number; soundtracks: number
   /** Albums that listed a song twice, and the rows merged on them. */
   twinAlbums: number; twinsMerged: number
 }
@@ -73,8 +81,9 @@ export async function repairReleases(): Promise<RepairReport> {
   const twins = await repairAlbumTracks({ deezerEnabled })
   const twinCounts = { twinAlbums: twins.albums, twinsMerged: twins.merged }
   const imageArtists = settings.musicBrainzEnabled ? await repairImages() : 0
-  if (!deezerEnabled) return { editions, duplicateEditions, unlinked, artistCopies, merged, tagArtists, decoded, years, explicitAlbums: 0, topTrackArtists: 0, rankedArtists: 0, imageArtists, ...twinCounts }
+  if (!deezerEnabled) return { editions, duplicateEditions, unlinked, artistCopies, merged, tagArtists, decoded, years, explicitAlbums: 0, topTrackArtists: 0, rankedArtists: 0, imageArtists, soundtrackChecks: 0, soundtracks: 0, ...twinCounts }
   const explicitAlbums = await backfillExplicit()
+  const soundtrackCounts = await retypeDeezerSoundtracks()
   // Popular Deezer tracks on no release and without an album: the artist page showed them with no artwork.
   const artists = await db.execute<{ id: string }>(sql`
     select r.primary_artist_id as id from recordings r
@@ -96,7 +105,43 @@ export async function repairReleases(): Promise<RepairReport> {
       and exists (select 1 from external_ids e where e.provider = 'deezer' and e.entity_type = 'artist' and e.entity_id = a.id)
     order by md5(a.id::text || current_date::text) limit ${topTrackBatch}`)
   for (const artist of unranked) await refreshTopTracks(artist.id)
-  return { editions, duplicateEditions, unlinked, artistCopies, merged, tagArtists, decoded, years, explicitAlbums, topTrackArtists: artists.length, rankedArtists: unranked.length, imageArtists, ...twinCounts }
+  return { editions, duplicateEditions, unlinked, artistCopies, merged, tagArtists, decoded, years, explicitAlbums, topTrackArtists: artists.length, rankedArtists: unranked.length, imageArtists, ...soundtrackCounts, ...twinCounts }
+}
+
+/**
+ * Step 10: Deezer has no soundtrack type, and its list of an artist's albums gave only a
+ * genre id, which older code did not read: a film composer's Deezer-only albums (Gladiator's
+ * 20th anniversary edition, The Dark Knight's) sat under Albums. Reads each such album once,
+ * stores Deezer's genres (so it is not read again), and types it a soundtrack when Deezer files
+ * it as one (`deezer.deezerSoundtrack`). Only rows without a MusicBrainz id, whose type is
+ * Deezer's own, and only of artists that lead a soundtrack, so the reads stay few.
+ */
+export async function retypeDeezerSoundtracks(): Promise<{ soundtrackChecks: number; soundtracks: number }> {
+  const rows = await db.execute<{ albumId: string; deezerId: string }>(sql`
+    select a.id as "albumId", (select min(e.external_id) from external_ids e
+      where e.provider = 'deezer' and e.entity_type = 'album' and e.entity_id = a.id) as "deezerId"
+    from albums a
+    where a.merged_into_id is null and a.mbid is null and a.type = 'album' and cardinality(a.genres) = 0
+      and exists (select 1 from external_ids e where e.provider = 'deezer' and e.entity_type = 'album' and e.entity_id = a.id)
+      and exists (select 1 from albums s where s.primary_artist_id = a.primary_artist_id and s.merged_into_id is null and s.type = 'soundtrack')
+    order by md5(a.id::text || current_date::text) limit ${soundtrackBatch}`)
+  let soundtracks = 0
+  for (const row of rows) {
+    await attempt('soundtrack type', async () => {
+      const album = await deezer.getAlbum(Number(row.deezerId))
+      if (!album) return
+      const soundtrack = album.type === 'soundtrack'
+      if (soundtrack) soundtracks += 1
+      // Its genres mark it read (an album Deezer files under no genre is read again later).
+      await db.update(albums).set({ genres: album.genres, updatedAt: new Date() })
+        .where(and(eq(albums.id, row.albumId), sql`cardinality(${albums.genres}) = 0`))
+      if (soundtrack) {
+        await db.update(albums).set({ type: 'soundtrack', updatedAt: new Date() })
+          .where(and(eq(albums.id, row.albumId), isNull(albums.mbid), eq(albums.type, 'album')))
+      }
+    })
+  }
+  return { soundtrackChecks: rows.length, soundtracks }
 }
 
 const encoded = `'&(#x?[0-9a-f]+|amp|quot|lt|gt|apos|nbsp);'`

@@ -104,4 +104,37 @@ describe('deezer', () => {
     expect(http.requests).toEqual([])
     await updateServerSettings({ deezerEnabled: true })
   })
+
+  describe('soundtracks Deezer types as albums', () => {
+    it.each([
+      ['Gladiator: 20th Anniversary Edition', 173, []],
+      ['The Dark Knight', null, ['Films/Games']],
+      ['Interstellar (Original Motion Picture Soundtrack)', 132, []],
+      ['Dune: Part Two (Original Score)', null, []],
+      ['The Lion King (Music from the Motion Picture)', null, []],
+      ['Cyberpunk 2077 (Original Video Game Soundtrack)', null, []],
+    ] as const)('takes "%s" for one', (title, genreId, genres) => {
+      expect(deezer.deezerSoundtrack({ title, genreId, genres })).toBe(true)
+    })
+
+    it('types the scores of a search as Deezer answers it, and leaves its singles singles', async () => {
+      const { albums } = await deezer.search('gladiator hans zimmer', { types: ['album'], limit: 6 })
+      const typed = Object.fromEntries(albums.map((album) => [album.title, album.type]))
+      // Deezer's genre (Films/Games) with no word of a film in the title.
+      expect(typed['Gladiator: 20th Anniversary Edition']).toBe('soundtrack')
+      expect(typed['Gladiator - Music From The Motion Picture']).toBe('soundtrack')
+      // Classical, and "Music from Gladiator" is not one of the phrases: an album, conservatively.
+      expect(typed['Now We Are Free - Music from Gladiator']).toBe('album')
+      expect(Object.entries(typed).filter(([title]) => title.includes('Theme from the Motion Picture')).every(([, type]) => type === 'single')).toBe(true)
+    })
+
+    it.each([
+      ['Soundtrack to My Life', 116, ['Rap/Hip Hop']],
+      ['More Music', 152, ['Rock']],
+      ['Original Pirate Material', 116, []],
+      ['The Score', 116, []],
+    ] as const)('leaves "%s" an album', (title, genreId, genres) => {
+      expect(deezer.deezerSoundtrack({ title, genreId, genres })).toBe(false)
+    })
+  })
 })
