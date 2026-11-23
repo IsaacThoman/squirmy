@@ -1,0 +1,454 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/album/1064827231"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "id": 1064827231,
+      "title": "PRIMA",
+      "upc": "881061182917",
+      "link": "https://www.deezer.com/album/1064827231",
+      "share": "https://www.deezer.com/album/1064827231?utm_source=deezer&utm_content=album-1064827231&utm_term=0_1795390044&utm_medium=web",
+      "cover": "https://api.deezer.com/album/1064827231/image",
+      "cover_small": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/56x56-000000-80-0-0.jpg",
+      "cover_medium": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/250x250-000000-80-0-0.jpg",
+      "cover_big": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/500x500-000000-80-0-0.jpg",
+      "cover_xl": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/1000x1000-000000-80-0-0.jpg",
+      "md5_image": "68502d8730fa4ce6a41e2cb4db6d2fb7",
+      "genre_id": 132,
+      "genres": {
+        "data": [
+          {
+            "id": 132,
+            "name": "Pop",
+            "picture": "https://api.deezer.com/genre/132/image",
+            "type": "genre"
+          }
+        ]
+      },
+      "label": "Capitol Records",
+      "nb_tracks": 11,
+      "duration": 1876,
+      "fans": 8594,
+      "release_date": "2026-09-04",
+      "record_type": "album",
+      "available": true,
+      "tracklist": "https://api.deezer.com/album/1064827231/tracks",
+      "explicit_lyrics": true,
+      "explicit_content_lyrics": 4,
+      "explicit_content_cover": 0,
+      "contributors": [
+        {
+          "id": 306607671,
+          "name": "ADÉLA",
+          "link": "https://www.deezer.com/artist/306607671",
+          "share": "https://www.deezer.com/artist/306607671?utm_source=deezer&utm_content=artist-306607671&utm_term=0_1795390044&utm_medium=web",
+          "picture": "https://api.deezer.com/artist/306607671/image",
+          "picture_small": "https://cdn-images.dzcdn.net/images/artist/4101eb12e685a7ea1979071c71011ced/56x56-000000-80-0-0.jpg",
+          "picture_medium": "https://cdn-images.dzcdn.net/images/artist/4101eb12e685a7ea1979071c71011ced/250x250-000000-80-0-0.jpg",
+          "picture_big": "https://cdn-images.dzcdn.net/images/artist/4101eb12e685a7ea1979071c71011ced/500x500-000000-80-0-0.jpg",
+          "picture_xl": "https://cdn-images.dzcdn.net/images/artist/4101eb12e685a7ea1979071c71011ced/1000x1000-000000-80-0-0.jpg",
+          "radio": true,
+          "tracklist": "https://api.deezer.com/artist/306607671/top?limit=50",
+          "type": "artist",
+          "role": "Main"
+        }
+      ],
+      "artist": {
+        "id": 306607671,
+        "name": "ADÉLA",
+        "picture": "https://api.deezer.com/artist/306607671/image",
+        "picture_small": "https://cdn-images.dzcdn.net/images/artist/4101eb12e685a7ea1979071c71011ced/56x56-000000-80-0-0.jpg",
+        "picture_medium": "https://cdn-images.dzcdn.net/images/artist/4101eb12e685a7ea1979071c71011ced/250x250-000000-80-0-0.jpg",
+        "picture_big": "https://cdn-images.dzcdn.net/images/artist/4101eb12e685a7ea1979071c71011ced/500x500-000000-80-0-0.jpg",
+        "picture_xl": "https://cdn-images.dzcdn.net/images/artist/4101eb12e685a7ea1979071c71011ced/1000x1000-000000-80-0-0.jpg",
+        "tracklist": "https://api.deezer.com/artist/306607671/top?limit=50",
+        "type": "artist"
+      },
+      "type": "album",
+      "tracks": {
+        "data": [
+          {
+            "id": 4250696671,
+            "readable": true,
+            "title": "KGB",
+            "title_short": "KGB",
+            "title_version": "",
+            "link": "https://www.deezer.com/track/4250696671",
+            "duration": 157,
+            "rank": 689901,
+            "explicit_lyrics": true,
+            "explicit_content_lyrics": 1,
+            "explicit_content_cover": 0,
+            "preview": "https://cdnt-preview.dzcdn.net/api/1/1/0/8/6/0/0862939538bbdbd883ce848869f7bb0e.mp3?hdnea=exp=1795390944~acl=/api/1/1/0/8/6/0/0862939538bbdbd883ce848869f7bb0e.mp3*~data=user_id=0,application_id=42~hmac=9da079948b154904b40aa3c38de5b6b325f3879d387306a3ea80f347b7d28633",
+            "md5_image": "68502d8730fa4ce6a41e2cb4db6d2fb7",
+            "artist": {
+              "id": 306607671,
+              "name": "ADÉLA",
+              "tracklist": "https://api.deezer.com/artist/306607671/top?limit=50",
+              "type": "artist"
+            },
+            "album": {
+              "id": 1064827231,
+              "title": "PRIMA",
+              "cover": "https://api.deezer.com/album/1064827231/image",
+              "cover_small": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/56x56-000000-80-0-0.jpg",
+              "cover_medium": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/250x250-000000-80-0-0.jpg",
+              "cover_big": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/500x500-000000-80-0-0.jpg",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/1000x1000-000000-80-0-0.jpg",
+              "md5_image": "68502d8730fa4ce6a41e2cb4db6d2fb7",
+              "tracklist": "https://api.deezer.com/album/1064827231/tracks",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 4250696681,
+            "readable": true,
+            "title": "Nicole Kidman",
+            "title_short": "Nicole Kidman",
+            "title_version": "",
+            "link": "https://www.deezer.com/track/4250696681",
+            "duration": 181,
+            "rank": 990767,
+            "explicit_lyrics": true,
+            "explicit_content_lyrics": 1,
+            "explicit_content_cover": 0,
+            "preview": "https://cdnt-preview.dzcdn.net/api/1/1/0/8/b/0/08b2e904ad326e673ddbe32c9467a433.mp3?hdnea=exp=1795390944~acl=/api/1/1/0/8/b/0/08b2e904ad326e673ddbe32c9467a433.mp3*~data=user_id=0,application_id=42~hmac=93fc68735973b3cd556998a37453726cc018246568c6ef12237806e9a3a78547",
+            "md5_image": "68502d8730fa4ce6a41e2cb4db6d2fb7",
+            "artist": {
+              "id": 306607671,
+              "name": "ADÉLA",
+              "tracklist": "https://api.deezer.com/artist/306607671/top?limit=50",
+              "type": "artist"
+            },
+            "album": {
+              "id": 1064827231,
+              "title": "PRIMA",
+              "cover": "https://api.deezer.com/album/1064827231/image",
+              "cover_small": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/56x56-000000-80-0-0.jpg",
+              "cover_medium": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/250x250-000000-80-0-0.jpg",
+              "cover_big": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/500x500-000000-80-0-0.jpg",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/1000x1000-000000-80-0-0.jpg",
+              "md5_image": "68502d8730fa4ce6a41e2cb4db6d2fb7",
+              "tracklist": "https://api.deezer.com/album/1064827231/tracks",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 4250696691,
+            "readable": true,
+            "title": "I'm The Man",
+            "title_short": "I'm The Man",
+            "title_version": "",
+            "link": "https://www.deezer.com/track/4250696691",
+            "duration": 150,
+            "rank": 752927,
+            "explicit_lyrics": true,
+            "explicit_content_lyrics": 1,
+            "explicit_content_cover": 0,
+            "preview": "https://cdnt-preview.dzcdn.net/api/1/1/b/c/6/0/bc6e141797638e8d93b49b0a2131f142.mp3?hdnea=exp=1795390944~acl=/api/1/1/b/c/6/0/bc6e141797638e8d93b49b0a2131f142.mp3*~data=user_id=0,application_id=42~hmac=5047d57a4fd2e49cf581b68ae43be411cecc2067b6d39d5b24599e1b12d50f16",
+            "md5_image": "68502d8730fa4ce6a41e2cb4db6d2fb7",
+            "artist": {
+              "id": 306607671,
+              "name": "ADÉLA",
+              "tracklist": "https://api.deezer.com/artist/306607671/top?limit=50",
+              "type": "artist"
+            },
+            "album": {
+              "id": 1064827231,
+              "title": "PRIMA",
+              "cover": "https://api.deezer.com/album/1064827231/image",
+              "cover_small": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/56x56-000000-80-0-0.jpg",
+              "cover_medium": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/250x250-000000-80-0-0.jpg",
+              "cover_big": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/500x500-000000-80-0-0.jpg",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/1000x1000-000000-80-0-0.jpg",
+              "md5_image": "68502d8730fa4ce6a41e2cb4db6d2fb7",
+              "tracklist": "https://api.deezer.com/album/1064827231/tracks",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 4250696701,
+            "readable": true,
+            "title": "Boys",
+            "title_short": "Boys",
+            "title_version": "",
+            "link": "https://www.deezer.com/track/4250696701",
+            "duration": 145,
+            "rank": 692169,
+            "explicit_lyrics": true,
+            "explicit_content_lyrics": 1,
+            "explicit_content_cover": 0,
+            "preview": "https://cdnt-preview.dzcdn.net/api/1/1/2/7/7/0/277dbb64f7a3dd98111659e795e2cfc1.mp3?hdnea=exp=1795390944~acl=/api/1/1/2/7/7/0/277dbb64f7a3dd98111659e795e2cfc1.mp3*~data=user_id=0,application_id=42~hmac=aeb58f2f64e94ed7c0931c3133e1b85ae7d7c1cc0d379715b9a468b086cbfc4f",
+            "md5_image": "68502d8730fa4ce6a41e2cb4db6d2fb7",
+            "artist": {
+              "id": 306607671,
+              "name": "ADÉLA",
+              "tracklist": "https://api.deezer.com/artist/306607671/top?limit=50",
+              "type": "artist"
+            },
+            "album": {
+              "id": 1064827231,
+              "title": "PRIMA",
+              "cover": "https://api.deezer.com/album/1064827231/image",
+              "cover_small": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/56x56-000000-80-0-0.jpg",
+              "cover_medium": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/250x250-000000-80-0-0.jpg",
+              "cover_big": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/500x500-000000-80-0-0.jpg",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/1000x1000-000000-80-0-0.jpg",
+              "md5_image": "68502d8730fa4ce6a41e2cb4db6d2fb7",
+              "tracklist": "https://api.deezer.com/album/1064827231/tracks",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 4250696711,
+            "readable": true,
+            "title": "Red Bottoms",
+            "title_short": "Red Bottoms",
+            "title_version": "",
+            "link": "https://www.deezer.com/track/4250696711",
+            "duration": 187,
+            "rank": 588104,
+            "explicit_lyrics": true,
+            "explicit_content_lyrics": 1,
+            "explicit_content_cover": 0,
+            "preview": "https://cdnt-preview.dzcdn.net/api/1/1/b/1/8/0/b18cd2b619313e7e2808128506b8ba6c.mp3?hdnea=exp=1795390944~acl=/api/1/1/b/1/8/0/b18cd2b619313e7e2808128506b8ba6c.mp3*~data=user_id=0,application_id=42~hmac=df161d80b474be0a45407ef9c04e4699d52fb74f3708bd1086c50ea383f51dd1",
+            "md5_image": "68502d8730fa4ce6a41e2cb4db6d2fb7",
+            "artist": {
+              "id": 306607671,
+              "name": "ADÉLA",
+              "tracklist": "https://api.deezer.com/artist/306607671/top?limit=50",
+              "type": "artist"
+            },
+            "album": {
+              "id": 1064827231,
+              "title": "PRIMA",
+              "cover": "https://api.deezer.com/album/1064827231/image",
+              "cover_small": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/56x56-000000-80-0-0.jpg",
+              "cover_medium": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/250x250-000000-80-0-0.jpg",
+              "cover_big": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/500x500-000000-80-0-0.jpg",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/1000x1000-000000-80-0-0.jpg",
+              "md5_image": "68502d8730fa4ce6a41e2cb4db6d2fb7",
+              "tracklist": "https://api.deezer.com/album/1064827231/tracks",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 4250696721,
+            "readable": true,
+            "title": "Hitachi",
+            "title_short": "Hitachi",
+            "title_version": "",
+            "link": "https://www.deezer.com/track/4250696721",
+            "duration": 216,
+            "rank": 567216,
+            "explicit_lyrics": false,
+            "explicit_content_lyrics": 0,
+            "explicit_content_cover": 0,
+            "preview": "https://cdnt-preview.dzcdn.net/api/1/1/c/d/1/0/cd1b39939722c786478becca0dca64c5.mp3?hdnea=exp=1795390944~acl=/api/1/1/c/d/1/0/cd1b39939722c786478becca0dca64c5.mp3*~data=user_id=0,application_id=42~hmac=b0d31f74e484565e177db23094a80dd0954b669378e26ec8fe88abf97d941e7a",
+            "md5_image": "68502d8730fa4ce6a41e2cb4db6d2fb7",
+            "artist": {
+              "id": 306607671,
+              "name": "ADÉLA",
+              "tracklist": "https://api.deezer.com/artist/306607671/top?limit=50",
+              "type": "artist"
+            },
+            "album": {
+              "id": 1064827231,
+              "title": "PRIMA",
+              "cover": "https://api.deezer.com/album/1064827231/image",
+              "cover_small": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/56x56-000000-80-0-0.jpg",
+              "cover_medium": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/250x250-000000-80-0-0.jpg",
+              "cover_big": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/500x500-000000-80-0-0.jpg",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/1000x1000-000000-80-0-0.jpg",
+              "md5_image": "68502d8730fa4ce6a41e2cb4db6d2fb7",
+              "tracklist": "https://api.deezer.com/album/1064827231/tracks",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 4250696731,
+            "readable": true,
+            "title": "Fantasize",
+            "title_short": "Fantasize",
+            "title_version": "",
+            "link": "https://www.deezer.com/track/4250696731",
+            "duration": 183,
+            "rank": 612223,
+            "explicit_lyrics": false,
+            "explicit_content_lyrics": 0,
+            "explicit_content_cover": 0,
+            "preview": "https://cdnt-preview.dzcdn.net/api/1/1/5/1/6/0/516b910ecf0996e7fcc88836cfaf5beb.mp3?hdnea=exp=1795390944~acl=/api/1/1/5/1/6/0/516b910ecf0996e7fcc88836cfaf5beb.mp3*~data=user_id=0,application_id=42~hmac=23487d93ef8914486bf7455a238ff120392aabc8f975fbacf66479f77114c9bb",
+            "md5_image": "68502d8730fa4ce6a41e2cb4db6d2fb7",
+            "artist": {
+              "id": 306607671,
+              "name": "ADÉLA",
+              "tracklist": "https://api.deezer.com/artist/306607671/top?limit=50",
+              "type": "artist"
+            },
+            "album": {
+              "id": 1064827231,
+              "title": "PRIMA",
+              "cover": "https://api.deezer.com/album/1064827231/image",
+              "cover_small": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/56x56-000000-80-0-0.jpg",
+              "cover_medium": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/250x250-000000-80-0-0.jpg",
+              "cover_big": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/500x500-000000-80-0-0.jpg",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/1000x1000-000000-80-0-0.jpg",
+              "md5_image": "68502d8730fa4ce6a41e2cb4db6d2fb7",
+              "tracklist": "https://api.deezer.com/album/1064827231/tracks",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 4250696741,
+            "readable": true,
+            "title": "Starving Artist",
+            "title_short": "Starving Artist",
+            "title_version": "",
+            "link": "https://www.deezer.com/track/4250696741",
+            "duration": 180,
+            "rank": 620984,
+            "explicit_lyrics": false,
+            "explicit_content_lyrics": 0,
+            "explicit_content_cover": 0,
+            "preview": "https://cdnt-preview.dzcdn.net/api/1/1/2/a/5/0/2a5362b2f2a9a0ee89c2863311859604.mp3?hdnea=exp=1795390944~acl=/api/1/1/2/a/5/0/2a5362b2f2a9a0ee89c2863311859604.mp3*~data=user_id=0,application_id=42~hmac=3bde73cb92e5f8bf87bb7f6f600e3bd1f36d43a5869c248ab415fcedb9b2c19e",
+            "md5_image": "68502d8730fa4ce6a41e2cb4db6d2fb7",
+            "artist": {
+              "id": 306607671,
+              "name": "ADÉLA",
+              "tracklist": "https://api.deezer.com/artist/306607671/top?limit=50",
+              "type": "artist"
+            },
+            "album": {
+              "id": 1064827231,
+              "title": "PRIMA",
+              "cover": "https://api.deezer.com/album/1064827231/image",
+              "cover_small": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/56x56-000000-80-0-0.jpg",
+              "cover_medium": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/250x250-000000-80-0-0.jpg",
+              "cover_big": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/500x500-000000-80-0-0.jpg",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/1000x1000-000000-80-0-0.jpg",
+              "md5_image": "68502d8730fa4ce6a41e2cb4db6d2fb7",
+              "tracklist": "https://api.deezer.com/album/1064827231/tracks",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 4250696751,
+            "readable": true,
+            "title": "Marijuana",
+            "title_short": "Marijuana",
+            "title_version": "",
+            "link": "https://www.deezer.com/track/4250696751",
+            "duration": 110,
+            "rank": 635370,
+            "explicit_lyrics": true,
+            "explicit_content_lyrics": 1,
+            "explicit_content_cover": 0,
+            "preview": "https://cdnt-preview.dzcdn.net/api/1/1/c/d/6/0/cd6735660b0664017c6d9876eb32124f.mp3?hdnea=exp=1795390944~acl=/api/1/1/c/d/6/0/cd6735660b0664017c6d9876eb32124f.mp3*~data=user_id=0,application_id=42~hmac=5f95bd8a79b207a9447642ce16fa86b9492e0950b9d510c60f879b282eb7006e",
+            "md5_image": "68502d8730fa4ce6a41e2cb4db6d2fb7",
+            "artist": {
+              "id": 306607671,
+              "name": "ADÉLA",
+              "tracklist": "https://api.deezer.com/artist/306607671/top?limit=50",
+              "type": "artist"
+            },
+            "album": {
+              "id": 1064827231,
+              "title": "PRIMA",
+              "cover": "https://api.deezer.com/album/1064827231/image",
+              "cover_small": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/56x56-000000-80-0-0.jpg",
+              "cover_medium": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/250x250-000000-80-0-0.jpg",
+              "cover_big": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/500x500-000000-80-0-0.jpg",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/1000x1000-000000-80-0-0.jpg",
+              "md5_image": "68502d8730fa4ce6a41e2cb4db6d2fb7",
+              "tracklist": "https://api.deezer.com/album/1064827231/tracks",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 4250696761,
+            "readable": true,
+            "title": "Therapy",
+            "title_short": "Therapy",
+            "title_version": "",
+            "link": "https://www.deezer.com/track/4250696761",
+            "duration": 180,
+            "rank": 500662,
+            "explicit_lyrics": false,
+            "explicit_content_lyrics": 0,
+            "explicit_content_cover": 0,
+            "preview": "https://cdnt-preview.dzcdn.net/api/1/1/3/5/1/0/3518227e243c6b904d057fe40b405d30.mp3?hdnea=exp=1795390944~acl=/api/1/1/3/5/1/0/3518227e243c6b904d057fe40b405d30.mp3*~data=user_id=0,application_id=42~hmac=bd2c8d32ae5db3031a8961613c95c307ebe3f50807d29cd896ad78971af58052",
+            "md5_image": "68502d8730fa4ce6a41e2cb4db6d2fb7",
+            "artist": {
+              "id": 306607671,
+              "name": "ADÉLA",
+              "tracklist": "https://api.deezer.com/artist/306607671/top?limit=50",
+              "type": "artist"
+            },
+            "album": {
+              "id": 1064827231,
+              "title": "PRIMA",
+              "cover": "https://api.deezer.com/album/1064827231/image",
+              "cover_small": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/56x56-000000-80-0-0.jpg",
+              "cover_medium": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/250x250-000000-80-0-0.jpg",
+              "cover_big": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/500x500-000000-80-0-0.jpg",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/1000x1000-000000-80-0-0.jpg",
+              "md5_image": "68502d8730fa4ce6a41e2cb4db6d2fb7",
+              "tracklist": "https://api.deezer.com/album/1064827231/tracks",
+              "type": "album"
+            },
+            "type": "track"
+          },
+          {
+            "id": 4250696771,
+            "readable": true,
+            "title": "Ain't In LA",
+            "title_short": "Ain't In LA",
+            "title_version": "",
+            "link": "https://www.deezer.com/track/4250696771",
+            "duration": 187,
+            "rank": 619173,
+            "explicit_lyrics": true,
+            "explicit_content_lyrics": 1,
+            "explicit_content_cover": 0,
+            "preview": "https://cdnt-preview.dzcdn.net/api/1/1/f/a/2/0/fa2d0804a6535e03f8d36ff7b7e4d601.mp3?hdnea=exp=1795390944~acl=/api/1/1/f/a/2/0/fa2d0804a6535e03f8d36ff7b7e4d601.mp3*~data=user_id=0,application_id=42~hmac=0ac0178f2b535dbb02b52db70d7c4cafcd1d2fed448f27c0c9a720fd3e60ee50",
+            "md5_image": "68502d8730fa4ce6a41e2cb4db6d2fb7",
+            "artist": {
+              "id": 306607671,
+              "name": "ADÉLA",
+              "tracklist": "https://api.deezer.com/artist/306607671/top?limit=50",
+              "type": "artist"
+            },
+            "album": {
+              "id": 1064827231,
+              "title": "PRIMA",
+              "cover": "https://api.deezer.com/album/1064827231/image",
+              "cover_small": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/56x56-000000-80-0-0.jpg",
+              "cover_medium": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/250x250-000000-80-0-0.jpg",
+              "cover_big": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/500x500-000000-80-0-0.jpg",
+              "cover_xl": "https://cdn-images.dzcdn.net/images/cover/68502d8730fa4ce6a41e2cb4db6d2fb7/1000x1000-000000-80-0-0.jpg",
+              "md5_image": "68502d8730fa4ce6a41e2cb4db6d2fb7",
+              "tracklist": "https://api.deezer.com/album/1064827231/tracks",
+              "type": "album"
+            },
+            "type": "track"
+          }
+        ]
+      }
+    }
+  }
+}

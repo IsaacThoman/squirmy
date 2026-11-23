@@ -8,9 +8,12 @@ import { OnDemandContext, type OnDemand } from './on-demand-context'
 const ended = (status: string) => status === 'completed' || status === 'failed' || status === 'rejected'
 
 /**
- * Music the server fetches for the signed-in user. A fetch that ends refreshes its track, so
- * a song that could not be had turns gray wherever it shows. Fetching is never told on its
- * own: the session's failures are told by the player, for the songs being played.
+ * Music the server fetches for the signed-in user. A fetch that ends refreshes its track's
+ * own query, which gains the album and cover a song fetched on demand had no file for. Rows
+ * elsewhere turn gray or playable from the server's availability `changes`, which every
+ * client gets, and the row of a current entry that failed reads unavailable at once
+ * (`NowPlaying.failed`). Fetching is never told on its own: the session's failures are told
+ * by the player, for the songs being played.
  */
 export function OnDemandProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()

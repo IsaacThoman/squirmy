@@ -13,7 +13,7 @@ import { newId } from '../../lib/ids.js'
 import { dropCachedReads } from '../../lib/read-cache.js'
 import { fetchCapabilities, ProviderCallError, type ProviderEndpoint } from './client.js'
 import { forgetMisses, unavailableCounts } from './misses.js'
-import { forgetAsked, invalidateRecordings } from './resolve.js'
+import { announceAvailability, forgetAsked } from './resolve.js'
 
 type ProviderRow = typeof acquisitionProviders.$inferSelect
 
@@ -174,7 +174,7 @@ export async function updateProvider(providerId: string, patch: UpdateAcquisitio
  */
 async function missesForgotten(providerId: string, recordingIds: readonly string[]) {
   forgetAsked(providerId)
-  await invalidateRecordings(recordingIds)
+  await announceAvailability(recordingIds)
 }
 
 /**

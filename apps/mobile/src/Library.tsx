@@ -1,4 +1,4 @@
-import { albumPresentation, searchContext, searchFilters, searchItemKey, searchQueue, type RecentSearch, type SearchFilter, type SearchItem } from '@squirmy/client-core';
+import { albumPresentation, librarySave, searchContext, searchFilters, searchItemKey, searchQueue, type RecentSearch, type SearchFilter, type SearchItem } from '@squirmy/client-core';
 import { queryKeys, type AlbumSummary, type HomeSection, type TrackSummary } from '@squirmy/contracts';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRouter, type Href } from 'expo-router';
@@ -12,7 +12,7 @@ import {
   libraryMatchLimit, libraryMatchMinLength, useGenreCovers, useGenres, useHome, useLibraryAlbums, useLibraryArtists, useLibraryMatches,
   useLibraryTracks, usePlaylists,
 } from './data/queries';
-import { useTrackStore } from './data/library';
+import { useLibraryActions, useTrackStore } from './data/library';
 import { useAvailability, useViewer } from './downloads/DownloadsProvider';
 import {
   BrowseButton, CollectionGridRow, CollectionRow, GenreGrid, HeroActions, LibraryFilters, LibrarySort, SearchField,
@@ -403,6 +403,7 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
   const api = useSignedInApi();
   const notify = useNotice();
   const viewer = useViewer();
+  const { setLiked } = useLibraryActions();
 
   useTabRetap(() => searchInput.current?.focus());
 
@@ -429,6 +430,12 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
     },
   });
 
+  /** The heart's entry, worded by client-core's rule; nothing when an older server did not say. */
+  const saveAction = (type: 'album' | 'artist', id: string, name: string, liked: boolean | undefined): RowAction[] => {
+    if (liked === undefined) return [];
+    const { saved, label } = librarySave({ liked });
+    return [{ title: label, icon: saved ? 'heart.slash' : 'heart', onPress: () => { tapFeedback(); setLiked(type, id, !saved, name); } }];
+  };
   const menuFor = (item: Exclude<SearchItem, { type: 'track' }>): RowAction[] => {
     if (offline) return [];
     if (item.type === 'album') {
@@ -438,6 +445,7 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
           { title: 'Play', icon: 'play', onPress: () => { tapFeedback(); albumPlayer.play(item.album.id); } },
           { title: 'Shuffle', icon: 'shuffle', onPress: () => { tapFeedback(); albumPlayer.play(item.album.id, true); } },
         ] : []),
+        ...saveAction('album', item.album.id, item.album.title, item.album.liked),
         ...item.album.artists.map(artist => ({ title: item.album.artists.length > 1 ? `Go to ${artist.name}` : 'Go to artist', icon: 'music.mic', onPress: () => onOpen(link('artist', artist.id)) })),
       ];
     }
@@ -447,7 +455,7 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
           tapFeedback();
           api?.radio.artist(item.artist.id).then(actions.playRadio, () => notify(`Couldn’t start a radio for ${item.artist.name}.`));
         },
-      }];
+      }, ...saveAction('artist', item.artist.id, item.artist.name, item.artist.liked)];
     }
     return [{ title: 'Open', icon: 'music.note.list', onPress: () => onOpen(link('playlist', item.playlist.id)) }];
   };

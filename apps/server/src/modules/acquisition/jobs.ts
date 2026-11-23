@@ -51,7 +51,7 @@ import { noteProviderDelivered, noteProviderFailure } from './health.js'
 import { currentMisses } from './misses.js'
 import { activeProviders, providerEndpoint, type ActiveProvider } from './providers.js'
 import { repairDeliveries } from './repair.js'
-import { expireCaches, freshOffers, invalidateRecordings, recordMisses, resolveRecordings, usableOffers } from './resolve.js'
+import { announceAvailability, expireCaches, freshOffers, recordMisses, resolveRecordings, usableOffers } from './resolve.js'
 import { verifyDelivery } from './verify.js'
 
 export type JobRow = typeof acquisitionJobs.$inferSelect
@@ -169,7 +169,11 @@ export async function finishJob(jobId: string, ending: Ending): Promise<JobRow |
     await announceOutcome({ ready, failed: failed.filter((id) => missed.includes(id)), cause: 'unavailable' })
     await announceOutcome({ failed: failed.filter((id) => !missed.includes(id)), cause: 'error' })
   }
-  await invalidateRecordings([...ready, ...missed])
+  // Every list showing these learns their availability now, whatever it turned out to be: a
+  // song the provider lacks (`unavailable`, with a miss stored by this job or by the resolve
+  // that looked for an offer) turns gray where it is; one that failed for an outage or an
+  // error stays as it was.
+  await announceAvailability([...ready, ...missed, ...failed])
   await announce(row)
   // Its slot is free: the job first in line takes it now rather than at its next poll.
   await wakeWaiting(row.providerId).catch(report)
@@ -726,7 +730,7 @@ export async function finishDelivery(jobId: string) {
     if (early.length > 0) {
       for (const id of early) announced.add(id)
       await announceOutcome({ ready: early })
-      await invalidateRecordings(early)
+      await announceAvailability(early)
     }
     // After the announcement: placing may wait a few seconds for the album's track list.
     await placeDelivery(job, { early: true, seen }).catch(report)

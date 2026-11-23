@@ -1,3 +1,4 @@
+import type { ChangePlan } from '@squirmy/client-core';
 import type { Page, TrackSummary } from '@squirmy/contracts';
 import type { InfiniteData } from '@tanstack/react-query';
 
@@ -73,4 +74,16 @@ export function withLikedTrack(
   return { ...data, pages: data.pages.map(page => page.items.some(item => item.id === id)
     ? { ...page, items: page.items.filter(item => item.id !== id) }
     : page) };
+}
+
+/**
+ * Which hearts this device remembers (`type:id` keys) give way to a `liked` another
+ * device's change set: the server's word is the latest, unless a change made here to the
+ * same item is still on its way.
+ */
+export function remembersToDrop(fields: ChangePlan['fields'], pending: (key: string) => boolean): string[] {
+  return fields.flatMap(({ entity, id, fields: values }) => {
+    const key = `${entity}:${id}`;
+    return entity !== 'playlist' && 'liked' in values && !pending(key) ? [key] : [];
+  });
 }

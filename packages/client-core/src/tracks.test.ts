@@ -56,6 +56,21 @@ describe('TrackStore', () => {
     expect(api).toHaveBeenCalledTimes(2)
   })
 
+  it('patches every cached copy of a track with what the server announces, and notifies once', () => {
+    const store = new TrackStore(fakeApi())
+    store.prime([summary(1, uuid(90)), summary(1, uuid(91)), summary(2, uuid(90))])
+    const listener = vi.fn()
+    store.subscribe(listener)
+    const other = store.peek(uuid(2), uuid(90))
+    store.patch(new Map([[uuid(1), { availability: 'none', liked: true }]]))
+    expect(store.peek(uuid(1), uuid(90))).toMatchObject({ availability: 'none', liked: true })
+    expect(store.peek(uuid(1), uuid(91))).toMatchObject({ availability: 'none', liked: true })
+    expect(store.peek(uuid(2), uuid(90))).toBe(other)
+    expect(listener).toHaveBeenCalledTimes(1)
+    store.patch(new Map([[uuid(1), { availability: 'none' }]]))
+    expect(listener).toHaveBeenCalledTimes(1)
+  })
+
   it('splits requests at the contract limit', async () => {
     const api = fakeApi()
     const store = new TrackStore(api)
