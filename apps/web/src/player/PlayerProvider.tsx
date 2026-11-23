@@ -288,6 +288,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     retryLyrics: () => void lyrics.refetch(),
     detached: snapshot.detached,
     canDetach: snapshot.canDetach,
+    outage: snapshot.outage,
   }
 
   return (

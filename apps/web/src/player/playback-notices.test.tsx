@@ -1,5 +1,5 @@
 import { ApiError } from '@squirmy/client-core'
-import { act, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from 'vitest'
 import { AppRoutes } from '@/App'
@@ -64,6 +64,20 @@ describe('telling failures', () => {
     act(() => socket.serverSet(session => ({ ...session, playing: false })))
     await act(() => new Promise(resolve => setTimeout(resolve, 1700)))
     expect(titles()).toEqual(['Can’t load music right now Playback is paused.'])
+  })
+
+  it('does not gray out the song playback paused on in an outage, as it does one that failed in a row of errors', async () => {
+    const pausedOn = async (kind: 'outage' | 'failures') => {
+      const { socket } = await playLowTide()
+      act(() => socket.serverEmit('event', { type: 'playback.unavailable', trackId: song.id, kind, reason: kind === 'outage' ? 'Fetching is down.' : null }))
+      act(() => socket.serverSet(session => ({ ...session, playing: false, current: session.current && { ...session.current, state: 'failed' } })))
+      await screen.findByText('Can’t load music right now')
+    }
+    await pausedOn('outage')
+    expect(screen.queryAllByTitle('Not available')).toEqual([])
+    cleanup()
+    await pausedOn('failures')
+    expect(screen.getAllByTitle('Not available').length).toBeGreaterThan(0)
   })
 
   it('gives the reason the server knows for an outage', async () => {
