@@ -1,19 +1,19 @@
 import { Fragment, useImperativeHandle, useRef, type ComponentProps } from 'react';
 import {
-  Button, ContextMenu, Divider, Grid, Host, HStack, Menu, Picker, ProgressView, RNHostView, Spacer, Text, TextField, VStack, ZStack, useNativeState,
+  Button, ContextMenu, Divider, Grid, Host, HStack, Menu, Picker, RNHostView, Spacer, Text, TextField, VStack, ZStack, useNativeState,
   type TextFieldRef,
 } from '@expo/ui/swift-ui';
 import {
   accessibilityLabel, autocorrectionDisabled, background, buttonBorderShape, buttonStyle, clipShape, controlSize, dynamicTypeSize, fixedSize,
   font, foregroundStyle, frame, lineLimit, menuIndicator, offset, padding, pickerStyle, shadow, truncationMode,
-  progressViewStyle, rotationEffect, submitLabel, tag, textInputAutocapitalization, tint,
+  rotationEffect, submitLabel, tag, textInputAutocapitalization,
 } from '@expo/ui/swift-ui/modifiers';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { isAccessibilitySize } from '../fontScale';
 import { IconButton, Symbol, hitShape, plainButton } from '../native/Controls';
 import type {
-  BrowseButtonProps, CollectionButtonProps, CollectionGridRowProps, FilterProps, GenreCardProps, GenreGridProps, HeroActionsProps,
+  BrowseButtonProps, CollectionButtonProps, CollectionGridRowProps, FilterProps, GenreCardProps, GenreGridProps,
   LinkedButtonProps, RowAction, SearchFieldProps,
 } from './BrowseControls';
 import { unavailableOpacity, useColors } from '../theme';
@@ -238,67 +238,6 @@ function GenreTileButton({ title, color, width, cover, onPress }: GenreCardProps
         frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }), shadow({ radius: 6, color: '#00000080' })]}>{title}</Text>
     </ZStack>
   </Button>;
-}
-
-/** The round play button of a card. While `busy` it spins and ignores taps, so one tap starts one play. */
-function CardPlayButton({ title, size, symbolSize, busy, onPress }: { title: string; size: number; symbolSize: number; busy?: boolean; onPress: () => void }) {
-  const colors = useColors();
-  return <Button modifiers={[
-    buttonStyle(isLiquidGlassAvailable() ? 'glassProminent' : 'borderedProminent'), buttonBorderShape('circle'),
-    tint(colors.accent), accessibilityLabel(busy ? `Starting ${title}` : `Play ${title}`),
-  ]} onPress={busy ? () => undefined : onPress}>
-    <HStack modifiers={[frame({ width: size, height: size })]}>
-      {busy ? <ProgressView modifiers={[progressViewStyle('circular'), tint(colors.onAccent)]} />
-        : <Symbol name="play.fill" size={symbolSize} color={colors.onAccent} />}
-    </HStack>
-  </Button>;
-}
-
-/** Where the hero's text ends: the gradient's darkest stop, so a card grown taller for large text stays one piece. */
-const heroShade = '#100D16';
-/** The play button with its glass, and so the height of the credit's row beside it. */
-const heroPlaySize = 48;
-const heroInset = 20;
-
-/**
- * The featured album: one button that opens it (its page zooms out of the card) and a play
- * button, each its own element for VoiceOver, as tiles are. Both are SwiftUI's, inside the
- * host, with the artwork hosted in the button as a tile's cover is.
- */
-function HeroButton({ title, artist, art, width, height, onPress }: LinkedButtonProps<Omit<HeroActionsProps, 'onPlay' | 'busy'>>) {
-  return <Button modifiers={[plainButton, accessibilityLabel(`${title}, ${artist}`)]} onPress={onPress}>
-    <ZStack alignment="top" modifiers={[frame({ minWidth: width, maxWidth: width, minHeight: height, alignment: 'top' }), background(heroShade), hitShape]}>
-      <RNHostView matchContents>
-        <ZoomSource style={{ width, height }}>{art}</ZoomSource>
-      </RNHostView>
-      {/* The title takes the card's whole width, above the play button, and up to three lines,
-          so a large text size still names the album; it stops growing at AX2, where that still
-          fits. Past the artwork's height the card grows, on the gradient's last color. */}
-      <VStack alignment="leading" spacing={4} modifiers={[
-        dynamicTypeSize({ max: 'accessibility2' }), padding({ top: heroInset, bottom: heroInset, leading: heroInset, trailing: heroInset }),
-        frame({ minWidth: width, maxWidth: width, minHeight: height, alignment: 'bottomLeading' }),
-      ]}>
-        <Text modifiers={[font({ textStyle: 'largeTitle', weight: 'bold' }), foregroundStyle('#F5F2FF'), lineLimit(3),
-          fixedSize({ horizontal: false, vertical: true })]}>{title}</Text>
-        {/* Two lines, so a large text size keeps every credited artist ("Khruangbin & Leon Bridges").
-            The row is as tall as the play button laid over its end, so the title never runs under it. */}
-        <Text modifiers={[font({ textStyle: 'subheadline' }), foregroundStyle('#F0E6FA'), lineLimit(2),
-          fixedSize({ horizontal: false, vertical: true }), padding({ trailing: heroPlaySize + 8 }),
-          frame({ maxWidth: Infinity, minHeight: heroPlaySize, alignment: 'leading' })]}>{artist}</Text>
-      </VStack>
-    </ZStack>
-  </Button>;
-}
-
-export function HeroActions({ href, onPlay, busy, ...card }: HeroActionsProps) {
-  return <Host ignoreSafeArea="container" matchContents={{ vertical: true }} style={{ width: card.width }}>
-    <ZStack alignment="bottomTrailing" modifiers={[clipShape('roundedRectangle', 26)]}>
-      <ZoomLink href={href}><HeroButton {...card} /></ZoomLink>
-      <VStack modifiers={[frame({ height: heroPlaySize }), padding({ bottom: heroInset, trailing: 17 })]}>
-        <CardPlayButton title={card.title} size={34} symbolSize={20} busy={busy} onPress={onPlay} />
-      </VStack>
-    </ZStack>
-  </Host>;
 }
 
 const styles = StyleSheet.create({

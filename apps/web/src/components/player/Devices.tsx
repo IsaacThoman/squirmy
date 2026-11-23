@@ -7,7 +7,7 @@ import { useApi } from '@/api/services'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { formatIdle } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { labelDevice, whereItPlays, type Player } from '@/player/player-context'
+import { labelDevice, type Player } from '@/player/player-context'
 import { VolumeControl } from './Transport'
 
 export function DeviceIcon({ kind, className }: { kind: DeviceInfo['kind']; className?: string }) {
@@ -125,7 +125,7 @@ export function DeviceList({ player, onTransferred }: { player: Player; onTransf
               const result = await player.controls.detach()
               // Said on the player's status line, which stays in sight as the picker closes.
               if (!result.ok) return player.controls.tell({ message: moveError(result, 'Couldn’t play separately.'), tone: 'error' })
-              // The player then says "Only on this device"; what it did to the other devices is said here.
+              // The Devices button is then highlighted; what it did to the other devices is said here.
               if (playing) player.controls.tell({ message: 'Playing only on this device', detail: 'Your other devices are paused where they were.', tone: 'info' })
               onTransferred?.()
             }}
@@ -256,40 +256,4 @@ function deviceDetail(player: Player, device: DeviceInfo) {
 
 function deviceKind(kind: DeviceInfo['kind']) {
   return { ios: 'iPhone app', android: 'Android app', web: 'Web browser', desktop: 'Computer', other: 'Speaker' }[kind]
-}
-
-/** Shown while another device plays: where the sound is, and a way to bring it here. */
-export function PlayingElsewhere({ player, device, onPlayHere, onPrepare, className }: { player: Player; device: DeviceInfo; onPlayHere: () => void; onPrepare?: () => void; className?: string }) {
-  return (
-    // The words are in the text color: the action color on its own tint is under 4.5:1 in several light themes.
-    // Play here keeps a paused session paused, as moving the music anywhere does; the words say "Paused on …".
-    <div className={cn('flex h-8 items-center justify-center gap-1.5 bg-primary/10 px-4 text-xs font-medium text-foreground', className)}>
-      <DeviceIcon kind={device.kind} className="size-3.5 shrink-0 text-primary" />
-      <span className="truncate">{whereItPlays(player.state, device)}</span>
-      {/* Pointing at it is reason enough to get the music ready: it is usually pressed next. Its
-          hit area reaches past the 32px strip to a 44px target for a finger. */}
-      <button type="button" onClick={onPlayHere} onPointerEnter={onPrepare} onPointerDown={onPrepare} onFocus={onPrepare} className="relative ml-1.5 h-6 shrink-0 after:absolute after:-inset-x-1 after:-inset-y-2.5 rounded-md bg-primary px-2 text-primary-foreground outline-none transition-colors hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background">
-        Play here
-      </button>
-    </div>
-  )
-}
-
-/**
- * Shown while this tab is detached, where "Playing on …" would be: it plays its own queue.
- * A choice, not an error, so in the theme's color; pressing it opens the devices picker,
- * where rejoining is.
- */
-export function OnlyOnThisDevice({ player, className }: { player: Player; className?: string }) {
-  return (
-    <DevicesPopover
-      player={player}
-      trigger={(
-        <button type="button" className={cn('flex h-8 w-full items-center justify-center gap-1.5 bg-primary/10 px-4 text-xs font-medium text-foreground outline-none transition-colors hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring', className)}>
-          <Unlink2 aria-hidden className="size-3.5 shrink-0 text-primary" />
-          Only on this device
-        </button>
-      )}
-    />
-  )
 }

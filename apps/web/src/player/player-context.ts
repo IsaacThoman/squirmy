@@ -1,4 +1,4 @@
-import { type AwayDevice, deviceLabel, listedDevices, playingOnText, reconnectingText, type DeviceLabel, type SessionMoveResult, type SessionOutage } from '@squirmy/client-core'
+import { type AwayDevice, deviceLabel, listedDevices, type DeviceLabel, type SessionMoveResult, type SessionOutage } from '@squirmy/client-core'
 import type { DeviceInfo, Lyrics, PlaybackContext, QueueEntry, RepeatMode, TrackSummary } from '@squirmy/contracts'
 import { createContext, useContext, useSyncExternalStore } from 'react'
 import type { PlayerStatus } from './status'
@@ -87,7 +87,7 @@ export type PlayerControls = {
   /** Clears the history at once; the queue asks first. */
   clearHistory: () => void
   transfer: (deviceId: string) => void
-  /** Gets this tab ready to take over what another device plays, so a transfer here starts sooner. For a pointer on "Play here". */
+  /** Gets this tab ready to take over what another device plays, so a transfer here starts sooner. For this tab’s row in the device picker. */
   prepareHere: () => void
   /** Takes this tab out of the shared session into one of its own. Resolves once the server has answered. */
   detach: () => Promise<SessionMoveResult>
@@ -130,26 +130,9 @@ export function labelDevice(state: Pick<PlayerState, 'thisDeviceId' | 'devices'>
   return deviceLabel(device, listedDevices(state.devices, state.thisDeviceId), state.thisDeviceId, 'This browser')
 }
 
-/**
- * The device that plays when it is not this one. One that dropped off the list during its
- * grace period is still that device, as it was last listed (`whereItPlays` says it is
- * reconnecting), or "another device" when this tab never saw it.
- */
-export function playingElsewhere(state: Pick<PlayerState, 'activeDeviceId' | 'thisDeviceId' | 'devices' | 'away'>): DeviceInfo | undefined {
-  const { activeDeviceId, thisDeviceId, devices, away } = state
-  if (activeDeviceId === null || activeDeviceId === thisDeviceId) return undefined
-  return devices.find(device => device.id === activeDeviceId)
-    ?? (away?.id === activeDeviceId ? away.device : null)
-    ?? { id: activeDeviceId, name: 'another device', kind: 'other', canPlay: false, isActive: true }
-}
-
-/**
- * Where the session's sound is, for the device `playingElsewhere` gave: "Reconnecting to …"
- * while the session waits for it to come back, else "Playing on …" or, paused, "Paused on …".
- */
-export function whereItPlays(state: Pick<PlayerState, 'thisDeviceId' | 'devices' | 'away' | 'playing'>, device: DeviceInfo): string {
-  if (state.away?.id === device.id) return reconnectingText(state.away.device ? labelDevice(state, device) : null)
-  return playingOnText(labelDevice(state, device), state.playing)
+/** Whether this tab controls playback on another device, including while it reconnects. */
+export function playingElsewhere({ activeDeviceId, thisDeviceId }: Pick<PlayerState, 'activeDeviceId' | 'thisDeviceId'>): boolean {
+  return activeDeviceId !== null && activeDeviceId !== thisDeviceId
 }
 
 export function usePlayer() {

@@ -1,6 +1,6 @@
 import { continuesQuery, filterKind, keepOrder, playlistScore, searchItemKey, type SearchFilter, type SearchItem } from '@squirmy/client-core';
 import {
-  addRecentSearch, parseRecentSearches, recentSearchesStorageKey, removeRecentSearch, type RecentSearch,
+  addRecentSearch, parseRecentSearches, recentSearchesStorageKey, type RecentSearch,
 } from '@squirmy/client-core';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useAccountKey } from '../account/AccountProvider';
@@ -121,12 +121,12 @@ export function useSearchList(text: string, filter: SearchFilter): SearchList {
     : { items: null, stale: false, pending: true, failed: false, catalogFailed: false, refetch: async () => {} };
 }
 
-/** A listener per subscriber, told when this device's recent searches change. */
+/** A listener per subscriber, told when this device's recently viewed results change. */
 const listeners = new Set<() => void>();
 const storage = () => (globalThis as { localStorage?: Storage }).localStorage;
 
 /**
- * Recent searches and results opened from Search, kept on this device per server and
+ * Results opened or played from Search, kept on this device per server and
  * account (the app's local storage), newest first.
  */
 export function useRecentSearches() {
@@ -148,7 +148,6 @@ export function useRecentSearches() {
   return {
     list,
     add: useCallback((entry: RecentSearch) => write(current => addRecentSearch(current, entry)), [write]),
-    remove: useCallback((entryKey: string) => write(current => removeRecentSearch(current, entryKey)), [write]),
     clear: useCallback(() => write(() => null), [write]),
   };
 }

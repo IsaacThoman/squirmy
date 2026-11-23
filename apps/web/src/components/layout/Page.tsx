@@ -25,9 +25,16 @@ type PageHeaderProps = {
  * the page scrolls under it, and on phones leaves room for the button that opens the sidebar.
  */
 export function PageHeader({ title, nav, navLabel, children, controls = 'end', className }: PageHeaderProps) {
+  const hasControls = Boolean(nav || children)
   return (
-    <header data-page-header className={cn('sticky top-0 z-20 flex h-12 shrink-0 items-center gap-4 border-b bg-background/85 px-(--gutter) backdrop-blur-md max-md:pl-12', className)}>
-      <h1 dir="auto" className="shrink-0 text-sm font-semibold">{title}</h1>
+    <header
+      data-page-header={hasControls ? '' : undefined}
+      className={hasControls
+        ? cn('sticky top-0 z-20 flex h-12 shrink-0 items-center gap-4 border-b bg-background/85 px-(--gutter) backdrop-blur-md max-md:pl-12', className)
+        : 'max-md:h-8'}
+    >
+      {/* A title-only header still names the page and leaves room for the mobile sidebar button. */}
+      <h1 dir="auto" className={hasControls ? 'shrink-0 text-sm font-semibold' : 'sr-only'}>{title}</h1>
       {nav && <HeaderNav label={navLabel ?? `${title} sections`}>{nav}</HeaderNav>}
       {children && <div className={cn('flex min-w-0 items-center gap-2', controls === 'fill' ? 'flex-1' : 'ml-auto')}>{children}</div>}
     </header>
