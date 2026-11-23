@@ -23,6 +23,9 @@
  *    same way, so the page lists their hits rather than the tracks played here.
  * 9. Artist pictures chosen before pages were told apart from namesakes, or kept through
  *    a merge, are chosen again from the MusicBrainz profile, a bounded number per run.
+ * 9. Albums that list a song twice (the canonical track and a row of another of the album's
+ *    track lists) have the two rows merged, and read their Deezer track list again
+ *    (`album-tracks.ts`), a bounded number per run.
  */
 import { sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
@@ -30,6 +33,7 @@ import { getServerSettings } from '../../lib/settings.js'
 import { creditKey, matchKey } from '../../lib/text.js'
 import { deezer } from '../metadata/index.js'
 import { decodeEntities } from '../metadata/deezer.js'
+import { repairAlbumTracks } from './album-tracks.js'
 import { refreshTopTracks, repickArtistImage } from './artist.js'
 import { foldArtistCopies } from './artist-copies.js'
 import { linkDeezerAlbum } from './deezer-rows.js'
@@ -49,6 +53,8 @@ const imageBatch = 100
 export type RepairReport = {
   editions: number; duplicateEditions: number; unlinked: number; artistCopies: number; merged: number; tagArtists: number; decoded: number; years: number; explicitAlbums: number
   topTrackArtists: number; rankedArtists: number; imageArtists: number
+  /** Albums that listed a song twice, and the rows merged on them. */
+  twinAlbums: number; twinsMerged: number
 }
 
 export async function repairReleases(): Promise<RepairReport> {
@@ -64,8 +70,10 @@ export async function repairReleases(): Promise<RepairReport> {
   const tagArtists = await foldTagBuiltArtists()
   const decoded = await decodeStoredEntities()
   const years = await backfillYears()
+  const twins = await repairAlbumTracks({ deezerEnabled })
+  const twinCounts = { twinAlbums: twins.albums, twinsMerged: twins.merged }
   const imageArtists = settings.musicBrainzEnabled ? await repairImages() : 0
-  if (!deezerEnabled) return { editions, duplicateEditions, unlinked, artistCopies, merged, tagArtists, decoded, years, explicitAlbums: 0, topTrackArtists: 0, rankedArtists: 0, imageArtists }
+  if (!deezerEnabled) return { editions, duplicateEditions, unlinked, artistCopies, merged, tagArtists, decoded, years, explicitAlbums: 0, topTrackArtists: 0, rankedArtists: 0, imageArtists, ...twinCounts }
   const explicitAlbums = await backfillExplicit()
   // Popular Deezer tracks on no release and without an album: the artist page showed them with no artwork.
   const artists = await db.execute<{ id: string }>(sql`
@@ -88,7 +96,7 @@ export async function repairReleases(): Promise<RepairReport> {
       and exists (select 1 from external_ids e where e.provider = 'deezer' and e.entity_type = 'artist' and e.entity_id = a.id)
     order by md5(a.id::text || current_date::text) limit ${topTrackBatch}`)
   for (const artist of unranked) await refreshTopTracks(artist.id)
-  return { editions, duplicateEditions, unlinked, artistCopies, merged, tagArtists, decoded, years, explicitAlbums, topTrackArtists: artists.length, rankedArtists: unranked.length, imageArtists }
+  return { editions, duplicateEditions, unlinked, artistCopies, merged, tagArtists, decoded, years, explicitAlbums, topTrackArtists: artists.length, rankedArtists: unranked.length, imageArtists, ...twinCounts }
 }
 
 const encoded = `'&(#x?[0-9a-f]+|amp|quot|lt|gt|apos|nbsp);'`
