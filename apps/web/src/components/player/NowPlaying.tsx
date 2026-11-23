@@ -1,7 +1,8 @@
 import { contextLabel } from '@squirmy/client-core'
+import type { Artwork } from '@squirmy/contracts'
 import { ChevronDown, ListMusic, MessageSquareQuote, MonitorSpeaker } from 'lucide-react'
 import { Dialog as DialogPrimitive } from 'radix-ui'
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { ArtistLinks } from '@/components/music/ArtistLinks'
 import { Cover } from '@/components/music/Cover'
 import { SaveHeart } from '@/components/music/LibrarySave'
@@ -33,6 +34,27 @@ type NowPlayingProps = {
 
 /** The theme's background over the blurred artwork: a tint at the top, solid under the controls. */
 const wash = 'linear-gradient(to bottom, color-mix(in srgb, var(--background) 55%, transparent), color-mix(in srgb, var(--background) 80%, transparent) 40%, var(--background))'
+
+/** Mount details on first use, then keep their scroll positions when switching panes. */
+function NowPlayingStage({ player, pane, artwork }: { player: Player; pane: NowPlayingPane; artwork: Artwork | null }) {
+  const [visited, setVisited] = useState(() => new Set([pane]))
+  if (!visited.has(pane)) setVisited(new Set([...visited, pane]))
+  return (
+    <div data-pane={pane} className="now-playing-stage relative grid min-h-0 flex-1 px-6 py-4 md:px-8 lg:px-10 short-landscape:self-stretch short-landscape:py-2">
+      <div className="now-playing-art relative flex min-h-0 min-w-0 items-center justify-center [container-type:size]">
+        <Cover artwork={artwork} size={1200} className="size-[min(100cqw,100cqh,34rem)] rounded-xl shadow-[0_32px_80px_-24px_rgb(0_0_0/0.6)]" />
+      </div>
+      <div className="now-playing-details relative min-h-0 min-w-0">
+        <div data-now-playing-scroll id="now-playing-lyrics" inert={pane !== 'lyrics'} aria-hidden={pane !== 'lyrics'} className="now-playing-pane now-playing-lyrics">
+          {visited.has('lyrics') && <LyricsPane lyrics={player.state.lyrics} onSeek={player.controls.seek} />}
+        </div>
+        <div data-now-playing-scroll id="now-playing-queue" inert={pane !== 'queue'} aria-hidden={pane !== 'queue'} className="now-playing-pane now-playing-queue overflow-y-auto">
+          {visited.has('queue') && <QueueContent player={player} modes={false} />}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 /** Full-screen player: big artwork over a blur of itself, with lyrics or the queue beside it. */
 export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, liked, onToggleLike }: NowPlayingProps) {
@@ -112,7 +134,9 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
           <div className="relative flex min-h-0 flex-1 flex-col short-landscape:flex-row short-landscape:items-center">
           <div className="relative order-last mx-auto w-full max-w-3xl shrink-0 px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-2 md:px-8 short-landscape:w-[min(24rem,50%)] short-landscape:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             <div className="mb-4 flex items-center gap-3">
-              {pane !== 'art' && <Cover artwork={artwork} size={96} className="size-12 lg:hidden" />}
+              <div aria-hidden data-show={pane !== 'art'} className="now-playing-small-cover shrink-0 overflow-clip lg:hidden">
+                <Cover artwork={artwork} size={96} className="size-12 max-w-none" />
+              </div>
               <div className="min-w-0 flex-1">
                 <h2 className="truncate text-2xl font-semibold tracking-tight">{item?.track.title ?? 'Nothing playing'}</h2>
                 {item && (
@@ -131,27 +155,14 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
             <SeekBar stacked durationMs={item?.entry.durationMs ?? 0} onSeek={controls.seek} disabled={!item} />
             <div className="mt-1 flex flex-col items-center gap-3 md:flex-row md:justify-between short-landscape:flex-col!">
               <div className="order-2 flex gap-8 md:order-1 md:w-40 md:gap-1 short-landscape:order-2! short-landscape:w-auto! short-landscape:gap-8!">
-                <IconButton label={pane === 'lyrics' ? 'Hide lyrics' : 'Show lyrics'} pressed={pane === 'lyrics'} onClick={() => toggle('lyrics')} className="max-md:size-11 pointer-coarse:size-11"><MessageSquareQuote /></IconButton>
-                <IconButton label={pane === 'queue' ? 'Hide queue' : 'Show queue'} pressed={pane === 'queue'} onClick={() => toggle('queue')} className="max-md:size-11 pointer-coarse:size-11"><ListMusic /></IconButton>
+                <IconButton label={pane === 'lyrics' ? 'Hide lyrics' : 'Show lyrics'} aria-controls="now-playing-lyrics" pressed={pane === 'lyrics'} onClick={() => toggle('lyrics')} className="max-md:size-11 pointer-coarse:size-11"><MessageSquareQuote /></IconButton>
+                <IconButton label={pane === 'queue' ? 'Hide queue' : 'Show queue'} aria-controls="now-playing-queue" pressed={pane === 'queue'} onClick={() => toggle('queue')} className="max-md:size-11 pointer-coarse:size-11"><ListMusic /></IconButton>
               </div>
               <div className="order-1 md:order-2 short-landscape:order-1!"><TransportButtons player={player} large disabled={!item} /></div>
               <VolumeControl volume={state.volume} deviceId={state.activeDeviceId ?? state.thisDeviceId} onChange={controls.setVolume} fill className="order-3 hidden w-40 md:flex short-landscape:hidden!" />
             </div>
           </div>
-          <div className={cn('relative grid min-h-0 flex-1 grid-cols-1 gap-8 px-6 py-4 md:px-8 lg:gap-12 lg:px-10 short-landscape:self-stretch short-landscape:py-2', pane !== 'art' && 'lg:grid-cols-2')}>
-            {/* A size container, so the artwork is the largest square that fits the space left. */}
-            <div className={cn('min-h-0 min-w-0 items-center justify-center [container-type:size]', pane === 'art' ? 'flex' : 'hidden lg:flex')}>
-              <Cover artwork={artwork} size={1200} className="size-[min(100cqw,100cqh,34rem)] rounded-xl shadow-[0_32px_80px_-24px_rgb(0_0_0/0.6)]" />
-            </div>
-            {pane !== 'art' && (
-              // Alone, the pane is as wide as the controls under it.
-              <div data-now-playing-scroll className="mx-auto min-h-0 w-full min-w-0 max-w-[44rem] lg:max-w-none">
-                {pane === 'lyrics'
-                  ? <div className="-mx-1 h-full"><LyricsPane lyrics={state.lyrics} onSeek={controls.seek} /></div>
-                  : <div className="-mx-2 h-full overflow-y-auto lg:mx-auto lg:max-w-xl"><QueueContent player={player} modes={false} /></div>}
-              </div>
-            )}
-          </div>
+          <NowPlayingStage player={player} pane={pane} artwork={artwork} />
 
           </div>
         </DialogPrimitive.Content>
