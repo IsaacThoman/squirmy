@@ -529,6 +529,34 @@ describe('AppShell', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Queue' }))
       await userEvent.click(within(screen.getByRole('complementary', { name: 'Queue' })).getByRole('button', { name: 'Close queue' }))
       expect(screen.queryByRole('complementary', { name: 'Queue' })).not.toBeInTheDocument()
+      // Focus goes back to the button that opened it, not to the page's body.
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Queue' })).toHaveFocus())
+    })
+
+    it('floats as a modal below 1280px: the shell is out of reach, Tab stays in it, and Escape gives focus back', async () => {
+      vi.stubGlobal('matchMedia', (media: string) => ({
+        media,
+        matches: media.includes('max-width: 1279.98px'),
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      }))
+      await renderShell()
+      const toggle = screen.getByRole('button', { name: 'Queue' })
+      await userEvent.click(toggle)
+      const queue = screen.getByRole('dialog', { name: 'Queue' })
+      expect(queue).toHaveAttribute('aria-modal', 'true')
+      await waitFor(() => expect(queue).toContainElement(document.activeElement as HTMLElement))
+      expect(screen.getByRole('main', { hidden: true }).closest('[inert]')).not.toBeNull()
+      expect(sidebar().closest('[inert]')).not.toBeNull()
+      expect(toggle.closest('[inert]')).not.toBeNull()
+      for (let i = 0; i < 6; i++) {
+        await userEvent.tab()
+        expect(queue).toContainElement(document.activeElement as HTMLElement)
+      }
+      await userEvent.keyboard('{Escape}')
+      expect(screen.queryByRole('dialog', { name: 'Queue' })).not.toBeInTheDocument()
+      expect(screen.getByRole('main').closest('[inert]')).toBeNull()
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Queue' })).toHaveFocus())
     })
   })
 

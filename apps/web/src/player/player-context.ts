@@ -1,6 +1,7 @@
 import { type AwayDevice, deviceLabel, listedDevices, playingOnText, reconnectingText, type DeviceLabel, type SessionMoveResult } from '@squirmy/client-core'
 import type { DeviceInfo, Lyrics, PlaybackContext, QueueEntry, RepeatMode, TrackSummary } from '@squirmy/contracts'
 import { createContext, useContext, useSyncExternalStore } from 'react'
+import type { PlayerStatus } from './status'
 
 /** A queue entry with the track it points at, hydrated for display. */
 export type QueueItem = { entry: QueueEntry; track: TrackSummary }
@@ -45,6 +46,10 @@ export type PlayerState = {
   detached: boolean
   /** `detach` can work: this tab plays and the server supports it. */
   canDetach: boolean
+  /** The line under the song: what just happened to playback, or what is on its way. Left out by fixtures. */
+  status?: PlayerStatus | null
+  /** The radio being started, while it is. Left out by fixtures. */
+  radioPending?: RadioSeed | null
 }
 
 export type LyricsStatus = 'none' | 'loading' | 'failed' | 'ready'
@@ -91,6 +96,15 @@ export const PlayerContext = createContext<Player | null>(null)
 
 /** The controls alone. They keep one identity, so readers that only send commands skip every session update. */
 export const PlayerControlsContext = createContext<PlayerControls | null>(null)
+
+/** The radio being started, while it is: a value of its own, so the control that started it re-renders only when it changes. */
+export const RadioPendingContext = createContext<RadioSeed | null>(null)
+
+/** Whether a radio is starting from `seed`: its control shows that it is on its way. */
+export function useRadioStarting(seed: RadioSeed): boolean {
+  const pending = useContext(RadioPendingContext)
+  return pending?.type === seed.type && pending.id === seed.id
+}
 
 /**
  * How `device` is named here: "This browser", "Another tab" for this browser's other tabs,

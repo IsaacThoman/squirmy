@@ -222,7 +222,7 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
   const albumWhole = useWholeLinks(albumLine, track.album?.title ?? '') > 0
   const title = (
     <div className="flex min-w-0 items-center gap-1.5">
-      <span title={track.title} className={cn('truncate text-sm font-medium', current && 'text-primary', unavailable && 'text-faded-foreground')}>{track.title}</span>
+      <span title={track.title} className={cn('truncate text-sm font-medium', unavailable && 'text-faded-foreground')}>{track.title}</span>
       {track.explicit && <ExplicitBadge />}
       {unavailable && <span className="sr-only">({UNAVAILABLE_LABEL})</span>}
     </div>

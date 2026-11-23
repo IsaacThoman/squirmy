@@ -1,4 +1,5 @@
 import { act, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { track } from '@/fixtures/catalog'
@@ -39,6 +40,89 @@ describe('PlayerBar', () => {
     const region = screen.getByRole('region', { name: 'Player' })
     expect(within(region).getByRole('link', { name: lead.name })).toHaveAttribute('href', `/artist/${lead.id}`)
     expect(within(region).getByRole('link', { name: guest.name })).toHaveAttribute('href', `/artist/${guest.id}`)
+  })
+})
+
+describe('PlayerBar at the widths a desktop and a tablet give it', () => {
+  /** Lays the bar out `width` px wide: jsdom lays nothing out. */
+  const at = (width: number) => vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(width)
+  afterEach(() => vi.restoreAllMocks())
+
+  it('shows the whole credit on hover where it is cut short', () => {
+    const credit = `${song.artistCredit} feat. Somebody With A Long Name`
+    renderWithApp(bar(player('ready', 'entry-long', { ...song, artistCredit: credit })))
+    expect(screen.getByRole('region', { name: 'Player' }).querySelector('[data-credit]')).toHaveAttribute('title', credit)
+  })
+
+  it('keeps the volume and Now Playing in the bar where they fit, with no More button', () => {
+    at(1200)
+    renderWithApp(bar(player('ready', 'entry-wide')))
+    const region = screen.getByRole('region', { name: 'Player' })
+    expect(within(region).getByRole('slider', { name: 'Volume' })).toBeInTheDocument()
+    expect(within(region).getByRole('button', { name: 'Now Playing' })).toBeInTheDocument()
+    expect(within(region).queryByRole('button', { name: 'More player controls' })).toBeNull()
+  })
+
+  it('puts the controls a narrower bar has no room for behind More player controls', async () => {
+    at(900)
+    const value = player('ready', 'entry-narrow')
+    renderWithApp(bar(value))
+    const region = screen.getByRole('region', { name: 'Player' })
+    expect(within(region).queryByRole('slider', { name: 'Volume' })).toBeNull()
+    await userEvent.click(within(region).getByRole('button', { name: 'More player controls' }))
+    const more = await screen.findByRole('dialog', { name: 'More player controls' })
+    expect(within(more).getByRole('slider', { name: 'Volume' })).toBeInTheDocument()
+    expect(within(more).queryByRole('button', { name: 'Now Playing' })).toBeNull()
+  })
+
+  it('stacks the transport under the song on a tablet, so the title and credit keep their room', async () => {
+    at(504)
+    renderWithApp(bar(player('ready', 'entry-tablet')))
+    const region = screen.getByRole('region', { name: 'Player' })
+    expect(region.querySelector('[data-layout]')).toHaveAttribute('data-layout', 'stacked')
+    // With the room a row of its own gives, lyrics stay in the bar; Now Playing joins the volume behind More.
+    expect(within(region).getByRole('button', { name: 'Lyrics' })).toBeInTheDocument()
+    await userEvent.click(within(region).getByRole('button', { name: 'More player controls' }))
+    expect(within(await screen.findByRole('dialog', { name: 'More player controls' })).getByRole('button', { name: 'Now Playing' })).toBeInTheDocument()
+  })
+})
+
+describe('PlayerBar on a phone on its side', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('keeps one row, with the lyrics and the heart behind More so the title keeps some room', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(486)
+    vi.stubGlobal('matchMedia', (media: string) => ({ media, matches: media.includes('orientation: landscape'), addEventListener: () => {}, removeEventListener: () => {} }))
+    const value = player('ready', 'entry-landscape')
+    renderWithApp(bar(value))
+    const region = screen.getByRole('region', { name: 'Player' })
+    expect(region.querySelector('[data-layout]')).toHaveAttribute('data-layout', 'row')
+    expect(within(region).queryByRole('button', { name: `Save ${song.title} to library` })).toBeNull()
+    await userEvent.click(within(region).getByRole('button', { name: 'More player controls' }))
+    const more = await screen.findByRole('dialog', { name: 'More player controls' })
+    expect(within(more).getByRole('button', { name: 'Lyrics' })).toBeInTheDocument()
+    await userEvent.click(within(more).getByRole('button', { name: 'Save to library' }))
+  })
+})
+
+describe('MiniPlayer with nothing loaded', () => {
+  it('still offers the devices, so where the first song plays can be chosen', () => {
+    renderWithApp(<MiniPlayer player={player('ready', 'entry-none', song, { current: null })} onOpenNowPlaying={() => {}} />)
+    const region = screen.getByRole('region', { name: 'Player' })
+    expect(within(region).getByText('Nothing playing')).toBeInTheDocument()
+    expect(within(region).getByRole('button', { name: 'Devices' })).toBeInTheDocument()
+  })
+})
+
+describe('the player\'s status line', () => {
+  it('says what happened to playback under the song, in a polite live region', () => {
+    renderWithApp(bar(player('ready', 'entry-status', song, { status: { message: 'Skipped “Intro” — not available', tone: 'info', key: 'notice' } })))
+    const region = screen.getByRole('region', { name: 'Player' })
+    const line = within(region).getByText('Skipped “Intro” — not available')
+    expect(line.closest('[role="status"]')).not.toBeNull()
   })
 })
 

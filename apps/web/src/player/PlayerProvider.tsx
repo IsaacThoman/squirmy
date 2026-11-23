@@ -20,8 +20,9 @@ import { AUDIO_BLOCKED_MESSAGE } from './engine/errors'
 import type { WebPlayerEngine } from './engine/web-engine'
 import { MediaSessionAdapter, mediaArtwork, type MediaSessionTrack } from './engine/media-session'
 import { Listening, type Audible } from './listening'
-import { PlayerContext, PlayerControlsContext, PositionClock, PositionContext, type PlayerControls, type PlayerState, type QueueItem, type RadioSeed } from './player-context'
+import { PlayerContext, PlayerControlsContext, PositionClock, PositionContext, RadioPendingContext, type PlayerControls, type PlayerState, type QueueItem, type RadioSeed } from './player-context'
 import { useShortcuts } from './shortcuts'
+import { STATUS_ERROR_MS, STATUS_EVENT_MS, StatusLine, type PlayerStatus } from './status'
 
 /** The most tracks one `playTracks` or `enqueue` may carry. */
 const MAX_SEEDS = 5000
@@ -29,11 +30,38 @@ const MAX_SEEDS = 5000
 const HISTORY_UNDO_MS = 5000
 
 
+/** The entry the listener started by name (a song clicked in a list or the queue), while it is current. */
+class Picked {
+  private entryId: string | null = null
+  set(entryId: string | null): void { this.entryId = entryId }
+  is(entryId: string): boolean { return this.entryId === entryId }
+}
+
+/** "Couldn't play …", for a song that will not play here. */
+function couldNotPlay(title: string | undefined, detail?: string): PlaybackNotice {
+  return { message: title ? `Couldn’t play “${title}”` : 'Couldn’t play this song', ...(detail && { detail }) }
+}
+
+/**
+ * What happens when this tab cannot play the current song: the song the listener just picked
+ * stays, paused, and the player says why (pressing Play tries again); any other is skipped,
+ * as continuous playback goes on.
+ */
+function failCurrent(client: SessionClient, status: StatusLine, picked: Picked, entryId: string, title: string | undefined, why?: string) {
+  if (picked.is(entryId)) {
+    status.show({ ...couldNotPlay(title, why), tone: 'error', key: STOP_STATUS })
+    client.dispatch({ type: 'pause' })
+    return
+  }
+  status.show({ ...couldNotPlay(title, why ? `${why} Skipped.` : 'Skipped.'), tone: 'info', key: NOTICE_STATUS }, STATUS_EVENT_MS)
+  client.dispatch({ type: 'next' })
+}
+
 /**
  * The session client of this tab. Playback is resolved with the user's streaming quality,
  * which `setQuality` keeps current, and the codecs this browser plays.
  */
-function createSession(api: ApiClient, socket: SquirmySocket, device: ClientDevice, engine: WebPlayerEngine, store: TrackStore) {
+function createSession(api: ApiClient, socket: SquirmySocket, device: ClientDevice, engine: WebPlayerEngine, store: TrackStore, status: StatusLine, picked: Picked) {
   let quality: StreamQuality = 'original'
   const client = new SessionClient({
     transport: createSocketTransport(socket),
@@ -51,9 +79,7 @@ function createSession(api: ApiClient, socket: SquirmySocket, device: ClientDevi
       // (gone, or not allowed) is told once and skipped, as one the browser cannot play.
       onLoadError: (entry, _error, willRetry) => {
         if (willRetry || client.getSnapshot().session.current?.id !== entry.id) return
-        const title = store.get(entry.trackId, entry.albumId)?.title
-        toast({ title: title ? `Couldn’t play “${title}”` : 'Couldn’t play this song', description: 'Skipped.' })
-        client.dispatch({ type: 'next' })
+        failCurrent(client, status, picked, entry.id, store.get(entry.trackId, entry.albumId)?.title)
       },
     },
   })
@@ -92,7 +118,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     return pageEngine
   })
   const [store] = useState(() => new TrackStore(request => api.catalog.trackSummaries(request)))
-  const [{ client, setQuality }] = useState(() => createSession(api, socket!, tab.device, engine, store))
+  const [status] = useState(() => new StatusLine())
+  const [picked] = useState(() => new Picked())
+  const [{ client, setQuality }] = useState(() => createSession(api, socket!, tab.device, engine, store, status, picked))
   const [listening] = useState(() => new Listening(client, engine))
   const [clock] = useState(() => new PositionClock(() => listening.position()))
   const snapshot = useSyncExternalStore(client.subscribe, client.getSnapshot)
@@ -112,6 +140,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     client.start()
     return () => client.dispose()
   }, [client])
+  useEffect(() => () => status.dispose(), [status])
+  const statusLine = useSyncExternalStore(status.subscribe, status.get)
   useEffect(() => store.subscribe(summariesArrived), [store])
 
   useEffect(() => {
@@ -149,11 +179,33 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   })
 
 
+  // The player says a radio is starting, and why one did not; a second press while one starts does nothing.
   const radio = useMutation({
     mutationFn: (seed: RadioSeed) => (seed.type === 'track' ? api.radio.track(seed.id) : api.radio.artist(seed.id)),
-    onSuccess: ({ tracks, context }) => client.dispatch({ type: 'playTracks', tracks, startIndex: 0, shuffle: false, seed: randomSeed(), context }),
+    onMutate: () => status.show({ message: 'Starting radio…', tone: 'busy', key: RADIO_STATUS }),
+    onSuccess: ({ tracks, context }) => {
+      status.clear(RADIO_STATUS)
+      picked.set(null)
+      client.dispatch({ type: 'playTracks', tracks, startIndex: 0, shuffle: false, seed: randomSeed(), context })
+    },
+    onError: (_error, seed) => status.show({
+      message: seed.type === 'artist' ? 'Couldn’t start this artist’s radio' : 'Couldn’t start a radio from this song',
+      detail: 'Try again.',
+      tone: 'error',
+      key: RADIO_STATUS,
+    }, STATUS_ERROR_MS),
+    onSettled: () => { radioBusy.current = false },
+    // Said on the player's status line, not as a notice of its own.
+    meta: { inline: true },
   })
-  const startRadio = radio.mutate
+  const radioPending = radio.isPending ? radio.variables ?? null : null
+  const radioBusy = useRef(false)
+  const startRadioNow = radio.mutate
+  const startRadio = useCallback((seed: RadioSeed) => {
+    if (radioBusy.current) return
+    radioBusy.current = true
+    startRadioNow(seed)
+  }, [startRadioNow])
 
   const controls = useMemo<PlayerControls>(() => {
     const dispatch = (command: SessionCommand) => client.dispatch(command)
@@ -196,6 +248,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
           seed: randomSeed(),
           context: context ?? null,
         })
+        picked.set(options.shuffle ? null : latest().session.current?.id ?? null)
       },
       enqueue: (tracks, placement) => {
         const seeds = tracks.filter(playable).slice(0, MAX_SEEDS).map(seedOf)
@@ -207,11 +260,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       playEntry: entryId => {
         const { queue: lists } = latest()
         const past = lists.history.find(entry => entry.id === entryId)
-        if (!past) return dispatch({ type: 'playQueueEntry', entryId })
-        // History is not playable in place: queue the track again and play that entry.
-        dispatch({ type: 'enqueue', tracks: [{ trackId: past.trackId, albumId: past.albumId, durationMs: past.durationMs }], placement: 'next' })
-        const added = latest().queue.queue[0]
-        if (added) dispatch({ type: 'playQueueEntry', entryId: added.id })
+        if (!past) dispatch({ type: 'playQueueEntry', entryId })
+        else {
+          // History is not playable in place: queue the track again and play that entry.
+          dispatch({ type: 'enqueue', tracks: [{ trackId: past.trackId, albumId: past.albumId, durationMs: past.durationMs }], placement: 'next' })
+          const added = latest().queue.queue[0]
+          if (added) dispatch({ type: 'playQueueEntry', entryId: added.id })
+        }
+        picked.set(latest().session.current?.id ?? null)
       },
       removeEntry: entryId => dispatch({ type: 'removeFromQueue', entryId }),
       moveEntry: (entryId, toIndex) => {
@@ -250,11 +306,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         client.rename(browserName())
       },
     }
-  }, [client, engine, listening, clock, store, tab, startRadio, viewer])
+  }, [client, engine, listening, clock, store, tab, startRadio, viewer, picked])
 
-  usePlaybackNotices(client, store)
+  usePlaybackNotices(client, store, status)
   useFreshSummaries(client, store, socket!)
-  useEngineErrors(engine, client, store)
+  useEngineErrors(engine, client, store, status, picked)
   useMediaSession(client, engine, controls, snapshot, audible, clock, track ?? null)
   useShortcuts(controls, clock, snapshot, tab.device.id)
 
@@ -287,18 +343,25 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     retryLyrics: () => void lyrics.refetch(),
     detached: snapshot.detached,
     canDetach: snapshot.canDetach,
+    status: statusLine,
+    radioPending,
   }
 
   return (
     <PlayerControlsContext value={controls}>
       <PlayerContext value={{ state, controls }}>
-        <PositionContext value={clock}>{children}</PositionContext>
+        <RadioPendingContext value={radioPending}>
+          <PositionContext value={clock}>{children}</PositionContext>
+        </RadioPendingContext>
       </PlayerContext>
     </PlayerControlsContext>
   )
 }
 
-const RUN_TOAST = 'playback-unavailable'
+/** Status keys: a line about one song, a stop (kept until playback resumes), a radio starting. */
+const NOTICE_STATUS = 'notice'
+const STOP_STATUS = 'stop'
+const RADIO_STATUS = 'radio'
 /**
  * How long a skipped song's notice waits. When the provider is down the server fails the
  * current and next songs in one moment and then stops, and the stop's one notice says it
@@ -308,34 +371,50 @@ const STOP_GRACE_MS = 1500
 
 /**
  * Says when music could not be had, worded as on every client (client-core's
- * `PlaybackNoticeWatcher`): one notice per song that was playing or next and was skipped,
- * one notice that counts a run of songs the provider does not have, and one when playback stops on a
- * failure instead (an outage, failures in a row, or nothing left that is available), with
- * no more per song until playback resumes. A skipped song is told a moment late, so the songs
- * an outage fails just before it stops are not told beside the stop. Failures further down the queue and fetches for
- * the library are quiet: their rows simply turn gray.
+ * `PlaybackNoticeWatcher`), on the player's status line: a line per song skipped as its turn
+ * came, one that counts a run of songs the provider does not have, and one when playback
+ * stops on a failure instead (an outage, failures in a row, or nothing left that is
+ * available) or stays on a song that could not play. A stop stays until playback resumes or
+ * moves on; the rest go away by themselves. A skipped song is told a moment late, so the
+ * songs an outage fails just before it stops are not told beside the stop.
  */
-function usePlaybackNotices(client: SessionClient, store: TrackStore) {
+function usePlaybackNotices(client: SessionClient, store: TrackStore, status: StatusLine) {
   useEffect(() => {
     const watcher = new PlaybackNoticeWatcher(trackId => client.failureOf(trackId))
-    const tell = ({ message, detail }: PlaybackNotice, key?: string) => toast({ key, title: message, description: detail })
+    const tell = (notice: PlaybackNotice, key: string, tone: PlayerStatus['tone'] = 'info') =>
+      status.show({ ...notice, tone, key }, key === STOP_STATUS ? undefined : STATUS_EVENT_MS)
     const held = new Set<ReturnType<typeof setTimeout>>()
+    /** The current entry a stop was told on, while it shows. */
+    let stoppedOn: string | null | undefined
     const look = () => {
-      const { skipped, unavailable, stopped } = watcher.update(client.getSnapshot())
-      for (const { entry, failure } of skipped) {
-        const notice = skipNotice(store.get(entry.trackId, entry.albumId)?.title, failure)
+      const snapshot = client.getSnapshot()
+      if (stoppedOn !== undefined && (snapshot.session.playing || (snapshot.session.current?.id ?? null) !== stoppedOn)) {
+        stoppedOn = undefined
+        status.clear(STOP_STATUS)
+      }
+      const stop = (notice: PlaybackNotice, tone: PlayerStatus['tone'] = 'info') => {
+        stoppedOn = snapshot.session.current?.id ?? null
+        tell(notice, STOP_STATUS, tone)
+      }
+      const { skipped, unavailable, stopped } = watcher.update(snapshot)
+      for (const { entry, failure, held: stayed } of skipped) {
+        const notice = skipNotice(store.get(entry.trackId, entry.albumId)?.title, failure, stayed)
+        if (stayed) {
+          stop(notice, 'error')
+          continue
+        }
         const timer = setTimeout(() => {
           held.delete(timer)
-          tell(notice)
+          tell(notice, NOTICE_STATUS)
         }, STOP_GRACE_MS)
         held.add(timer)
       }
-      // One notice for a run of songs not to be had, and for the stop that may end it.
-      if (unavailable) tell(unavailableNotice(unavailable, store.get(unavailable.entry.trackId, unavailable.entry.albumId)?.title), RUN_TOAST)
+      // One line for a run of songs not to be had, and for the stop that may end it.
+      if (unavailable) tell(unavailableNotice(unavailable, store.get(unavailable.entry.trackId, unavailable.entry.albumId)?.title), NOTICE_STATUS)
       if (stopped) {
         for (const timer of held) clearTimeout(timer)
         held.clear()
-        tell(stopped, RUN_TOAST)
+        stop(stopped)
       }
     }
     look()
@@ -344,7 +423,7 @@ function usePlaybackNotices(client: SessionClient, store: TrackStore) {
       unsubscribe()
       for (const timer of held) clearTimeout(timer)
     }
-  }, [client, store])
+  }, [client, store, status])
 }
 
 /**
@@ -368,16 +447,14 @@ function useFreshSummaries(client: SessionClient, store: TrackStore, socket: Squ
   }, [socket, store])
 }
 
-/** A track the browser cannot play (gone, or a format it refuses) is reported and skipped. */
-function useEngineErrors(engine: WebPlayerEngine, client: SessionClient, store: TrackStore) {
+/** A track the browser cannot play (gone, or a format it refuses) is reported and skipped, unless it was just picked. */
+function useEngineErrors(engine: WebPlayerEngine, client: SessionClient, store: TrackStore, status: StatusLine, picked: Picked) {
   useEffect(() => engine.subscribe(event => {
     if (event.type !== 'error' || event.message === AUDIO_BLOCKED_MESSAGE) return
     const { session, isActiveDevice, connection } = client.getSnapshot()
     if (!isActiveDevice || connection !== 'online' || session.current?.id !== event.entryId) return
-    const title = store.get(session.current.trackId, session.current.albumId)?.title
-    toast({ title: title ? `Couldn’t play “${title}”` : 'Couldn’t play this song', description: event.message })
-    client.dispatch({ type: 'next' })
-  }), [engine, client, store])
+    failCurrent(client, status, picked, session.current.id, store.get(session.current.trackId, session.current.albumId)?.title, event.message)
+  }), [engine, client, store, status, picked])
 }
 
 /** The system's media controls show what this tab plays, and drive the session. */

@@ -107,6 +107,12 @@
    */
   /* Secondary words over an artwork tint (collection headers): see headerTints in lib/color-themes.ts. */
   --color-tint-muted-foreground: color-mix(in oklab, var(--foreground) 80%, var(--background));
+  /*
+   * A pressed-on or hovered fill of the action color: a little toward the text, so the words on
+   * it read at least as well as on the action color itself (color-themes.test.ts). A translucent
+   * fill would take the color of what is behind it, and fell under 4.5:1 on tinted strips.
+   */
+  --color-primary-hover: color-mix(in srgb, var(--primary) 88%, var(--foreground));
   --color-faded-foreground: color-mix(in oklab, var(--muted-foreground) 75%, var(--background));
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);

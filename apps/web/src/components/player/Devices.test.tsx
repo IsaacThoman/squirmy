@@ -34,6 +34,24 @@ const toasts = () => toastStore.getSnapshot().map(item => [item.title, item.desc
 afterEach(() => act(() => { for (const item of toastStore.getSnapshot()) dismissToast(item.id) }))
 
 describe('devices picker', () => {
+  it('says the music is paused on the device that holds a paused session, never that it is listened to', () => {
+    const other = devices.find(device => device.id !== thisDeviceId && device.canPlay)!
+    const { unmount } = renderWithApp(<DeviceList player={player({ activeDeviceId: other.id, playing: false }).player} />)
+    expect(screen.getByText('Paused on')).toBeInTheDocument()
+    expect(screen.queryByText('Listening on')).toBeNull()
+    unmount()
+    renderWithApp(<DeviceList player={player({ activeDeviceId: other.id, playing: true }).player} />)
+    expect(screen.getByText('Listening on')).toBeInTheDocument()
+  })
+
+  it('marks a focused device row with the shared focus ring, not a fill', () => {
+    const other = devices.find(device => device.id !== thisDeviceId && device.canPlay)!
+    renderWithApp(<DeviceList player={player({ activeDeviceId: other.id }).player} />)
+    const row = screen.getByRole('button', { name: /This browser/ })
+    expect(row.className).toContain('focus-visible:ring-2')
+    expect(row.className).not.toContain('focus-visible:bg-accent')
+  })
+
   it('waits for a playing device that went away instead of offering it, and names it from when it was listed', async () => {
     const desk = { id: 'desk', name: 'Desk Mac', kind: 'desktop' as const, canPlay: true, isActive: true }
     const { player: value, controls } = player({ activeDeviceId: desk.id, away: { id: desk.id, device: desk } })

@@ -7,9 +7,13 @@ export type PlaybackNotice = { message: string; detail?: string }
 /**
  * The notice for a song playback skipped because it failed for a reason the server does
  * not know (or did not say). A song the provider does not have is told by
- * `unavailableNotice` instead.
+ * `unavailableNotice` instead. `held`: playback stays on the song, paused (the listener
+ * picked it, or the queue ended on it), so it says the song could not play, not that it
+ * was skipped.
  */
-export function skipNotice(title: string | null | undefined, failure?: EntryFailure): PlaybackNotice {
+export function skipNotice(title: string | null | undefined, failure?: EntryFailure, held = false): PlaybackNotice {
+  // Playback stayed on it (it was picked, or the queue ended on it): nothing was skipped.
+  if (held) return { message: title ? `Couldn’t play “${title}”` : 'Couldn’t play this song', ...(failure === 'unavailable' && { detail: 'It isn’t available.' }) }
   if (failure === 'unavailable') return unavailableNotice({ count: 1 }, title)
   return { message: title ? `Couldn’t play “${title}”` : 'Couldn’t play a song', detail: 'Skipped.' }
 }
@@ -31,8 +35,12 @@ export function stopNotice(outage: Pick<SessionOutage, 'kind' | 'reason'> | null
   return { message: 'Can’t load music right now', detail: outage?.reason ? `${outage.reason} Playback is paused.` : 'Playback is paused.' }
 }
 
-/** A song skipped for a reason other than the provider not having it, and why (undefined: the server did not say). */
-export type SkippedSong = { entry: QueueEntry; failure: EntryFailure | undefined }
+/**
+ * A song skipped for a reason other than the provider not having it, and why (undefined:
+ * the server did not say). `held`: it failed as the current song and playback stayed on it
+ * (see `skipNotice`), whatever the reason.
+ */
+export type SkippedSong = { entry: QueueEntry; failure: EntryFailure | undefined; held?: boolean }
 
 /** Songs skipped in a row as not available since one last played. `entry`: the first, named while it is the only one. */
 export type UnavailableRun = { count: number; entry: QueueEntry }
@@ -53,17 +61,18 @@ const quiet = (): PlaybackNotices => ({ skipped: [], unavailable: null, stopped:
  * client. Feed it each snapshot of the session client (`update`); `failureOf` is the
  * client's `failureOf`.
  *
- * - A song that just failed and was current or next is told. One the provider does not
+ * - A song is told when it is skipped: the current one as it fails, one further on as
+ *   playback reaches it and passes over it. Before its turn it is still in Up next, gray,
+ *   and a notice that it was skipped would be early. One the provider does not
  *   have joins the run of such songs since a song last played, which is one notice that
  *   counts them, together with the failed songs the session passed over to get there. Any
- *   other failure is a notice of its own (`skipNotice`). Failures further down the queue are
- *   quiet until passed: their rows turn gray, so a provider outage does not become a
- *   stream of notices.
+ *   other failure is a notice of its own (`skipNotice`).
  * - When the session stops on a failed entry and the server says why (`outage`, set with
  *   the pause itself), that is one `stopNotice`, and nothing more is told per song until
  *   playback resumes.
- * - A session stopped on a failed entry without a word from the server reached the end of
- *   the queue on it: the song is told like any other.
+ * - A session stopped on a failed entry without a word from the server stayed on it: the
+ *   listener picked that song, or the queue ended on it. It is told as a song that could
+ *   not play (`held`), not as one skipped.
  * - Offline, a snapshot may miss entries that are still there, so nothing is told.
  */
 export class PlaybackNoticeWatcher {
@@ -99,6 +108,8 @@ export class PlaybackNoticeWatcher {
     const entries = entriesOf(snapshot)
     const find = (id: string) => entries.find(entry => entry.id === id)
     const failed: QueueEntry[] = []
+    /** The current entry, failed, that playback stayed on. */
+    let held: QueueEntry | null = null
     /** Failed entries the session passed over to its new current one: songs skipped, but no one was waiting on them. */
     const passed: QueueEntry[] = []
     const current = before.session.current
@@ -112,15 +123,20 @@ export class PlaybackNoticeWatcher {
         const ahead = [...before.queue.queue, ...before.queue.autoplayQueue]
         const to = ahead.findIndex(entry => entry.id === session.current?.id)
         passed.push(...ahead.slice(0, Math.max(0, to)).filter(entry => entry.state === 'failed' && !find(entry.id)))
-      } else if (now.state === 'failed' && session.current?.id === now.id) failed.push(now)
+      } else if (now.state === 'failed' && session.current?.id === now.id) held = now
     }
-    const next = before.queue.queue[0] ?? before.queue.autoplayQueue[0]
-    if (next && next.state !== 'failed') {
-      const now = find(next.id)
-      if (now?.state === 'failed' && session.current?.id !== now.id) failed.push(now)
+    // A song further on that failed is told at its turn, when the session passes over it,
+    // not when it fails: until then it is still in Up next, where its row is gray. Only a
+    // move that passed nothing but failed songs counts: one that jumped past songs that
+    // could play was the listener's choice.
+    const reached = session.current
+    if (!failed.length && !held && reached && current?.id !== reached.id) {
+      const ahead = [...before.queue.queue, ...before.queue.autoplayQueue]
+      const over = ahead.slice(0, Math.max(0, ahead.findIndex(entry => entry.id === reached.id)))
+      if (over.every(entry => entry.state === 'failed' && !find(entry.id))) failed.push(...over)
     }
 
-    const skipped: SkippedSong[] = []
+    const skipped: SkippedSong[] = held ? [{ entry: held, failure: this.failureOf(held.trackId), held: true }] : []
     let grew = false
     for (const entry of [...failed, ...passed]) {
       const failure = this.failureOf(entry.trackId)

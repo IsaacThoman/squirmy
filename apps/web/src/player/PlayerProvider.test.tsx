@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from '@/App'
@@ -10,6 +10,25 @@ const blueHour = album('blue-hour')
 const availability = (trackId: string) => allTracks.find(track => track.id === trackId)?.availability
 
 describe('PlayerProvider', () => {
+  it('says on the player that a radio is starting, and why one did not, with no second request meanwhile', async () => {
+    const { services, api } = fakeServices()
+    let fail: (error: Error) => void = () => {}
+    const track = vi.fn(() => new Promise<never>((_resolve, reject) => { fail = reject }))
+    Object.assign(api, { radio: { track, artist: vi.fn() } })
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    const song = blueHour.discs[0].tracks[0]
+    for (let i = 0; i < 2; i++) {
+      await userEvent.click(await screen.findByRole('button', { name: `More options for ${song.title}` }))
+      await userEvent.click(await screen.findByRole('menuitem', { name: 'Start radio' }))
+    }
+    const player = screen.getByRole('region', { name: 'Player' })
+    expect(await within(player).findByText('Starting radio…')).toBeInTheDocument()
+    expect(track).toHaveBeenCalledOnce()
+    act(() => fail(new Error('Boom')))
+    expect(await within(player).findByText('Couldn’t start a radio from this song. Try again.')).toBeInTheDocument()
+    expect(within(player).queryByText('Starting radio…')).toBeNull()
+  })
+
   it('plays an album through the session, never sending what cannot play', async () => {
     const { services, socket } = fakeServices()
     renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)

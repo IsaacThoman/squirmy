@@ -124,8 +124,11 @@ export function SettingsDialog({
                   aria-current={section === id ? 'page' : undefined}
                   onClick={() => onSectionChange(id)}
                   className={cn(
-                    'flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring sm:min-h-0 sm:w-full sm:flex-row sm:justify-start sm:gap-2.5 sm:px-2.5 sm:py-2 sm:text-sm sm:pointer-coarse:min-h-11',
-                    section === id ? 'bg-accent font-medium' : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
+                    'relative flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring sm:min-h-0 sm:w-full sm:flex-row sm:justify-start sm:gap-2.5 sm:px-2.5 sm:py-2 sm:text-sm sm:pointer-coarse:min-h-11',
+                    // The selected fill is close to the panel behind it, so the section that shows also gets
+                    // the sidebar's marker: a bar in the action color (under a phone's tile, beside a row) and its icon in that color.
+                    'before:absolute before:rounded-full before:bg-primary before:opacity-0 before:inset-x-4 before:bottom-0.5 before:h-[3px] sm:before:inset-x-auto sm:before:bottom-auto sm:before:inset-y-2 sm:before:left-0 sm:before:h-auto sm:before:w-[3px]',
+                    section === id ? 'bg-accent font-medium before:opacity-100 [&_svg]:text-primary' : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
                   )}
                 >
                   <Icon aria-hidden className="size-4 shrink-0" /><span className="max-w-full truncate">{label}</span>
