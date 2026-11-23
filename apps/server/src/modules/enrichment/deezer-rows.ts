@@ -264,8 +264,9 @@ export async function creditDeezerTracks(album: DeezerAlbum): Promise<number> {
  *
  * A search stub that already carries one of those ids is merged into the catalog row, and
  * once an ISRC was learned the rows that stood in for the tracks are folded in (`fit.ts`).
+ * Returns how many rows that merged.
  */
-export async function linkDeezerAlbum(albumId: string, album: DeezerAlbum): Promise<void> {
+export async function linkDeezerAlbum(albumId: string, album: DeezerAlbum): Promise<number> {
   await linkExternalId('deezer', 'album', String(album.id), albumId)
   const tracks = await db.execute<TrackRef>(sql`
     select r.id, r.title, r.duration_ms as "durationMs", r.isrcs, rt.disc, rt.position
@@ -299,12 +300,11 @@ export async function linkDeezerAlbum(albumId: string, album: DeezerAlbum): Prom
       if (added.length > 0) learned = true
     }
   }
-  if (learned) {
-    await db.transaction(async (tx) => {
-      await lockUpserts(tx)
-      await fitStrayRecordings(tx, albumId)
-    })
-  }
+  if (!learned) return 0
+  return db.transaction(async (tx) => {
+    await lockUpserts(tx)
+    return fitStrayRecordings(tx, albumId)
+  })
 }
 
 /**
