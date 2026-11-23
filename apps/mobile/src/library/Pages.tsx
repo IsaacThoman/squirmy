@@ -1,8 +1,5 @@
-import {
-  queryKeys, type AlbumDetail, type AlbumSummary, type ArtistDetail, type HistoryItem, type HomeSection, type PlaybackContext, type TrackSummary,
-} from '@squirmy/contracts';
+import type { AlbumDetail, AlbumSummary, ArtistDetail, HistoryItem, HomeSection, PlaybackContext, TrackSummary } from '@squirmy/contracts';
 import { albumNote, albumPresentation, canFetch, formatReleaseDate, formatTotalDuration, releaseSubtitle } from '@squirmy/client-core';
-import { useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useEffect, useMemo, useState, type ReactElement, type ReactNode } from 'react';
 import { ActionSheetIOS, ActivityIndicator, Alert, FlatList, Platform, Pressable, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
@@ -12,10 +9,10 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 import { useAccount, useSignedInApi, useWantlistEnabled, type Api } from '../account/AccountProvider';
-import { albumExpanding } from '../data/albums';
+import { awaitsTrackList, trackListWaitMs } from '../data/albums';
 import { fallbackTint } from '../data/color';
 import { isNotFound } from '../data/errors';
-import { useLibraryActions, useLiked, usePlaylistActions, useWanted } from '../data/library';
+import { useLibraryActions, useLiked, useLikeFailure, usePlaylistActions, usePlaylistFailure, useWanted, useWantFailure } from '../data/library';
 import { appearsOnKey, isArtistSectionKey, releaseGroups } from '../data/artists';
 import { useAlbum, useArtist, useArtistReleases, useGenreAlbums, useHistory, useHome, useLikedTracks, usePlaylist } from '../data/queries';
 import type { BrowseProps } from '../Library';
@@ -24,19 +21,22 @@ import {
   useAvailability, useDownloadActions, useDownloadedAlbum, useDownloadedLikes, useDownloadedPlaylist,
 } from '../downloads/DownloadsProvider';
 import { albumCollectionId, likedId as likedDownloadId, playlistCollectionId } from '../downloads/model';
-import { useNotice } from '../Notice';
+import { announce, useBriefFailures } from '../inlineFeedback';
 import { usePlaybackActions } from '../playback';
 import { createThemedStyles, useColors } from '../theme';
 import { AlbumNavButton, AlbumPlaybackButtons, type AlbumNavProps, type AlbumPlaybackProps } from './AlbumButtons';
 import { AlbumStatusBlur } from './AlbumStatusBlur';
 import { AlbumMetadata, type AlbumMetadataProps } from './AlbumMetadata';
-import { BrowseButton, CollectionGridRow } from './BrowseControls';
+import { CollectionGridRow } from './BrowseControls';
 import { useDownloadControl } from './DownloadControl';
+import { playAllFailure, radioFailure, wantFailureLabel, wantFailure as wantFailureMessage } from './failures';
 import { heartButton } from './heart';
 import {
-  albumCollection, albumTypeLabels, artistCollection, CollectionCover, CollectionRail, EmptyState, gridColumns, gutter, likedCollection, nearEnd, playlistCollection,
+  albumCollection, albumTypeLabels, artistCollection, CollectionCover, CollectionRail, EmptyState, FailureLine, gridColumns, gutter, likedCollection, nearEnd,
+  playlistCollection,
   QueryState, recentCollection, SectionTitle, tapFeedback, useBackSwipeOnly, useCollectionDim, type Collection,
 } from './shared';
+import { useCollectionActions } from './collectionActions';
 import { uniqueTracks } from './loadAll';
 import { useStartGuard } from './pending';
 import { underStatusBar, useRefreshControl } from './refresh';
@@ -70,6 +70,7 @@ type DetailProps = {
   nav: readonly (AlbumNavProps | false)[];
   /** A line under the buttons, such as the download's progress. */
   status?: ReactNode;
+  /** A playlist's description, under the header. An album's and an artist's come after their music. */
   description?: string | null;
   onBack: () => void;
   onEndReached?: () => void;
@@ -173,12 +174,12 @@ function DetailPage({
 }
 
 /** A bio or description cut at `lines`; when it is cut, a tap shows all of it and another cuts it again. */
-function ExpandableText({ text, lines }: { text: string; lines: number }) {
+function ExpandableText({ text, lines, flush }: { text: string; lines: number; flush?: boolean }) {
   const styles = useStyles();
   const [expanded, setExpanded] = useState(false);
   const [cut, setCut] = useState(false);
-  // No `disabled` for an uncut text: VoiceOver would read it as dimmed.
-  return <Pressable onPress={cut ? () => { tapFeedback(); setExpanded(!expanded); } : undefined} style={styles.descriptionBlock}
+  // No `disabled` for an uncut text: VoiceOver would read it as dimmed. `flush`: under a section title, which spaces it already.
+  return <Pressable onPress={cut ? () => { tapFeedback(); setExpanded(!expanded); } : undefined} style={[styles.descriptionBlock, flush && styles.flush]}
     accessibilityRole={cut ? 'button' : 'text'} accessibilityHint={cut ? (expanded ? 'Shows less' : 'Shows the whole text') : undefined}>
     <Text style={styles.description} numberOfLines={expanded ? undefined : lines}>{text}</Text>
     {cut && <Text style={styles.moreLabel}>{expanded ? 'Less' : 'More'}</Text>}
@@ -200,17 +201,13 @@ function PageFallback({ query, what, onBack }: { query: Parameters<typeof QueryS
   </View>;
 }
 
+/** A list of songs under the same heading as the page's other sections, closer to its first row. */
 function TrackSection({ title, detail, onSeeAll, children }: { title: string; detail?: string; onSeeAll?: () => void; children?: ReactNode }) {
   const styles = useStyles();
-  return <>
-    {/* A native button has no text baseline to line up with, so a row with one is centred instead. */}
-    <View style={[styles.trackListHeader, onSeeAll && styles.trackListHeaderButton]}>
-      <Text accessibilityRole="header" maxFontSizeMultiplier={displayFontScale} style={styles.trackListTitle}>{title}</Text>
-      {detail && <Text maxFontSizeMultiplier={secondaryFontScale} style={styles.trackCount}>{detail}</Text>}
-      {onSeeAll && <BrowseButton label={`See all ${title.toLowerCase()}`} title="See all" icon="chevron.right" onPress={onSeeAll} />}
-    </View>
+  return <View style={styles.section}>
+    <SectionTitle title={title} detail={detail} onPress={onSeeAll} style={styles.trackListTitle} />
     {children && <View style={styles.trackList}>{children}</View>}
-  </>;
+  </View>;
 }
 
 function songCount(tracks: readonly TrackSummary[], durationMs = tracks.reduce((sum, track) => sum + track.durationMs, 0)) {
@@ -234,9 +231,21 @@ function playButtons(
   ];
 }
 
+/** True once the page has waited `trackListWaitMs` for the songs of the album `id`. As on web. */
+function useOverdue(awaiting: boolean, id: string): boolean {
+  const [overdue, setOverdue] = useState<string | null>(null);
+  useEffect(() => {
+    if (!awaiting) return;
+    const timer = setTimeout(() => setOverdue(id), trackListWaitMs);
+    return () => clearTimeout(timer);
+  }, [awaiting, id]);
+  return awaiting && overdue === id;
+}
+
 export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset = 155 }: PageProps) {
-  const album = useAlbum(id);
-  const queryClient = useQueryClient();
+  const styles = useStyles();
+  const colors = useColors();
+  const { query: album, checkAgain } = useAlbum(id);
   const kept = useDownloadedAlbum(id);
   const data = album.data ?? kept;
   const wanted = useWanted(id, data?.wanted);
@@ -244,20 +253,27 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const { canPlay, offline, viewer } = useAvailability();
   const download = useDownloadActions();
   const liked = useLiked('album', id, data?.liked);
+  const likeFailure = useLikeFailure('album', id);
+  const wantFailure = useWantFailure(id);
   const { setLiked, setWanted } = useLibraryActions();
   const wantlist = useWantlistEnabled();
   const control = useDownloadControl(albumCollectionId(id), data?.title ?? '',
     album.data?.discs.flatMap(disc => disc.tracks), () => download.album(album.data!));
   // Play pressed before the server had the track list: it starts as soon as the tracks are known.
   const [waitingPlay, setWaitingPlay] = useState<{ shuffle: boolean } | null>(null);
-  const expanding = album.isPlaceholderData || albumExpanding(album.data, queryClient.getQueryState(queryKeys.album(id))?.dataUpdateCount ?? 0);
+  const [checking, setChecking] = useState(false);
+  // The server is still looking up the songs; before its first answer the page has only the tile's summary.
+  const lookingUp = !album.isPlaceholderData && awaitsTrackList(album.data);
+  const awaiting = album.isPlaceholderData || lookingUp;
+  // After a minute of looking the page says the songs are late, and offers to check again.
+  const overdue = useOverdue(lookingUp, id);
   const discs = data?.discs;
   useEffect(() => {
     if (!waitingPlay || !data) return;
     const list = data.discs.flatMap(disc => disc.tracks);
     if (list.length) actions.playTracks(list, { shuffle: waitingPlay.shuffle, context: { type: 'album', id: data.id, title: data.title } });
-    if (list.length || !expanding) setWaitingPlay(null);
-  }, [actions, data, discs, expanding, waitingPlay]);
+    if (list.length || !awaiting) setWaitingPlay(null);
+  }, [actions, data, discs, awaiting, waitingPlay]);
   useBackSwipeOnly();
   if (!data) return <PageFallback query={album} what="this album" onBack={onBack} />;
   const tracks = data.discs.flatMap(disc => disc.tracks);
@@ -266,43 +282,70 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
     tapFeedback();
     actions.playTracks(tracks, { start, shuffle, context });
   };
+  const checkNow = async () => {
+    tapFeedback();
+    setChecking(true);
+    try {
+      await checkAgain();
+    } finally {
+      setChecking(false);
+    }
+  };
   const presentation = albumPresentation(data, viewer);
+  const playable = tracks.some(canPlay);
   // Not "0 songs · 1 min" with buttons that change under the finger: while the server looks
   // up the songs of an album this viewer can play, Play and Shuffle wait for them.
-  const waitButtons = expanding && !tracks.length && presentation === 'normal' && !offline ? (['play', 'shuffle'] as const).map(kind => ({
-    label: kind === 'play' ? 'Play' : 'Shuffle', symbol: kind === 'play' ? 'play.fill' : 'shuffle', busy: waitingPlay?.shuffle === (kind === 'shuffle'),
-    onPress: () => { tapFeedback(); setWaitingPlay({ shuffle: kind === 'shuffle' }); },
-  })) : null;
-  const buttons = waitButtons ?? playButtons(tracks, canPlay, play);
+  const waits = awaiting && !overdue && presentation === 'normal' && !offline;
   // The wantlist is for music this viewer can't play; for someone who may fetch music nothing is.
-  const unavailable = !expanding && !buttons.length;
-  // Added and removed alike, worded as on web.
-  const wantButton = offline || !wantlist || !unavailable ? [] : [{ label: wanted ? 'Remove from wantlist' : 'Add to wantlist', symbol: wanted ? 'star.fill' : 'star',
+  const unavailable = !awaiting && !playable;
+  // Added and removed alike, worded as on web. A refused change was set back; for a few seconds
+  // the button says so, and a tap sends it again.
+  const wantButton = offline || !wantlist || !unavailable ? [] : [{
+    ...wantFailure === undefined
+      ? { label: wanted ? 'Remove from wantlist' : 'Add to wantlist', symbol: wanted ? 'star.fill' : 'star' }
+      : { label: wantFailureLabel(wantFailure), symbol: 'exclamationmark.circle', failed: true, spoken: wantFailureMessage(wantFailure, data.title) },
     onPress: () => {
       tapFeedback();
       setWanted('album', data.id, !wanted, data.title);
     } }];
+  // Play and Shuffle keep their place: they play the songs, wait for them, or are disabled while there is nothing to play.
+  const buttons: AlbumPlaybackProps['actions'] = playable ? playButtons(tracks, canPlay, play)
+    : wantButton.length ? wantButton
+      : (['play', 'shuffle'] as const).map(kind => ({
+        label: kind === 'play' ? 'Play' : 'Shuffle', symbol: kind === 'play' ? 'play.fill' : 'shuffle', disabled: !waits,
+        busy: waits && waitingPlay?.shuffle === (kind === 'shuffle'),
+        onPress: () => { tapFeedback(); setWaitingPlay({ shuffle: kind === 'shuffle' }); },
+      }));
 
   const artistLinks = data.artists.map(artist => ({ name: artist.name, open: () => { tapFeedback(); onOpen(link('artist', artist.id)); } }));
 
   return <DetailPage item={albumCollection(data, link)} tint={data.artwork?.color ?? fallbackTint} title={data.title}
     artist={data.artistCredit} artistLinks={artistLinks}
     info={[albumTypeLabels[data.type], data.genres[0], data.year, albumNote(data, viewer)].filter(Boolean).join('  ·  ')}
-    buttons={buttons.length ? buttons : wantButton} status={control.status}
+    buttons={buttons} status={control.status}
     nav={[
       // The heart saves the album to the library. The placeholder does not know whether it is saved.
-      !album.isPlaceholderData && { ...heartButton(liked, data.title),
+      !album.isPlaceholderData && { ...heartButton(liked, data.title, likeFailure),
         onPress: () => { tapFeedback(); setLiked('album', data.id, !liked, data.title); } },
       control.nav,
       { icon: 'square.and.arrow.up', label: `Share ${data.title}`, onPress: () => share(`${data.title} · ${data.artistCredit}`) },
     ]}
-    description={data.description} onBack={onBack} onRefresh={album.refetch} bottomInset={bottomInset}>
+    // A pull asks again, as Check again does, and keeps asking for another minute.
+    onBack={onBack} onRefresh={checkAgain} bottomInset={bottomInset}>
+    {/* The songs first, as on web; then what the record's back says, and any description. */}
     <TrackSection title="Tracklist" detail={tracks.length ? songCount(tracks, data.durationMs) : undefined}>
       {tracks.length ? <AlbumDiscs discs={data.discs} album={data} onPlay={start => play(undefined, start)} onTrackMenu={track => onTrackMenu(track)} />
-        : expanding ? <ActivityIndicator style={{ marginVertical: 28 }} accessibilityLabel="Loading songs" />
-          : <EmptyState icon="music.note" title="No songs listed" description="The server doesn’t know this album’s songs yet." />}
+        : awaiting && !overdue ? <View style={styles.lookingUp} accessible accessibilityLabel="Looking up the songs">
+          <ActivityIndicator color={colors.muted} />
+          <Text style={styles.lookingUpText}>Looking up the songs…</Text>
+        </View>
+          : overdue ? <EmptyState icon="music.note" title="Still looking for the songs"
+            description="This is taking longer than usual. They will show up here when they arrive."
+            action={{ title: 'Check again', onPress: () => void checkNow(), busy: checking }} />
+            : <EmptyState icon="music.note" title="No songs listed" description="The server doesn’t know this album’s songs yet." />}
     </TrackSection>
-    {tracks.length > 0 && <AlbumFooter album={data} />}
+    <AlbumFooter album={data} />
+    {data.description ? <ExpandableText text={data.description} lines={6} /> : null}
   </DetailPage>;
 }
 
@@ -336,7 +379,7 @@ function AlbumDiscs({ discs, album, onPlay, onTrackMenu }: {
   </>;
 }
 
-/** Under the tracklist, as on a record's back: when it came out, and who put it out. */
+/** Under the tracklist, as on a record's back: when it came out, and who put it out. Shown with no songs listed too, as on web. */
 function AlbumFooter({ album }: { album: Pick<AlbumDetail, 'releaseDate' | 'year' | 'label'> }) {
   const styles = useStyles();
   const date = album.releaseDate ? formatReleaseDate(album.releaseDate) : null;
@@ -386,8 +429,9 @@ function TrackListPage({ item, title, info, tracks, playAll, context, empty, loa
     else playTracks(tracks);
   };
   const songs = useSongListItems({ tracks, onPlay: start => play(undefined, start), onTrackMenu: track => props.onTrackMenu(track) });
+  // Play or Shuffle could load only part of the list: it says so under them, for a few seconds.
   return <DetailPage item={item} tint={null} title={title} info={info} buttons={playButtons(tracks, canPlay, play, playAll?.busy)}
-    nav={download ? [download.nav] : []} status={download?.status}
+    nav={download ? [download.nav] : []} status={<>{playAll?.failed && <FailureLine message={playAllFailure} />}{download?.status}</>}
     onBack={props.onBack} onEndReached={loadMore} onRefresh={refresh} bottomInset={props.bottomInset ?? 155}
     list={tracks.length ? { ...songs, footer: loadingMore && <ActivityIndicator style={{ marginVertical: 20 }} /> } : undefined}>
     {tracks.length ? <TrackSection title="Songs" detail={songCount(tracks)} />
@@ -434,8 +478,11 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const { canPlay } = useAvailability();
   const { offline } = useRealtime();
   const edits = usePlaylistActions();
+  // A removal, move or deletion the server refused: put back, and said under the header.
+  const failure = usePlaylistFailure(id);
   const download = useDownloadActions();
   const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const control = useDownloadControl(playlistCollectionId(id), data?.name ?? '',
     playlist.data?.items.map(item => item.track), () => download.playlist(playlist.data!));
   const items = data?.items;
@@ -464,9 +511,10 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const rename = () => onOpen({ pathname: '/name-playlist', params: { mode: 'rename', id: data.id, name: data.name } });
   const remove = () => Alert.alert(`Delete “${data.name}”?`, 'This can’t be undone.', [
     { text: 'Cancel', style: 'cancel' },
+    // The page waits for the server, so a refusal is told here, on the playlist still there.
     { text: 'Delete Playlist', style: 'destructive', onPress: () => {
-      edits.remove(data.id);
-      onBack();
+      setDeleting(true);
+      edits.remove(data.id).then(onBack, () => setDeleting(false));
     } },
   ]);
   const manage = () => {
@@ -488,12 +536,13 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
 
   return <DetailPage item={playlistCollection(data, link)} tint={data.artworks[0]?.color ?? null} title={data.name}
     artist={state.status === 'signedIn' && data.ownerId === state.user.id ? undefined : data.ownerName} info="Playlist"
-    buttons={playButtons(tracks, canPlay, play)} description={data.description} status={control.status}
+    buttons={playButtons(tracks, canPlay, play)} description={data.description}
+    status={<>{failure && <FailureLine message={failure} />}{control.status}</>}
     nav={[
       control.nav,
       mine && Platform.OS === 'ios' && tracks.length > 1 && { icon: editing ? 'checkmark' : 'arrow.up.arrow.down',
         label: editing ? 'Finish reordering' : 'Reorder songs', selected: editing, onPress: () => { tapFeedback(); setEditing(!editing); } },
-      mine && { icon: 'ellipsis', label: `Manage ${data.name}`, onPress: manage },
+      mine && { icon: 'ellipsis', label: deleting ? `Deleting ${data.name}` : `Manage ${data.name}`, busy: deleting, onPress: deleting ? () => undefined : manage },
       { icon: 'square.and.arrow.up', label: `Share ${data.name}`, onPress: () => share(data.name) },
     ]}
     // Reordering drags rows within one native list, so while editing every row is drawn.
@@ -508,13 +557,15 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
 export function ArtistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset = 155 }: PageProps) {
   const styles = useStyles();
   const api = useSignedInApi();
-  const notify = useNotice();
   const artist = useArtist(id);
   const actions = usePlaybackActions();
   const { canPlay, offline, viewer } = useAvailability();
   const liked = useLiked('artist', id, artist.data?.liked);
+  const likeFailure = useLikeFailure('artist', id);
   const { setLiked } = useLibraryActions();
   const starts = useStartGuard();
+  // A radio that didn't start says so on its button for a few seconds; a tap tries again.
+  const radioFailures = useBriefFailures<true>();
   useBackSwipeOnly();
   if (!artist.data) return <PageFallback query={artist} what="this artist" onBack={onBack} />;
   const data = artist.data;
@@ -527,22 +578,29 @@ export function ArtistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInse
   const radio = () => {
     if (!api) return;
     tapFeedback();
-    starts.run('radio', () => api.radio.artist(data.id).then(actions.playRadio, () => notify(`Couldn’t start a radio for ${data.name}.`)));
+    radioFailures.drop('radio');
+    starts.run('radio', () => api.radio.artist(data.id).then(actions.playRadio, () => {
+      radioFailures.fail('radio', true);
+      announce(`Couldn’t start a radio for ${data.name}. Try again.`);
+    }));
   };
   const startingRadio = starts.pending('radio');
+  const radioFailed = radioFailures.failures.has('radio');
   const placeholder = artist.isPlaceholderData;
 
+  // The disambiguation ("60s band from the UK") tells same-name artists apart, as on web.
   return <DetailPage item={artistCollection(data, link)} tint={data.image?.color ?? null} title={data.name}
-    info={['Artist', ...data.genres.slice(0, 2)].join('  ·  ')}
-    buttons={playButtons(top, canPlay, play)} description={data.bio}
+    info={['Artist', data.disambiguation, ...data.genres.slice(0, 2)].filter(Boolean).join('  ·  ')}
+    buttons={playButtons(top, canPlay, play)} status={radioFailed && <FailureLine message={`${radioFailure}.`} />}
     nav={[
       // The heart saves (follows) the artist, which puts it in the library. The placeholder
       // does not know whether the artist is saved.
-      !placeholder && { ...heartButton(liked, data.name), onPress: () => { tapFeedback(); setLiked('artist', data.id, !liked, data.name); } },
+      !placeholder && { ...heartButton(liked, data.name, likeFailure), onPress: () => { tapFeedback(); setLiked('artist', data.id, !liked, data.name); } },
       // Only when the server says a radio starts for this user (for a requester, from what it
       // can fetch too); an older server does not say, and then the library decides.
-      !placeholder && (data.radio ?? (data.inLibrary || canFetch(viewer))) && !offline && { icon: 'dot.radiowaves.left.and.right', busy: startingRadio, onPress: radio,
-        label: startingRadio ? `Starting a radio for ${data.name}` : `Start a radio for ${data.name}` },
+      !placeholder && (data.radio ?? (data.inLibrary || canFetch(viewer))) && !offline && {
+        icon: radioFailed ? 'exclamationmark.circle' : 'dot.radiowaves.left.and.right', busy: startingRadio, failed: radioFailed, onPress: radio,
+        label: startingRadio ? `Starting a radio for ${data.name}` : radioFailed ? `${radioFailure}, ${data.name}` : `Start a radio for ${data.name}` },
       { icon: 'square.and.arrow.up', label: `Share ${data.name}`, onPress: () => share(data.name) },
     ]}
     onBack={onBack} onRefresh={artist.refetch} bottomInset={bottomInset}>
@@ -552,9 +610,9 @@ export function ArtistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInse
 }
 
 /**
- * What an artist page shows under its header. Each rail stops at `railLimit` tiles, with
- * "See all" for the rest: a long discography (thousands of releases for a composer) mounted
- * in full froze the app.
+ * What an artist page shows under its header, as on web: top songs, the discography, similar
+ * artists, then About. Each rail stops at `railLimit` tiles, with "See all" for the rest: a
+ * long discography (thousands of releases for a composer) mounted in full froze the app.
  */
 function ArtistBody({ artist, link, onOpen, onPlay, onTrackMenu }: {
   artist: ArtistDetail; onPlay: (start: number) => void;
@@ -578,12 +636,21 @@ function ArtistBody({ artist, link, onOpen, onPlay, onTrackMenu }: {
       <SectionTitle title="Similar Artists" />
       <CollectionRail items={artist.similar.map(similar => artistCollection(similar, link))} size={110} />
     </View>}
+    {/* Three lines, with More for the rest. */}
+    {artist.bio && <View style={styles.section}>
+      <SectionTitle title="About" />
+      <ExpandableText text={artist.bio} lines={3} flush />
+    </View>}
   </>;
 }
 
-/** A release tile on an artist's pages: its year and type, or for another artist's release, who made it. */
+/**
+ * A release tile on an artist's pages: its year and type, or for another artist's release its
+ * year and who made it (web says both too). The year leads, as in `releaseSubtitle`, so a long
+ * credit cut short does not take it.
+ */
 function releaseCollection(album: AlbumSummary, group: string, link: PageProps['link']) {
-  return albumCollection(album, link, group === appearsOnKey ? album.artistCredit : releaseSubtitle(album));
+  return albumCollection(album, link, group === appearsOnKey ? [album.year, album.artistCredit].filter(Boolean).join(' · ') : releaseSubtitle(album));
 }
 
 /** The id of a page of one discography heading, `<artist>~<heading>`. */
@@ -672,13 +739,15 @@ function CollectionGridPage({ title, detail, items, header, onBack, onRefresh, o
   const { top } = useSafeAreaInsets();
   const { width, fontScale } = useWindowDimensions();
   const collectionDim = useCollectionDim();
+  const actionsFor = useCollectionActions();
   const refreshControl = useRefreshControl(onRefresh);
   const columns = gridColumns(width, fontScale);
   const size = Math.floor((width - gutter * 2 - (columns - 1) * 12) / columns);
   const rows = useMemo(() => chunk(items.map(collectionDim), columns), [items, columns, collectionDim]);
   const renderRow = useCallback(({ item: row }: { item: Collection[] }) => <CollectionGridRow items={row.map(item => ({
     id: item.key, title: item.title, subtitle: item.subtitle, size, cover: <CollectionCover item={item} size={size} />, href: item.href, dim: item.dim,
-  }))} />, [size]);
+    actions: actionsFor(item),
+  }))} />, [actionsFor, size]);
   return <View style={[styles.page, { paddingTop: top + 8 }]}>
     <View style={styles.fallbackNav}><AlbumNavButton icon="chevron.left" label="Go back" onPress={onBack} /></View>
     <FlatList data={rows} renderItem={renderRow} keyExtractor={gridRowKey} refreshControl={refreshControl}
@@ -707,17 +776,14 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   header: { alignItems: 'center', paddingHorizontal: gutter },
   art: { marginTop: 8, marginBottom: 21, backgroundColor: colors.surface, shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.42, shadowRadius: 22 },
   descriptionBlock: { marginHorizontal: gutter, marginTop: 18 },
+  flush: { marginTop: 0 },
   description: { color: colors.muted, fontSize: 14, lineHeight: 21 },
   moreLabel: { color: colors.accent, fontSize: 14, fontWeight: '600', marginTop: 4 },
   measure: { position: 'absolute', top: 0, left: 0, right: 0, opacity: 0 },
-  // Wraps, so at large text sizes the song count goes under the heading instead of off the screen.
-  trackListHeader: {
-    marginTop: 24, marginHorizontal: gutter, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between',
-    columnGap: 10, rowGap: 2, paddingBottom: 8,
-  },
-  trackListHeaderButton: { alignItems: 'center', paddingBottom: 2 },
-  trackListTitle: { color: colors.text, fontSize: 19, fontWeight: '700', letterSpacing: -0.4 },
-  trackCount: { color: colors.quiet, fontSize: 12, fontWeight: '600' },
+  // The rows' own height spaces the first song from the heading.
+  trackListTitle: { marginBottom: 2 },
+  lookingUp: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 28, marginHorizontal: gutter },
+  lookingUpText: { color: colors.muted, fontSize: 15 },
   trackList: { marginHorizontal: gutter - 4 },
   discHeader: { color: colors.muted, fontSize: 13, fontWeight: '600', marginTop: 14, marginBottom: 4, marginHorizontal: 9 },
   albumFooter: { marginHorizontal: gutter, marginTop: 18, gap: 3 },

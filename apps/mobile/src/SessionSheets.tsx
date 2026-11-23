@@ -21,8 +21,9 @@ import { SystemVolumeSlider } from '../modules/now-playing';
 import {
   SheetAction, SheetField, SheetFrame, SheetInfo, SheetNote, SheetRows, SheetRow, SheetScroll, SheetSlider, SheetSystemVolume, TrackSummary,
 } from './SheetUI';
-import { DETACHED_SYMBOL, detachedHeader, detachedNotice, hasQueueToBring, moveFailure, rejoinedNotice, separateRows } from './player/detach';
-import { useNotice } from './Notice';
+import { DETACHED_SYMBOL, detachedHeader, hasQueueToBring, moveFailure, separateRows } from './player/detach';
+import { announce } from './inlineFeedback';
+import { playlistAddFailure } from './library/failures';
 import { useColors } from './theme';
 
 /** Up to this many playlists the sheet fits them all; beyond, they scroll under a search field. */
@@ -36,23 +37,28 @@ function Sheet({ title, children }: { title: string; children?: ReactNode }) {
 
 export function DeviceSheet() {
   const colors = useColors();
-  const notify = useNotice();
   const { track, devices, output, volume, session, queue, actions, detached, canDetach, allDevices, thisDeviceId } = usePlaybackState();
   const [shownVolume, setVolume] = useVolumeSlider(volume, value => actions.setVolume(output.id, value));
-  const [moving, setMoving] = useState(false);
+  const [moving, setMoving] = useState<'detach' | 'attach' | 'bring' | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+  // The sheet turns to the other way of playing: what failed in the last one is no longer on screen.
+  useEffect(() => setFailure(null), [detached]);
   const separate = allDevices.filter(device => device.detached && device.id !== thisDeviceId);
-  // Detaching and rejoining are undone by one press, so neither asks first; the notice says what happened.
-  const move = (run: () => Promise<SessionMoveResult>, kind: 'detach' | 'attach', done: () => string | null) => {
+  // Detaching and rejoining are undone by one press, so neither asks first. The sheet changes to
+  // say where the phone now plays, which is the confirmation; a refusal is told here.
+  const move = (run: () => Promise<SessionMoveResult>, kind: 'detach' | 'attach' | 'bring') => {
     if (moving) return;
     void Haptics.selectionAsync();
-    setMoving(true);
+    setMoving(kind);
+    setFailure(null);
     void run().then(result => {
-      setMoving(false);
-      const message = result.ok ? done() : moveFailure(kind, result.error);
-      if (message) notify(message);
+      setMoving(null);
+      if (result.ok) return;
+      const message = moveFailure(kind === 'detach' ? 'detach' : 'attach', result.error);
+      setFailure(message);
+      announce(message);
     });
   };
-  const playingHere = session.playing && output.isThisDevice;
 
   if (detached) {
     return (
@@ -60,12 +66,13 @@ export function DeviceSheet() {
         <SheetInfo icon={DETACHED_SYMBOL} {...detachedHeader(track, session.playing)} />
         <SheetRows>
           <SheetRow title="Rejoin your other devices" icon="arrow.uturn.backward"
-            subtitle="This device’s queue is cleared."
-            onPress={() => move(() => actions.attach(), 'attach', () => rejoinedNotice(track?.title, session.playing))} />
+            subtitle="This device’s queue is cleared." busy={moving === 'attach'}
+            onPress={() => move(() => actions.attach(), 'attach')} />
           {hasQueueToBring(session, queue) && <SheetRow title="Bring this queue with me" icon="arrow.triangle.merge"
-            subtitle="Your other devices switch to what’s playing here"
-            onPress={() => move(() => actions.attach({ bringQueue: true }), 'attach', () => null)} />}
+            subtitle="Your other devices switch to what’s playing here" busy={moving === 'bring'}
+            onPress={() => move(() => actions.attach({ bringQueue: true }), 'bring')} />}
         </SheetRows>
+        {failure && <SheetNote error>{failure}</SheetNote>}
         {output.isThisDevice && SystemVolumeSlider && <SheetSystemVolume label="Volume on this iPhone" />}
         <SeparateDevices devices={separate} />
       </Sheet>
@@ -93,8 +100,9 @@ export function DeviceSheet() {
         : <SheetSlider label={`Volume on ${output.name}`} value={shownVolume} onChange={setVolume} />)}
       {canDetach && <SheetRows>
         <SheetRow title="Play separately on this iPhone" icon={DETACHED_SYMBOL} subtitle="Your other devices keep their own queue."
-          onPress={() => move(() => actions.detach(), 'detach', () => detachedNotice(playingHere))} />
+          busy={moving === 'detach'} onPress={() => move(() => actions.detach(), 'detach')} />
       </SheetRows>}
+      {failure && <SheetNote error>{failure}</SheetNote>}
       <SeparateDevices devices={separate} />
     </Sheet>
   );
@@ -149,40 +157,66 @@ export function AddToPlaylistSheet({ trackId, albumId }: { trackId: string; albu
   const owned = list.items.filter(playlist => playlist.ownerId === userId);
   const [query, setQuery] = useState('');
   const playlists = usePlaylistActions();
+  // The playlist being added to: the sheet waits for the server with a spinner on its row.
+  const [adding, setAdding] = useState<string | null>(null);
+  // Read by the Alert's buttons too, which keep the render they were made in.
+  const sending = useRef(false);
+  const [failed, setFailed] = useState<string | null>(null);
+  const open = useOpenRef();
   useEffect(() => {
     if (list.hasNextPage) list.loadMore();
   }, [list.hasNextPage, list.items.length]);
-  const add = (playlist: PlaylistSummary) => {
+  // As in Apple Music, a song the playlist already has is added again only when asked to.
+  // The sheet stays open while it asks, so another playlist can be chosen instead.
+  const askAnyway = (playlist: PlaylistSummary) => {
     if (!track) return;
+    Alert.alert(`Already in “${playlist.name}”`, `Add “${track.title}” again?`, [
+      { text: 'Don’t Add', style: 'cancel' },
+      { text: 'Add Anyway', onPress: () => send(playlist, true) },
+    ]);
+  };
+  // The sheet closes once the server has the song: the playlist's new count is the confirmation.
+  // A refusal is said here, and the sheet stays to try again.
+  const send = (playlist: PlaylistSummary, anyway: boolean) => {
+    if (!track || sending.current) return;
+    sending.current = true;
+    setAdding(playlist.id);
+    setFailed(null);
+    playlists.add(playlist, [track], { anyway }).then(({ skipped }) => {
+      sending.current = false;
+      if (!open.current) return;
+      setAdding(null);
+      // The server left out a duplicate the phone didn't know of (the playlist's page was never loaded).
+      if (skipped) askAnyway(playlist);
+      else closeSheet(router);
+    }, () => {
+      sending.current = false;
+      if (!open.current) return;
+      setAdding(null);
+      const message = playlistAddFailure(playlist.name);
+      setFailed(message);
+      announce(message);
+    });
+  };
+  const add = (playlist: PlaylistSummary) => {
+    if (!track || sending.current) return;
     void Haptics.selectionAsync();
-    // As in Apple Music, a song the playlist already has is added again only when asked to.
-    // When its page was never loaded the server leaves the duplicate out, and the notice offers to add it anyway.
-    if (playlists.has(playlist.id, track.id)) {
-      Alert.alert(`Already in “${playlist.name}”`, `Add “${track.title}” again?`, [
-        // The sheet stays open, so another playlist can be chosen.
-        { text: 'Don’t Add', style: 'cancel' },
-        { text: 'Add Anyway', onPress: () => {
-          playlists.add(playlist, [track], { anyway: true });
-          closeSheet(router);
-        } },
-      ]);
-      return;
-    }
-    playlists.add(playlist, [track]);
-    closeSheet(router);
+    if (playlists.has(playlist.id, track.id)) askAnyway(playlist);
+    else send(playlist, false);
   };
   const create = () => {
     void Haptics.selectionAsync();
     router.replace({ pathname: '/name-playlist', params: { mode: 'create', name: track?.title ?? '', trackId, albumId: albumId ?? '' } });
   };
   const rows = (items: readonly PlaylistSummary[]) => items.map(playlist => (
-    <SheetRow key={playlist.id} title={playlist.name} icon="music.note.list"
+    <SheetRow key={playlist.id} title={playlist.name} icon="music.note.list" busy={adding === playlist.id}
       subtitle={`${playlist.trackCount} ${playlist.trackCount === 1 ? 'song' : 'songs'}`} onPress={() => add(playlist)} />
   ));
   const many = owned.length > fittingPlaylists;
   return (
     <Sheet title="Add to playlist">
       <TrackSummary track={track} />
+      {failed && <SheetNote error>{failed}</SheetNote>}
       {many && <SheetField label="Find a playlist" value={query} onChange={setQuery} onSubmit={() => undefined} />}
       <SheetRows>
         <SheetRow title="New playlist" icon="plus" onPress={create} />
@@ -204,8 +238,55 @@ export function NamePlaylistSheet({ mode, id, name, trackId, albumId }: {
   // A new playlist is named after the song by default, and a song's title can be longer than a name may be.
   const [value, setValue] = useState((name ?? '').slice(0, PLAYLIST_NAME_MAX_LENGTH));
   const [saving, setSaving] = useState(false);
-  const [failed, setFailed] = useState(false);
-  // Closed by hand while the server was answering, the sheet must not close a second time: that would leave the page beneath.
+  const [failed, setFailed] = useState<string | null>(null);
+  const open = useOpenRef();
+  // Made, but the song not added to it: trying again adds the song to this one rather than making another.
+  const created = useRef<PlaylistSummary | null>(null);
+  const ready = Boolean(value.trim()) && (mode === 'create' || value.trim() !== name) && !saving;
+  // The sheet closes once the server has the name (and the song), so a refusal leaves the text
+  // here to try again, and says so here.
+  const save = () => {
+    if (!ready) return;
+    void Haptics.selectionAsync();
+    setSaving(true);
+    setFailed(null);
+    const fail = (message: string) => () => {
+      if (!open.current) return;
+      setSaving(false);
+      setFailed(message);
+      announce(message);
+    };
+    if (mode === 'rename' && id) {
+      playlists.rename(id, value.trim()).then(() => {
+        if (open.current) closeSheet(router);
+      }, fail('Couldn’t rename the playlist. Try again.'));
+      return;
+    }
+    const made = created.current ? Promise.resolve(created.current) : playlists.create(value.trim()).then(playlist => {
+      created.current = playlist;
+      return playlist;
+    });
+    made.then(playlist => {
+      const added = track ? playlists.add(playlist, [track]) : Promise.resolve();
+      added.then(() => {
+        if (!open.current) return;
+        closeSheet(router);
+        // Made from the Library, the new playlist opens, ready for songs; made while adding a song, the person stays where they were.
+        if (!track) router.navigate(link('playlist', playlist.id));
+      }, fail(`Made “${playlist.name}”, but couldn’t add the song. Try again.`));
+    }, fail('Couldn’t create the playlist. Try again.'));
+  };
+  return (
+    <Sheet title={mode === 'rename' ? 'Rename playlist' : 'New playlist'}>
+      <SheetField label="Playlist name" value={value} onChange={setValue} onSubmit={save} autoFocus maxLength={PLAYLIST_NAME_MAX_LENGTH} />
+      {failed && <SheetNote error>{failed}</SheetNote>}
+      <SheetAction title={mode === 'rename' ? 'Save' : track ? 'Create and add' : 'Create'} disabled={!ready} onPress={save} />
+    </Sheet>
+  );
+}
+
+/** False once the sheet has closed: closed by hand while the server was answering, it must not close a second time, which would leave the page beneath. */
+function useOpenRef() {
   const open = useRef(true);
   useEffect(() => {
     open.current = true;
@@ -213,36 +294,5 @@ export function NamePlaylistSheet({ mode, id, name, trackId, albumId }: {
       open.current = false;
     };
   }, []);
-  const ready = Boolean(value.trim()) && (mode === 'create' || value.trim() !== name) && !saving;
-  // The sheet closes once the server has the name, so a refusal leaves the text here to try again;
-  // the app's notices would be hidden under the sheet, so it says so here too.
-  const save = () => {
-    if (!ready) return;
-    void Haptics.selectionAsync();
-    setSaving(true);
-    setFailed(false);
-    const done = mode === 'rename' && id
-      ? playlists.rename(id, value.trim()).then(() => {
-        if (open.current) closeSheet(router);
-      })
-      : playlists.create(value.trim()).then(playlist => {
-        if (track) playlists.add(playlist, [track]);
-        if (!open.current) return;
-        closeSheet(router);
-        // Made from the Library, the new playlist opens, ready for songs; made while adding a song, the person stays where they were.
-        if (!track) router.navigate(link('playlist', playlist.id));
-      });
-    done.catch(() => {
-      if (!open.current) return;
-      setSaving(false);
-      setFailed(true);
-    });
-  };
-  return (
-    <Sheet title={mode === 'rename' ? 'Rename playlist' : 'New playlist'}>
-      <SheetField label="Playlist name" value={value} onChange={setValue} onSubmit={save} autoFocus maxLength={PLAYLIST_NAME_MAX_LENGTH} />
-      {failed && <SheetNote>{mode === 'rename' ? 'Couldn’t rename the playlist. Try again.' : 'Couldn’t create the playlist. Try again.'}</SheetNote>}
-      <SheetAction title={mode === 'rename' ? 'Save' : track ? 'Create and add' : 'Create'} disabled={!ready} onPress={save} />
-    </Sheet>
-  );
+  return open;
 }

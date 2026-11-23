@@ -4,8 +4,8 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 import { memo, useCallback, useMemo } from 'react';
-import { useLiked } from '../data/library';
-import { heartButton } from './heart';
+import { useLiked, useLikeFailure } from '../data/library';
+import { heartButton, heartColor } from './heart';
 import { useRealtime } from '../data/realtime';
 import { useCanPlay, useTrackDownload, useViewer } from '../downloads/DownloadsProvider';
 import { downloadSymbol, unavailableReason } from '../downloads/model';
@@ -15,6 +15,7 @@ import {
   sameRow, songRowKey, songRows, useSongRowHandlers, type SongListItems, type SongRowHandlers, type SongRowItem,
 } from './rows';
 import { useTrackActionRunner, type TrackAction } from './trackActions';
+import { spokenDuration, trackDuration } from './duration';
 import { Cover, Icon } from '../ui';
 import { createThemedStyles, unavailableOpacity, useColors } from '../theme';
 
@@ -88,6 +89,7 @@ const SongRow = memo(function SongRow({ item, handlers, run }: {
   const colors = useColors();
   const styles = useStyles();
   const liked = useLiked('track', track.id, track.liked);
+  const heart = heartButton(liked, track.title, useLikeFailure('track', track.id));
   const playing = useCurrentTrackState(track.id);
   const current = playing !== null;
   const playable = useCanPlay(track);
@@ -95,6 +97,9 @@ const SongRow = memo(function SongRow({ item, handlers, run }: {
   const mark = downloadSymbol(useTrackDownload(track.id));
   const loading = useTrackLoading(track.id);
   const viewer = useViewer();
+  // Only an album's track list shows each song's length, as on web.
+  const numbered = typeof number === 'number';
+  const spoken = numbered ? spokenDuration(track.durationMs) : null;
   const onPlay = () => handlers.play(index);
   const onMenu = () => handlers.menu(track, index);
   const onRemove = item.playlist && (() => handlers.remove(item.playlist!.itemId));
@@ -118,7 +123,7 @@ const SongRow = memo(function SongRow({ item, handlers, run }: {
     <View style={[styles.songRow, current && styles.songCurrent]}>
       <Pressable accessibilityRole="button"
         accessibilityLabel={`${playable ? 'Play ' : ''}${track.title} by ${track.artistCredit}${track.explicit ? ', Explicit' : ''}${
-          playable ? '' : `, ${unavailableReason(track, offline, viewer)}`}`}
+          spoken ? `, ${spoken}` : ''}${playable ? '' : `, ${unavailableReason(track, offline, viewer)}`}`}
         style={({ pressed }) => [styles.songInfo, pressed && styles.pressed]}
         onPress={playable ? onPlay : onMenu} onLongPress={onMenu}
         accessibilityActions={playable ? [{ name: 'playNext', label: 'Play next' }] : undefined}
@@ -142,10 +147,11 @@ const SongRow = memo(function SongRow({ item, handlers, run }: {
             </Text>}
           </View>}
         </View>
+        {numbered && <Text style={[styles.duration, !playable && styles.fadedCredit]}>{trackDuration(track.durationMs)}</Text>}
       </Pressable>
-      <Pressable accessibilityRole="button" accessibilityLabel={heartButton(liked, track.title).label} accessibilityState={{ selected: liked }}
+      <Pressable accessibilityRole="button" accessibilityLabel={heart.label} accessibilityState={{ selected: liked }}
         onPress={() => { tapFeedback(); run(track, { id: liked ? 'unlike' : 'like', title: '', icon: '' }); }} style={styles.rowIcon}>
-        <Icon name={liked ? 'heart.fill' : 'heart'} size={19} color={liked ? colors.accent : colors.muted} />
+        <Icon name={heart.icon} size={19} color={heartColor(heart, colors, colors.muted)} />
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={`More options for ${track.title}`} onPress={onMenu} style={styles.rowIcon}>
         <Icon name="ellipsis" size={19} color={colors.muted} />
@@ -170,6 +176,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   songInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', minHeight: 56, gap: 10 },
   songPosition: { width: 25, alignItems: 'center', marginRight: 2 },
   songNumber: { fontSize: 13, color: colors.quiet, fontVariant: ['tabular-nums'] },
+  duration: { fontSize: 13, color: colors.muted, fontVariant: ['tabular-nums'] },
   currentTitle: { color: colors.accent },
   rowSpinner: { transform: [{ scale: 0.6 }], width: 12, height: 12 },
   rowIcon: { width: 42, height: 44, alignItems: 'center', justifyContent: 'center' },

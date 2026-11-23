@@ -9,10 +9,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAccount, useSignedInApi, useWantlistEnabled } from './account/AccountProvider';
 import { shade } from './data/color';
 import {
-  libraryMatchLimit, libraryMatchMinLength, useGenreCovers, useGenres, useHome, useLibraryAlbums, useLibraryArtists, useLibraryMatches,
-  useLibraryTracks, usePlaylists,
+  libraryMatchLimit, libraryMatchMinLength, useGenreCovers, useGenres, useHome, useLibraryAlbumIds, useLibraryAlbums, useLibraryArtists,
+  useLibraryMatches, useLibraryTracks, usePlaylists,
 } from './data/queries';
-import { useLibraryActions, useTrackStore } from './data/library';
+import { useLibraryActions, useLikeFailures } from './data/library';
 import { useAvailability, useViewer } from './downloads/DownloadsProvider';
 import {
   BrowseButton, CollectionGridRow, CollectionRow, GenreGrid, HeroActions, LibraryFilters, LibrarySort, SearchField,
@@ -20,23 +20,25 @@ import {
 } from './library/BrowseControls';
 import { homeLayout } from './library/home';
 import { libraryRows, type LibraryRow } from './library/libraryRows';
+import { libraryAlbumMatches } from './library/librarySearch';
 import { searchFilterLabels } from './library/search';
 import { useRecentSearches, useSearchList } from './library/useSearchList';
-import { useNotice } from './Notice';
-import { sortFor, sortOptions, sortsFor, type SortName } from './library/sorting';
+import { useBriefFailures } from './inlineFeedback';
+import { playAllFailure, radioFailure } from './library/failures';
+import { playbackStatus } from './player/usePlaybackStatus';
+import { sortFor, sortOptions, sortsFor, type SortChoices } from './library/sorting';
 import type { Page } from './library/links';
-import { useStartGuard } from './library/pending';
+import { useAlbumPlayer, useCollectionActions } from './library/collectionActions';
 import { underStatusBar, useRefreshControl } from './library/refresh';
-import { displayFontScale } from './fontScale';
+import { displayFontScale, isAccessibilitySize } from './fontScale';
 import {
-  albumCollection, albumTypeLabels, artistCollection, CollectionCover, CollectionRail, EmptyState, gridColumns, gutter, largeTextScale, likedCollection, matches, OfflineBadge,
-  playlistCollection, QueryState, SectionTitle, tapFeedback, useCollectionDim, type Collection,
+  albumCollection, albumTypeLabels, artistCollection, CollectionCover, CollectionRail, EmptyState, FailureLine, gridColumns, gutter, largeTextScale, likedCollection, matches,
+  OfflineBadge, playlistCollection, QueryState, SectionTitle, tapFeedback, useCollectionDim, type Collection,
 } from './library/shared';
 import { useRealtime } from './data/realtime';
 import { SongList, useSongListItems } from './library/SongList';
 import { usePlayAll } from './library/usePlayAll';
 import type { SongRowItem } from './library/rows';
-import { ZoomLink, ZoomSource } from './library/ZoomLink';
 import { usePlaybackActions } from './playback';
 import { createThemedStyles, unavailableOpacity, useColors } from './theme';
 import { Cover, Icon } from './ui';
@@ -53,37 +55,17 @@ export type BrowseProps = {
   bottomInset?: number;
 };
 
-/**
- * Plays an album from its tile: its tracks come from the cached page when there is one,
- * otherwise from the server. `pending` is true while that request is out; taps meanwhile are ignored.
- */
-export function useAlbumPlayer() {
-  const api = useSignedInApi();
-  const queryClient = useQueryClient();
-  const tracks = useTrackStore();
-  const actions = usePlaybackActions();
-  const starts = useStartGuard();
-  const play = (albumId: string, shuffle = false) => {
-    if (!api) return;
-    starts.run(albumId, () => queryClient.ensureQueryData({ queryKey: queryKeys.album(albumId), queryFn: () => api.catalog.album(albumId) }).then(album => {
-      const list = album.discs.flatMap(disc => disc.tracks);
-      tracks.prime(list);
-      actions.playTracks(list, { shuffle, context: { type: 'album', id: album.id, title: album.title } });
-    }));
-  };
-  return { play, pending: starts.pending };
-}
-
-/** The featured album. Its page zooms out of the whole card; the enclosing `ZoomLink` supplies `onPress`. */
-function HeroCard({ album, size, onPress }: { album: AlbumSummary; size: number; onPress?: () => void }) {
+/** The featured album. Its page zooms out of the whole card. */
+function HeroCard({ album, size, href }: { album: AlbumSummary; size: number; href: Href }) {
   const albumPlayer = useAlbumPlayer();
   const styles = useStyles();
-  return <ZoomSource style={[styles.hero, { minHeight: Math.min(350, size * 0.85), backgroundColor: album.artwork?.color ?? '#322940' }]}>
-    <Cover artwork={album.artwork} size={size} radius={0} style={styles.heroCover} />
-    <LinearGradient colors={['#100D1600', '#100D1660', '#100D16E8']} locations={[0, 0.40, 1]} style={StyleSheet.absoluteFill} />
-    <HeroActions title={album.title} artist={album.artistCredit} onOpen={() => onPress?.()}
-      onPlay={() => { tapFeedback(); albumPlayer.play(album.id); }} busy={albumPlayer.pending(album.id)} />
-  </ZoomSource>;
+  const height = Math.min(350, size * 0.85);
+  return <HeroActions title={album.title} artist={album.artistCredit} href={href} width={size} height={height}
+    art={<View style={[styles.heroArt, { width: size, height, backgroundColor: album.artwork?.color ?? '#322940' }]}>
+      <Cover artwork={album.artwork} size={size} radius={0} style={styles.heroCover} />
+      <LinearGradient colors={['#100D1600', '#100D1660', '#100D16E8']} locations={[0, 0.40, 1]} style={StyleSheet.absoluteFill} />
+    </View>}
+    onPlay={() => { tapFeedback(); albumPlayer.play(album.id); }} busy={albumPlayer.pending(album.id)} />;
 }
 
 function sectionSize(section: HomeSection) {
@@ -164,8 +146,8 @@ export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAcc
       {!home.data && <QueryState query={home} what="your music" />}
       {home.data && !sections.length && <EmptyState icon="music.note.house" title="No music yet"
         description={`Add music to a library folder on ${serverName}. It shows up here as soon as it has been scanned.`} />}
-      {hero && <View style={collectionDim(albumCollection(hero, link)).dim && styles.unavailable}>
-        <ZoomLink href={link('album', hero.id)}><HeroCard album={hero} size={heroSize} /></ZoomLink>
+      {hero && <View style={[styles.hero, collectionDim(albumCollection(hero, link)).dim && styles.unavailable]}>
+        <HeroCard album={hero} size={heroSize} href={link('album', hero.id)} />
       </View>}
       {sections.map(section => <HomeRail key={section.id} section={section} link={link} onOpen={onOpen} onTrackMenu={onTrackMenu} />)}
     </ScrollView>
@@ -199,6 +181,7 @@ const emptyLibrary = {
 export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bottomInset = 155 }: BrowseProps) {
   const styles = useStyles();
   const collectionDim = useCollectionDim();
+  const collectionActions = useCollectionActions();
   const { offline } = useRealtime();
   const { top } = useSafeAreaInsets();
   const { width, fontScale } = useWindowDimensions();
@@ -207,11 +190,12 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
   const [filter, setFilter] = useState<LibraryFilter>('All');
   const list = useRef<FlatList<LibraryRow>>(null);
   useTabRetap(() => list.current?.scrollToOffset({ offset: 0, animated: true }));
-  const [sortName, setSortName] = useState<SortName>('Recently added');
+  const [sortChoices, setSortChoices] = useState<SortChoices>({});
   const [grid, setGrid] = useState(true);
   const [showFilter, setShowFilter] = useState(false);
   const [query, setQuery] = useState('');
   const sorts = sortsFor(filter);
+  const sortName = sortFor(filter, sortChoices);
   const sort = sortOptions[sortName];
   const columns = gridColumns(width, fontScale);
   const size = Math.floor((width - gutter * 2 - (columns - 1) * 12) / columns);
@@ -219,9 +203,12 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
   const showsAlbums = filter === 'All' || filter === 'Albums';
   // Only the lists the filter shows are loaded.
   const albums = useLibraryAlbums(sort, showsAlbums);
+  // All lists the artists after the albums, so they load once the albums have all loaded.
+  const albumsDone = Boolean(albums.data) && !albums.hasNextPage;
+  const artistsAfterAlbums = filter === 'All' && albumsDone;
   // The server lists artists by name whatever the order asked for.
-  const artists = useLibraryArtists('title', filter === 'Artists');
-  const songSort = sortOptions[sortFor('Songs', sortName)];
+  const artists = useLibraryArtists('title', filter === 'Artists' || artistsAfterAlbums);
+  const songSort = sortOptions[sortFor('Songs', sortChoices)];
   const songs = useLibraryTracks(songSort, filter === 'Songs');
   // A tap plays the song and the next few hundred, as on the web, not just the rows scrolled past.
   const playSongs = usePlayAll({
@@ -232,13 +219,25 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
   // A filter of two characters or more searches the whole library on the server; a single
   // character only narrows what is already loaded.
   const searchText = filter === 'Playlists' ? '' : query;
-  const found = useLibraryMatches(searchText);
+  const libraryFound = useLibraryMatches(searchText);
   const searching = [...searchText.trim()].length >= libraryMatchMinLength;
+  // The search finds albums with any file on the server; the Albums list's own membership
+  // decides which of them are in the library (`libraryAlbumMatches`).
+  const albumIds = useLibraryAlbumIds(searching && showsAlbums);
+  // A list that could not be read cannot rule a match out.
+  const membership = useMemo(() => albumIds.data ?? (albumIds.isError ? { ids: [], complete: false } : undefined), [albumIds.data, albumIds.isError]);
+  const found = { ...libraryFound, pending: libraryFound.pending || (showsAlbums && albumIds.isPending && !albumIds.isError) };
+  const matched = useMemo(() => libraryFound.data && { ...libraryFound.data, albums: libraryAlbumMatches(libraryFound.data.albums, membership) },
+    [libraryFound.data, membership]);
   const listed = filter === 'Artists' ? artists : filter === 'Songs' ? songs : filter === 'Playlists' ? playlists : albums;
   const active = searching ? found : listed;
-  const loadMore = searching ? undefined : listed.loadMore;
-  const matched = found.data;
+  // Under All, the artists page on once the albums have all been listed.
+  const pagesArtists = artistsAfterAlbums && listed === albums;
+  const loadMore = searching ? undefined : pagesArtists ? artists.loadMore : listed.loadMore;
 
+  const artistItems = useMemo(() => (searching ? (matched?.artists ?? []).map(artist => artistCollection(artist, link))
+    : artists.items.map(artist => artistCollection(artist, link)).filter(item => matches(query, item.title, item.subtitle))),
+  [artists.items, link, matched, query, searching]);
   const items = useMemo(() => {
     const collections: Collection[] = [];
     if (showsPlaylists) {
@@ -251,12 +250,12 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
       collections.push(...searching ? (matched?.albums ?? []).map(album => albumCollection(album, link))
         : albums.items.map(album => albumCollection(album, link, subtitle(album))).filter(item => matches(query, item.title, item.subtitle)));
     }
-    if (filter === 'Artists') {
-      collections.push(...searching ? (matched?.artists ?? []).map(artist => artistCollection(artist, link))
-        : artists.items.map(artist => artistCollection(artist, link)).filter(item => matches(query, item.title, item.subtitle)));
-    }
+    if (filter === 'Artists') collections.push(...artistItems);
     return collections.map(collectionDim);
-  }, [albums.items, artists.items, filter, link, matched, collectionDim, playlists.items, query, searching, showsAlbums, showsPlaylists, sort]);
+  }, [albums.items, artistItems, filter, link, matched, collectionDim, playlists.items, query, searching, showsAlbums, showsPlaylists, sort]);
+  // All lists the artists too, after the albums under their own heading: a saved artist is in the library.
+  const allArtists = useMemo(() => (filter === 'All' && (searching || artistsAfterAlbums) ? artistItems.map(collectionDim) : []),
+    [artistItems, artistsAfterAlbums, collectionDim, filter, searching]);
   const tracks = useMemo(() => searching ? matched?.tracks ?? []
     : songs.items.filter(track => matches(query, track.title, track.artistCredit, track.album?.title ?? '')), [matched, query, searching, songs.items]);
   const songItems = useSongListItems({
@@ -270,17 +269,19 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
   });
   // All, while searching, lists the songs found after the collections.
   const showsSongs = filter === 'Songs' || (filter === 'All' && searching);
-  const empty = !items.length && !(showsSongs && tracks.length);
+  const empty = !items.length && !allArtists.length && !(showsSongs && tracks.length);
   // The invitation is for a library with nothing in it, on the views that list albums: under
   // Songs or Artists, saved songs or artists can be there without a single album.
   const libraryEmpty = (filter === 'Albums' || (filter === 'All' && playlists.data && !playlists.items.length))
-    && albums.data && !albums.items.length && !query;
-  const capped = searching && matched && (filter === 'Songs' ? matched.tracks.length : filter === 'Artists' ? matched.artists.length
-    : Math.max(matched.albums.length, filter === 'All' ? matched.tracks.length : 0)) >= libraryMatchLimit;
+    && albums.data && !albums.items.length && !allArtists.length && !query;
+  // Counted before albums outside the library are left out: the server stopped at the limit either way.
+  const answered = libraryFound.data;
+  const capped = searching && answered && (filter === 'Songs' ? answered.tracks.length : filter === 'Artists' ? answered.artists.length
+    : Math.max(answered.albums.length, filter === 'All' ? Math.max(answered.tracks.length, answered.artists.length) : 0)) >= libraryMatchLimit;
 
   const mode = filter === 'Songs' ? 'songs' : grid ? 'grid' : 'list';
-  const rows = useMemo(() => libraryRows({ mode, items, songs: showsSongs ? songItems.data : [], columns }),
-    [columns, items, mode, showsSongs, songItems.data]);
+  const rows = useMemo(() => libraryRows({ mode, items, artists: allArtists, songs: showsSongs ? songItems.data : [], columns }),
+    [allArtists, columns, items, mode, showsSongs, songItems.data]);
   const renderSong = songItems.renderItem;
   const renderRow = useCallback(({ item: row }: { item: LibraryRow }) => {
     switch (row.kind) {
@@ -289,14 +290,16 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
       case 'heading': return <View style={styles.songsHeading}><SectionTitle title={row.title} /></View>;
       case 'tiles': return <CollectionGridRow items={row.items.map(item => ({
         id: item.key, title: item.title, subtitle: item.subtitle, size,
-        cover: <CollectionCover item={item} size={size} />, href: item.href, dim: item.dim,
+        cover: <CollectionCover item={item} size={size} />, href: item.href, dim: item.dim, actions: collectionActions(item),
       }))} />;
       case 'row': return <CollectionRow title={row.item.title} subtitle={row.item.subtitle} size={50} dim={row.item.dim}
         cover={<CollectionCover item={row.item} size={50} radius={9} />} href={row.item.href} />;
     }
-  }, [renderSong, size, styles]);
-  // Searching, a pull reloads the matches; otherwise the list, and the playlists shown with it.
-  const refreshControl = useRefreshControl(() => Promise.all([active.refetch(), showsPlaylists && active !== playlists && playlists.refetch()]));
+  }, [collectionActions, renderSong, size, styles]);
+  // Searching, a pull reloads the matches; otherwise the list, and the playlists and artists shown with it.
+  const refreshControl = useRefreshControl(() => Promise.all([
+    active.refetch(), showsPlaylists && active !== playlists && playlists.refetch(), allArtists.length > 0 && !searching && artists.refetch(),
+  ]));
 
   // An empty library is an invitation: Search is where music is found and added.
   const findMusic = { title: 'Find music', onPress: () => { tapFeedback(); router.navigate('/(tabs)/(search)'); } };
@@ -332,11 +335,14 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
           {/* Matches from the server come best first, whatever the sort. */}
           {filter === 'Playlists'
             ? !offline && <BrowseButton label="New playlist" title="New playlist" icon="plus" onPress={newPlaylist} />
-            : !searching && sorts.length > 0 ? <LibrarySort options={sorts} value={sortFor(filter, sortName)} onChange={setSortName} /> : <View />}
+            : !searching && sorts.length > 0 ? <LibrarySort options={sorts} value={sortName}
+              onChange={name => setSortChoices(chosen => ({ ...chosen, [filter]: name }))} /> : <View />}
           {filter !== 'Songs' && <BrowseButton label={grid ? 'Show list view' : 'Show grid view'} icon={grid ? 'list.bullet' : 'square.grid.2x2'}
             onPress={() => { tapFeedback(); setGrid(!grid); }} />}
           {filter === 'Songs' && playSongs.busy && <ActivityIndicator accessibilityLabel="Loading songs" />}
         </View>
+        {/* A tap on a song plays the next few hundred; when they can't be loaded it plays what was, and says so here. */}
+        {filter === 'Songs' && playSongs.failed && <FailureLine message={playAllFailure} />}
         {!active.data && <QueryState query={active} what="your library" />}
         {libraryEmpty ? <EmptyState {...emptyLibrary.Albums} action={findMusic} />
           : active.data && empty && !(searching && found.pending) && (query || filter === 'Playlists'
@@ -345,7 +351,7 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
             : <EmptyState {...emptyLibrary[filter === 'Songs' ? 'Songs' : filter === 'Artists' ? 'Artists' : 'Albums']} action={findMusic} />)}
       </>}
       ListFooterComponent={<>
-        {(searching ? found.pending && !empty : listed.isFetchingNextPage) && <ActivityIndicator style={styles.more} />}
+        {(searching ? found.pending && !empty : listed.isFetchingNextPage || (pagesArtists && artists.isFetchingNextPage)) && <ActivityIndicator style={styles.more} />}
         {capped && <Text style={styles.matchNote}>Showing the best {libraryMatchLimit} matches. Type more to narrow them down.</Text>}
       </>} />
   </View>;
@@ -395,15 +401,19 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
   const genres = useGenres();
   // One genre a row at accessibility text sizes, so its name fits on the tile.
   const genreColumns = fontScale >= largeTextScale ? 1 : 2;
+  // At accessibility sizes the history's Clear button goes under its heading, so each word of it keeps a whole line.
+  const stackHeading = isAccessibilitySize(fontScale);
   const genreWidth = Math.floor((width - gutter * 2 - 12 * (genreColumns - 1)) / genreColumns);
   const { offline } = useRealtime();
   const actions = usePlaybackActions();
   const { canPlay } = useAvailability();
   const albumPlayer = useAlbumPlayer();
   const api = useSignedInApi();
-  const notify = useNotice();
   const viewer = useViewer();
   const { setLiked } = useLibraryActions();
+  const likeFailures = useLikeFailures();
+  // An artist's radio that didn't start: its menu entry says so for a few seconds, and choosing it tries again.
+  const radioFailures = useBriefFailures<true>();
 
   useTabRetap(() => searchInput.current?.focus());
 
@@ -434,7 +444,13 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
   const saveAction = (type: 'album' | 'artist', id: string, name: string, liked: boolean | undefined): RowAction[] => {
     if (liked === undefined) return [];
     const { saved, label } = librarySave({ liked });
-    return [{ title: label, icon: saved ? 'heart.slash' : 'heart', onPress: () => { tapFeedback(); setLiked(type, id, !saved, name); } }];
+    // A refused change was set back; the entry that makes it again says so (as the track menu does).
+    const failed = likeFailures.has(`${type}:${id}`);
+    return [{
+      title: failed ? `Couldn’t ${saved ? 'remove from' : 'save to'} library. Try again` : label,
+      icon: failed ? 'exclamationmark.circle' : saved ? 'heart.slash' : 'heart',
+      onPress: () => { tapFeedback(); setLiked(type, id, !saved, name); },
+    }];
   };
   const menuFor = (item: Exclude<SearchItem, { type: 'track' }>): RowAction[] => {
     if (offline) return [];
@@ -450,10 +466,16 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
       ];
     }
     if (item.type === 'artist') {
+      const radioFailed = radioFailures.failures.has(item.artist.id);
       return [{
-        title: 'Start radio', icon: 'dot.radiowaves.left.and.right', onPress: () => {
+        title: radioFailed ? radioFailure : 'Start radio', icon: radioFailed ? 'exclamationmark.circle' : 'dot.radiowaves.left.and.right', onPress: () => {
           tapFeedback();
-          api?.radio.artist(item.artist.id).then(actions.playRadio, () => notify(`Couldn’t start a radio for ${item.artist.name}.`));
+          radioFailures.drop(item.artist.id);
+          api?.radio.artist(item.artist.id).then(actions.playRadio, () => {
+            radioFailures.fail(item.artist.id, true);
+            // The menu has closed, so the player says it too (and VoiceOver hears it from there).
+            playbackStatus.report({ message: `Couldn’t start a radio for ${item.artist.name}` });
+          });
         },
       }, ...saveAction('artist', item.artist.id, item.artist.name, item.artist.liked)];
     }
@@ -490,16 +512,19 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
         <Pressable accessibilityRole="button" accessibilityLabel={`Search for ${row.query}`} style={({ pressed }) => [styles.recentQuery, pressed && styles.pressed]}
           onPress={() => { tapFeedback(); searchInput.current?.setText(row.query); setQuery(row.query); }}>
           <View style={styles.recentIcon}><Icon name="clock" size={17} color={colors.muted} /></View>
-          <Text numberOfLines={1} style={[styles.recentText, styles.flex]}>{row.query}</Text>
+          {/* The query is what runs: it wraps rather than being cut, so a large text size still names it. */}
+          <Text numberOfLines={3} style={[styles.recentText, styles.flex]}>{row.query}</Text>
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${row.query} from recent searches`} hitSlop={8}
           onPress={() => { tapFeedback(); recents.remove(`query:${row.query.toLocaleLowerCase()}`); }} style={styles.recentRemove}>
           <Icon name="xmark" size={14} color={colors.muted} />
         </Pressable>
       </View>;
-      case 'heading': return <View style={styles.recentHeading}>
-        <Text accessibilityRole="header" style={[styles.recentTitle, styles.flex]}>{row.title}</Text>
-        {row.clear && <BrowseButton label="Clear recent searches" title="Clear" onPress={() => { tapFeedback(); recents.clear(); }} />}
+      case 'heading': return <View style={[styles.recentHeading, stackHeading && styles.recentHeadingStacked]}>
+        <Text accessibilityRole="header" style={[styles.recentTitle, !stackHeading && styles.flex]}>{row.title}</Text>
+        {/* It empties the whole history, the results viewed too, as the web app's Clear all does, and says so. */}
+        {row.clear && <BrowseButton label="Clear recent searches and recently viewed" title="Clear all"
+          onPress={() => { tapFeedback(); recents.clear(); }} />}
       </View>;
     }
   };
@@ -567,7 +592,8 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   unavailable: { opacity: unavailableOpacity },
   pageTitle: { color: colors.text, fontSize: 37, letterSpacing: -1.65, fontWeight: '800' },
   pageHeader: { marginHorizontal: gutter, flexDirection: 'row', alignItems: 'center', minHeight: 48, gap: 12 },
-  hero: { marginHorizontal: gutter, borderRadius: 26, overflow: 'hidden', justifyContent: 'flex-end' },
+  hero: { marginHorizontal: gutter },
+  heroArt: { overflow: 'hidden' },
   heroCover: { position: 'absolute', top: 0, left: 0 },
   homeSection: { marginTop: 26 },
   statusFade: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1 },
@@ -589,6 +615,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   trackList: { marginHorizontal: gutter - 4 },
   pressed: { opacity: 0.68 },
   recentHeading: { flexDirection: 'row', alignItems: 'center', minHeight: 44, marginTop: 6 },
+  recentHeadingStacked: { flexDirection: 'column', alignItems: 'flex-start' },
   recentTitle: { color: colors.text, fontSize: 20, fontWeight: '700', letterSpacing: -0.4 },
   recentRow: { flexDirection: 'row', alignItems: 'center', minHeight: 56, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.stroke },
   recentQuery: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56 },

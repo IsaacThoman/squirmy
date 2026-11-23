@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activeLine, lyricLines } from './lyrics';
+import { activeLine, lineInView, lyricLines } from './lyrics';
 
 describe('lyricLines', () => {
   it('reads timed lines in order, with repeated stamps and tags', () => {
@@ -36,5 +36,19 @@ describe('activeLine', () => {
 
   it('never highlights plain lyrics', () => {
     expect(activeLine([{ text: 'A', startMs: null }], 10_000)).toBe(-1);
+  });
+});
+
+describe('lineInView', () => {
+  it('is true while the line is on screen', () => {
+    expect(lineInView(450, 300, 400)).toBe(true);
+    expect(lineInView(300, 300, 400)).toBe(true);
+  });
+
+  it('is false for a line scrolled away, or not laid out yet', () => {
+    expect(lineInView(250, 300, 400)).toBe(false);
+    expect(lineInView(750, 300, 400)).toBe(false);
+    expect(lineInView(undefined, 300, 400)).toBe(false);
+    expect(lineInView(10, 0, 0)).toBe(false);
   });
 });

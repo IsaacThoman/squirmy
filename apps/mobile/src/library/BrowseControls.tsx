@@ -21,8 +21,9 @@ export type FilterProps<T extends string> = { options: readonly T[]; value: T; o
 export type RowAction = { title: string; icon: string; onPress: () => void };
 /**
  * A collection that opens `href` when pressed. On iOS the page zooms out of its cover. `dim`
- * grays it, cover and title alike. `onSelect` runs as it opens. `actions` give the row a
- * menu: a long press, and the ellipsis that replaces its chevron.
+ * grays it: the cover fades, and the title and subtitle take the faded colors, which stay
+ * readable. `onSelect` runs as it opens. `actions` give it a menu: a long press, and on a row
+ * the ellipsis that replaces its chevron.
  */
 export type CollectionButtonProps = {
   title: string; subtitle: string; cover: ReactElement; size: number; href: Href; dim?: boolean;
@@ -31,8 +32,14 @@ export type CollectionButtonProps = {
 /** The button a `ZoomLink` wraps. The link supplies `onPress`. */
 export type LinkedButtonProps<T> = Omit<T, 'href'> & { onPress?: () => void };
 export type GenreCardProps = { title: string; color: string; width: number; cover: ReactElement; onPress: () => void };
-/** `busy` shows that a play is waiting on the server; the play button ignores taps meanwhile. */
-export type HeroActionsProps = { title: string; artist: string; onOpen: () => void; onPlay: () => void; busy?: boolean };
+/**
+ * The featured album's card: `art` (its cover and gradient, `width` × `height`) under the title
+ * and credit, opening `href` (on iOS the page zooms out of the card), with a play button.
+ * `busy` shows that a play is waiting on the server; the play button ignores taps meanwhile.
+ */
+export type HeroActionsProps = {
+  title: string; artist: string; art: ReactElement; width: number; height: number; href: Href; onPlay: () => void; busy?: boolean;
+};
 /** One row of a grid of collections; a long grid is a virtualized list of these. */
 export type CollectionGridRowProps = { items: readonly (CollectionButtonProps & { id: string })[] };
 /** `columns`: two, or one when large text needs the width. */
@@ -87,13 +94,21 @@ export function CollectionTile({ href, ...props }: CollectionButtonProps) {
   return <ZoomLink href={href}><TileButton {...props} /></ZoomLink>;
 }
 
-function TileButton({ title, subtitle, cover, size, dim, onPress }: LinkedButtonProps<CollectionButtonProps>) {
+/** A menu of `actions` under `title`, for a long press. */
+function actionMenu(title: string, actions: readonly RowAction[] | undefined) {
+  return actions?.length ? () => Alert.alert(title, undefined, [
+    ...actions.map(action => ({ text: action.title, onPress: action.onPress })),
+    { text: 'Cancel', style: 'cancel' as const },
+  ], { cancelable: true }) : undefined;
+}
+
+function TileButton({ title, subtitle, cover, size, dim, onPress, actions }: LinkedButtonProps<CollectionButtonProps>) {
   const styles = useStyles();
-  return <Pressable accessibilityRole="button" accessibilityLabel={`${title}, ${subtitle}`} onPress={onPress}
-    style={({ pressed }) => [{ width: size }, dim && styles.dim, pressed && styles.pressed]}>
-    {cover}
-    <Text numberOfLines={1} style={[styles.collectionTitle, { marginTop: 7 }]}>{title}</Text>
-    <Text numberOfLines={1} style={styles.subtitle}>{subtitle}</Text>
+  return <Pressable accessibilityRole="button" accessibilityLabel={`${title}, ${subtitle}`} onPress={onPress} onLongPress={actionMenu(title, actions)}
+    style={({ pressed }) => [{ width: size }, pressed && styles.pressed]}>
+    <View style={dim && styles.dim}>{cover}</View>
+    <Text numberOfLines={4} style={[styles.collectionTitle, { marginTop: 7 }, dim && styles.fadedTitle]}>{title}</Text>
+    <Text numberOfLines={2} style={[styles.subtitle, dim && styles.fadedCredit]}>{subtitle}</Text>
   </Pressable>;
 }
 
@@ -111,17 +126,14 @@ export function CollectionRow({ href, ...props }: CollectionButtonProps) {
 function RowButton({ title, subtitle, cover, dim, onPress, onSelect, actions }: LinkedButtonProps<CollectionButtonProps>) {
   const colors = useColors();
   const styles = useStyles();
-  const menu = actions?.length ? () => Alert.alert(title, undefined, [
-    ...actions.map(action => ({ text: action.title, onPress: action.onPress })),
-    { text: 'Cancel', style: 'cancel' as const },
-  ], { cancelable: true }) : undefined;
+  const menu = actionMenu(title, actions);
   return <Pressable accessibilityRole="button" accessibilityLabel={`${title}, ${subtitle}`}
     onPress={() => { onSelect?.(); onPress?.(); }} onLongPress={menu}
-    style={({ pressed }) => [styles.collectionRow, dim && styles.dim, pressed && styles.pressed]}>
-    {cover}
+    style={({ pressed }) => [styles.collectionRow, pressed && styles.pressed]}>
+    <View style={dim && styles.dim}>{cover}</View>
     <View style={styles.flex}>
-      <Text numberOfLines={1} style={styles.collectionTitle}>{title}</Text>
-      <Text numberOfLines={1} style={styles.subtitle}>{subtitle}</Text>
+      <Text numberOfLines={1} style={[styles.collectionTitle, dim && styles.fadedTitle]}>{title}</Text>
+      <Text numberOfLines={1} style={[styles.subtitle, dim && styles.fadedCredit]}>{subtitle}</Text>
     </View>
     {menu
       ? <Pressable accessibilityRole="button" accessibilityLabel={`More options for ${title}`} onPress={menu} hitSlop={10}><Icon name="ellipsis" size={18} color={colors.muted} /></Pressable>
@@ -145,22 +157,31 @@ export function GenreGrid({ items }: GenreGridProps) {
   </View>;
 }
 
-export function HeroActions({ title, artist, onOpen, onPlay, busy }: HeroActionsProps) {
+function HeroOpen({ title, artist, art, width, height, onPress }: LinkedButtonProps<Omit<HeroActionsProps, 'onPlay' | 'busy'>>) {
+  const styles = useStyles();
+  return <Pressable accessibilityRole="button" accessibilityLabel={`${title}, ${artist}`} onPress={onPress}
+    style={[styles.heroOpen, { width, minHeight: height }]}>
+    <View style={StyleSheet.absoluteFill}>{art}</View>
+    <Text style={styles.heroTitle}>{title}</Text>
+    <Text style={[styles.subtitle, styles.heroSubtitle]}>{artist}</Text>
+  </Pressable>;
+}
+
+export function HeroActions({ href, onPlay, busy, ...card }: HeroActionsProps) {
   const styles = useStyles();
   const colors = useColors();
-  return <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-    <Pressable accessibilityRole="button" accessibilityLabel={`Open ${title}`} onPress={onOpen} style={[StyleSheet.absoluteFill, styles.heroOpen]}>
-      <Text style={styles.heroTitle}>{title}</Text>
-      <Text style={[styles.subtitle, styles.heroSubtitle]}>{artist}</Text>
-    </Pressable>
+  return <View style={styles.hero}>
+    <ZoomLink href={href}><HeroOpen {...card} /></ZoomLink>
     <View style={styles.heroPlay}>{busy
-      ? <ActivityIndicator accessibilityLabel={`Starting ${title}`} color={colors.text} style={styles.busy} />
-      : <BrowseButton icon="play.fill" label={`Play ${title}`} onPress={onPlay} glass />}</View>
+      ? <ActivityIndicator accessibilityLabel={`Starting ${card.title}`} color={colors.text} style={styles.busy} />
+      : <BrowseButton icon="play.fill" label={`Play ${card.title}`} onPress={onPlay} glass />}</View>
   </View>;
 }
 
 const useStyles = createThemedStyles(colors => StyleSheet.create({
   dim: { opacity: unavailableOpacity },
+  fadedTitle: { color: colors.fadedTitle },
+  fadedCredit: { color: colors.fadedCredit },
   flex: { flex: 1 },
   pressed: { opacity: 0.68 },
   button: { minWidth: 44, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
@@ -180,6 +201,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   genre: { minHeight: 106, padding: 12, borderRadius: 15, overflow: 'hidden' },
   genreTitle: { color: '#F5F2FF', fontSize: 17, fontWeight: '700' },
   genreCover: { position: 'absolute', bottom: -11, right: -6, transform: [{ rotate: '19deg' }] },
+  hero: { borderRadius: 26, overflow: 'hidden', backgroundColor: '#100D16' },
   heroOpen: { justifyContent: 'flex-end', padding: 20, paddingRight: 80 },
   heroTitle: { color: '#F5F2FF', fontSize: 36, fontWeight: '800', letterSpacing: -1.4 },
   heroSubtitle: { color: '#F0E6FA' },
