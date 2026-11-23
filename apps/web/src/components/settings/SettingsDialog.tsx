@@ -131,9 +131,10 @@ export function SettingsDialog({
             <DialogTitle className="px-2 pb-1.5 pr-8 text-sm font-semibold sm:pb-2 sm:pr-2">Settings</DialogTitle>
             {/*
               On a phone the sections are a grid of small tiles, every one in sight: a row that
-              scrolled sideways hid half of them with nothing to say they were there.
+              scrolled sideways hid half of them with nothing to say they were there. They start a little
+              lower than the title, clear of the dialog's Close, whose 44 px reaches below its box on touch.
             */}
-            <nav ref={nav} aria-label="Settings sections" className="grid grid-cols-3 gap-1 sm:block sm:space-y-0.5">
+            <nav ref={nav} aria-label="Settings sections" className="mt-3 grid grid-cols-3 gap-1 sm:mt-0 sm:block sm:space-y-0.5">
               {sections.map(({ id, label, icon: Icon }) => (
                 <button
                   key={id}

@@ -342,7 +342,8 @@ export function QueuePanel({ player, onClose }: { player: Player; onClose: () =>
     <div className="flex h-full w-full flex-col">
       <div className="flex h-12 shrink-0 items-center justify-between border-b pl-4 pr-2">
         <h2 className="text-sm font-semibold">Queue</h2>
-        <IconButton label="Close queue" size="sm" onClick={onClose} className={touchTarget}><X /></IconButton>
+        {/* No tooltip: the floating queue puts focus here as it opens, and a tooltip shown on focus would take the first Escape, so closing would need two. */}
+        <IconButton label="Close queue" tooltip={false} size="sm" onClick={onClose} className={touchTarget}><X /></IconButton>
       </div>
       <ScrollArea className="min-h-0 flex-1">
         <div className="px-2 pb-4 pt-3"><QueueContent player={player} /></div>

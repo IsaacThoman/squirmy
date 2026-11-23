@@ -1,4 +1,4 @@
-// Checks in real Chromium, on a phone (390 × 844) and a tablet (768 × 1024) with touch input and
+// Checks in real Chromium, on phones (320 × 640, 390 × 844) and a tablet (768 × 1024) with touch input and
 // a coarse pointer, that every control a finger can press has at least 44 × 44 px to press. It
 // walks Home, Search with results, each Library filter, an album, an artist, a playlist, Liked
 // Songs, a track's menu, the sidebar drawer, Settings and its password dialog, Devices, Now
@@ -8,6 +8,9 @@
 // the control (a pseudo-element counts, it is part of its element), so a control made larger than
 // it looks passes, and one whose larger area is covered by a neighbor or cut off by its container
 // fails. The few controls that are not held to this are listed in `exceptions`, each with why.
+// It also checks that no control floating over the page (one that stays put while the page
+// scrolls, as the phone's drawer button does) sits on the page's words or controls, at the top
+// and scrolled, on a 320 px phone too: what passes under it must be covered by a bar.
 //
 // Usage: node scripts/e2e-touch-targets.mjs <baseUrl> [--username <name>] [--password <password>] [--shots <dir>]
 //   The server must be set up, with a library scanned (the demo library: `npm run demo:library -w
@@ -143,10 +146,63 @@ function audit({ exceptions, size, scope }) {
   return results
 }
 
+/**
+ * In the page: controls outside the page's scroll container that lie over it, with what of the
+ * page shows under them. Under a control, the page's words, pictures or controls must be covered
+ * (by a bar with a background) or absent.
+ */
+function floatingOverlaps() {
+  const main = document.querySelector('main')
+  if (!main) return []
+  const area = main.getBoundingClientRect()
+  const controls = [...document.querySelectorAll('button, a[href], [role=button]')].filter(control => {
+    if (main.contains(control) || control.closest('[inert], [aria-hidden="true"], [role=dialog]')) return false
+    const box = control.getBoundingClientRect()
+    return box.width > 2 && box.height > 2 && control.checkVisibility({ visibilityProperty: true })
+      && box.left < area.right && box.right > area.left && box.top < area.bottom && box.bottom > area.top
+  })
+  const ownText = element => [...element.childNodes].some(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim())
+  const isContent = element => ownText(element) || element.matches('img, svg, video, canvas, button, a[href], input, select, textarea, [role=button]')
+  const opaque = element => {
+    const style = getComputedStyle(element)
+    const alpha = Number(/rgba?\(([^)]+)\)/.exec(style.backgroundColor)?.[1].split(',')[3] ?? 1)
+    return (style.backgroundColor !== 'rgba(0, 0, 0, 0)' && alpha >= 0.5) || style.backdropFilter !== 'none'
+  }
+  const found = []
+  for (const control of controls) {
+    const box = control.getBoundingClientRect()
+    const points = [[0.5, 0.5], [0.2, 0.2], [0.8, 0.2], [0.2, 0.8], [0.8, 0.8]].map(([x, y]) => [box.left + box.width * x, box.top + box.height * y])
+    for (const [x, y] of points) {
+      for (const element of document.elementsFromPoint(x, y)) {
+        if (control.contains(element) || element.contains(control)) continue
+        if (main.contains(element) && isContent(element)) {
+          found.push(`"${control.getAttribute('aria-label') ?? control.textContent.trim()}" lies over <${element.tagName.toLowerCase()}> "${(element.textContent ?? '').trim().slice(0, 30)}"`)
+          break
+        }
+        if (opaque(element)) break
+      }
+    }
+  }
+  return [...new Set(found)]
+}
+
+/** A floating control lies over nothing of the page, at its top and scrolled down. */
+async function noOverlap(page, name, viewport) {
+  const results = []
+  for (const offset of [0, 240, 600]) {
+    await page.evaluate(top => document.querySelector('main')?.scrollTo({ top, behavior: 'instant' }), offset)
+    await sleep(150)
+    results.push(...(await page.evaluate(floatingOverlaps)).map(line => `at ${offset} px: ${line}`))
+  }
+  await page.evaluate(() => document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' }))
+  check(`${viewport}: ${name}: nothing floats over the page`, results.length === 0, results.map(line => `      ${line}`).join('\n'))
+}
+
 let shotIndex = 0
 async function audited(page, name, viewport, scope = null) {
   // Let entering animations and lazy images settle.
   await sleep(500)
+  if (!scope) await noOverlap(page, name, viewport)
   const failures = await page.evaluate(audit, { exceptions, size: 44, scope })
   check(`${viewport}: ${name}`, failures.length === 0, failures.map(line => `      ${line}`).join('\n'))
   if (shots) {
@@ -182,7 +238,7 @@ if (!(await api(seed, 'GET', `/playlists/${playlist.id}`)).items.length) {
 }
 await seed.close()
 
-for (const [viewport, size] of [['phone', { width: 390, height: 844 }], ['tablet', { width: 768, height: 1024 }]]) {
+for (const [viewport, size] of [['small phone', { width: 320, height: 640 }], ['phone', { width: 390, height: 844 }], ['tablet', { width: 768, height: 1024 }]]) {
   const context = await browser.newContext({ viewport: size, hasTouch: true, isMobile: true, deviceScaleFactor: 2 })
   await api(context, 'POST', '/auth/login', credentials)
   const page = await context.newPage()
@@ -245,7 +301,7 @@ for (const [viewport, size] of [['phone', { width: 390, height: 844 }], ['tablet
     await page.getByRole('dialog', { name: 'Change password' }).waitFor()
     await audited(page, 'Change password', viewport)
   })
-  if (viewport === 'phone') {
+  if (viewport !== 'tablet') {
     await step(`${viewport}: sidebar drawer`, async () => {
       await visit('/', () => main.getByRole('heading').first().waitFor())
       await tapButton('Open sidebar')

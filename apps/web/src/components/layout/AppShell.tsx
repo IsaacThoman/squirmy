@@ -93,6 +93,7 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
   const [scroller, setScroller] = useState<HTMLElement | null>(null)
 
   const [mobile, setMobile] = useState(() => window.matchMedia(MOBILE_QUERY).matches)
+  const topBar = useTopBar(mobile ? scroller : null, pathname)
   const [collapsed, setCollapsed] = useState(readSidebarCollapsed)
   const [drawerOpen, setDrawerOpen] = useState(false)
   // Only the room the frame leaves the sidebar matters, so resizing the window renders when that changes.
@@ -318,6 +319,16 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
         {/* Everything behind the open drawer is inert. */}
         <div className="flex min-w-0 flex-1 flex-col" inert={drawerShown}>
           <div className="relative flex min-h-0 flex-1">
+            {/*
+              * A page with no header bar (an album, an artist, a playlist) has the drawer button
+              * floating over it; once it scrolls, a bar behind the button takes the page's title,
+              * so the list goes under the bar rather than under the button.
+              */}
+            {mobile && topBar !== null && (
+              <div aria-hidden className="absolute inset-x-0 top-0 z-20 flex h-12 items-center border-b bg-background/85 pl-12 pr-4 backdrop-blur-md">
+                <span dir="auto" className="truncate text-sm font-semibold">{topBar}</span>
+              </div>
+            )}
             {mobile && (
               <button
                 ref={opener}
@@ -336,7 +347,8 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
               ref={setScroller}
               tabIndex={-1}
               // Its own layer: a sticky page header stays under the floating queue's backdrop.
-              className="relative isolate min-w-0 flex-1 overflow-y-auto outline-none [--gutter:1rem] md:[--gutter:1.5rem]"
+              // The scroll padding keeps what takes focus clear of a sticky header or the bar above.
+              className="relative isolate min-w-0 flex-1 scroll-pt-14 overflow-y-auto outline-none [--gutter:1rem] md:[--gutter:1.5rem]"
             >
               <ScrollContainerContext value={scroller}>
                 {/* A page that fails shows a message in its place; the next page starts afresh. */}
@@ -526,4 +538,27 @@ function ShellNowPlaying({ nowPlaying, setNowPlaying }: Pick<ShellPlayerProps, '
       onToggleLike={toggleLike}
     />
   )
+}
+
+/**
+ * The title for the phone's top bar while a page with no header bar of its own is scrolled,
+ * else null. A page with a `PageHeader` has its own sticky bar.
+ */
+function useTopBar(scroller: HTMLElement | null, pathname: string): string | null {
+  const [title, setTitle] = useState<string | null>(null)
+  useEffect(() => {
+    if (!scroller) return
+    const update = () => {
+      const own = scroller.querySelector('[data-page-header]') !== null
+      setTitle(!own && scroller.scrollTop > 4 ? scroller.querySelector('h1')?.textContent ?? '' : null)
+    }
+    // After the new page has drawn (and Back has restored its place).
+    const frame = requestAnimationFrame(update)
+    scroller.addEventListener('scroll', update, { passive: true })
+    return () => {
+      cancelAnimationFrame(frame)
+      scroller.removeEventListener('scroll', update)
+    }
+  }, [scroller, pathname])
+  return scroller ? title : null
 }

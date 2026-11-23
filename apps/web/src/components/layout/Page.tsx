@@ -26,7 +26,7 @@ type PageHeaderProps = {
  */
 export function PageHeader({ title, nav, navLabel, children, controls = 'end', className }: PageHeaderProps) {
   return (
-    <header className={cn('sticky top-0 z-20 flex h-12 shrink-0 items-center gap-4 border-b bg-background/85 px-(--gutter) backdrop-blur-md max-md:pl-12', className)}>
+    <header data-page-header className={cn('sticky top-0 z-20 flex h-12 shrink-0 items-center gap-4 border-b bg-background/85 px-(--gutter) backdrop-blur-md max-md:pl-12', className)}>
       <h1 dir="auto" className="shrink-0 text-sm font-semibold">{title}</h1>
       {nav && <HeaderNav label={navLabel ?? `${title} sections`}>{nav}</HeaderNav>}
       {children && <div className={cn('flex min-w-0 items-center gap-2', controls === 'fill' ? 'flex-1' : 'ml-auto')}>{children}</div>}

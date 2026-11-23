@@ -618,6 +618,33 @@ describe('AppShell', () => {
     const opener = () => screen.getByRole('button', { name: 'Open sidebar' })
     const drawerOpen = () => !sidebar().hasAttribute('inert')
 
+    it('puts a bar with the page\'s title behind the drawer button once a page with no header bar scrolls', async () => {
+      stubViewport(true)
+      const blueHour = album('blue-hour')
+      await renderShell(`/album/${blueHour.id}`)
+      await screen.findByRole('heading', { level: 1, name: 'Blue Hour' })
+      const main = screen.getByRole('main')
+      const bar = () => document.querySelector('[aria-hidden][class*="backdrop-blur"] span')
+      expect(bar()).toBeNull()
+      main.scrollTop = 300
+      fireEvent.scroll(main)
+      await waitFor(() => expect(bar()).toHaveTextContent('Blue Hour'))
+      main.scrollTop = 0
+      fireEvent.scroll(main)
+      await waitFor(() => expect(bar()).toBeNull())
+    })
+
+    it('adds no bar over a page that has its own header bar', async () => {
+      stubViewport(true)
+      await renderShell('/library')
+      const main = screen.getByRole('main')
+      await waitFor(() => expect(main.querySelector('[data-page-header]')).not.toBeNull())
+      main.scrollTop = 300
+      fireEvent.scroll(main)
+      await new Promise(resolve => requestAnimationFrame(resolve))
+      expect(document.querySelector('[aria-hidden][class*="backdrop-blur"] span')).toBeNull()
+    })
+
     it('keeps the sidebar away as a closed drawer', async () => {
       stubViewport(true)
       await renderShell()
