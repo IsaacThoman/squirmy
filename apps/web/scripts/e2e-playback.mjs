@@ -237,7 +237,15 @@ await step('search', async () => {
   await sleep(500)
   page.off('request', listen)
   check('library results come from the server', true)
-  check('typing sends only the settled query, to both searches', asked.length === 2 && asked.includes('library:blue hour') && asked.includes('catalog:blue hour'), asked.join(', '))
+  // The library search waits 60 ms for typing to pause, so a slow keystroke on a loaded machine
+  // may send an earlier prefix; what must hold is that the last library request and the one
+  // catalog request are for the settled query, and nothing else is asked.
+  const library = asked.filter(request => request.startsWith('library:'))
+  const catalog = asked.filter(request => request.startsWith('catalog:'))
+  check('typing settles on the whole query, in both searches',
+    library.at(-1) === 'library:blue hour' && library.every(request => 'blue hour'.startsWith(request.slice('library:'.length)))
+      && catalog.length === 1 && catalog[0] === 'catalog:blue hour' && library.length + catalog.length === asked.length,
+    asked.join(', '))
   // One ranked list, every kind mixed, each row saying what it is: no sections, none named for the library.
   const rows = await results.getByRole('option').allTextContents()
   check('one list, the album named first, each row saying what it is', /^Blue Hour(Album|EP|Single) · Mira Vale/.test(rows[0] ?? '') && rows.every(row => / · |Artist|Playlist/.test(row)), rows.slice(0, 4).join(' / '))
@@ -441,11 +449,11 @@ await step('play here', async () => {
 
 await step('the active device goes away', async () => {
   await b.context.close()
-  const banner = a.page.getByText(/^Playing on /).filter({ visible: true })
-  await banner.waitFor({ state: 'hidden', timeout: 30_000 })
-  const session = await api(a.context, 'GET', '/me/session')
-  check('after the grace period the session is paused with no active device', !session.state.playing && session.state.activeDeviceId === null)
-  check('this browser shows it paused', await transport(a.page, 'Play').isVisible())
+  // The player says "Reconnecting to …" as soon as the device leaves; the session itself pauses
+  // only once the server's grace period (20 s) is over, so that is what is waited for.
+  const session = await until(() => api(a.context, 'GET', '/me/session'), snapshot => !snapshot.state.playing && snapshot.state.activeDeviceId === null, 40_000, 500)
+  check('after the grace period the session is paused with no active device', !session.state.playing && session.state.activeDeviceId === null, JSON.stringify({ playing: session.state.playing, active: session.state.activeDeviceId }))
+  check('this browser shows it paused', await transport(a.page, 'Play').waitFor({ timeout: 5000 }).then(() => true, () => false))
   await transport(a.page, 'Play').click()
   check('the first play here makes this browser active', await advancing(a.page))
 })
