@@ -1,4 +1,5 @@
 import type { AlbumSummary } from '@squirmy/contracts'
+import type { ReactNode } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { Cover } from '@/components/music/Cover'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
@@ -12,17 +13,20 @@ type FindAlbumDialogProps = {
   onQueryChange: (query: string) => void
   /** Undefined while searching or before anything is typed. */
   albums: AlbumSummary[] | undefined
+  /** Said in place of the results when the search failed. */
+  failure?: ReactNode
   onPick: (album: AlbumSummary) => void
 }
 
 /** Finds an album in the library to fix its match. */
-export function FindAlbumDialog({ open, onOpenChange, query, onQueryChange, albums, onPick }: FindAlbumDialogProps) {
+export function FindAlbumDialog({ open, onOpenChange, query, onQueryChange, albums, failure, onPick }: FindAlbumDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent title="Fix a match" description="Find the album in your library, then choose what it should be." className="sm:max-w-lg">
         <SearchField value={query} onValueChange={onQueryChange} placeholder="Album or artist" autoFocus />
         <div className="-mx-2 min-h-48">
-          {query.trim() && !albums && (
+          {query.trim() && !albums && failure}
+          {query.trim() && !albums && !failure && (
             <div className="flex flex-col gap-1">
               {[0, 1, 2].map(index => (
                 <div key={index} className="flex items-center gap-3 p-2">

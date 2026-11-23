@@ -32,6 +32,13 @@ describe('home', () => {
     expect(screen.queryByText('Start listening')).toBeNull()
   })
 
+  it('gives the featured title three balanced lines, which a narrow column needs for three words', async () => {
+    renderHome({ sections: [{ kind: 'albums', id: 'recently-played', title: 'Recently played', albums: [summary(album('low-tide'))] }] })
+    const title = within(await screen.findByRole('region', { name: 'Featured' })).getByRole('heading', { name: 'Low Tide' })
+    expect(title).toHaveClass('line-clamp-3', 'text-balance')
+    expect(title).not.toHaveClass('line-clamp-2')
+  })
+
   it('leaves the featured album out of the rail it leads, keeping the server’s order', async () => {
     renderHome(home)
     const featured = await screen.findByRole('region', { name: 'Featured' })

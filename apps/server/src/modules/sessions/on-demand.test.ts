@@ -209,6 +209,36 @@ describe('sessions with on-demand tracks', () => {
     mock.settings.has = () => true
   }, 60_000)
 
+  it('stays on a song the listener picked when it cannot be had, rather than start another', async () => {
+    mock.settings.has = lacking
+    const album = await remoteAlbum(4, (index) => index === 1 ? `Missing ${newId()}` : `Here ${newId()}`)
+    const phone = await device(await signIn({ canAcquire: true }))
+    // The second song, clicked in its album.
+    phone.client.dispatch({ type: 'playTracks', tracks: album.ids.map((trackId) => ({ trackId, albumId: album.albumId, durationMs: 0, state: 'preparing' as const })), startIndex: 1, seed: 1, startedFrom: 'song' })
+    await eventually(() => expect(phone.client.getSnapshot().session).toMatchObject({ playing: false, current: { trackId: album.ids[1], state: 'failed' } }))
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    expect(phone.client.getSnapshot().session).toMatchObject({ playing: false, current: { trackId: album.ids[1] } })
+    // No stop notice: the client tells it as a song that could not play.
+    expect(phone.events.filter((event) => event.type === 'playback.unavailable')).toEqual([])
+    expect(phone.client.getSnapshot().queue.queue.map((entry) => entry.trackId)).toEqual(album.ids.slice(2))
+    // Next goes on as usual.
+    phone.client.dispatch({ type: 'next' })
+    await eventually(() => expect(phone.client.getSnapshot().session).toMatchObject({ playing: true, current: { trackId: album.ids[2], state: 'ready' } }))
+    mock.settings.has = () => true
+  }, 60_000)
+
+  it.each([
+    ['played as a whole (a header\'s Play)', 'collection' as const],
+    ['from a client that does not say how it was started', undefined],
+  ])('moves past a first song it cannot have when the album is %s', async (_case, startedFrom) => {
+    mock.settings.has = lacking
+    const album = await remoteAlbum(3, (index) => index === 0 ? `Missing ${newId()}` : `Here ${newId()}`)
+    const phone = await device(await signIn({ canAcquire: true }))
+    phone.client.dispatch({ type: 'playTracks', tracks: album.ids.map((trackId) => ({ trackId, albumId: album.albumId, durationMs: 0, state: 'preparing' as const })), startIndex: 0, seed: 1, ...(startedFrom ? { startedFrom } : {}) })
+    await eventually(() => expect(phone.client.getSnapshot().session).toMatchObject({ playing: true, current: { trackId: album.ids[1], state: 'ready' } }))
+    mock.settings.has = () => true
+  }, 60_000)
+
   it('stops once nothing left in the queue is available, saying so once', async () => {
     mock.settings.has = lacking
     const album = await remoteAlbum(4, () => `Missing ${newId()}`)

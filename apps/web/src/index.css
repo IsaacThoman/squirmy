@@ -107,6 +107,12 @@
    */
   /* Secondary words over an artwork tint (collection headers): see headerTints in lib/color-themes.ts. */
   --color-tint-muted-foreground: color-mix(in oklab, var(--foreground) 80%, var(--background));
+  /*
+   * A pressed-on or hovered fill of the action color: a little toward the text, so the words on
+   * it read at least as well as on the action color itself (color-themes.test.ts). A translucent
+   * fill would take the color of what is behind it, and fell under 4.5:1 on tinted strips.
+   */
+  --color-primary-hover: color-mix(in srgb, var(--primary) 88%, var(--foreground));
   --color-faded-foreground: color-mix(in oklab, var(--muted-foreground) 75%, var(--background));
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -205,6 +211,28 @@
 }
 
 @utility tabular { font-variant-numeric: tabular-nums; }
+
+/*
+ * The touch target: on a touch screen a control a finger presses is at least 44 × 44 px. A control
+ * drawn smaller is pressed through a square of that size centered on it, a pseudo-element past its
+ * box, so it keeps its look. The control must be positioned (`relative`, `absolute`), and its
+ * neighbors must be 44 px apart, center to center, so the squares do not overlap; where they are
+ * closer, grow the boxes instead (`pointer-coarse:size-11`, `pointer-coarse:min-h-11`).
+ * `scripts/e2e-touch-targets.mjs` presses every control on the main pages to check it.
+ */
+@utility touch-target {
+  @media (pointer: coarse) {
+    &::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: max(100%, 2.75rem);
+      height: max(100%, 2.75rem);
+      transform: translate(-50%, -50%);
+    }
+  }
+}
 
 /* A row of links or tabs that scrolls sideways without showing a scrollbar. */
 @utility scrollbar-none {

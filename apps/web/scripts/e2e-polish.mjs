@@ -216,7 +216,7 @@ await step('search leads with the best match', async () => {
   const expected = await get('/search/library?q=OK%20Computer&limit=20')
   await page.goto(`${base}/search`)
   await heading('Search').waitFor()
-  const search = page.getByRole('combobox', { name: 'Search' })
+  const search = page.getByRole('searchbox', { name: 'Search' })
   check('the search page\'s field takes focus', await search.evaluate(element => element === document.activeElement))
   // Fast typing, a mistake and its correction: nothing may be dropped or arrive out of order.
   await search.pressSequentially('OK Computr', { delay: 15 })
@@ -225,10 +225,11 @@ await step('search leads with the best match', async () => {
   await page.waitForFunction(() => new URL(location.href).searchParams.get('q') === 'OK Computer')
   check('the search field keeps every letter', await search.inputValue() === 'OK Computer', page.url())
   // One ranked list, the library's and the catalog's merged, once both have answered.
-  const results = page.getByRole('listbox', { name: /^Results for / })
+  // A plain list: each row's link or button is a control of its own.
+  const results = page.getByRole('list', { name: /^Results for / })
   await results.waitFor()
   await page.waitForFunction(() => !document.querySelector('main [aria-busy]'), null, { timeout: 30_000 })
-  const first = results.getByRole('option').first()
+  const first = results.getByRole('listitem').first()
   check('the best match leads, the server\'s top result', await first.getByRole('link', { name: /^OK Computer, Album · / }).getAttribute('href') === `/album/${expected.top.id}`, await first.textContent())
   await first.hover()
   await first.getByRole('button', { name: 'More options for OK Computer' }).click()
@@ -241,9 +242,9 @@ await step('search leads with the best match', async () => {
   /** Opens the search page for `q` and waits for its list to settle: the catalog's answer ranks it too. */
   const settled = async q => {
     await page.goto(`${base}/search?q=${encodeURIComponent(q)}`)
-    await results.getByRole('option').first().waitFor()
+    await results.getByRole('listitem').first().waitFor()
     await page.waitForFunction(() => !document.querySelector('main [aria-busy]'), null, { timeout: 30_000 })
-    return results.getByRole('option').first()
+    return results.getByRole('listitem').first()
   }
   const artist = await settled('Radiohead')
   // By its link's name: an artist without a picture yet shows its initial, which the text would include.

@@ -53,7 +53,7 @@ Admins can always upload; members need **Can upload music** (see [Users and acce
 
 **Add music** is in the sidebar for everyone who may upload.
 
-1. Drop album folders, files or zip archives on the page, or use **Choose a folder** or **Choose files**. Folders keep their structure. The list shows every file before anything is sent, and files over the size limit are marked and left out.
+1. Drop album folders, files or zip archives on the page, or use **Choose a folder** or **Choose files**. Folders keep their structure. The list shows every file before anything is sent. Files the server would refuse (not music, a sidecar or a zip, or over the size limit) are marked with the reason and left out. Until you press **Upload**, **Add files** and **Add a folder** under the list add more, and the **×** on a file takes it out.
 2. Press **Upload**. Each file shows its progress, and the bar above shows all of it. **Pause** stops sending and **Resume** carries on where it stopped; **Cancel** throws away what was sent. Keep the tab open until the upload finishes; other pages of the app can be used meanwhile.
 3. Once everything is sent, the page follows the import through its steps to the result: files received, duplicates skipped, albums filed (each linking to its page), and what was left for review, with a link to the review queue for admins. Files the server refused are listed with the reason.
 

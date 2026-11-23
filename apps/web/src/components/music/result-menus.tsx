@@ -3,14 +3,12 @@ import type { AlbumSummary, TrackSummary } from '@squirmy/contracts'
 import { useQueryClient } from '@tanstack/react-query'
 import { ListMusic, MicVocal, Play, Radio } from 'lucide-react'
 import { useNavigate } from 'react-router'
-import { errorMessage } from '@/api/errors'
 import { albumQuery } from '@/api/queries'
 import { useApi } from '@/api/services'
 import type { MenuEntry } from '@/components/ui/menu'
 import { albumMenuEntries } from './album-menu'
 import { librarySaveEntry } from './library-save-entry'
 import { albumPresentation, isPlayable } from '@/lib/catalog'
-import { toast } from '@/lib/toast'
 import { useLibrary } from '@/player/library-context'
 import { useViewer } from '@/player/on-demand-context'
 import { usePlayerControls } from '@/player/player-context'
@@ -31,16 +29,15 @@ export function useResultMenus() {
   const viewer = useViewer()
   const { playAlbum, playPlaylist } = usePlayCollections()
 
-  const withTracks = (album: AlbumSummary, use: (tracks: TrackSummary[]) => void) => {
-    queryClient.fetchQuery(albumQuery(api, album.id))
-      .then(detail => use(detail.discs.flatMap(disc => disc.tracks)))
-      .catch((error: unknown) => toast({ title: errorMessage(error) }))
-  }
+  // The entry waits for the album's songs, and says on itself when they did not load.
+  const withTracks = <T,>(album: AlbumSummary, use: (tracks: TrackSummary[]) => T) =>
+    queryClient.fetchQuery(albumQuery(api, album.id)).then(detail => use(detail.discs.flatMap(disc => disc.tracks)))
+  // Nothing that plays: nothing is queued, and the entry closes without saying it was.
   const enqueue = (album: AlbumSummary, placement: 'next' | 'last') => withTracks(album, tracks => {
     const playable = tracks.filter(track => isPlayable(track, viewer))
-    if (!playable.length) return
+    if (!playable.length) return false
     controls.enqueue(playable, placement)
-    toast({ title: placement === 'next' ? 'Playing next' : 'Added to queue', description: album.title })
+    return true
   })
 
   return (item: Exclude<SearchItem, { type: 'track' }>): MenuEntry[] => {
@@ -65,10 +62,7 @@ export function useResultMenus() {
     const { album } = item
     const plays = albumPresentation(album, viewer) === 'normal'
     const wanted = library.isWanted(album.id)
-    const want = () => {
-      library.setWanted({ type: 'album', album }, !wanted)
-      toast({ title: wanted ? 'Removed from Wantlist' : 'Added to Wantlist', description: album.title })
-    }
+    const want = () => library.setWanted({ type: 'album', album }, !wanted)
     // The album's own menu, as on its page and its cards, with the saved state the search answer carries.
     return albumMenuEntries({
       artists: album.artists,
@@ -76,7 +70,11 @@ export function useResultMenus() {
       onPlay: () => void playAlbum(album),
       onEnqueue: placement => enqueue(album, placement),
       playlists: library.playlists,
-      onAddToPlaylist: playlist => withTracks(album, tracks => (playlist ? library.addToPlaylist(playlist, tracks) : library.newPlaylist(tracks))),
+      onAddToPlaylist: playlist => withTracks(album, tracks => {
+        if (playlist) return library.addToPlaylist(playlist, tracks)
+        library.newPlaylist(tracks)
+        return false
+      }),
       liked: album.liked,
       onToggleSaved: () => library.setSaved({ type: 'album', id: album.id, title: album.title }, !album.liked),
       // The Wantlist is for music that does not play, while the server has it on.

@@ -20,6 +20,8 @@ type SearchIndexAdminProps = {
   onStart: (request: z.input<typeof StartCatalogIndexImport>) => Promise<unknown>
   onCancel: () => Promise<unknown>
   onRemove: () => Promise<unknown>
+  /** Said in place of the index's state when it did not load. */
+  failure?: ReactNode
 }
 
 /** From docs/local-search-index.md, measured on the November 2026 dump. */
@@ -36,7 +38,7 @@ const phases = [
   { key: 'swap', label: 'Swap', detail: 'Putting the new index in place' },
 ] as const
 
-export function SearchIndexAdmin({ status, starting, onStart, onCancel, onRemove }: SearchIndexAdminProps) {
+export function SearchIndexAdmin({ status, starting, onStart, onCancel, onRemove, failure }: SearchIndexAdminProps) {
   const [confirm, setConfirm] = useState<'cancel' | 'remove' | null>(null)
   const running = status?.latest?.state === 'running' ? status.latest : null
   const problem = status?.latest && (status.latest.state === 'failed' || status.latest.state === 'cancelled') ? status.latest : null
@@ -47,7 +49,7 @@ export function SearchIndexAdmin({ status, starting, onStart, onCancel, onRemove
         description="An optional copy of MusicBrainz's catalog on this server, so searching for any artist, album or song is answered here in milliseconds instead of asking an online service."
       />
       <div className="flex flex-col gap-7">
-        {!status && <Skeleton className="h-[74px] rounded-xl" />}
+        {!status && (failure ?? <Skeleton className="h-[74px] rounded-xl" />)}
         {status && (
           <div className="@container flex flex-col gap-3">
             <div className={cn(cardClass, 'flex flex-wrap items-center gap-3 p-4')}>

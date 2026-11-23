@@ -31,6 +31,8 @@ export type SearchState = {
   unavailable: boolean
   /** Asks both again, after a failure. */
   retry: () => void
+  /** A search is being asked again (after Try again): its failure stays shown until the answer. */
+  retrying: boolean
 }
 
 type Answer = { term: string; data: SearchResults | null; failed: boolean }
@@ -44,13 +46,13 @@ export const CATALOG_WAIT_MS = 700
 
 /** The last answer the query gave for the term it was asked, never a placeholder kept from another term. */
 function useAnswer(kind: 'library' | 'catalog', term: string) {
-  const query = useQuery({ ...searchQuery(useApi(), kind, term), placeholderData: keepPreviousData, retry: 1, meta: { silent: true } })
+  const query = useQuery({ ...searchQuery(useApi(), kind, term), placeholderData: keepPreviousData, retry: 1 })
   const [answer, setAnswer] = useState<Answer | null>(null)
   const fresh = term.length > 0 && !query.isPlaceholderData && query.data !== undefined
   if (fresh && (answer?.term !== term || answer.data !== query.data || answer.failed)) setAnswer({ term, data: query.data, failed: false })
   const failed = term.length > 0 && query.isError && !query.isFetching
   if (failed && (answer?.term !== term || !answer.failed)) setAnswer({ term, data: null, failed: true })
-  return { answer, refetch: query.refetch }
+  return { answer, refetch: query.refetch, fetching: query.isFetching }
 }
 
 /**
@@ -117,15 +119,17 @@ export function useMergedSearch(typed: string, { catalog: withCatalog = true, pl
     void library.refetch()
     if (withCatalog) void catalog.refetch()
   })
+  // Only a failure shown is said to be asked again, so answers in flight otherwise make no new object.
+  const retrying = Boolean(steady && (steady.failed || steady.catalogFailed) && (library.fetching || (withCatalog && catalog.fetching)))
   // One object per answer, so views can tell new results from a render.
   return useMemo(() => {
-    const base = { catalogPending, retry, catalogFailed: false, failed: false, unavailable: false }
+    const base = { catalogPending, retry, retrying: false, catalogFailed: false, failed: false, unavailable: false }
     if (!term) return { ...base, results: null, stale: false, catalogPending: false }
-    if (steady) return { ...base, results: steady.results, stale: false, catalogFailed: steady.catalogFailed, failed: steady.failed, unavailable: steady.unavailable }
+    if (steady) return { ...base, results: steady.results, stale: false, catalogFailed: steady.catalogFailed, failed: steady.failed, unavailable: steady.unavailable, retrying }
     // Only the same search typed on or deleted back stands in, never an unrelated one.
     if (shown?.results && shown.term !== term && continuesQuery(term, shown.term)) return { ...base, results: { ...shown.results, top: null }, stale: true }
     return { ...base, results: null, stale: false }
-  }, [term, steady, shown, catalogPending, retry])
+  }, [term, steady, shown, catalogPending, retry, retrying])
 }
 
 /** Rows per page of one kind; the server answers at most 50. */
@@ -133,7 +137,8 @@ export const SEARCH_PAGE_SIZE = 30
 /** The contract's largest offset. */
 const lastOffset = 450
 
-type Page = { offset: number; library: SearchResults | null; catalog: SearchResults | null; catalogFailed: boolean }
+/** One page of a filter's results; it says what it answers, since another filter's or term's pages stand in while one loads. */
+type Page = { term: string; kind: SearchKind; offset: number; library: SearchResults | null; catalog: SearchResults | null; catalogFailed: boolean }
 
 const listOf = (answer: SearchResults | null, kind: SearchKind) =>
   (answer ? kind === 'artist' ? answer.artists : kind === 'album' ? answer.albums : answer.tracks : [])
@@ -141,7 +146,9 @@ const listOf = (answer: SearchResults | null, kind: SearchKind) =>
 /**
  * One kind's results for a filter, page by page: each page is the library's and the
  * catalog's next `SEARCH_PAGE_SIZE` of that kind, ranked together. The last term's pages
- * stay (faded) while a new term's first page loads.
+ * stay (faded) while a new term's first page loads, when the new term is the old one typed on
+ * or deleted back; another kind's pages or an unrelated term's never stand in. A page that
+ * fails after the first stops the paging until it is asked for again (`moreFailed`).
  */
 export function useSearchPages(typed: string, kind: SearchKind | null) {
   const api = useApi()
@@ -158,7 +165,7 @@ export function useSearchPages(typed: string, kind: SearchKind | null) {
       const value = (result: PromiseSettledResult<SearchResults>) => (result.status === 'fulfilled' ? result.value : null)
       // A server without search answers 404 for both: an empty page.
       const missing = (result: PromiseSettledResult<SearchResults>) => result.status === 'rejected' && isNotFound(result.reason)
-      return { offset, library: value(library), catalog: value(catalog), catalogFailed: catalog.status === 'rejected' && !missing(catalog) }
+      return { term, kind: kind!, offset, library: value(library), catalog: value(catalog), catalogFailed: catalog.status === 'rejected' && !missing(catalog) }
     },
     getNextPageParam: (last: Page, pages: Page[]) => {
       const full = [last.library, last.catalog].some(answer => listOf(answer, kind!).length >= SEARCH_PAGE_SIZE)
@@ -171,7 +178,6 @@ export function useSearchPages(typed: string, kind: SearchKind | null) {
     placeholderData: keepPreviousData,
     staleTime: 60_000,
     retry: 1,
-    meta: { silent: true },
   })
   const items = useMemo(() => {
     const seen = new Set<string>()
@@ -188,8 +194,11 @@ export function useSearchPages(typed: string, kind: SearchKind | null) {
     }
     return list
   }, [query.data, viewer, kind, term])
+  const answered = query.data?.pages[0]
+  // Pages kept from another kind or an unrelated term answer nothing that is asked: none stand in.
+  const related = answered !== undefined && answered.kind === kind && (answered.term === typed.trim() || continuesQuery(typed.trim(), answered.term))
   return {
-    items: query.data ? items : null,
+    items: related ? items : null,
     /** The pages shown are another term's, kept while this one's load. */
     stale: query.isPlaceholderData || term !== typed.trim(),
     loading: query.isFetching && !query.isFetchingNextPage,
@@ -197,6 +206,12 @@ export function useSearchPages(typed: string, kind: SearchKind | null) {
     hasMore: Boolean(query.hasNextPage),
     loadMore: () => void query.fetchNextPage(),
     failed: query.isError && !query.data,
+    /**
+     * The next page failed (after its one retry). The list stops asking for it as its end comes
+     * into view, which would retry it without end, until `loadMore` is called again.
+     */
+    moreFailed: query.isFetchNextPageError,
+    error: query.error,
     catalogFailed: query.data?.pages.some(page => page.catalogFailed) ?? false,
     retry: () => void query.refetch(),
   }

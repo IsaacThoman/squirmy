@@ -1,3 +1,4 @@
+import { ApiError } from '@squirmy/client-core'
 import type { ScrobbleService, ScrobblingStatus } from '@squirmy/contracts'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -168,6 +169,13 @@ describe('SettingsDialog', () => {
       await userEvent.type(field, '  Kitchen laptop {Enter}')
       expect(onDeviceNameChange).toHaveBeenCalledTimes(1)
       expect(onDeviceNameChange).toHaveBeenCalledWith('Kitchen laptop')
+      // The field shows the name; "Saved" beside it says it reached the device lists.
+      expect(screen.getByText('Saved').closest('[role="status"]')).not.toBeNull()
+    })
+
+    it('says under the playback settings when the server refused a change', () => {
+      renderSettings({ errors: { playback: 'Couldn’t save that change. The server is busy.' } })
+      expect(screen.getByRole('alert')).toHaveTextContent('Couldn’t save that change. The server is busy.')
     })
 
     it('goes back to the browser’s own name when the field is emptied and left', async () => {
@@ -242,6 +250,12 @@ describe('SettingsDialog', () => {
   })
 
   describe('Account', () => {
+    it('says the password was changed, in place of what changing it does', () => {
+      renderSettings({ section: 'account', passwordChanged: true })
+      expect(screen.getByText('Password changed. Your other sessions were signed out.').closest('[role="status"]')).not.toBeNull()
+      expect(screen.queryByText('Changing it signs you out everywhere else.')).toBeNull()
+    })
+
     it('shows who is signed in and logs out', async () => {
       const { onLogout } = renderSettings({ section: 'account' })
       expect(screen.getByText('Alex Rivera')).toBeInTheDocument()
@@ -300,6 +314,26 @@ describe('SettingsDialog', () => {
       expect(toggle).not.toBeChecked()
       await userEvent.click(toggle)
       expect(onSettingsChange).toHaveBeenCalledWith({ scrobbleLastFm: true })
+    })
+
+    it('says at the top what Last.fm answered when it sent the browser back', () => {
+      renderSettings({ section: 'scrobbling', lastFm: { message: 'That Last.fm link expired. Start connecting again.', ok: false } })
+      expect(screen.getByText('That Last.fm link expired. Start connecting again.').closest('[role="status"]')).not.toBeNull()
+    })
+
+    it('says under the services when a switch was refused', () => {
+      renderSettings({ section: 'scrobbling', errors: { scrobbling: 'Couldn’t save that change. The server is busy.' } })
+      expect(screen.getByRole('alert')).toHaveTextContent('Couldn’t save that change. The server is busy.')
+    })
+
+    it('says in the confirmation why a disconnect was refused, and stays', async () => {
+      const { onDisconnect } = renderSettings({ section: 'scrobbling' })
+      onDisconnect.mockRejectedValueOnce(new ApiError(503, 'unavailable', 'The server is busy.'))
+      await userEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
+      const confirm = within(await screen.findByRole('dialog', { name: 'Disconnect ListenBrainz?' }))
+      await userEvent.click(confirm.getByRole('button', { name: 'Disconnect' }))
+      expect(await confirm.findByRole('alert')).toHaveTextContent('The server is busy.')
+      expect(screen.getByRole('dialog', { name: 'Disconnect ListenBrainz?' })).toBeInTheDocument()
     })
 
     it('disconnects a service after asking', async () => {

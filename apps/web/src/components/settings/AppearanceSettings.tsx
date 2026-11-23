@@ -27,7 +27,7 @@ export function AppearanceSettings() {
               aria-pressed={appearance.mode === id}
               onClick={() => setAppearanceMode(id)}
               className={cn(
-                'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring @xl:flex-none',
+                'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 pointer-coarse:min-h-11 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring @xl:flex-none',
                 // Filled in the action color: a quiet fill is hard to tell from the segments beside it.
                 appearance.mode === id ? 'bg-primary font-medium text-primary-foreground focus-visible:ring-offset-1 focus-visible:ring-offset-background' : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
               )}

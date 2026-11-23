@@ -4,7 +4,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { track } from '@/fixtures/catalog'
 import type { QueueItem } from '@/player/player-context'
 import { renderWithApp } from '@/test/render'
-import { SortableQueue } from './Queue'
+import type { Player, PlayerControls, PlayerState } from '@/player/player-context'
+import { QueueContent, SortableQueue } from './Queue'
 
 const items: QueueItem[] = ['soft-signal', 'amber', 'passing-glass'].map((slug, index) => {
   const item = track(slug)
@@ -73,5 +74,15 @@ describe('SortableQueue', () => {
     expect(screen.queryByRole('button', { name: 'Play Amber' })).toBeNull()
     expect(screen.getByText('Not available')).toBeInTheDocument()
     expect(screen.getByText('Amber')).toHaveClass('text-muted-foreground')
+  })
+})
+
+describe('QueueContent', () => {
+  it('fades the artwork of history rows, never their words', () => {
+    const state = { current: null, playing: false, waiting: false, queue: [], history: items, autoplayQueue: [], autoplay: false, shuffle: false, repeat: 'off' } as unknown as PlayerState
+    const player = { state, controls: new Proxy({}, { get: () => vi.fn() }) as PlayerControls } satisfies Player
+    renderWithApp(<QueueContent player={player} />)
+    const title = screen.getByText('Amber')
+    for (let node: HTMLElement | null = title; node; node = node.parentElement) expect(node.className).not.toMatch(/(^|\s)opacity-/)
   })
 })

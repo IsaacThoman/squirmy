@@ -186,6 +186,11 @@ const seeds = z.array(QueueSeed).min(1).max(COMMAND_TRACK_LIMIT)
  *   order. Without shuffle the tracks before the start go behind it in `playedInCycle`,
  *   so `previous` and repeat all reach them; with shuffle every other track is queued.
  *   The autoplay queue is emptied, so the server suggests tracks for the new ones.
+ *   `startedFrom` says what the listener pressed: `song`, a song of the list by name (its row),
+ *   so if that song cannot be had playback stays on it, paused, and says why; `collection`,
+ *   the list as a whole (a header's Play or Shuffle, a card's Play, a radio), so playback moves
+ *   on to the next song that plays, as streaming apps skip a grayed-out first song. Left out, as
+ *   older clients send it, it is `collection`: they keep the behavior they were built for.
  * - `enqueue`: `next` inserts before the queue, `last` appends. The entries are `queued`.
  *   Changes nothing when the queue would grow past `QUEUE_LIMIT`.
  * - `playQueueEntry`: play an entry of the queue or the autoplay queue now, as streaming
@@ -212,6 +217,7 @@ export const SessionCommand = z.discriminatedUnion('type', [
     shuffle: z.boolean().optional(),
     seed: z.number().int(),
     context: PlaybackContext.nullable().optional(),
+    startedFrom: z.enum(['song', 'collection']).optional(),
   }),
   z.object({ type: z.literal('enqueue'), tracks: seeds, placement: z.enum(['next', 'last']) }),
   z.object({ type: z.literal('playQueueEntry'), entryId: z.string() }),
