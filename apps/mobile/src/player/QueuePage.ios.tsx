@@ -1,5 +1,5 @@
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Button, Host, HStack, List, Spacer, Text, VStack, ZStack } from '@expo/ui/swift-ui';
+import { Button, ContextMenu, Host, HStack, List, Spacer, Text, VStack, ZStack } from '@expo/ui/swift-ui';
 import {
   accessibilityAddTraits, accessibilityLabel, background, dynamicTypeSize, environment, font, foregroundStyle, frame,
   lineLimit, listRowBackground, listRowInsets, listRowSeparatorTint, listStyle, onGeometryChange, opacity, padding, scrollContentBackground,
@@ -11,9 +11,9 @@ import type { TrackSummary } from '@squirmy/contracts';
 import { useWantlistEnabled } from '../account/AccountProvider';
 import { useRealtime } from '../data/realtime';
 import { useCanPlay, useTrackDownload, useViewer } from '../downloads/DownloadsProvider';
-import { useLiked, useLikeFailure, useTrack, useTrackStore, useWanted, useWantFailure } from '../data/library';
+import { useLiked, useLikeFailure, useTrack, useWanted, useWantFailure } from '../data/library';
 import { trackActions, useDownloadedOnItsOwn, useTrackActionRunner, type TrackAction } from '../library/trackActions';
-import { Symbol, TrackActionsMenu, TrackCover, hitShape, plainButton } from '../native/Controls';
+import { Symbol, TrackActionButtons, TrackActionsMenu, TrackCover, hitShape, plainButton } from '../native/Controls';
 import { useCurrentTrackState, usePlaybackActions, usePlaybackState, type QueueEntry } from '../playback';
 import type { QueueProps } from './QueuePage';
 import { selectionFeedback } from './design';
@@ -25,7 +25,7 @@ import { unavailableOpacity, useColors } from '../theme';
 const rowHeight = 62;
 const coverSize = 46;
 const listModifiers = [listStyle('plain'), scrollContentBackground('hidden'), scrollDisabled()];
-/** Headings and the toggles stop growing here: past it the three toggles no longer fit side by side. */
+/** Headings and their quieter lines stop growing here, so they stay a line or two beside the lists. */
 const headingTextLimit = dynamicTypeSize({ max: 'xxxLarge' });
 const headingHeight = 44;
 /** Up next shows this many entries at first, and this many more each time more are asked for. */
@@ -148,11 +148,10 @@ export default function QueuePage(_props: QueueProps) {
           <QueueMode symbol="infinity" label="Autoplay" active={session.autoplay} onPress={toggle(actions.toggleAutoplay)} />
         </HStack>
       </QueueBand>
-      <QueueHeading title="Up next" detail={queue.queue.length ? upNextDetail(context, queue.queue.length) : 'Songs you queue appear here.'} />
+      <QueueHeading title="Up next" detail={upNextDetail(context, queue.queue) ?? 'Songs you queue appear here.'} />
       {queue.queue.length > 0 && <QueueRows entries={upNext} total={queue.queue.length} />}
       {hidden > 0 && <QueueBand height={44}>
-        <Button label={`Show ${Math.min(upNextPage, hidden)} more`} onPress={() => setUpNextShown(shown => shown + upNextPage)}
-          modifiers={[plainButton, foregroundStyle(colors.accent)]} />
+        <TextButton label={`Show ${Math.min(upNextPage, hidden)} more`} color={colors.accent} onPress={() => setUpNextShown(shown => shown + upNextPage)} />
       </QueueBand>}
       <QueueHeading title="Autoplay" symbol="infinity" symbolColor={session.autoplay ? colors.accent : colors.quiet}
         detail={session.autoplay ? 'Similar music keeps playing when your queue ends.' : 'Turn on Autoplay to keep listening.'} />
@@ -209,7 +208,6 @@ function QueueMode({ symbol, label, active, onPress }: {
 
 type QueueHandlers = {
   play: (entry: QueueEntry, track: TrackSummary) => void;
-  promote: (entry: QueueEntry, autoplay: boolean) => void;
   move: (entry: QueueEntry, index: number) => void;
   remove: (entry: QueueEntry) => void;
   run: ReturnType<typeof useTrackActionRunner>['run'];
@@ -220,11 +218,9 @@ type QueueHandlers = {
 /** What queue rows do, in one object that changes only with the session runtime, so rows redraw only for their own entry. */
 function useQueueHandlers(history: boolean): QueueHandlers {
   const actions = usePlaybackActions();
-  const tracks = useTrackStore();
   const { run } = useTrackActionRunner();
   return useMemo(() => ({
     play: (entry, track) => history ? actions.playNow(track) : actions.playQueueEntry(entry.id),
-    promote: (entry, autoplay) => actions.promote(entry, tracks.get(entry.trackId, entry.albumId), autoplay),
     move: (entry, index) => actions.moveInQueue(entry.id, index),
     remove: entry => actions.removeFromQueue(entry.id),
     run,
@@ -240,7 +236,7 @@ function useQueueHandlers(history: boolean): QueueHandlers {
         default: return run(track, action);
       }
     },
-  }), [actions, history, run, tracks]);
+  }), [actions, history, run]);
 }
 
 function QueueRows({ entries, total = entries.length, autoplay = false }: {
@@ -287,7 +283,8 @@ type QueueTrackProps = {
 
 /**
  * A queue row: the song and its menu, which holds Save to library with the rest. A tap plays
- * it. A failed entry is gray and will be skipped, as is one that is not on the phone while offline.
+ * it. History rows, outside edit mode, also open the menu on a press and hold, as song lists do.
+ * A failed entry is gray and will be skipped, as is one that is not on the phone while offline.
  */
 const QueueTrack = memo(function QueueTrack({ entry, handlers, position, minHeight, onHeight }: QueueTrackProps) {
   const colors = useColors();
@@ -325,13 +322,25 @@ const QueueTrack = memo(function QueueTrack({ entry, handlers, position, minHeig
     </VStack>
     <Spacer minLength={4} />
   </HStack>;
+  const run = (action: TrackAction) => {
+    if (!track) return;
+    if (position) handlers.runQueued(entry, track, action, position);
+    else handlers.run(track, action);
+  };
+  const button = <Button onPress={() => { if (track && !failed) handlers.play(entry, track); }} modifiers={[plainButton, label]}>{body}</Button>;
+  // A queued song whose summary has not loaded can still be moved or taken out of the queue.
+  const placement = position && <>
+    {position.index > 0 && <Button label="Move up" systemImage="chevron.up" onPress={() => handlers.move(entry, position.index - 1)} />}
+    {position.index + 1 < position.total && <Button label="Move down" systemImage="chevron.down" onPress={() => handlers.move(entry, position.index + 1)} />}
+    <Button label="Remove from queue" systemImage="trash" role="destructive" onPress={() => handlers.remove(entry)} />
+  </>;
   return <HStack spacing={0} modifiers={[frame({ minHeight }), onGeometryChange(({ height }) => onHeight(entry.id, height))]}>
-    <Button onPress={() => { if (track && !failed) handlers.play(entry, track); }} modifiers={[plainButton, label]}>{body}</Button>
-    {track && <TrackActionsMenu actions={actions} label={`More options for ${title}`} color={colors.muted}
-      onRun={action => position ? handlers.runQueued(entry, track, action, position) : handlers.run(track, action)}>
-      {position && position.index > 0 && <Button label="Move up" systemImage="chevron.up" onPress={() => handlers.move(entry, position.index - 1)} />}
-      {position && position.index + 1 < position.total && <Button label="Move down" systemImage="chevron.down" onPress={() => handlers.move(entry, position.index + 1)} />}
-      {position && <Button label="Remove from queue" systemImage="trash" role="destructive" onPress={() => handlers.remove(entry)} />}
+    {track && !position ? <ContextMenu>
+      <ContextMenu.Trigger>{button}</ContextMenu.Trigger>
+      <ContextMenu.Items><TrackActionButtons actions={actions} onRun={run} /></ContextMenu.Items>
+    </ContextMenu> : button}
+    {(track || position) && <TrackActionsMenu actions={actions} label={`More options for ${title || 'this song'}`} color={colors.muted} onRun={run}>
+      {placement}
     </TrackActionsMenu>}
   </HStack>;
 }, (a, b) => a.entry === b.entry && a.handlers === b.handlers && a.position?.index === b.position?.index

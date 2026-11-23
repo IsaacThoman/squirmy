@@ -194,11 +194,13 @@ export function nextDownloaded(
 
 /**
  * The line under the queue's Up next heading: where the songs come from, as Apple Music's
- * "From …", else how many there are. Nothing for an empty queue, which says so itself.
+ * "From …", while every one of them does; once the user has queued songs of their own among
+ * them (`queued`), or there is no context, how many there are. Null for an empty queue.
  */
-export function upNextDetail(context: { title: string } | null, count: number): string | null {
+export function upNextDetail(context: { title: string } | null, entries: readonly Pick<QueueEntry, 'queued'>[]): string | null {
+  const count = entries.length;
   if (!count) return null;
-  if (context) return `From ${context.title}`;
+  if (context && !entries.some(entry => entry.queued)) return `From ${context.title}`;
   return `${count} ${count === 1 ? 'song' : 'songs'}`;
 }
 
