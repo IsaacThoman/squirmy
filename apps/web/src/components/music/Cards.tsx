@@ -5,7 +5,7 @@ import { Link } from 'react-router'
 import { usePrefetch, type PrefetchHandlers } from '@/api/prefetch'
 import { IconButton } from '@/components/ui/icon-button'
 import { ContextMenu, DropdownMenu, type MenuEntry } from '@/components/ui/menu'
-import { albumPresentation, canFetch, releaseSubtitle } from '@/lib/catalog'
+import { albumPresentation, canFetch, releaseSubtitle, UNAVAILABLE_LABEL } from '@/lib/catalog'
 import { cn } from '@/lib/utils'
 import { useViewer } from '@/player/on-demand-context'
 import { useAlbumMenu } from '@/player/use-album-menu'
@@ -21,6 +21,8 @@ type CardProps = {
   /** For music that does not play: a bookmark that adds it to the Wantlist, shown while wanted. */
   want?: { wanted: boolean; onChange: (wanted: boolean) => void }
   dimmed?: boolean
+  /** Nothing on it plays for this user: said in words, not only by the gray. */
+  unavailable?: boolean
   /** Round artwork with centered text, for artists. */
   round?: boolean
   /** Starts loading the linked page when the card is hovered, focused or pressed. */
@@ -64,13 +66,22 @@ function MoreButton({ title, menu, className }: { title: string; menu: CardMenu;
   )
 }
 
+/**
+ * What an unavailable card or row says, as a track row does: the gray alone is a color cue, so the
+ * subtitle leads with the words, and the link's name carries them for screen readers.
+ */
+function UnavailableNote() {
+  return <span aria-hidden>{UNAVAILABLE_LABEL} · </span>
+}
+const unavailableName = <span className="sr-only"> ({UNAVAILABLE_LABEL})</span>
+
 /** Right-clicking anywhere on the card opens its menu, as on a track row. */
 function WithMenu({ menu, children }: { menu?: CardMenu; children: ReactNode }) {
   return menu ? <ContextMenu entries={menu.entries} onOpenChange={menu.onOpenChange}>{children}</ContextMenu> : children
 }
 
 /** Artwork, a title and a subtitle, linking to a page. The whole card is the link. */
-function Card({ to, title, subtitle, art, onPlay, want, dimmed, round, prefetch, menu }: CardProps) {
+function Card({ to, title, subtitle, art, onPlay, want, dimmed, unavailable, round, prefetch, menu }: CardProps) {
   return (
     <WithMenu menu={menu}>
       <div className={cn('group/card relative flex min-w-0 flex-col', round && 'items-center text-center')}>
@@ -101,10 +112,11 @@ function Card({ to, title, subtitle, art, onPlay, want, dimmed, round, prefetch,
             )}
           >
             {title}
+            {unavailable && unavailableName}
           </Link>
           {menu && <MoreButton title={title} menu={menu} className="-my-1 -mr-1 size-6 [&_svg]:size-4" />}
         </div>
-        <div className={cn('w-full truncate text-xs text-muted-foreground', dimmed && 'opacity-70')}>{subtitle}</div>
+        <div className={cn('w-full truncate text-xs text-muted-foreground', dimmed && 'opacity-70')}>{unavailable && <UnavailableNote />}{subtitle}</div>
       </div>
     </WithMenu>
   )
@@ -144,6 +156,7 @@ export function AlbumCard({ album, onPlay, wanted = false, onWant, subtitle = 'a
       onPlay={dimmed ? undefined : onPlay}
       want={dimmed && onWant ? { wanted, onChange: onWant } : undefined}
       dimmed={dimmed}
+      unavailable={dimmed}
       menu={menu}
     />
   )
@@ -212,6 +225,8 @@ type CollectionRowProps = {
   /** Square artwork, round for artists; the row sizes it. */
   art: ReactNode
   dimmed?: boolean
+  /** Nothing on it plays for this user, as on a card. */
+  unavailable?: boolean
   prefetch?: PrefetchHandlers
   /** The card's play button, over the artwork. */
   onPlay?: () => void
@@ -222,7 +237,7 @@ type CollectionRowProps = {
  * A card laid out as a row: small artwork, the title and a subtitle. The Library's list view. It
  * keeps the card's controls: the play button over the artwork, and its menu.
  */
-export function CollectionRow({ to, title, subtitle, art, dimmed, prefetch, onPlay, menu }: CollectionRowProps) {
+export function CollectionRow({ to, title, subtitle, art, dimmed, unavailable, prefetch, onPlay, menu }: CollectionRowProps) {
   return (
     <WithMenu menu={menu}>
       <div className="group/card relative flex h-14 items-center gap-3 rounded-md px-2 transition-colors hover:bg-accent/60 has-[:focus-visible]:bg-accent/60 has-[[data-state=open]]:bg-accent/60 data-[state=open]:bg-accent/60">
@@ -236,8 +251,8 @@ export function CollectionRow({ to, title, subtitle, art, dimmed, prefetch, onPl
           {...prefetch}
           className="min-w-0 flex-1 outline-none after:absolute after:inset-0 after:rounded-md focus-visible:after:ring-2 focus-visible:after:ring-ring"
         >
-          <div dir="auto" className={cn('truncate text-sm font-medium', dimmed && 'text-muted-foreground')}>{title}</div>
-          <div className={cn('truncate text-xs text-muted-foreground', dimmed && 'opacity-70')}>{subtitle}</div>
+          <div dir="auto" className={cn('truncate text-sm font-medium', dimmed && 'text-muted-foreground')}>{title}{unavailable && unavailableName}</div>
+          <div className={cn('truncate text-xs text-muted-foreground', dimmed && 'opacity-70')}>{unavailable && <UnavailableNote />}{subtitle}</div>
         </Link>
         {menu && <MoreButton title={title} menu={menu} className="size-8 [&_svg]:size-4" />}
       </div>
@@ -258,6 +273,7 @@ export function AlbumRow({ album, onPlay, className }: { album: AlbumSummary; on
       title={album.title}
       subtitle={subtitle}
       dimmed={dimmed}
+      unavailable={dimmed}
       prefetch={prefetch}
       onPlay={dimmed ? undefined : onPlay}
       menu={menu}

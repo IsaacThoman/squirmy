@@ -74,7 +74,7 @@ describe('artist sections', () => {
     const appearsOn = screen.getByRole('region', { name: 'Appears on' })
     expect(within(appearsOn).getByText('Lune Park · 2024')).toBeInTheDocument()
     // A section this build does not know shows under the server's title, without a See all it could not page.
-    expect(within(screen.getByRole('region', { name: 'Remixes' })).getByRole('link', { name: 'Paper Moons' })).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'Remixes' })).getByRole('link', { name: /^Paper Moons/ })).toBeInTheDocument()
   })
 
   it('groups the releases by type for a server that predates sections', async () => {
@@ -87,7 +87,7 @@ describe('artist sections', () => {
       appearsOn: [slowMotion],
     }))
     expect(await screen.findByRole('region', { name: 'Albums' })).toBeInTheDocument()
-    expect(within(screen.getByRole('region', { name: 'EPs' })).getByRole('link', { name: 'Paper Moons' })).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'EPs' })).getByRole('link', { name: /^Paper Moons/ })).toBeInTheDocument()
     expect(within(screen.getByRole('region', { name: 'Singles' })).getByRole('link', { name: 'Low Tide' })).toBeInTheDocument()
     expect(within(screen.getByRole('region', { name: 'Appears on' })).getByRole('link', { name: 'Slow Motion' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'See all' })).toBeNull()
@@ -130,7 +130,7 @@ describe('see all', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Mira Vale · Albums' })).toBeInTheDocument()
     expect(screen.getByText('3 releases')).toBeInTheDocument()
     const grid = await screen.findByRole('list', { name: 'Albums' })
-    await waitFor(() => expect(within(grid).getByRole('link', { name: 'Paper Moons' })).toBeInTheDocument())
+    await waitFor(() => expect(within(grid).getByRole('link', { name: /^Paper Moons/ })).toBeInTheDocument())
     expect(within(grid).getByRole('link', { name: 'Blue Hour' })).toBeInTheDocument()
     expect(fake.api.catalog.artistReleases).toHaveBeenCalledWith(id, expect.objectContaining({ section: 'album', cursor: 'next' }))
 
