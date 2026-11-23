@@ -1,0 +1,338 @@
+{
+  "note": "Recorded 2026-11-22, trimmed to the fields the Deezer client reads.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/artist/807493/albums?limit=100"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": [
+        {
+          "id": 128805452,
+          "title": "Miss Anthropocene (Deluxe Edition)",
+          "link": "https://www.deezer.com/album/128805452",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/b069393ca5d13fea704e59d548d2c46d/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2020-02-21",
+          "record_type": "album",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 128858852,
+          "title": "Miss Anthropocene",
+          "link": "https://www.deezer.com/album/128858852",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/af71d9baea3ad87aaf9334f6c0359882/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2020-02-21",
+          "record_type": "album",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 221197882,
+          "title": "Miss Anthropocene (Rave Edition)",
+          "link": "https://www.deezer.com/album/221197882",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/789d59c281273cd06369f48b362b4dae/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2021-01-01",
+          "record_type": "album",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 14880621,
+          "title": "Art Angels",
+          "link": "https://www.deezer.com/album/14880621",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/6a7fbeeb7632c81774d13d2bd0cc0f0b/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2015-11-06",
+          "record_type": "album",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 6509005,
+          "title": "Visions",
+          "link": "https://www.deezer.com/album/6509005",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/c85a9ca3e1bc10192a1f893910e1322a/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2012-03-12",
+          "record_type": "album",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 1134364511,
+          "title": "爱",
+          "link": "https://www.deezer.com/album/1134364511",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/030d8f6ed0775e3f866af17e838233ff/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2026-11-20",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 1117510372,
+          "title": "ACCELERANDO",
+          "link": "https://www.deezer.com/album/1117510372",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/5bfed3588a28fc8b3def0605ccaa048c/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2026-10-09",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 1045308912,
+          "title": "Miku-Maxxing (with Hatsune Miku, Grimes, & さたぱんP)",
+          "link": "https://www.deezer.com/album/1045308912",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/d677f8a8a13971e9a58c566576bd386b/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2026-08-14",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 1015019821,
+          "title": "Sign From God",
+          "link": "https://www.deezer.com/album/1015019821",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/0c57bbfee50c38319175f0b256042d5c/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2026-06-26",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 843408682,
+          "title": "Entwined",
+          "link": "https://www.deezer.com/album/843408682",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/abe13133381299385dbbd92d2254f91b/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2025-10-31",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 832200751,
+          "title": "Artificial Angels",
+          "link": "https://www.deezer.com/album/832200751",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/3d141b932e6c4edee493823ee75fe7f5/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2025-10-17",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 796708861,
+          "title": "Image (Grimes Special)",
+          "link": "https://www.deezer.com/album/796708861",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/9519eb48dd9f6192cb9b598da117dc3f/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2024-10-29",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 368463767,
+          "title": "A Drug From God (Rebūke Remix)",
+          "link": "https://www.deezer.com/album/368463767",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/84c924c9f4df5f11247a7bd0d50a1672/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2022-10-28",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 298476172,
+          "title": "A Drug From God (SOSA Remix)",
+          "link": "https://www.deezer.com/album/298476172",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/6903d7edda3663fadf5885d018e33937/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2022-03-04",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 290453292,
+          "title": "Shinigami Eyes",
+          "link": "https://www.deezer.com/album/290453292",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/d0d8536ab0cd41a9b7ce7d8d9e7a0973/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2022-01-26",
+          "record_type": "single",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 276221412,
+          "title": "Player Of Games",
+          "link": "https://www.deezer.com/album/276221412",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/fc43aca85d29cc20df73505d235d598f/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2021-12-03",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 270627642,
+          "title": "A Drug From God",
+          "link": "https://www.deezer.com/album/270627642",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/104cd6f272119058f73af1aec1d3b0bc/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2021-11-12",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 127160702,
+          "title": "Delete Forever",
+          "link": "https://www.deezer.com/album/127160702",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/cbabce315ae70897d35984e824fdf8f2/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2020-02-12",
+          "record_type": "single",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 122056182,
+          "title": "My Name is Dark",
+          "link": "https://www.deezer.com/album/122056182",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/dd4ce89a2ea753e3e07f73a2ecd9589a/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2020-01-03",
+          "record_type": "single",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 121497722,
+          "title": "4ÆM",
+          "link": "https://www.deezer.com/album/121497722",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/00ac4f1156b91e89ffcbe0a78222e3d7/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2019-12-13",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 118749132,
+          "title": "So Heavy I Fell Through the Earth",
+          "link": "https://www.deezer.com/album/118749132",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/02b7168f6081bfa8d29cc24feef9fa60/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2019-11-15",
+          "record_type": "single",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 116256612,
+          "title": "Violence",
+          "link": "https://www.deezer.com/album/116256612",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/a26554208537de68f0eff3c3e00dbca2/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2019-10-31",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 1127247481,
+          "title": "AI Meditations",
+          "link": "https://www.deezer.com/album/1127247481",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/bec5a173bb7bea84dfb63ed6384e8fec/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2019-09-01",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 93041472,
+          "title": "We Appreciate Power (Algorithm Mix)",
+          "link": "https://www.deezer.com/album/93041472",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/c73bac40b6444954a2e14e599b0c630b/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2019-04-10",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 90522932,
+          "title": "Pretty Dark (Demo)",
+          "link": "https://www.deezer.com/album/90522932",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/1ea59797003980868da9c095a46b3df6/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2019-03-18",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 84781262,
+          "title": "We Appreciate Power (BloodPop® Remix)",
+          "link": "https://www.deezer.com/album/84781262",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/ad887152423df6d05df4e036a2fad01b/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2019-01-18",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 84781272,
+          "title": "We Appreciate Power",
+          "link": "https://www.deezer.com/album/84781272",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/6c62e8720fe7f69fb2db58e8fbbe4927/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2019-01-18",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 14879667,
+          "title": "Kill V. Maim (Little Jimmy Urine Remix)",
+          "link": "https://www.deezer.com/album/14879667",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/21d45730edc79101da301e079b5c9e16/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2016-03-04",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 9883522,
+          "title": "Entropy",
+          "link": "https://www.deezer.com/album/9883522",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/0ceb58163fa3383beaa153453814229e/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2015-03-15",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 9883896,
+          "title": "Realiti (Demo)",
+          "link": "https://www.deezer.com/album/9883896",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/1b295904e9f1c4f7d518c77347171c97/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2015-03-12",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 8062980,
+          "title": "Go",
+          "link": "https://www.deezer.com/album/8062980",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/4bf917695958f126caa5a254dca02fe2/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2014-07-03",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 1555231,
+          "title": "Genesis",
+          "link": "https://www.deezer.com/album/1555231",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/933f719eb9a35bcde452c9bfe94c9d6d/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2012-02-20",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        }
+      ],
+      "total": 32
+    }
+  }
+}

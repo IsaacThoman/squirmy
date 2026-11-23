@@ -1,0 +1,22 @@
+{
+  "note": "Recorded 2026-11-22, trimmed to the fields the Deezer client reads.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/artist/807493"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "id": 807493,
+      "name": "Grimes",
+      "link": "https://www.deezer.com/artist/807493",
+      "picture_xl": "https://cdn-images.dzcdn.net/images/artist/8a207720e8bed18bab25883fba019dc7/1000x1000-000000-80-0-0.jpg",
+      "nb_album": 32,
+      "nb_fan": 288059,
+      "type": "artist"
+    }
+  }
+}

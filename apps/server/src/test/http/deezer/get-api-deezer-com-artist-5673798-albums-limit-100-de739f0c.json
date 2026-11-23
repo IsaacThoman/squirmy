@@ -1,0 +1,28 @@
+{
+  "note": "Recorded 2026-11-22, trimmed to the fields the Deezer client reads.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/artist/5673798/albums?limit=100"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": [
+        {
+          "id": 5348121,
+          "title": "I'd Rather Have Jesus",
+          "link": "https://www.deezer.com/album/5348121",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/ed5666c7c1a7115190d5115d04084f80/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2012-08-10",
+          "record_type": "album",
+          "explicit_lyrics": false,
+          "type": "album"
+        }
+      ],
+      "total": 1
+    }
+  }
+}

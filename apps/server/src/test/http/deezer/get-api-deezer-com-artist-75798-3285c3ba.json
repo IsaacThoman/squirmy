@@ -1,0 +1,22 @@
+{
+  "note": "Recorded 2026-11-22, trimmed to the fields the Deezer client reads.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/artist/75798"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "id": 75798,
+      "name": "Adele",
+      "link": "https://www.deezer.com/artist/75798",
+      "picture_xl": "https://cdn-images.dzcdn.net/images/artist/e5fc443d2abc03b487234ba4de65a001/1000x1000-000000-80-0-0.jpg",
+      "nb_album": 15,
+      "nb_fan": 15535424,
+      "type": "artist"
+    }
+  }
+}

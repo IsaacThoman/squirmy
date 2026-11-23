@@ -1,0 +1,78 @@
+{
+  "note": "Recorded 2026-11-22, trimmed to the fields the Deezer client reads.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/artist/12515862/albums?limit=100&index=100"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": [
+        {
+          "id": 267224062,
+          "title": "Dance(Joo)",
+          "link": "https://www.deezer.com/album/267224062",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/336c8f646b6c274e677ccf703cc14205/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2017-06-12",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 152745632,
+          "title": "Purge (feat. Consci the Nabi, Pastor J & Tone Spain)",
+          "link": "https://www.deezer.com/album/152745632",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/b4a9d03fa29d96606710981d61669c25/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2017-03-07",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 80601062,
+          "title": "Don't Worry - Single",
+          "link": "https://www.deezer.com/album/80601062",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/631b6decc0c214776d1245727a09d846/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2017-01-20",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 7663747,
+          "title": "Now I Run the Show",
+          "link": "https://www.deezer.com/album/7663747",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/d60c9a6f0259862297639071f52c4876/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2013-09-10",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 673603191,
+          "title": "Reflexión",
+          "link": "https://www.deezer.com/album/673603191",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/cea70a07f8b5f0255e41f8c9524778eb/1000x1000-000000-80-0-0.jpg",
+          "release_date": "1987-10-15",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 1040736152,
+          "title": "Good to Be There",
+          "link": "https://www.deezer.com/album/1040736152",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/92956f5f0119bc7ec6aa6e5a7e54d3bc/1000x1000-000000-80-0-0.jpg",
+          "release_date": "1987-08-08",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        }
+      ],
+      "total": 106
+    }
+  }
+}

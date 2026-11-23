@@ -149,8 +149,8 @@ export async function mergeAlbum(fromId: string, intoId: string, executor: Execu
 
 /**
  * Merges artist `fromId` into `intoId`: album and recording credits, primary artists,
- * external ids, likes and ratings. The winner takes the loser's image only when it has
- * none.
+ * external ids, likes and ratings. The winner takes the loser's image and disambiguation
+ * only when it has none.
  */
 export async function mergeArtist(fromId: string, intoId: string, executor: Executor = db): Promise<void> {
   await executor.transaction(async (tx) => {
@@ -164,6 +164,7 @@ export async function mergeArtist(fromId: string, intoId: string, executor: Exec
     for (const table of ['likes', 'ratings'] as const) await moveUserRows(tx, table, 'artist', fromId, into)
     await tx.execute(sql`
       update ${artists} a set image_asset_id = coalesce(a.image_asset_id, f.image_asset_id),
+        disambiguation = coalesce(a.disambiguation, f.disambiguation),
         -- Either row's picture may be a namesake's (search links Deezer pages by name), so
         -- the merged artist's is chosen again (enrichment/artist.ts).
         image_picked_at = null
