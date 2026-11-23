@@ -16,7 +16,7 @@
  * nothing is merged. A row whose page lists nothing (an empty page) is left alone.
  */
 import { queryKeys } from '@squirmy/contracts'
-import { sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { getServerSettings } from '../../lib/settings.js'
 import { lockUpserts } from '../matching/apply.js'
@@ -29,6 +29,13 @@ import { attempt, changed } from './rows.js'
 
 /** Rows looked at per repair run: each costs a few Deezer requests and, with MusicBrainz on, one lookup a second. */
 const batch = 300
+
+/**
+ * How long a row kept as a namesake is left alone. The evidence can change (the other row
+ * gains releases, MusicBrainz adds a link), but rarely; checking kept rows on every run
+ * spent most of each batch on them, and the rows not yet checked waited for days.
+ */
+const recheckAfter = '30 days'
 
 const empty = (): ArtistTitles => ({ albums: new Set(), tracks: new Set() })
 const add = (into: ArtistTitles, from: ArtistTitles) => {
@@ -123,10 +130,13 @@ const ranksAbove = (a: Row, b: Row) => (a.mbid ? 1 : 0) - (b.mbid ? 1 : 0) || a.
  */
 export async function foldArtistCopy(artistId: string): Promise<string | null> {
   const into = await copyOf(artistId)
-  if (!into) return null
-  const found = await sameNameRows(artistId)
+  const found = into ? await sameNameRows(artistId) : null
   const target = found?.others.find((row) => row.id === into)
-  if (!found || !target || ranksAbove(target, found.self) <= 0) return null
+  if (!into || !found || !target || ranksAbove(target, found.self) <= 0) {
+    // Kept. A failed request throws before this, so that row is checked again next run.
+    await db.update(artists).set({ copyCheckedAt: new Date() }).where(eq(artists.id, artistId))
+    return null
+  }
   await db.transaction(async (tx) => {
     await lockUpserts(tx)
     if ((await resolveMerged(tx, artists, artistId)) !== artistId) return
@@ -138,9 +148,11 @@ export async function foldArtistCopy(artistId: string): Promise<string | null> {
 }
 
 /**
- * The repair: up to {@link batch} Deezer-only rows that share a name with another row, in
- * a daily order, each merged when it is a second page. Returns how many were merged.
- * Running it again changes nothing for rows already decided.
+ * The repair: up to {@link batch} Deezer-only rows that share a name with another row, each
+ * merged when it is a second page. Rows never checked come first, then in a daily order;
+ * a row kept as a namesake waits {@link recheckAfter}, so the batches work through every
+ * row in turn. Returns how many were merged. Running it again changes nothing for rows
+ * already decided.
  */
 export async function foldArtistCopies(): Promise<number> {
   if (!(await getServerSettings()).deezerEnabled) return 0
@@ -149,7 +161,8 @@ export async function foldArtistCopies(): Promise<number> {
     where a.merged_into_id is null and a.mbid is null
       and exists (select 1 from external_ids e where e.provider = 'deezer' and e.entity_type = 'artist' and e.entity_id = a.id)
       and exists (select 1 from artists other where other.name_key = a.name_key and other.id <> a.id and other.merged_into_id is null)
-    order by md5(a.id::text || current_date::text) limit ${batch}`)
+      and (a.copy_checked_at is null or a.copy_checked_at < now() - ${recheckAfter}::interval)
+    order by a.copy_checked_at nulls first, md5(a.id::text || current_date::text) limit ${batch}`)
   let merged = 0
   for (const row of rows) {
     await attempt('artist copy', async () => {
