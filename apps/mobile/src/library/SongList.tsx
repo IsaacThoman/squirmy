@@ -15,6 +15,7 @@ import {
   sameRow, songRowKey, songRows, useSongRowHandlers, type SongListItems, type SongRowHandlers, type SongRowItem,
 } from './rows';
 import { useTrackActionRunner, type TrackAction } from './trackActions';
+import { spokenDuration, trackDuration } from './duration';
 import { Cover, Icon } from '../ui';
 import { createThemedStyles, unavailableOpacity, useColors } from '../theme';
 
@@ -95,6 +96,9 @@ const SongRow = memo(function SongRow({ item, handlers, run }: {
   const mark = downloadSymbol(useTrackDownload(track.id));
   const loading = useTrackLoading(track.id);
   const viewer = useViewer();
+  // Only an album's track list shows each song's length, as on web.
+  const numbered = typeof number === 'number';
+  const spoken = numbered ? spokenDuration(track.durationMs) : null;
   const onPlay = () => handlers.play(index);
   const onMenu = () => handlers.menu(track, index);
   const onRemove = item.playlist && (() => handlers.remove(item.playlist!.itemId));
@@ -118,7 +122,7 @@ const SongRow = memo(function SongRow({ item, handlers, run }: {
     <View style={[styles.songRow, current && styles.songCurrent]}>
       <Pressable accessibilityRole="button"
         accessibilityLabel={`${playable ? 'Play ' : ''}${track.title} by ${track.artistCredit}${track.explicit ? ', Explicit' : ''}${
-          playable ? '' : `, ${unavailableReason(track, offline, viewer)}`}`}
+          spoken ? `, ${spoken}` : ''}${playable ? '' : `, ${unavailableReason(track, offline, viewer)}`}`}
         style={({ pressed }) => [styles.songInfo, pressed && styles.pressed]}
         onPress={playable ? onPlay : onMenu} onLongPress={onMenu}
         accessibilityActions={playable ? [{ name: 'playNext', label: 'Play next' }] : undefined}
@@ -142,6 +146,7 @@ const SongRow = memo(function SongRow({ item, handlers, run }: {
             </Text>}
           </View>}
         </View>
+        {numbered && <Text style={[styles.duration, !playable && styles.fadedCredit]}>{trackDuration(track.durationMs)}</Text>}
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={heartButton(liked, track.title).label} accessibilityState={{ selected: liked }}
         onPress={() => { tapFeedback(); run(track, { id: liked ? 'unlike' : 'like', title: '', icon: '' }); }} style={styles.rowIcon}>
@@ -170,6 +175,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   songInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', minHeight: 56, gap: 10 },
   songPosition: { width: 25, alignItems: 'center', marginRight: 2 },
   songNumber: { fontSize: 13, color: colors.quiet, fontVariant: ['tabular-nums'] },
+  duration: { fontSize: 13, color: colors.muted, fontVariant: ['tabular-nums'] },
   currentTitle: { color: colors.accent },
   rowSpinner: { transform: [{ scale: 0.6 }], width: 12, height: 12 },
   rowIcon: { width: 42, height: 44, alignItems: 'center', justifyContent: 'center' },
