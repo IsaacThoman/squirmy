@@ -92,7 +92,7 @@ const actionsColumn = 'flex shrink-0 items-center justify-end gap-1 @xs:min-w-28
  * Controls that appear when their row is hovered, has the keyboard's focus anywhere in it or has
  * its menu open. Phones and touch screens, which cannot hover, always show them.
  */
-const revealed = 'md:pointer-fine:opacity-0 md:pointer-fine:group-hover/row:opacity-100 md:pointer-fine:group-has-[:focus-visible]/row:opacity-100 md:pointer-fine:group-has-[[data-state=open]]/row:opacity-100'
+const revealed = 'md:pointer-fine:opacity-0 md:pointer-fine:group-hover/row:opacity-100 md:pointer-fine:group-data-[state=open]/row:opacity-100 md:pointer-fine:group-has-[:focus-visible]/row:opacity-100 md:pointer-fine:group-has-[[data-state=open]]/row:opacity-100'
 
 /** The heart and the menu button: a finger's 44 px on touch screens, with no gap between them. */
 const rowAction = 'pointer-coarse:size-11'
@@ -201,7 +201,7 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
       aria-label={playing ? `Pause ${track.title}` : `Play ${track.title}`}
       onClick={play}
       className={cn(
-        'peer absolute inset-0 flex items-center justify-center opacity-0 outline-none transition-opacity focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring group-hover/row:opacity-100',
+        'peer absolute inset-0 flex items-center justify-center opacity-0 outline-none transition-opacity focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring group-hover/row:opacity-100 group-data-[state=open]/row:opacity-100',
         overArt ? 'rounded-[5px] text-white' : 'rounded-md text-foreground',
       )}
     >
@@ -215,7 +215,7 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
    * What the play button replaces while the row is hovered or the button has focus. Faded out it
    * still paints over the button (its opacity makes it a layer of its own), so it lets clicks through.
    */
-  const resting = cn('pointer-events-none transition-opacity', !unavailable && 'group-hover/row:opacity-0 peer-focus-visible:opacity-0')
+  const resting = cn('pointer-events-none transition-opacity', !unavailable && 'group-hover/row:opacity-0 group-data-[state=open]/row:opacity-0 peer-focus-visible:opacity-0')
 
   const creditLine = useRef<HTMLDivElement>(null)
   const wholeCredits = useWholeLinks(creditLine, track.artistCredit)
@@ -260,7 +260,7 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
         data-drop={dropSide}
         style={style}
         className={cn(
-          'group/row @container select-none rounded-md px-2 transition-colors',
+          'group/row @container select-none rounded-md px-2 transition-colors data-[state=open]:bg-accent/60',
           'data-[drop=after]:shadow-[inset_0_-2px_0_var(--primary)] data-[drop=before]:shadow-[inset_0_2px_0_var(--primary)]',
           // Gray, but at 3:1 or more in every theme (`color-themes.test.ts`), so the song can still be read.
           unavailable ? 'text-faded-foreground' : 'hover:bg-accent/60 has-[:focus-visible]:bg-accent/60 has-[[data-state=open]]:bg-accent/60 pointer-coarse:active:bg-accent/60',
@@ -282,7 +282,7 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
               <div className="relative size-8 shrink-0">
                 <Cover artwork={track.album?.artwork ?? null} size={96} dimmed={unavailable} className="size-8 rounded-[5px]" />
                 {variant === 'compact' && (
-                  <div className={cn('absolute inset-0 flex items-center justify-center rounded-[5px] transition-colors', current ? 'bg-black/50' : !unavailable && 'group-hover/row:bg-black/50 has-[:focus-visible]:bg-black/50')}>
+                  <div className={cn('absolute inset-0 flex items-center justify-center rounded-[5px] transition-colors', current ? 'bg-black/50' : !unavailable && 'group-hover/row:bg-black/50 group-data-[state=open]/row:bg-black/50 has-[:focus-visible]:bg-black/50')}>
                     {playButton(true)}
                     <span className={resting}>{marker(true)}</span>
                   </div>
