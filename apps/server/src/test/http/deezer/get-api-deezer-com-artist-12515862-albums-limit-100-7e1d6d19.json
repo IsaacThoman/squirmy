@@ -1,0 +1,1019 @@
+{
+  "note": "Recorded 2026-11-22, trimmed to the fields the Deezer client reads.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/artist/12515862/albums?limit=100"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": [
+        {
+          "id": 1065246431,
+          "title": "femme fatale",
+          "link": "https://www.deezer.com/album/1065246431",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/7b7e416f1a73928dd9a898e5d56418f6/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2026-08-28",
+          "record_type": "album",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 708743281,
+          "title": "Soft Glow",
+          "link": "https://www.deezer.com/album/708743281",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/c6eb16da268c43c87330c125233ab505/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2025-02-06",
+          "record_type": "album",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 707009371,
+          "title": "My Memories",
+          "link": "https://www.deezer.com/album/707009371",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/83fd92cf394cae62b40bbfdbb0a32d25/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2025-02-04",
+          "record_type": "album",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 707169871,
+          "title": "Cozy Nights",
+          "link": "https://www.deezer.com/album/707169871",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/1cfda246fa2920ca9066e2b061801396/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2025-02-04",
+          "record_type": "album",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 545155722,
+          "title": "Crystal Shards III",
+          "link": "https://www.deezer.com/album/545155722",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/ac0f1bd06fc6bfb0e2d98d3f03ffca24/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2024-02-13",
+          "record_type": "album",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 683218681,
+          "title": "Genesís",
+          "link": "https://www.deezer.com/album/683218681",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/0fe57df37deb8f0547d72199d5e266ec/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2024-02-11",
+          "record_type": "album",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 477728845,
+          "title": "Yo le Canto a mi Señor",
+          "link": "https://www.deezer.com/album/477728845",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/ed5325c6e1361a1cbfbee46222c2e86c/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2023-08-18",
+          "record_type": "album",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 158710372,
+          "title": "I'm a Soldier",
+          "link": "https://www.deezer.com/album/158710372",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/ab273a468dcd81edd870b29abece8119/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2020-06-30",
+          "record_type": "album",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 146532312,
+          "title": "No Grey Areas",
+          "link": "https://www.deezer.com/album/146532312",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/d599d4596551d423ccdc9003ef23885e/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2020-05-08",
+          "record_type": "album",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 115837932,
+          "title": "Beginning EP",
+          "link": "https://www.deezer.com/album/115837932",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/d960886ac2eae7837c2f4fa3079d054e/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2019-11-18",
+          "record_type": "album",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 67571902,
+          "title": "Things I Do for You",
+          "link": "https://www.deezer.com/album/67571902",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/1c42c9e52f9624ec3a7c2d91e1b62d7b/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2018-06-22",
+          "record_type": "album",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 1124473,
+          "title": "Nature's Symphony: Music from Outdoors, Nature, Environment, Earth, and Life",
+          "link": "https://www.deezer.com/album/1124473",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/6cb831c94bac7268a9c0e413ead6db87/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2011-04-25",
+          "record_type": "album",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 192477782,
+          "title": "According to Phil Collins",
+          "link": "https://www.deezer.com/album/192477782",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/d9e994b73249828a0ff3eaf7fe98c05c/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2014-06-18",
+          "record_type": "album",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 624183701,
+          "title": "El Aruñao Vol. II",
+          "link": "https://www.deezer.com/album/624183701",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/356d1de5ddcd321f675d9a9d837a1ca6/1000x1000-000000-80-0-0.jpg",
+          "release_date": "1980-02-24",
+          "record_type": "album",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 1117820052,
+          "title": "El Aruñao Vol. II",
+          "link": "https://www.deezer.com/album/1117820052",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/f6a833ceb9f4dc09b1ac17dfca8e74e5/1000x1000-000000-80-0-0.jpg",
+          "release_date": "1980-02-24",
+          "record_type": "album",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 624183691,
+          "title": "El Bohemio Del Amargue Vol. 1",
+          "link": "https://www.deezer.com/album/624183691",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/2b85a4e5393f2218ce70f3e474660c4d/1000x1000-000000-80-0-0.jpg",
+          "release_date": "1975-09-18",
+          "record_type": "album",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 1113743792,
+          "title": "note to self",
+          "link": "https://www.deezer.com/album/1113743792",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/ed59c7aff10d151ecb9dac73c379c1b0/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2026-10-06",
+          "record_type": "ep",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 1059863032,
+          "title": "Chapters",
+          "link": "https://www.deezer.com/album/1059863032",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/88121604f4f0c227bcc0f27ba649c6e2/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2026-08-27",
+          "record_type": "ep",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 885556162,
+          "title": "GENESIS:CHRIST DAY",
+          "link": "https://www.deezer.com/album/885556162",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/1cee5a1e9a6dbe08fd8ac7199ba83405/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2025-12-25",
+          "record_type": "ep",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 802268501,
+          "title": "The Imperfectionist",
+          "link": "https://www.deezer.com/album/802268501",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/ec1bebf30cadd509d6d2b08b1ca06e20/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2025-09-19",
+          "record_type": "ep",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 469627215,
+          "title": "Once A Thug Twice A God",
+          "link": "https://www.deezer.com/album/469627215",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/a838116b4bf694aab4114ae255f375e3/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2023-07-30",
+          "record_type": "ep",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 244377832,
+          "title": "Genesis",
+          "link": "https://www.deezer.com/album/244377832",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/d76294bc100b1dd6b51dd565c2060b96/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2021-07-15",
+          "record_type": "ep",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 103816482,
+          "title": "emerGENce",
+          "link": "https://www.deezer.com/album/103816482",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/1a7e27f3700f9b555625ea47303b5e06/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2019-07-26",
+          "record_type": "ep",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 54673182,
+          "title": "Stories Never Told",
+          "link": "https://www.deezer.com/album/54673182",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/fc7e4a45cbfcd0cae0c3c1919d7490eb/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2018-01-05",
+          "record_type": "ep",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 58500512,
+          "title": "Nalulungi",
+          "link": "https://www.deezer.com/album/58500512",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/d73c4837e2727a3e13d916815d2d9eec/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2016-12-16",
+          "record_type": "ep",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 1121686772,
+          "title": "Environment",
+          "link": "https://www.deezer.com/album/1121686772",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/162011479729fdfc795253e86114ed73/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2026-10-24",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 1117213532,
+          "title": "xoxoxo",
+          "link": "https://www.deezer.com/album/1117213532",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/01fa23a78796022879824a3f887aac9a/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2026-10-08",
+          "record_type": "single",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 1104832792,
+          "title": "I Say",
+          "link": "https://www.deezer.com/album/1104832792",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/a4437f91896fb1fdfe490b27ba25f2b4/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2026-09-17",
+          "record_type": "single",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 1076819562,
+          "title": "play pretend",
+          "link": "https://www.deezer.com/album/1076819562",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/61224d6ef1b3e450aa7408183d8ae216/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2026-09-10",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 1064029451,
+          "title": "borderline",
+          "link": "https://www.deezer.com/album/1064029451",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/e68110ffb38bd20320c8185157236950/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2026-08-26",
+          "record_type": "single",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 1062689101,
+          "title": "morning sun",
+          "link": "https://www.deezer.com/album/1062689101",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/367724e9c02c92cf8feccb2bf7da15af/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2026-08-25",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 1081040092,
+          "title": "Love Me",
+          "link": "https://www.deezer.com/album/1081040092",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/95e8c0c7eff81b644c846312e8bd7f9d/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2026-08-24",
+          "record_type": "single",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 1058829112,
+          "title": "sore eyes",
+          "link": "https://www.deezer.com/album/1058829112",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/4e36c80a05fa38942ea379df940efd56/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2026-08-20",
+          "record_type": "single",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 1047321842,
+          "title": "Technology Is Gray",
+          "link": "https://www.deezer.com/album/1047321842",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/13f6abd37892aceb5e74498c502b6121/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2026-08-07",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 1036829992,
+          "title": "I got you my baby",
+          "link": "https://www.deezer.com/album/1036829992",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/3b26f362767b11dd26ba7dc94e480eca/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2026-07-19",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 1008809401,
+          "title": "In too deep",
+          "link": "https://www.deezer.com/album/1008809401",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/b95060cc1a8188efb4b988cb310e67de/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2026-06-18",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 1007320261,
+          "title": "Escapism",
+          "link": "https://www.deezer.com/album/1007320261",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/c4163d4fdb725413c452a51eb0a9a1c9/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2026-06-14",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 1001186121,
+          "title": "OH",
+          "link": "https://www.deezer.com/album/1001186121",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/32de4cf61160e3cad9619d9aeb45dee3/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2026-06-09",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 1031113972,
+          "title": "Minha vez (Remix)",
+          "link": "https://www.deezer.com/album/1031113972",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/ef24bfb21e879cfdaad9d29b12d6001f/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2026-06-07",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 992581901,
+          "title": "daisy (acoustic)",
+          "link": "https://www.deezer.com/album/992581901",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/e61fb4a590e2c75aca9ad673b9287bb5/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2026-05-30",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 989470201,
+          "title": "higher",
+          "link": "https://www.deezer.com/album/989470201",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/3a281513e10c4b507f6368ad711f91cf/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2026-05-29",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 991118971,
+          "title": "daisy",
+          "link": "https://www.deezer.com/album/991118971",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/703313163e93b2d57fbe2ab67c44c389/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2026-05-26",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 989557601,
+          "title": "Would it be alright",
+          "link": "https://www.deezer.com/album/989557601",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/ac0862e5b385d15297c6f4c0c516ddbf/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2026-05-23",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 989340341,
+          "title": "no time to die",
+          "link": "https://www.deezer.com/album/989340341",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/7e66441af52643cfb88b45ae13311695/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2026-05-22",
+          "record_type": "single",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 948534431,
+          "title": "Noches Largas.",
+          "link": "https://www.deezer.com/album/948534431",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/9c9d148fc111615e41735637a49bc281/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2026-04-14",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 944376331,
+          "title": "Сам всё",
+          "link": "https://www.deezer.com/album/944376331",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/da6a8caca7be5fa275185b646bff09a0/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2026-03-21",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 907789112,
+          "title": "Party Trick",
+          "link": "https://www.deezer.com/album/907789112",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/dbcce2bd37e3baf655c45ac432acd9cb/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2026-02-04",
+          "record_type": "single",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 908975202,
+          "title": "Savior",
+          "link": "https://www.deezer.com/album/908975202",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/bb5bbbb8345b714681a226a4523e1099/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2026-01-27",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 897452232,
+          "title": "I CANT FALL IN LOVE",
+          "link": "https://www.deezer.com/album/897452232",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/132d24f303fe4852187876c78f490a28/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2026-01-14",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 883385512,
+          "title": "Watching you on Tubi",
+          "link": "https://www.deezer.com/album/883385512",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/249d2e8c935977411e743c2fd0184735/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2025-12-23",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 866980222,
+          "title": "Хочешь",
+          "link": "https://www.deezer.com/album/866980222",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/482b6eb299b1b7bffe6e86fc4882787f/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2025-11-30",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 842480892,
+          "title": "Fly Away",
+          "link": "https://www.deezer.com/album/842480892",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/f747c9029be11e270a801f96764c60d7/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2025-10-22",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 829246871,
+          "title": "LOML",
+          "link": "https://www.deezer.com/album/829246871",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/ea76d8ab4d635a354de5e34d98ad357f/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2025-09-29",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 818483161,
+          "title": "You don’t deserve it",
+          "link": "https://www.deezer.com/album/818483161",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/605477a5d338f17a13022ea933df1fe2/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2025-09-09",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 815254081,
+          "title": "Dónde estás",
+          "link": "https://www.deezer.com/album/815254081",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/5dd98e5d267159206a504487856a29c5/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2025-09-03",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 814664671,
+          "title": "I fight on",
+          "link": "https://www.deezer.com/album/814664671",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/35418e12e2cf45b5c3a39e8d132471d3/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2025-09-02",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 783768121,
+          "title": "Ride it",
+          "link": "https://www.deezer.com/album/783768121",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/2d3c5b1ef6c18548baeadcfe939b3079/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2025-07-07",
+          "record_type": "single",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 766713961,
+          "title": "Indahnya FirmanMu",
+          "link": "https://www.deezer.com/album/766713961",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/c29a6826893a6814d88a3fbc20f2f469/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2025-06-09",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 753714021,
+          "title": "Lack of love",
+          "link": "https://www.deezer.com/album/753714021",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/e7d6bf0e2c354e0f4ecb652364465802/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2025-05-08",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 741096481,
+          "title": "Blood For Blood (feat. Cyph GTTB)",
+          "link": "https://www.deezer.com/album/741096481",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/f28002dc22f355cfbd619b7a6fe6a04c/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2025-04-18",
+          "record_type": "single",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 926508251,
+          "title": "Stress Days",
+          "link": "https://www.deezer.com/album/926508251",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/bfdde04d8a1b29f40745f51b7d5e0d57/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2025-04-10",
+          "record_type": "single",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 727281971,
+          "title": "PUFF",
+          "link": "https://www.deezer.com/album/727281971",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/152cef3d6d6150a4c28f0a76438c3c4c/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2025-03-14",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 717688411,
+          "title": "Lo Que Vive Una Mujer",
+          "link": "https://www.deezer.com/album/717688411",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/4f08ac646fe53cf3425660a85360b2b4/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2025-02-28",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 694737371,
+          "title": "100 Shots",
+          "link": "https://www.deezer.com/album/694737371",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/3244a48aa1547817b1afcd37e2456aca/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2025-01-09",
+          "record_type": "single",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 680766961,
+          "title": "In Sinners We Trust (feat. $iifendii & Cyph GTTB)",
+          "link": "https://www.deezer.com/album/680766961",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/8453538d8947bdff3d480cd912c3e241/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2024-12-07",
+          "record_type": "single",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 673811751,
+          "title": "Rekwa Bose",
+          "link": "https://www.deezer.com/album/673811751",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/cc18e99c15ac8699f29b14b000eaafaa/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2024-11-30",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 676979701,
+          "title": "Gordon Ramsay",
+          "link": "https://www.deezer.com/album/676979701",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/3593e447bbccfaf4a36d47bdb076e3df/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2024-11-29",
+          "record_type": "single",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 676276701,
+          "title": "talk talk",
+          "link": "https://www.deezer.com/album/676276701",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/0a7fc6ce3fbf0e0ae4292247b26b2f29/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2024-11-27",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 661937511,
+          "title": "LUTO",
+          "link": "https://www.deezer.com/album/661937511",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/2727f4d9bffe10dcf411734d56529f86/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2024-10-25",
+          "record_type": "single",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 632229581,
+          "title": "Meant To Be",
+          "link": "https://www.deezer.com/album/632229581",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/708d98ca4552f647d1635f7bb7a2d02c/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2024-08-21",
+          "record_type": "single",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 613093892,
+          "title": "Otra Manera",
+          "link": "https://www.deezer.com/album/613093892",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/8a5cb1cca6f7df9d82ca795828328394/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2024-07-09",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 613010592,
+          "title": "Ummeed",
+          "link": "https://www.deezer.com/album/613010592",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/bc12ca6aaa0640ea8a4a4a9a2b25d9b3/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2024-07-08",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 598385702,
+          "title": "Terminator",
+          "link": "https://www.deezer.com/album/598385702",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/e7c8557d574a506b811393bbd706bb0b/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2024-06-08",
+          "record_type": "single",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 598396652,
+          "title": "Tales From The Trenches (feat. Camarie Jones)",
+          "link": "https://www.deezer.com/album/598396652",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/4544b15f1ae73abd7ff0766e21d12f2e/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2024-06-08",
+          "record_type": "single",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 591652422,
+          "title": "Sin",
+          "link": "https://www.deezer.com/album/591652422",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/50f282ae6d2f333279e36f186c2d3453/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2024-05-24",
+          "record_type": "single",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 562879472,
+          "title": "Respeto",
+          "link": "https://www.deezer.com/album/562879472",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/4a5845a6fefba85cb4e4a106fcb738e8/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2024-03-21",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 538974682,
+          "title": "Genesis",
+          "link": "https://www.deezer.com/album/538974682",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/ac39814031769f581ef2082048087f89/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2024-01-26",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 530748432,
+          "title": "Es Un Placer Conocerte",
+          "link": "https://www.deezer.com/album/530748432",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/31736cc2d84b4d01d5f21ea1cdb87fb2/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2023-12-27",
+          "record_type": "single",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 500888851,
+          "title": "CRITI (Freestyle)",
+          "link": "https://www.deezer.com/album/500888851",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/11fe72c2c39d8bea46ff173654164b58/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2023-10-16",
+          "record_type": "single",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 493858351,
+          "title": "Comfort Zone",
+          "link": "https://www.deezer.com/album/493858351",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/e476d627ff74208c02e3ce111bd22d03/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2023-10-04",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 486503835,
+          "title": "RENAMORAR",
+          "link": "https://www.deezer.com/album/486503835",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/ffb5c671f21e1c4efffaf040cabdf005/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2023-09-11",
+          "record_type": "single",
+          "explicit_lyrics": true,
+          "type": "album"
+        },
+        {
+          "id": 464767955,
+          "title": "Quiero Verte",
+          "link": "https://www.deezer.com/album/464767955",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/f69d2ee078e91ab9c959573a483a1356/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2023-07-21",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 458829085,
+          "title": "SOLA (feat. Josh Royal)",
+          "link": "https://www.deezer.com/album/458829085",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/fdc2601623a5d1d1864be267177f10c2/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2023-06-28",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 450718545,
+          "title": "Artificial Intelligence",
+          "link": "https://www.deezer.com/album/450718545",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/58ddffc6b3626bb8e5402727cd9700be/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2023-07-05",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 337491657,
+          "title": "Hogar",
+          "link": "https://www.deezer.com/album/337491657",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/86ab13c60d2286fa228dc865f8c348a3/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2022-07-19",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 334917807,
+          "title": "Si Veo a Tu Mamá",
+          "link": "https://www.deezer.com/album/334917807",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/4ef7205d8c1dca37a4a979dcca61359d/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2022-07-01",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 334917957,
+          "title": "Stand By Me",
+          "link": "https://www.deezer.com/album/334917957",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/45fe3e1f9327229d59c04ed02c890594/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2022-07-01",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 308014127,
+          "title": "Estoy Aqui",
+          "link": "https://www.deezer.com/album/308014127",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/66b6108a2ead77e01e5d7a6f7f0a0e37/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2022-04-08",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 300640097,
+          "title": "one day",
+          "link": "https://www.deezer.com/album/300640097",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/cf6ad55ef27b11e5dd0d8531a63d271a/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2022-03-18",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 303914657,
+          "title": "Me Rehúso (Cover)",
+          "link": "https://www.deezer.com/album/303914657",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/10fa964cc0d3bf46aba15305cb7a4116/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2022-03-14",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 1031297152,
+          "title": "命令",
+          "link": "https://www.deezer.com/album/1031297152",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/eb19c1ddca9e44959cd009e345475ba7/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2022-03-05",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 282559202,
+          "title": "The Untold Lies",
+          "link": "https://www.deezer.com/album/282559202",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/b3a89228052214a7966d0cc68d8c22b8/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2021-12-31",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 215033372,
+          "title": "С Пушками",
+          "link": "https://www.deezer.com/album/215033372",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/ab9d6f056a910187260270e8341e390a/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2021-03-15",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 200877662,
+          "title": "Big Dreams",
+          "link": "https://www.deezer.com/album/200877662",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/83b490ccbb24e87b10300aced30d8d6a/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2021-01-15",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 496534801,
+          "title": "Outside",
+          "link": "https://www.deezer.com/album/496534801",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/99efc223359d906fa6431e622c9eafb6/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2020-09-15",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 163559492,
+          "title": "Puissanci",
+          "link": "https://www.deezer.com/album/163559492",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/a2475a66f2848c744ae80eb3ddd1a060/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2020-07-27",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 125080852,
+          "title": "Frozen in Time",
+          "link": "https://www.deezer.com/album/125080852",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/845b191e1b7f15606764627aca58c301/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2020-01-07",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 576921601,
+          "title": "Losing Control",
+          "link": "https://www.deezer.com/album/576921601",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/92b263ecd58699ce9fe6d22db35735f8/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2018-11-28",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 267686812,
+          "title": "Pami",
+          "link": "https://www.deezer.com/album/267686812",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/18bc3d458baae187414b535be8d81ff3/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2018-06-19",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        },
+        {
+          "id": 67051172,
+          "title": "Explanation",
+          "link": "https://www.deezer.com/album/67051172",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/0ed4716fe06784ace00127b1fc356251/1000x1000-000000-80-0-0.jpg",
+          "release_date": "2018-05-25",
+          "record_type": "single",
+          "explicit_lyrics": false,
+          "type": "album"
+        }
+      ],
+      "total": 106,
+      "next": "https://api.deezer.com/artist/12515862/albums?limit=100&index=100"
+    }
+  }
+}

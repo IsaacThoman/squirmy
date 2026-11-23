@@ -2,7 +2,7 @@ import type { DeviceInfo, QueueEntry, TrackSummary } from '@squirmy/contracts';
 import { describe, expect, it } from 'vitest';
 import {
   codecsFor, deviceRows, isPlayable, pendingQueueRow, queueRow, isRemote, nextDownloaded, nextRepeat, outputDevice, playableSeeds, qualityFor,
-  seedOf,
+  seedOf, whereItPlays,
 } from './session';
 
 const phone: DeviceInfo = { id: 'phone', name: 'Isa’s iPhone', kind: 'ios', canPlay: true, isActive: false };
@@ -60,6 +60,26 @@ describe('deviceRows', () => {
       ['new', 'Another device', 'Playing', true],
     ]);
     expect(outputDevice(rows).id).toBe('new');
+  });
+
+  it('waits for a playing device that went away: named as it was listed, said to be reconnecting, never offered', () => {
+    const rows = deviceRows([phone], phone, { ...playingOn('web'), away: { id: 'web', device: web } });
+    expect(rows.map(row => [row.id, row.name, row.subtitle, row.active, row.canPlay])).toEqual([
+      ['phone', 'This iPhone', 'This device', false, true],
+      ['web', 'Firefox on Mac', 'Reconnecting…', true, false],
+    ]);
+    const output = outputDevice(rows);
+    expect(whereItPlays(output)).toBe('Reconnecting to Firefox on Mac…');
+    expect(whereItPlays(output, 'Paused')).toBe('Reconnecting to Firefox on Mac…');
+    // Once it is listed again it is just the device that plays.
+    expect(whereItPlays(outputDevice(deviceRows([web, phone], phone, playingOn('web'))))).toBe('Playing on Firefox on Mac');
+    expect(whereItPlays(outputDevice(deviceRows([web, phone], phone, { activeDeviceId: 'web', playing: false })), 'Paused')).toBe('Paused on Firefox on Mac');
+  });
+
+  it('says it waits for the playing device when this phone never saw it listed', () => {
+    const output = outputDevice(deviceRows([phone], phone, { ...playingOn('gone'), away: { id: 'gone', device: null } }));
+    expect(output).toMatchObject({ id: 'gone', name: 'Playing device', active: true, canPlay: false });
+    expect(whereItPlays(output)).toBe('Reconnecting to the playing device…');
   });
 
   it('names the active device as the output, or this one when nothing plays', () => {

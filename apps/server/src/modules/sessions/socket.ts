@@ -64,6 +64,9 @@ export function registerSessionSockets(realtime: Realtime): void {
       noteSeen(userId, deviceId)
       void attach(userId, deviceId, socket.id, raw, ack)
     })
+    // An answer to the heartbeat is the device saying it is there. Without it a tab left
+    // open and untouched would be listed as "Active 6 min ago", which reads as gone.
+    socket.conn.on('heartbeat', () => noteSeen(userId, deviceId))
     socket.on('disconnect', () => {
       if (deviceId) leave(userId, socket.id, deviceId)
     })
