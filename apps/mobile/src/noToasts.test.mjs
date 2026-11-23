@@ -1,4 +1,3 @@
-/// <reference types="node" />
 import { readdirSync, readFileSync } from 'node:fs';
 import { basename, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,11 +11,12 @@ import { describe, expect, it } from 'vitest';
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const self = fileURLToPath(import.meta.url);
 
-function sources(dir: string): string[] {
+/** @param {string} dir @returns {string[]} */
+function sources(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
     const path = join(dir, entry.name);
     if (entry.isDirectory()) return sources(path);
-    return /\.[jt]sx?$/.test(entry.name) && path !== self ? [path] : [];
+    return /\.[cm]?[jt]sx?$/.test(entry.name) && path !== self ? [path] : [];
   });
 }
 
