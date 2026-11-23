@@ -13,6 +13,7 @@ import { playingElsewhere, type Player } from '@/player/player-context'
 import { STILL_LOADING_LABEL, useStillLoading } from '@/player/use-still-loading'
 import { DevicesPopover, OnlyOnThisDevice, PlayingElsewhere } from './Devices'
 import { LyricsPane } from './Lyrics'
+import { PlayerStatusLine } from './PlayerStatus'
 import { QueueContent } from './Queue'
 import { SeekBar, TransportButtons, VolumeControl } from './Transport'
 
@@ -99,8 +100,39 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
 
           <DialogPrimitive.Title className="sr-only">Now Playing</DialogPrimitive.Title>
 
-          {/* On a phone on its side the controls go beside the artwork, lyrics or queue, which keep the height. */}
+          {/*
+            On a phone on its side the controls go beside the artwork, lyrics or queue, which keep the height.
+            They come first in the document, drawn after: Tab reaches Play and Seek before the lines of a
+            song or a long queue.
+          */}
           <div className="relative flex min-h-0 flex-1 flex-col short-landscape:flex-row short-landscape:items-center">
+          <div className="relative order-last mx-auto w-full max-w-3xl shrink-0 px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-2 md:px-8 short-landscape:w-[min(24rem,50%)] short-landscape:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+            <div className="mb-4 flex items-center gap-3">
+              {pane !== 'art' && <Cover artwork={artwork} size={96} className="size-12 lg:hidden" />}
+              <div className="min-w-0 flex-1">
+                <h2 className="truncate text-2xl font-semibold tracking-tight">{item?.track.title ?? 'Nothing playing'}</h2>
+                {item && (
+                  <p className="truncate text-base text-muted-foreground">
+                    {late
+                      ? STILL_LOADING_LABEL
+                      : <ArtistLinks credit={item.track} onNavigate={() => onOpenChange(false)} />}
+                  </p>
+                )}
+                <PlayerStatusLine status={state.status} className="mt-1 text-sm" />
+              </div>
+              {/* Named after the song, as in the player bar: never the page's own heart. */}
+              {item && <SaveHeart liked={liked} onToggle={onToggleLike} title={item.track.title} size="lg" className="max-md:size-11 pointer-coarse:size-11" />}
+            </div>
+            <SeekBar stacked durationMs={item?.entry.durationMs ?? 0} onSeek={controls.seek} disabled={!item} />
+            <div className="mt-1 flex flex-col items-center gap-3 md:flex-row md:justify-between short-landscape:flex-col!">
+              <div className="order-2 flex gap-8 md:order-1 md:w-40 md:gap-1 short-landscape:order-2! short-landscape:w-auto! short-landscape:gap-8!">
+                <IconButton label={pane === 'lyrics' ? 'Hide lyrics' : 'Show lyrics'} pressed={pane === 'lyrics'} onClick={() => toggle('lyrics')} className="max-md:size-11 pointer-coarse:size-11"><MessageSquareQuote /></IconButton>
+                <IconButton label={pane === 'queue' ? 'Hide queue' : 'Show queue'} pressed={pane === 'queue'} onClick={() => toggle('queue')} className="max-md:size-11 pointer-coarse:size-11"><ListMusic /></IconButton>
+              </div>
+              <div className="order-1 md:order-2 short-landscape:order-1!"><TransportButtons player={player} large disabled={!item} /></div>
+              <VolumeControl volume={state.volume} deviceId={state.activeDeviceId ?? state.thisDeviceId} onChange={controls.setVolume} fill className="order-3 hidden w-40 md:flex short-landscape:hidden!" />
+            </div>
+          </div>
           <div className={cn('relative grid min-h-0 flex-1 grid-cols-1 gap-8 px-6 py-4 md:px-8 lg:gap-12 lg:px-10 short-landscape:self-stretch short-landscape:py-2', pane !== 'art' && 'lg:grid-cols-2')}>
             {/* A size container, so the artwork is the largest square that fits the space left. */}
             <div className={cn('min-h-0 min-w-0 items-center justify-center [container-type:size]', pane === 'art' ? 'flex' : 'hidden lg:flex')}>
@@ -116,32 +148,6 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
             )}
           </div>
 
-          <div className="relative mx-auto w-full max-w-3xl shrink-0 px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-2 md:px-8 short-landscape:w-[min(24rem,50%)] short-landscape:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-            <div className="mb-4 flex items-center gap-3">
-              {pane !== 'art' && <Cover artwork={artwork} size={96} className="size-12 lg:hidden" />}
-              <div className="min-w-0 flex-1">
-                <h2 className="truncate text-2xl font-semibold tracking-tight">{item?.track.title ?? 'Nothing playing'}</h2>
-                {item && (
-                  <p className="truncate text-base text-muted-foreground">
-                    {late
-                      ? STILL_LOADING_LABEL
-                      : <ArtistLinks credit={item.track} onNavigate={() => onOpenChange(false)} />}
-                  </p>
-                )}
-              </div>
-              {/* Named after the song, as in the player bar: never the page's own heart. */}
-              {item && <SaveHeart liked={liked} onToggle={onToggleLike} title={item.track.title} size="lg" className="max-md:size-11 pointer-coarse:size-11" />}
-            </div>
-            <SeekBar stacked durationMs={item?.entry.durationMs ?? 0} onSeek={controls.seek} disabled={!item} />
-            <div className="mt-1 flex flex-col items-center gap-3 md:flex-row md:justify-between short-landscape:flex-col!">
-              <div className="order-2 flex gap-8 md:order-1 md:w-40 md:gap-1 short-landscape:order-2! short-landscape:w-auto! short-landscape:gap-8!">
-                <IconButton label={pane === 'lyrics' ? 'Hide lyrics' : 'Show lyrics'} pressed={pane === 'lyrics'} onClick={() => toggle('lyrics')} className="max-md:size-11 pointer-coarse:size-11"><MessageSquareQuote /></IconButton>
-                <IconButton label={pane === 'queue' ? 'Hide queue' : 'Show queue'} pressed={pane === 'queue'} onClick={() => toggle('queue')} className="max-md:size-11 pointer-coarse:size-11"><ListMusic /></IconButton>
-              </div>
-              <div className="order-1 md:order-2 short-landscape:order-1!"><TransportButtons player={player} large disabled={!item} /></div>
-              <VolumeControl volume={state.volume} deviceId={state.activeDeviceId ?? state.thisDeviceId} onChange={controls.setVolume} fill className="order-3 hidden w-40 md:flex short-landscape:hidden!" />
-            </div>
-          </div>
           </div>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>

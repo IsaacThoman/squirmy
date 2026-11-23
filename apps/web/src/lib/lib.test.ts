@@ -107,6 +107,22 @@ describe('keyboard shortcuts', () => {
     expect(press(' ', element('plain'), { metaKey: true })).toBe(true)
   })
 
+  it('leave the arrows to lists, listboxes, grids and regions with keys of their own', () => {
+    document.body.innerHTML = [
+      '<ul><li><button id="history">Play Lucky</button></li></ul>',
+      '<div role="listbox"><div role="option" tabindex="0" id="lyric">Line</div></div>',
+      '<div role="grid"><div role="row"><div role="gridcell" tabindex="0" id="cell">1</div></div></div>',
+      '<div data-own-keys><button id="own">Own</button></div>',
+      '<button id="free">Free</button>',
+    ].join('')
+    const element = (id: string) => document.getElementById(id)!
+    for (const id of ['history', 'lyric', 'cell', 'own']) {
+      expect(press('ArrowDown', element(id)), id).toBe(true)
+      expect(press('ArrowLeft', element(id)), id).toBe(true)
+    }
+    expect(press('ArrowDown', element('free'))).toBe(false)
+  })
+
   it('leave every key to a dialog, but not to Now Playing', () => {
     document.body.innerHTML = '<div role="dialog"><button id="section">Playback</button></div><div role="dialog" data-player-keys><span id="art">Art</span></div>'
     const element = (id: string) => document.getElementById(id)!
