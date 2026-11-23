@@ -22,7 +22,6 @@ import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { albumPresentation, canFetch, canUploadMusic, isPlayable } from '@/lib/catalog'
 import { plural } from '@/lib/format'
 import { useRecentSearches } from '@/lib/recent-searches'
-import { toast } from '@/lib/toast'
 import { useEventCallback } from '@/lib/use-event-callback'
 import { useLibrary } from '@/player/library-context'
 import { useViewer } from '@/player/on-demand-context'
@@ -187,17 +186,10 @@ function SearchDialogHost({ onOpenChange }: SearchDialogState) {
   )
 }
 
-/** Where Last.fm sends the browser back to, as `/settings?lastfm=`. */
-const lastFmReturns: Record<string, { title: string; description?: string }> = {
-  connected: { title: 'Connected to Last.fm' },
-  denied: { title: 'Last.fm was not connected', description: 'The connection was not approved.' },
-  invalid_state: { title: 'That Last.fm link expired', description: 'Start connecting again.' },
-  error: { title: 'Last.fm did not answer', description: 'Try again in a moment.' },
-}
-
 /**
  * `/settings` and `/settings/<section>`: settings are a dialog, so these addresses open it over
- * the home page. Last.fm returns here with `?lastfm=`, which becomes a notice.
+ * the home page. Last.fm returns here with `?lastfm=`: the Scrobbling section opens and says
+ * what Last.fm answered.
  */
 export function SettingsRoute() {
   const { openSettings } = useSettingsDialog()
@@ -205,8 +197,8 @@ export function SettingsRoute() {
   const [params] = useSearchParams()
   const lastFm = params.get('lastfm')
   useEffect(() => {
-    if (lastFm !== null) toast(lastFmReturns[lastFm] ?? lastFmReturns.error)
-    openSettings(lastFm !== null ? 'scrobbling' : isSettingsSection(section) ? section : undefined)
+    if (lastFm !== null) openSettings('scrobbling', { lastFm })
+    else openSettings(isSettingsSection(section) ? section : undefined)
   }, [lastFm, section, openSettings])
   return <Navigate to="/" replace />
 }

@@ -5,7 +5,7 @@ import { Outlet, useLocation } from 'react-router'
 import { NowPlaying, type NowPlayingPane } from '@/components/player/NowPlaying'
 import { MiniPlayer, PlayerBar } from '@/components/player/PlayerBar'
 import { QueuePanel } from '@/components/player/Queue'
-import { SettingsDialogContext, type SettingsSection } from '@/components/settings/settings-dialog'
+import { SettingsDialogContext, type SettingsOpenOptions, type SettingsSection } from '@/components/settings/settings-dialog'
 import { cn } from '@/lib/utils'
 import { useLibrary } from '@/player/library-context'
 import { usePlayer } from '@/player/player-context'
@@ -19,7 +19,8 @@ import {
   applySidebarWidth, clampSidebarWidth, MOBILE_QUERY, readSidebarCollapsed, readSidebarWidth, SIDEBAR_MIN_WIDTH, sidebarMaxWidth, writeSidebarCollapsed, writeSidebarWidth,
 } from './sidebar-state'
 
-export type SettingsDialogState = { open: boolean; section: SettingsSection; onOpenChange: (open: boolean) => void; onSectionChange: (section: SettingsSection) => void }
+/** `lastFm`: what Last.fm answered, while the dialog it opened stays open. */
+export type SettingsDialogState = { open: boolean; section: SettingsSection; lastFm?: string; onOpenChange: (open: boolean) => void; onSectionChange: (section: SettingsSection) => void }
 export type SearchDialogState = { open: boolean; onOpenChange: (open: boolean) => void }
 
 type AppShellProps = {
@@ -110,15 +111,15 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
   const [tracking, setTracking] = useState(false)
 
   const [searchOpen, setSearchOpen] = useState(false)
-  const [settings, setSettings] = useState<{ open: boolean; section: SettingsSection }>({ open: false, section: 'playback' })
+  const [settings, setSettings] = useState<{ open: boolean; section: SettingsSection; lastFm?: string }>({ open: false, section: 'playback' })
   const [queueOpen, setQueueOpen] = useState(false)
   const [nowPlaying, setNowPlaying] = useState<NowPlayingView>({ open: false, pane: 'art' })
 
   // One dialog at a time: each shortcut closes the others.
-  const openSettings = useCallback((section: SettingsSection = 'playback') => {
+  const openSettings = useCallback((section: SettingsSection = 'playback', options: SettingsOpenOptions = {}) => {
     setDrawerOpen(false)
     setSearchOpen(false)
-    setSettings({ open: true, section })
+    setSettings({ open: true, section, lastFm: options.lastFm })
   }, [])
   const settingsController = useMemo(() => ({ openSettings }), [openSettings])
 
@@ -179,7 +180,7 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
 
   useLayoutEffect(() => { applySidebarWidth(sidebarWidth) }, [sidebarWidth])
 
-  // Toasts and notices float above the player, whatever height it has now ("Playing on…" adds a strip).
+  // The shell's notices float above the player, whatever height it has now ("Playing on…" adds a strip).
   useLayoutEffect(() => {
     const element = bottom.current
     if (!element) return
@@ -254,7 +255,8 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
   const onOpenSettings = useCallback(() => openSettings(), [openSettings])
   const closeQueue = useCallback(() => setQueueOpen(false), [])
   const onSearchOpenChange = useCallback((open: boolean) => setSearchOpen(open), [])
-  const onSettingsOpenChange = useCallback((open: boolean) => setSettings(current => ({ ...current, open })), [])
+  // Last.fm's answer is for the visit it came back to: closing the dialog lets it go.
+  const onSettingsOpenChange = useCallback((open: boolean) => setSettings(current => ({ ...current, open, lastFm: open ? current.lastFm : undefined })), [])
   const onSettingsSectionChange = useCallback((section: SettingsSection) => setSettings(current => ({ ...current, section })), [])
 
   return (
@@ -356,7 +358,7 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
         <ShellNotices />
       </div>
       {renderSearch({ open: searchOpen, onOpenChange: onSearchOpenChange })}
-      {renderSettings({ open: settings.open, section: settings.section, onOpenChange: onSettingsOpenChange, onSectionChange: onSettingsSectionChange })}
+      {renderSettings({ open: settings.open, section: settings.section, lastFm: settings.lastFm, onOpenChange: onSettingsOpenChange, onSectionChange: onSettingsSectionChange })}
     </SettingsDialogContext>
   )
 })

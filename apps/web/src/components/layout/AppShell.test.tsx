@@ -280,22 +280,34 @@ describe('AppShell', () => {
       await waitFor(() => expect(where()).toBe('/'))
     })
 
-    it('open on Scrobbling and say so when Last.fm sends the browser back connected', async () => {
+    it('open on Scrobbling and say there that Last.fm sent the browser back connected', async () => {
       await renderShell('/settings?lastfm=connected')
       expect(await settingsSection()).toBe('Scrobbling')
-      expect(await screen.findByText('Connected to Last.fm')).toBeInTheDocument()
+      const said = await within(await settings()).findByText('Connected to Last.fm.')
+      expect(said.closest('[role="status"]')).not.toBeNull()
       await waitFor(() => expect(where()).toBe('/'))
     })
 
     it.each([
-      ['denied', 'Last.fm was not connected'],
-      ['invalid_state', 'That Last.fm link expired'],
-      ['error', 'Last.fm did not answer'],
-      ['something-new', 'Last.fm did not answer'],
-    ])('say what went wrong when Last.fm sends the browser back with “%s”', async (result, notice) => {
+      ['denied', 'Last.fm was not connected. The connection was not approved.'],
+      ['invalid_state', 'That Last.fm link expired. Start connecting again.'],
+      ['error', 'Last.fm did not answer. Try again in a moment.'],
+      ['something-new', 'Last.fm did not answer. Try again in a moment.'],
+    ])('say in Scrobbling what went wrong when Last.fm sends the browser back with “%s”', async (result, notice) => {
       await renderShell(`/settings?lastfm=${result}`)
       expect(await settingsSection()).toBe('Scrobbling')
-      expect(await screen.findByText(notice)).toBeInTheDocument()
+      expect(await within(await settings()).findByText(notice)).toBeInTheDocument()
+    })
+
+    it('let Last.fm’s answer go once the dialog closes', async () => {
+      await renderShell('/settings?lastfm=connected')
+      const dialog = await settings()
+      expect(await within(dialog).findByText('Connected to Last.fm.')).toBeInTheDocument()
+      await userEvent.keyboard('{Escape}')
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+      await press(',')
+      await userEvent.click(within(await settings()).getByRole('button', { name: 'Scrobbling' }))
+      expect(within(await settings()).queryByText('Connected to Last.fm.')).toBeNull()
     })
 
     it('show the server’s name and version under About', async () => {
