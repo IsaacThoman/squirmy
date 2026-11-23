@@ -274,9 +274,9 @@ for (const [viewport, size] of [['small phone', { width: 320, height: 640 }], ['
     await audited(page, 'album', viewport)
   })
   await step(`${viewport}: track menu`, async () => {
-    // The album's first row by its place, not by its song's name: an album can list two songs of one name.
-    const first = main.getByRole('list', { name: `${album.title} tracks` }).getByRole('listitem').first()
-    await first.getByRole('button', { name: /^More options for / }).tap()
+    // The album's first song by its place, not by its name: an album can list two songs of one
+    // name ("In the Flesh?"), and the list's first item can be a disc's heading.
+    await main.getByRole('list', { name: `${album.title} tracks` }).getByRole('button', { name: /^More options for / }).first().tap()
     await page.getByRole('menu').waitFor()
     await audited(page, 'track menu', viewport)
     await page.keyboard.press('Escape')
