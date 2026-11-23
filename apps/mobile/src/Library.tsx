@@ -12,7 +12,7 @@ import {
   libraryMatchLimit, libraryMatchMinLength, useGenreCovers, useGenres, useHome, useLibraryAlbumIds, useLibraryAlbums, useLibraryArtists,
   useLibraryMatches, useLibraryTracks, usePlaylists,
 } from './data/queries';
-import { useLibraryActions, useTrackStore } from './data/library';
+import { useLibraryActions } from './data/library';
 import { useAvailability, useViewer } from './downloads/DownloadsProvider';
 import {
   BrowseButton, CollectionGridRow, CollectionRow, GenreGrid, HeroActions, LibraryFilters, LibrarySort, SearchField,
@@ -26,7 +26,7 @@ import { useRecentSearches, useSearchList } from './library/useSearchList';
 import { useNotice } from './Notice';
 import { sortFor, sortOptions, sortsFor, type SortChoices } from './library/sorting';
 import type { Page } from './library/links';
-import { useStartGuard } from './library/pending';
+import { useAlbumPlayer, useCollectionActions } from './library/collectionActions';
 import { underStatusBar, useRefreshControl } from './library/refresh';
 import { displayFontScale, isAccessibilitySize } from './fontScale';
 import {
@@ -52,27 +52,6 @@ export type BrowseProps = {
   onOpenDownloads?: () => void;
   bottomInset?: number;
 };
-
-/**
- * Plays an album from its tile: its tracks come from the cached page when there is one,
- * otherwise from the server. `pending` is true while that request is out; taps meanwhile are ignored.
- */
-export function useAlbumPlayer() {
-  const api = useSignedInApi();
-  const queryClient = useQueryClient();
-  const tracks = useTrackStore();
-  const actions = usePlaybackActions();
-  const starts = useStartGuard();
-  const play = (albumId: string, shuffle = false) => {
-    if (!api) return;
-    starts.run(albumId, () => queryClient.ensureQueryData({ queryKey: queryKeys.album(albumId), queryFn: () => api.catalog.album(albumId) }).then(album => {
-      const list = album.discs.flatMap(disc => disc.tracks);
-      tracks.prime(list);
-      actions.playTracks(list, { shuffle, context: { type: 'album', id: album.id, title: album.title } });
-    }));
-  };
-  return { play, pending: starts.pending };
-}
 
 /** The featured album. Its page zooms out of the whole card. */
 function HeroCard({ album, size, href }: { album: AlbumSummary; size: number; href: Href }) {
@@ -200,6 +179,7 @@ const emptyLibrary = {
 export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bottomInset = 155 }: BrowseProps) {
   const styles = useStyles();
   const collectionDim = useCollectionDim();
+  const collectionActions = useCollectionActions();
   const { offline } = useRealtime();
   const { top } = useSafeAreaInsets();
   const { width, fontScale } = useWindowDimensions();
@@ -308,12 +288,12 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
       case 'heading': return <View style={styles.songsHeading}><SectionTitle title={row.title} /></View>;
       case 'tiles': return <CollectionGridRow items={row.items.map(item => ({
         id: item.key, title: item.title, subtitle: item.subtitle, size,
-        cover: <CollectionCover item={item} size={size} />, href: item.href, dim: item.dim,
+        cover: <CollectionCover item={item} size={size} />, href: item.href, dim: item.dim, actions: collectionActions(item),
       }))} />;
       case 'row': return <CollectionRow title={row.item.title} subtitle={row.item.subtitle} size={50} dim={row.item.dim}
         cover={<CollectionCover item={row.item} size={50} radius={9} />} href={row.item.href} />;
     }
-  }, [renderSong, size, styles]);
+  }, [collectionActions, renderSong, size, styles]);
   // Searching, a pull reloads the matches; otherwise the list, and the playlists and artists shown with it.
   const refreshControl = useRefreshControl(() => Promise.all([
     active.refetch(), showsPlaylists && active !== playlists && playlists.refetch(), allArtists.length > 0 && !searching && artists.refetch(),

@@ -70,3 +70,32 @@ describe('second Deezer pages of one artist', () => {
     expect((await row(other)).mergedIntoId).toBeNull()
   })
 })
+
+describe('the second-page repair across runs', () => {
+  useTestDatabase()
+  useHttpFixtures('deezer')
+  beforeEach(() => updateServerSettings({ musicBrainzEnabled: false, deezerEnabled: true }))
+
+  it('checks a kept namesake once, so later runs reach the rows not yet checked', async () => {
+    // As on production on 2026-11-23: each run drew 300 rows in a daily order, kept
+    // namesakes included, so the namesakes took most of every batch.
+    const adele = await artist('Adele', '75798', { albums: ['21'] })
+    const other = await artist('Adele', '5673798')
+    expect(await foldArtistCopies()).toBe(0)
+    const checked = (await row(other)).copyCheckedAt
+    expect(checked).not.toBeNull()
+    expect((await row(adele)).copyCheckedAt).not.toBeNull()
+
+    // A new second Grimes page arrives: the next run looks at it and leaves the Adeles be.
+    const grimes = await artist('Grimes', '807493', { mbid: '7e5a2a59-6d9f-4a17-b7c2-e1eedb7bd222', albums: ['Visions', 'Art Angels'] })
+    const second = await artist('Grimes', '285342121', { albums: ['Art Angels'] })
+    expect(await foldArtistCopies()).toBe(1)
+    expect(await row(second)).toMatchObject({ mergedIntoId: grimes })
+    expect((await row(other)).copyCheckedAt).toEqual(checked)
+
+    // A kept row is checked again after 30 days.
+    await db.update(artists).set({ copyCheckedAt: new Date(Date.now() - 31 * 86_400_000) }).where(eq(artists.id, other))
+    expect(await foldArtistCopies()).toBe(0)
+    expect((await row(other)).copyCheckedAt!.getTime()).toBeGreaterThan(Date.now() - 60_000)
+  })
+})

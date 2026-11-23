@@ -4,12 +4,15 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { usePreventZoomTransitionDismissal, type Href } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, View, type StyleProp, type ViewStyle, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import {
+  ActivityIndicator, FlatList, StyleSheet, Text, useWindowDimensions, View, type StyleProp, type ViewStyle, type NativeScrollEvent, type NativeSyntheticEvent,
+} from 'react-native';
 import { loadFailure } from '../data/errors';
 import { useRealtime } from '../data/realtime';
 import { useKeptCollections, useViewer } from '../downloads/DownloadsProvider';
 import { Cover, Icon } from '../ui';
 import { BrowseButton, CollectionTile } from './BrowseControls';
+import { useCollectionActions } from './collectionActions';
 import type { Page } from './links';
 import { mosaicCovers } from './mosaic';
 import { displayFontScale, secondaryFontScale } from '../fontScale';
@@ -23,14 +26,25 @@ export const albumTypeLabels: Record<AlbumSummary['type'], string> = {
 };
 /** From this text scale (the accessibility sizes) grids and tiles make room for the text. */
 export const largeTextScale = 1.6;
+/** From this one (the third accessibility size) a phone's grid has one column: in two, a one-word credit no longer fits. */
+const largestTextScale = 2.5;
 
 /**
  * Columns of a grid of tiles. At accessibility text sizes a phone shows two, wider, so a
- * title keeps more than its first few letters.
+ * title keeps more than its first few letters, and at the largest sizes one.
  */
 export function gridColumns(width: number, fontScale: number): number {
   if (width >= 650) return fontScale >= largeTextScale ? 3 : 4;
+  if (fontScale >= largestTextScale) return 1;
   return fontScale >= largeTextScale ? 2 : 3;
+}
+
+/**
+ * How wide a rail's tiles are: `size`, or at accessibility text sizes most of the screen's
+ * width, so a title wraps into words rather than letters and the next tile still peeks in.
+ */
+export function railTileSize(size: number, width: number, fontScale: number): number {
+  return fontScale >= largeTextScale ? Math.max(size, Math.floor((width - gutter * 2) * 0.72)) : size;
 }
 /** How far in from the left edge a swipe can start and still close a zoomed collection. */
 const backSwipeEdge = 40;
@@ -57,6 +71,8 @@ export type Collection = {
   dim?: boolean;
   /** An album's availability, which `useCollectionDim` reads with the viewer's rights. */
   availability?: AlbumSummary['availability'];
+  /** An album's credited artists, for its menu's "Go to artist". */
+  artists?: readonly { name: string; href: Href }[];
 };
 
 type Link = (page: Page, id: string) => Href;
@@ -69,6 +85,7 @@ export function albumCollection(album: AlbumSummary, link: Link, subtitle = albu
   return {
     key: album.id, kind: 'album', title: album.title, subtitle, href: link('album', album.id), artwork: album.artwork,
     dim: album.availability === 'none', availability: album.availability,
+    artists: album.artists.map(artist => ({ name: artist.name, href: link('artist', artist.id) })),
   };
 }
 
@@ -170,28 +187,39 @@ function RailGap() {
 /**
  * A horizontal rail of tiles. Each tile is a native view of its own, so the rail draws only
  * those near the screen: an artist with thousands of releases mounted them all and froze.
+ * A long press on a tile shows its menu.
  */
-export function CollectionRail({ items, size = 131 }: { items: readonly Collection[]; size?: number }) {
+export function CollectionRail({ items, size: baseSize = 131 }: { items: readonly Collection[]; size?: number }) {
   const styles = useStyles();
+  const { width, fontScale } = useWindowDimensions();
+  const size = railTileSize(baseSize, width, fontScale);
   const collectionDim = useCollectionDim();
+  const actionsFor = useCollectionActions();
   const data = useMemo(() => items.map(collectionDim), [items, collectionDim]);
   const renderItem = useCallback(({ item }: { item: Collection }) => <CollectionTile title={item.title} subtitle={item.subtitle} size={size}
-    dim={item.dim} cover={<CollectionCover item={item} size={size} />} href={item.href} />, [size]);
+    dim={item.dim} cover={<CollectionCover item={item} size={size} />} href={item.href} actions={actionsFor(item)} />, [actionsFor, size]);
   return <FlatList horizontal data={data} renderItem={renderItem} keyExtractor={railKey} ItemSeparatorComponent={RailGap}
     initialNumToRender={4} maxToRenderPerBatch={4} windowSize={3} showsHorizontalScrollIndicator={false}
     contentContainerStyle={styles.railContent} />;
 }
 
-export function SectionTitle({ title, onPress }: { title: string; onPress?: () => void }) {
+/**
+ * The heading of a section of a page: a rail, a song list, About. `detail` follows the title
+ * ("10 songs · 49 min"); `onPress` adds "See all". At large text sizes they wrap under it.
+ */
+export function SectionTitle({ title, detail, onPress, style }: { title: string; detail?: string; onPress?: () => void; style?: StyleProp<ViewStyle> }) {
   const styles = useStyles();
-  return <View style={styles.sectionTitle}>
+  // A native button has no text baseline to line up with, so a row with one is centred instead.
+  return <View style={[styles.sectionTitle, !onPress && styles.sectionTitleText, style]}>
     <Text accessibilityRole="header" maxFontSizeMultiplier={displayFontScale} style={styles.sectionText}>{title}</Text>
-    {onPress && <BrowseButton label={`See ${title.toLowerCase()}`} title="See all" icon="chevron.right" onPress={onPress} />}
+    {detail && <Text maxFontSizeMultiplier={secondaryFontScale} style={styles.sectionDetail}>{detail}</Text>}
+    {onPress && <BrowseButton label={`See all ${title.toLowerCase()}`} title="See all" icon="chevron.right" onPress={onPress} />}
   </View>;
 }
 
+/** `action.busy`: it has started and not finished; a spinner stands in for it, so one tap asks once. */
 export function EmptyState({ icon, title, description, action }: {
-  icon: string; title: string; description: string; action?: { title: string; onPress: () => void };
+  icon: string; title: string; description: string; action?: { title: string; onPress: () => void; busy?: boolean };
 }) {
   const colors = useColors();
   const styles = useStyles();
@@ -199,7 +227,9 @@ export function EmptyState({ icon, title, description, action }: {
     <Icon name={icon} size={30} color={colors.accent} />
     <Text style={styles.emptyTitle}>{title}</Text>
     <Text style={styles.emptyDescription}>{description}</Text>
-    {action && <View style={styles.emptyAction}><BrowseButton label={action.title} title={action.title} onPress={action.onPress} /></View>}
+    {action && <View style={styles.emptyAction}>{action.busy
+      ? <ActivityIndicator accessibilityLabel={`${action.title}…`} color={colors.muted} style={styles.emptyBusy} />
+      : <BrowseButton label={action.title} title={action.title} onPress={action.onPress} />}</View>}
   </View>;
 }
 
@@ -250,8 +280,13 @@ export function matches(query: string, ...values: string[]) {
 }
 
 const useStyles = createThemedStyles(colors => StyleSheet.create({
-  sectionTitle: { marginHorizontal: gutter, marginBottom: 13, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
+  sectionTitle: {
+    marginHorizontal: gutter, marginBottom: 13, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center',
+    columnGap: 10, rowGap: 2,
+  },
+  sectionTitleText: { alignItems: 'baseline' },
   sectionText: { color: colors.text, fontSize: 22, fontWeight: '700', letterSpacing: -0.65 },
+  sectionDetail: { color: colors.quiet, fontSize: 12, fontWeight: '600' },
   railContent: { paddingHorizontal: gutter },
   specialCover: { overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   coverRing: { position: 'absolute', borderColor: '#FFF8FF50', borderWidth: StyleSheet.hairlineWidth },
@@ -260,6 +295,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   emptyTitle: { color: colors.text, fontSize: 19, fontWeight: '700', textAlign: 'center', marginTop: 6 },
   emptyDescription: { color: colors.muted, fontSize: 14, textAlign: 'center', lineHeight: 21 },
   emptyAction: { marginTop: 4 },
+  emptyBusy: { width: 44, height: 44 },
   loading: { paddingVertical: 60, alignItems: 'center' },
   // At least 28 tall, taller when the text is large, so the word is never cut.
   offline: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, minHeight: 28, borderRadius: 14, backgroundColor: colors.surface },

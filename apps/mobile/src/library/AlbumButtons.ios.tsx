@@ -1,7 +1,7 @@
 import { Button, Host, HStack, Image, ProgressView, Text } from '@expo/ui/swift-ui';
 import {
-  accessibilityHidden, accessibilityLabel, background, buttonBorderShape, buttonStyle, clipShape, contentShape, controlSize, dynamicTypeSize, font,
-  foregroundStyle, frame, lineLimit, padding, progressViewStyle, shapes, tint,
+  accessibilityHidden, accessibilityLabel, background, buttonBorderShape, buttonStyle, clipShape, contentShape, controlSize, disabled as disabledModifier,
+  dynamicTypeSize, font, foregroundStyle, frame, lineLimit, opacity, padding, progressViewStyle, shapes, tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import type { ComponentProps } from 'react';
@@ -40,10 +40,11 @@ export function AlbumPlaybackButtons({ title, actions }: AlbumPlaybackProps) {
     // As tall as the labels need: they follow the reader's text size, up to where two still fit side by side.
     <Host matchContents={{ vertical: true }} style={{ marginTop: 18, alignSelf: 'stretch' }}>
       <HStack spacing={9} modifiers={[dynamicTypeSize({ max: 'accessibility2' })]}>
-        {actions.map(({ label, symbol, onPress, busy }, index) => {
+        {actions.map(({ label, symbol, onPress, busy, disabled }, index) => {
           const color = index === 0 ? colors.onAccent : colors.text;
           return <Button key={label} onPress={onPress}
-            modifiers={[buttonStyle('plain'), background(index === 0 ? colors.accent : colors.surface), clipShape('capsule'), accessibilityLabel(`${label} ${title}`)]}>
+            modifiers={[buttonStyle('plain'), background(index === 0 ? colors.accent : colors.surface), clipShape('capsule'), accessibilityLabel(`${label} ${title}`),
+              ...(disabled ? [disabledModifier(true), opacity(0.45)] : [])]}>
             <HStack spacing={8} modifiers={[frame({ maxWidth: Infinity }), frame({ minHeight: 46 }), padding({ vertical: 6 }), hitShape]}>
               {busy
                 ? <ProgressView modifiers={[progressViewStyle('circular'), tint(color), frame({ width: 17, height: 17 })]} />

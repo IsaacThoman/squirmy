@@ -1,0 +1,1 @@
+ALTER TABLE "artists" ADD COLUMN "copy_checked_at" timestamp with time zone;
