@@ -128,6 +128,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
           normalization: stream.current.settings?.normalization,
           onLoadError: (entry, error, willRetry) => loadFailed(entry, error, willRetry),
           onStall: logStall,
+          onEngineError: (entry, message) => engineFailed(entry, message),
           resolvePlayback: entry => {
             const { settings: current, network: type } = stream.current;
             const kind = type === Network.NetworkStateType.CELLULAR ? 'cellular' : type === Network.NetworkStateType.WIFI ? 'wifi' : 'other';
@@ -292,9 +293,8 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
           send({ type: 'pause' });
         }
       };
-      const stopErrors = engine.subscribe(event => {
-        if (event.type === 'error') failed(event.entryId, event.message);
-      });
+      // The client reloads a failed stream once before it tells us; then it is told and skipped.
+      const engineFailed: NonNullable<SessionPlayer['onEngineError']> = (entry, message) => failed(entry.id, message);
       const loadFailed: NonNullable<SessionPlayer['onLoadError']> = (entry, error, willRetry) => {
         if (!willRetry) return failed(entry.id, refusalMessage(error));
         // A stream the phone can't reach: offline, a download plays instead. Otherwise
@@ -340,7 +340,6 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         stopRefreshing();
         engine.holdAudioSession(false);
         stopAudioSession();
-        stopErrors();
         onOffline.current = null;
         onLikes.current = null;
         stopWatching();

@@ -295,9 +295,9 @@ function descriptor(entry: QueueEntry): PlaybackDescriptor {
   }
 }
 
-function setup({ canPlay = true, connect = true, restore, server = new FakeServer(), id = PHONE, onLoadError, onStall, systemVolume }: {
+function setup({ canPlay = true, connect = true, restore, server = new FakeServer(), id = PHONE, onLoadError, onStall, onEngineError, systemVolume }: {
   canPlay?: boolean; connect?: boolean; restore?: SavedSession; server?: FakeServer; id?: string
-  onLoadError?: SessionPlayer['onLoadError']; onStall?: SessionPlayer['onStall']; systemVolume?: boolean
+  onLoadError?: SessionPlayer['onLoadError']; onStall?: SessionPlayer['onStall']; onEngineError?: SessionPlayer['onEngineError']; systemVolume?: boolean
 } = {}) {
   const transport = new FakeTransport(server)
   const engine = new FakeEngine()
@@ -307,7 +307,7 @@ function setup({ canPlay = true, connect = true, restore, server = new FakeServe
   const client = new SessionClient({
     transport,
     device: { id, name: 'Phone', kind: 'ios' },
-    player: canPlay ? { engine, resolvePlayback, baseUrl: 'https://music.test', normalization: 'off', onLoadError, onStall, systemVolume } : undefined,
+    player: canPlay ? { engine, resolvePlayback, baseUrl: 'https://music.test', normalization: 'off', onLoadError, onStall, onEngineError, systemVolume } : undefined,
     restore,
     onDetachedEnded: ended,
   })
@@ -748,21 +748,52 @@ describe('SessionClient engine', () => {
     expect(engine.getStatus()).toMatchObject({ state: 'playing', positionMs: 0 })
   })
 
-  it('retries a failed entry when asked to play again or to seek, not on its own', async () => {
-    const { client, engine, resolvePlayback, calls, settle } = await playingHere()
+  it('reloads a failed entry once on its own, then tells the caller; play or a seek tries again', async () => {
+    const onEngineError = vi.fn()
+    const stalls: PlaybackStallEvent[] = []
+    const context = setup({ onEngineError, onStall: event => stalls.push(event) })
+    await context.settle()
+    context.client.dispatch({ type: 'playTracks', tracks: seeds(1, 2, 3), seed: 1 })
+    await context.settle()
+    const { client, engine, resolvePlayback, calls, settle } = context
+    const loadsOfFirst = () => resolvePlayback.mock.calls.filter(([entry]) => entry.trackId === track(1)).length
+    await vi.advanceTimersByTimeAsync(20_000)
     engine.fail('unreachable')
     await settle()
-    expect(calls('load')).toHaveLength(1)
+    // Once, at once, with a fresh stream address, where it stopped; the caller hears nothing.
+    expect(calls('load')).toHaveLength(2)
+    expect(calls('load')[1]![1]).toMatchObject({ startMs: 20_000, autoplay: true })
+    expect(loadsOfFirst()).toBe(2)
+    expect(onEngineError).not.toHaveBeenCalled()
+    expect(stalls).toEqual([expect.objectContaining({ phase: 'recovering', state: 'loading', attempts: 1 })])
+    expect(engine.getStatus().state).toBe('playing')
+
+    engine.fail('unreachable')
+    await settle()
+    expect(calls('load')).toHaveLength(2)
+    expect(onEngineError).toHaveBeenCalledWith(expect.objectContaining({ trackId: track(1) }), 'unreachable')
     client.dispatch({ type: 'pause' })
     client.dispatch({ type: 'play' })
     await settle()
-    expect(calls('load')).toHaveLength(2)
-    expect(resolvePlayback).toHaveBeenCalledTimes(3)
+    expect(calls('load')).toHaveLength(3)
+    expect(loadsOfFirst()).toBe(3)
     expect(engine.getStatus().state).toBe('playing')
     engine.fail('unreachable')
     client.dispatch({ type: 'seek', positionMs: 30_000 })
     await settle()
     expect(calls('load').at(-1)).toMatchObject(['load', { startMs: 30_000, autoplay: true }])
+  })
+
+  it('tells the caller at once about an error a reload cannot help', async () => {
+    const onEngineError = vi.fn()
+    const context = setup({ onEngineError })
+    await context.settle()
+    context.client.dispatch({ type: 'playTracks', tracks: seeds(1, 2), seed: 1 })
+    await context.settle()
+    context.engine.failWith({ message: 'blocked', retryable: false })
+    await context.settle()
+    expect(context.calls('load')).toHaveLength(1)
+    expect(onEngineError).toHaveBeenCalledWith(expect.objectContaining({ trackId: track(1) }), 'blocked')
   })
 
   it('gives up on an entry the server refuses: reports it, stops the audio and tells the caller', async () => {
@@ -1775,5 +1806,24 @@ describe('SessionClient stall watchdog', () => {
     await vi.advanceTimersByTimeAsync(120_000)
     expect(stalls).toEqual([])
     expect(calls('load')).toHaveLength(0)
+  })
+
+  it('watches a song the server finished fetching late from the moment it is ready', async () => {
+    const stalls: PlaybackStallEvent[] = []
+    const { client, server, transport, engine, settle, calls } = setup({ onStall: event => stalls.push(event) })
+    await settle()
+    client.dispatch({ type: 'playTracks', tracks: [{ ...seeds(1)[0]!, state: 'preparing' }, ...seeds(2)], seed: 1 })
+    await settle()
+    await vi.advanceTimersByTimeAsync(90_000)
+    engine.holdLoads = true
+    server.apply({ type: 'setEntryState', trackId: track(1), state: 'ready' })
+    transport.flush()
+    await settle()
+    expect(calls('load')).toHaveLength(1)
+    await vi.advanceTimersByTimeAsync(6000)
+    expect(stalls).toEqual([])
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(stalls).toEqual([expect.objectContaining({ phase: 'recovering', state: 'loading', stuckMs: 6000 })])
+    expect(calls('load')).toHaveLength(2)
   })
 })

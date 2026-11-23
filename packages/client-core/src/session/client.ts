@@ -113,6 +113,12 @@ export type SessionPlayer = {
   onLoadError?: (entry: QueueEntry, error: unknown, willRetry: boolean) => void
   /** Each step of the stall watchdog, for the platform's log. */
   onStall?: (event: PlaybackStallEvent) => void
+  /**
+   * The engine could not play the current entry (an `error` event), and a reload with a
+   * fresh stream address failed too, or could not help (`retryable: false`). The caller
+   * should say so and move on. Only called while this device is the active one.
+   */
+  onEngineError?: (entry: QueueEntry, message: string) => void
 }
 
 /**
@@ -326,6 +332,8 @@ export class SessionClient {
    */
   private readonly inEngine = new Map<string, PlaybackDescriptor>()
   private readonly watchdog = new StallWatchdog()
+  /** Entries whose engine error was answered with a reload, so a second error is final. */
+  private readonly retriedErrors = new Set<string>()
 
   constructor(options: SessionClientOptions) {
     this.transport = options.transport
@@ -1200,10 +1208,29 @@ export class SessionClient {
           this.flush()
         }
         return
-      case 'error':
+      case 'error': {
+        const entry = this.local.current
+        if (entry?.id !== event.entryId) return
         // A stale signed URL is the likeliest cause; resolve afresh on the next load.
-        if (this.local.current?.id === event.entryId) this.descriptors.delete(descriptorKey(this.local.current))
+        this.descriptors.delete(descriptorKey(entry))
+        if (!this.isActive()) return
+        if (event.retryable === false || this.retriedErrors.has(entry.id) || !this.local.playing) {
+          this.player!.onEngineError?.(entry, event.message)
+          return
+        }
+        // A stream that failed once (a 404 from a server that had not quite caught up, a
+        // dropped connection) usually plays when asked again, as skipping away and back
+        // shows: once, at once, before the caller is told.
+        this.retriedErrors.add(entry.id)
+        if (this.retriedErrors.size > 64) this.retriedErrors.delete(this.retriedErrors.values().next().value!)
+        const positionMs = this.player!.engine.getStatus().positionMs
+        this.player!.onStall?.({ phase: 'recovering', entryId: entry.id, trackId: entry.trackId, state: 'loading', attempts: 1, stuckMs: 0, positionMs })
+        // After the engine has finished telling its listeners about the failure.
+        setTimer(() => {
+          if (this.local.current?.id === entry.id && this.isActive() && this.local.playing && this.loadingEntryId !== entry.id) void this.load(entry, positionMs)
+        }, 0)
         return
+      }
       case 'status': {
         const finishedLoading = this.engineState === 'loading' && event.status.state !== 'loading'
         this.engineState = event.status.state

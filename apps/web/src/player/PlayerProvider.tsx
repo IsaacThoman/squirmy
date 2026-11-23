@@ -57,6 +57,16 @@ function createSession(api: ApiClient, socket: SquirmySocket, device: ClientDevi
         client.dispatch({ type: 'next' })
       },
       onStall: logStall,
+      // A track the browser cannot play (gone, or a format it refuses), even after the client
+      // reloaded it once, is reported and skipped. Blocked audio waits for the user instead.
+      onEngineError: (entry, message) => {
+        if (message === AUDIO_BLOCKED_MESSAGE) return
+        const { session, connection } = client.getSnapshot()
+        if (connection !== 'online' || session.current?.id !== entry.id) return
+        const title = store.get(entry.trackId, entry.albumId)?.title
+        toast({ title: title ? `Couldn’t play “${title}”` : 'Couldn’t play this song', description: message })
+        client.dispatch({ type: 'next' })
+      },
     },
   })
   return { client, setQuality: (next: StreamQuality) => { quality = next } }
@@ -264,7 +274,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   usePlaybackNotices(client, store)
   useFreshSummaries(client, store, socket!)
-  useEngineErrors(engine, client, store)
   useMediaSession(client, engine, controls, snapshot, audible, clock, track ?? null)
   useShortcuts(controls, clock, snapshot, tab.device.id)
 
@@ -379,18 +388,6 @@ function useFreshSummaries(client: SessionClient, store: TrackStore, socket: Squ
       socket.off('changes', patch)
     }
   }, [socket, store])
-}
-
-/** A track the browser cannot play (gone, or a format it refuses) is reported and skipped. */
-function useEngineErrors(engine: WebPlayerEngine, client: SessionClient, store: TrackStore) {
-  useEffect(() => engine.subscribe(event => {
-    if (event.type !== 'error' || event.message === AUDIO_BLOCKED_MESSAGE) return
-    const { session, isActiveDevice, connection } = client.getSnapshot()
-    if (!isActiveDevice || connection !== 'online' || session.current?.id !== event.entryId) return
-    const title = store.get(session.current.trackId, session.current.albumId)?.title
-    toast({ title: title ? `Couldn’t play “${title}”` : 'Couldn’t play this song', description: event.message })
-    client.dispatch({ type: 'next' })
-  }), [engine, client, store])
 }
 
 /** The system's media controls show what this tab plays, and drive the session. */

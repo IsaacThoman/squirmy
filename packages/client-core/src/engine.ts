@@ -97,7 +97,11 @@ export type EngineStatus = {
 export type EngineEvent =
   | { type: 'status'; status: EngineStatus }
   | { type: 'ended'; entryId: string }
-  | { type: 'error'; entryId: string; message: string }
+  /**
+   * `retryable: false` when loading the entry again cannot help (the browser blocked audio
+   * until the user acts); otherwise the client reloads it once with a fresh stream address.
+   */
+  | { type: 'error'; entryId: string; message: string; retryable?: boolean }
 
 type FakeEntry = { entryId: string; url: string; gain: number }
 
@@ -227,10 +231,15 @@ export class FakeEngine implements PlayerEngine {
 
   /** Simulates a fetch or decode failure of the loaded entry. */
   fail(message = 'failed'): void {
+    this.failWith({ message })
+  }
+
+  /** `fail`, with the error's `retryable` flag. */
+  failWith({ message, retryable }: { message: string; retryable?: boolean }): void {
     if (!this.loaded) return
     this.setPosition(this.position())
     this.state = 'error'
-    this.emit({ type: 'error', entryId: this.loaded.entryId, message })
+    this.emit({ type: 'error', entryId: this.loaded.entryId, message, ...(retryable === undefined ? {} : { retryable }) })
     this.emit({ type: 'status', status: this.getStatus() })
   }
 

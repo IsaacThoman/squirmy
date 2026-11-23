@@ -332,7 +332,7 @@ describe('WebPlayerEngine', () => {
     await flush()
     expect(engine.isBlocked()).toBe(true)
     expect(events.slice(-2)).toEqual([
-      { type: 'error', entryId: 'e1', message: AUDIO_BLOCKED_MESSAGE },
+      { type: 'error', entryId: 'e1', message: AUDIO_BLOCKED_MESSAGE, retryable: false },
       { type: 'status', status: { entryId: 'e1', state: 'error', positionMs: 0 } },
     ])
     audio.playResult = 'play'

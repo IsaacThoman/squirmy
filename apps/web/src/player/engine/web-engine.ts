@@ -351,16 +351,17 @@ export class WebPlayerEngine implements PlayerEngine {
     this.blocked = true
     this.wantPlay = false
     this.target = null
-    this.fail(AUDIO_BLOCKED_MESSAGE)
+    // Loading it again cannot help: only the user's next gesture unblocks audio.
+    this.fail(AUDIO_BLOCKED_MESSAGE, false)
   }
 
-  private fail(message: string): void {
+  private fail(message: string, retryable = true): void {
     if (this.state === 'error') return
     this.cancelHandoff()
     const entryId = this.current.entry!.entryId
     this.state = 'error'
     this.syncWatchdog()
-    this.emit({ type: 'error', entryId, message })
+    this.emit({ type: 'error', entryId, message, ...(retryable ? {} : { retryable: false }) })
     this.emitStatus()
   }
 
