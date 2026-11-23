@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetConfig } from '../../config.js'
 import { logRepair } from './index.js'
 import type { RepairReport } from './repair.js'
@@ -10,8 +10,15 @@ const report: RepairReport = {
 
 describe('logRepair', () => {
   const level = process.env.LOG_LEVEL
+  const databaseUrl = process.env.DATABASE_URL
+  beforeEach(() => {
+    // The config needs a database address to parse; nothing here connects to it.
+    process.env.DATABASE_URL ??= 'postgres://localhost:5432/unused'
+  })
   afterEach(() => {
     process.env.LOG_LEVEL = level
+    if (databaseUrl === undefined) delete process.env.DATABASE_URL
+    else process.env.DATABASE_URL = databaseUrl
     resetConfig()
     vi.restoreAllMocks()
   })
