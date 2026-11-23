@@ -357,7 +357,6 @@ export function SearchPage() {
   }, [all, pages, filter, term, library.playlists])
 
   const choose = (item: SearchItem, items: readonly SearchItem[]) => {
-    if (term) recents.add({ type: 'query', query: term })
     recents.add(item)
     switch (item.type) {
       case 'artist': return void navigate(`/artist/${item.artist.id}`)
@@ -391,10 +390,6 @@ export function SearchPage() {
       genres={genres}
       onBrowseGenre={genre => void navigate(`/library?${new URLSearchParams({ filter: 'albums', genre })}`)}
       onChoose={choose}
-      onSearchRecent={q => {
-        setTyped(q)
-        show(q, filter)
-      }}
     />
   )
 }

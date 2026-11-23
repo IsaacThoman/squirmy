@@ -1,7 +1,7 @@
 import type { AlbumSummary, ArtistSummary, PlaylistSummary, SearchRanked, SearchResults, SearchTopResult, TrackAvailability, TrackSummary } from '@squirmy/contracts'
 import { describe, expect, it } from 'vitest'
 import type { Viewer } from './availability.js'
-import { addRecentSearch, parseRecentSearches, RECENT_SEARCH_LIMIT, recentSearchKey, removeRecentSearch } from './recent-searches.js'
+import { addRecentSearch, parseRecentSearches, RECENT_SEARCH_LIMIT, removeRecentSearch } from './recent-searches.js'
 import { continuesQuery, keepOrder, mergeSearch, playlistScore, searchItemKey, searchQueue, tooShortToSearch, type SearchItem } from './search.js'
 
 const fetcher: Viewer = { role: 'member', canAcquire: true }
@@ -175,22 +175,20 @@ describe('mergeSearch', () => {
   })
 })
 
-describe('recent searches', () => {
+describe('recently viewed search results', () => {
   it('keeps the newest first, once each, up to the limit', () => {
-    let list = addRecentSearch([], { type: 'query', query: '  tate ' })
+    let list = addRecentSearch([], { type: 'artist', artist: artist(1) })
+    list = addRecentSearch(list, { type: 'track', track: track(2) })
     list = addRecentSearch(list, { type: 'artist', artist: artist(1) })
-    list = addRecentSearch(list, { type: 'query', query: 'TATE' })
-    expect(list.map(recentSearchKey)).toEqual(['query:tate', `artist:${uuid(1)}`])
-    expect(list[0]).toEqual({ type: 'query', query: 'TATE' })
-    expect(addRecentSearch(list, { type: 'query', query: '   ' })).toEqual(list)
-    for (let n = 0; n < 30; n++) list = addRecentSearch(list, { type: 'query', query: `q${n}` })
+    expect(list.map(searchItemKey)).toEqual([`artist:${uuid(1)}`, `track:${uuid(2)}`])
+    for (let n = 3; n <= 30; n++) list = addRecentSearch(list, { type: 'track', track: track(n) })
     expect(list).toHaveLength(RECENT_SEARCH_LIMIT)
-    expect(removeRecentSearch(list, 'query:q29')[0]).toEqual({ type: 'query', query: 'q28' })
+    expect(removeRecentSearch(list, `track:${uuid(30)}`)[0]).toEqual({ type: 'track', track: track(29) })
   })
 
-  it('reads back what parses and drops the rest', () => {
+  it('keeps valid results from existing history and skips queries and invalid entries', () => {
     const stored = JSON.stringify([{ type: 'query', query: 'mgmt' }, { type: 'album', album: { id: 'not an album' } }, { type: 'track', track: track(5) }])
-    expect(parseRecentSearches(stored)).toEqual([{ type: 'query', query: 'mgmt' }, { type: 'track', track: track(5) }])
+    expect(parseRecentSearches(stored)).toEqual([{ type: 'track', track: track(5) }])
     expect(parseRecentSearches('{')).toEqual([])
     expect(parseRecentSearches('{"a":1}')).toEqual([])
     expect(parseRecentSearches(null)).toEqual([])

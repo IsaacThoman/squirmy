@@ -36,7 +36,7 @@ Most pages have a bar across the top with the page's name and, on some, links to
 - While you type on, the last results stay up, faded, until the new ones arrive. Your server's own music answers at once; the catalog search (Deezer by default, or the [local search index](../server/metadata-and-privacy.md#the-local-search-index)) takes a moment longer, so the list waits briefly for it, then shows what it has with a spinner at its end. If the catalog cannot be searched, the list says so and shows your server's music. If neither can be searched, the page and the quick search box say so, with **Try again**.
 - What you typed and the filter you chose are in the address, so **Back** from an album or artist returns to the same results, scrolled where you left them.
 
-Before you type, the page lists your **Recent searches** and what you opened from them (**Recently viewed**), each with an **×** to remove it and **Clear all** to remove them all, then browse-by-genre tiles, which open your albums filtered to that genre. Recent searches are kept in this browser, for your account.
+Before you type, **Recently viewed** shows results you opened or played from Search. Use **×** beside a result to remove it, or **Clear all** to clear the list. Browse-by-genre tiles open your albums filtered to that genre. Recently viewed results are kept in this browser for your account.
 
 ### Quick search
 
