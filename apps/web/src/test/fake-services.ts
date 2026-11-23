@@ -17,6 +17,26 @@ type Listener = (...args: never[]) => void
 
 type Ack = (error: Error | null, reply?: unknown) => void
 
+class ManagerStub {
+  private readonly listeners = new Map<string, Set<Listener>>()
+
+  on(event: string, listener: Listener) {
+    if (!this.listeners.has(event)) this.listeners.set(event, new Set())
+    this.listeners.get(event)!.add(listener)
+    return this
+  }
+
+  off(event: string, listener: Listener) {
+    this.listeners.get(event)?.delete(listener)
+    return this
+  }
+
+  /** As socket.io's manager does when the server pings. */
+  serverEmit(event: string) {
+    for (const listener of [...(this.listeners.get(event) ?? [])]) (listener as () => void)()
+  }
+}
+
 /**
  * Enough of a socket.io socket for the realtime provider and the session client: events can
  * be fired at it with `serverEmit`, and it answers the session protocol with the real
@@ -30,6 +50,8 @@ export class FakeSocket {
   private devices: DeviceInfo[] = []
   private deviceId: string | undefined
   private readonly listeners = new Map<string, Set<Listener>>()
+  /** The manager: its `ping` is what the provider counts as hearing from the server. */
+  readonly io = new ManagerStub()
 
   timeout() {
     return { emit: (event: string, payload: unknown, ack: Ack) => queueMicrotask(() => this.answer(event, payload, ack)) }

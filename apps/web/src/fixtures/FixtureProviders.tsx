@@ -245,6 +245,7 @@ function init(initial?: Partial<PlayerState>): Clock {
       devices,
       thisDeviceId,
       activeDeviceId: thisDeviceId,
+      away: null,
       lyrics: null,
       detached: false,
       canDetach: true,

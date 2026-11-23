@@ -280,6 +280,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     devices: [...snapshot.devices],
     thisDeviceId,
     activeDeviceId: session.activeDeviceId,
+    away: snapshot.away,
     lyrics: lyrics.data ?? null,
     // "No lyrics" only once the server said so: before the answer, or after a failure, they may
     // exist. A retry after a failure shows as loading again.
