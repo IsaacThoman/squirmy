@@ -397,7 +397,7 @@ type ShellPlayerProps = {
 function ShellPlayer({ mobile, queueOpen, setQueueOpen, nowPlaying, setNowPlaying }: ShellPlayerProps) {
   const player = usePlayer()
   const { liked, toggleLike } = useCurrentLike()
-  const openNowPlaying = () => setNowPlaying({ open: true, pane: 'art' })
+  const openNowPlaying = () => setNowPlaying(now => ({ ...now, open: true }))
   if (mobile) return <MiniPlayer player={player} onOpenNowPlaying={openNowPlaying} />
   return (
     <PlayerBar
@@ -407,7 +407,7 @@ function ShellPlayer({ mobile, queueOpen, setQueueOpen, nowPlaying, setNowPlayin
       queueOpen={queueOpen}
       onToggleQueue={() => setQueueOpen(open => !open)}
       lyricsOpen={nowPlaying.open && nowPlaying.pane === 'lyrics'}
-      onToggleLyrics={() => setNowPlaying(now => (now.open && now.pane === 'lyrics' ? { open: false, pane: 'art' } : { open: true, pane: 'lyrics' }))}
+      onToggleLyrics={() => setNowPlaying(now => ({ open: !(now.open && now.pane === 'lyrics'), pane: 'lyrics' }))}
       onOpenNowPlaying={openNowPlaying}
     />
   )

@@ -623,6 +623,31 @@ describe('AppShell', () => {
       await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Now Playing' })).not.toBeInTheDocument())
       expect(document.activeElement).toBe(opener)
     }, 15_000)
+
+    it('reopens with the last pane, and keeps artwork selected after the pane is hidden', async () => {
+      await renderShell()
+      await press('k')
+      await userEvent.type(await searchField(), 'amber')
+      await userEvent.click(await screen.findByRole('option', { name: 'Amber Song · Lune Park' }))
+      const opener = await screen.findByRole('button', { name: 'Now Playing' })
+      await userEvent.click(opener)
+      for (const pane of ['queue', 'lyrics']) {
+        const dialog = await screen.findByRole('dialog', { name: 'Now Playing' })
+        await userEvent.click(within(dialog).getByRole('button', { name: `Show ${pane}` }))
+        await userEvent.click(within(dialog).getByRole('button', { name: 'Close Now Playing' }))
+        await waitFor(() => expect(dialog).not.toBeInTheDocument())
+        await userEvent.click(opener)
+        const reopened = await screen.findByRole('dialog', { name: 'Now Playing' })
+        const toggle = within(reopened).getByRole('button', { name: `Hide ${pane}` })
+        expect(toggle).toHaveAttribute('aria-pressed', 'true')
+        await userEvent.click(toggle)
+      }
+      await userEvent.keyboard('{Escape}')
+      await userEvent.click(opener)
+      const reopened = await screen.findByRole('dialog', { name: 'Now Playing' })
+      expect(within(reopened).getByRole('button', { name: 'Show lyrics' })).toBeInTheDocument()
+      expect(within(reopened).getByRole('button', { name: 'Show queue' })).toBeInTheDocument()
+    }, 15_000)
   })
 
   describe('on a phone', () => {
