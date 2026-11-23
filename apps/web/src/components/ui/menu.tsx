@@ -25,6 +25,11 @@ export type MenuEntry =
   | { kind?: 'item'; label: string; icon?: ReactNode; onSelect: () => void; disabled?: boolean; danger?: boolean; shortcut?: string }
   | { kind: 'separator' }
   | { kind: 'label'; label: string }
+  /**
+   * What the menu is for, whole: a song's title and artists, which its row cuts short. Shown where
+   * the pointer is coarse, since a finger has no tooltip to read the rest in; it wraps instead.
+   */
+  | { kind: 'header'; label: string; detail?: string }
   | { kind: 'submenu'; label: string; icon?: ReactNode; items: MenuEntry[]; disabled?: boolean }
 
 type Parts = typeof DropdownPrimitive | typeof ContextPrimitive
@@ -40,6 +45,15 @@ function Label({ text }: { text: string }) {
 function Entries({ parts, entries }: { parts: Parts; entries: MenuEntry[] }) {
   return entries.map((entry, index) => {
     if (entry.kind === 'separator') return <parts.Separator key={index} className="-mx-1 my-1 h-px bg-border" />
+    if (entry.kind === 'header') {
+      // As wide as the items make the menu, never wider (`w-0 min-w-full`): a long title wraps.
+      return (
+        <parts.Label key={index} className="-mx-1 mb-1 hidden w-0 min-w-[calc(100%+0.5rem)] border-b px-3 pb-2 pt-1.5 wrap-break-word pointer-coarse:block">
+          <span className="block text-sm font-medium">{entry.label}</span>
+          {entry.detail && <span className="block text-xs text-muted-foreground">{entry.detail}</span>}
+        </parts.Label>
+      )
+    }
     if (entry.kind === 'label') return <parts.Label key={index} className="max-w-64 truncate px-2 py-1.5 text-xs font-medium text-muted-foreground">{entry.label}</parts.Label>
     if (entry.kind === 'submenu') {
       return (

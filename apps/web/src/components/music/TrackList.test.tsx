@@ -199,18 +199,60 @@ describe('TrackRow', () => {
     expect(onPlay).not.toHaveBeenCalled()
   })
 
-  it('keeps its artist and album links, which are cut short in narrow rows, out of the Tab order and offers them in its menu', async () => {
-    renderWithApp(
-      <OnDemandContext value={{ viewer: requester }}>
-        <ul><TrackRow track={track('soft-signal')} index={0} variant="compact" onPlay={vi.fn()} onAction={vi.fn()} /></ul>
-      </OnDemandContext>,
-    )
-    const row = screen.getByRole('listitem')
-    for (const link of within(row).getAllByRole('link')) expect(link).toHaveAttribute('tabindex', '-1')
-    expect(within(row).getByRole('link', { name: 'Mira Vale' }).parentElement).toHaveAttribute('title', track('soft-signal').artistCredit)
+  /** Soft Signal with a featured artist, so its credit has two links. */
+  const featuring = (): TrackSummary => {
+    const base = track('soft-signal')
+    return { ...base, artistCredit: `${base.artists[0].name} feat. Lune Park`, artists: [...base.artists, { ...base.artists[0], id: 'artist-lune-park', name: 'Lune Park' }] }
+  }
+  const renderSong = (song: TrackSummary, variant: 'compact' | 'album' = 'compact') => renderWithApp(
+    <OnDemandContext value={{ viewer: requester }}>
+      <ul><TrackRow track={song} index={0} variant={variant} onPlay={vi.fn()} onAction={vi.fn()} /></ul>
+    </OnDemandContext>,
+  )
+
+  it('keeps its artist and album links in the Tab order while they are drawn whole', () => {
+    renderSong(featuring())
+    const links = within(screen.getByRole('listitem')).getAllByRole('link')
+    expect(links.map(link => link.textContent)).toEqual(['Mira Vale', 'Lune Park', 'Blue Hour'])
+    for (const link of links) expect(link).not.toHaveAttribute('tabindex')
+  })
+
+  it('takes a link its ellipsis cuts out of the Tab order, and only that one', () => {
+    // Lines 100 px wide: Mira Vale ends inside its line, Lune Park and the album's title run past the edge.
+    const ends: Record<string, number> = { 'Mira Vale': 60, 'Lune Park': 140, 'Blue Hour': 150 }
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const right = this.tagName === 'A' ? ends[this.textContent ?? ''] ?? 0 : this.querySelector('a') ? 100 : 0
+      return { right, left: 0, top: 0, bottom: 0, width: right, height: 0, x: 0, y: 0, toJSON: () => ({}) } as DOMRect
+    })
+    try {
+      const song = featuring()
+      renderSong(song)
+      const row = screen.getByRole('listitem')
+      expect(within(row).getByRole('link', { name: 'Mira Vale' })).not.toHaveAttribute('tabindex')
+      expect(within(row).getByRole('link', { name: 'Lune Park' })).toHaveAttribute('tabindex', '-1')
+      expect(within(row).getByRole('link', { name: 'Blue Hour' })).toHaveAttribute('tabindex', '-1')
+      // The tooltip has the whole credit.
+      expect(within(row).getByRole('link', { name: 'Mira Vale' }).parentElement).toHaveAttribute('title', song.artistCredit)
+    } finally {
+      rect.mockRestore()
+    }
+  })
+
+  it('offers the album and every credited artist in its menu, which opens with the whole title and credit', async () => {
+    const song = featuring()
+    renderSong(song)
     const items = await menuItems('Soft Signal')
-    expect(items).toContain('Go to album')
-    expect(items).toContain('Go to artist')
+    expect(items).toEqual(expect.arrayContaining(['Go to album', 'Go to Mira Vale', 'Go to Lune Park']))
+    const menu = screen.getByRole('menu')
+    expect(within(menu).getByText('Soft Signal')).toBeInTheDocument()
+    expect(within(menu).getByText(song.artistCredit)).toBeInTheDocument()
+  })
+
+  it('on an album page offers each artist of a featured credit, but not the album it is on', async () => {
+    renderSong(featuring(), 'album')
+    const items = await menuItems('Soft Signal')
+    expect(items).not.toContain('Go to album')
+    expect(items).toEqual(expect.arrayContaining(['Go to Mira Vale', 'Go to Lune Park']))
   })
 
   it('shows the explicit badge and saves from the heart', async () => {

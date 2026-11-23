@@ -328,6 +328,20 @@ describe('album page', () => {
     expect(items).toContain('Go to artist')
   })
 
+  it('lists the songs first, then the release date and label, and the description last', async () => {
+    const { services, api } = fakeServices()
+    api.catalog.album.mockResolvedValue({ ...blueHour, releaseDate: '2025-03-14' })
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    const songs = await screen.findByRole('list', { name: 'Blue Hour tracks' })
+    const date = screen.getByText('Mar 14, 2025')
+    const label = screen.getByText(`℗ ${blueHour.year} ${blueHour.label}`)
+    const description = screen.getByText(blueHour.description!)
+    const follows = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(follows(songs, date)).toBe(true)
+    expect(follows(date, label)).toBe(true)
+    expect(follows(label, description)).toBe(true)
+  })
+
   it('prints the release date as written, at the precision it has', async () => {
     const { services, api } = fakeServices()
     api.catalog.album.mockResolvedValueOnce({ ...blueHour, releaseDate: '1994-01-01' }).mockResolvedValueOnce({ ...slowMotion, releaseDate: '1984-09' })

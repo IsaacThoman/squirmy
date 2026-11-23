@@ -23,7 +23,7 @@ export function SectionHeader({ title, href, action, quiet, className, id }: Sec
         <div className="flex shrink-0 items-center gap-1">
           {action}
           {href && (
-            <Link to={href} className="inline-flex h-8 items-center gap-0.5 rounded-md pl-2.5 pr-1.5 text-xs font-medium text-muted-foreground outline-none transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+            <Link to={href} className="inline-flex h-8 pointer-coarse:h-11 items-center gap-0.5 rounded-md pl-2.5 pr-1.5 text-xs font-medium text-muted-foreground outline-none transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
               See all<ChevronRight aria-hidden className="size-3.5" />
             </Link>
           )}

@@ -167,17 +167,18 @@ export function AlbumView({ album, artist, onPlayAlbum, onRefresh }: AlbumViewPr
               )
               : <EmptyState icon={<Music />} title="No songs listed" description="The server doesn’t know this album’s songs yet." />}
 
+        {/* Under the songs, as in the iOS app: the facts first, then what is written about the album. */}
         <footer className="mt-8 flex flex-col gap-4 md:max-w-2xl">
-          {album.description && <p className="text-pretty text-sm leading-relaxed text-muted-foreground">{album.description}</p>}
-          {album.genres.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">{album.genres.map(genre => <Badge key={genre} tone="outline">{genre}</Badge>)}</div>
-          )}
           {(album.releaseDate || album.label) && (
             <div className="text-xs leading-relaxed text-muted-foreground">
               {album.releaseDate && <p>{formatReleaseDate(album.releaseDate)}</p>}
               {album.label && <p>℗ {album.year} {album.label}</p>}
             </div>
           )}
+          {album.genres.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">{album.genres.map(genre => <Badge key={genre} tone="outline">{genre}</Badge>)}</div>
+          )}
+          {album.description && <p className="text-pretty text-sm leading-relaxed text-muted-foreground">{album.description}</p>}
         </footer>
 
         {(versions.length > 0 || more.length > 0) && (

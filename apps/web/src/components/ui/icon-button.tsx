@@ -3,8 +3,12 @@ import type { ComponentProps } from 'react'
 import { cn } from '@/lib/utils'
 import { Tooltip } from './tooltip'
 
+/**
+ * Every size is pressed as at least 44 px on a touch screen (`touch-target`), whatever it is drawn
+ * at; next to another icon button, keep them 44 px apart center to center (a gap of 4 px at `lg`).
+ */
 const iconButtonVariants = cva(
-  'relative inline-flex shrink-0 select-none items-center justify-center outline-none transition-[color,background-color,transform,opacity] focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0',
+  'touch-target relative inline-flex shrink-0 select-none items-center justify-center outline-none transition-[color,background-color,transform,opacity] focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0',
   {
     variants: {
       variant: {

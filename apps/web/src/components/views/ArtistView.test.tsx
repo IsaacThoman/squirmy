@@ -162,6 +162,43 @@ describe('the heart', () => {
     expect(within(toast as HTMLElement).getByRole('button', { name: 'Undo' })).toBeInTheDocument()
   })
 
+})
+
+describe('the artist page', () => {
+  it('lists the top songs, then the releases, and the biography last', async () => {
+    await renderPage(artist => artist)
+    await screen.findByRole('heading', { level: 1, name: 'Mira Vale' })
+    const headings = (await screen.findAllByRole('heading', { level: 2 })).map(heading => heading.textContent)
+    expect(headings[0]).toBe('Top songs')
+    expect(headings.at(-1)).toBe('About')
+    expect(headings.length).toBeGreaterThan(2)
+  })
+
+  it('shows three lines of a long biography until More shows the rest', async () => {
+    // jsdom lays nothing out: the clamped paragraph says it holds more than it shows.
+    const clamped = (element: HTMLElement, height: number) => (element.classList.contains('line-clamp-3') ? height : 0)
+    const scroll = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(function (this: HTMLElement) { return clamped(this, 120) })
+    const client = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function (this: HTMLElement) { return clamped(this, 60) })
+    onTestFinished(() => {
+      scroll.mockRestore()
+      client.mockRestore()
+    })
+    await renderPage(artist => artist)
+    const bio = await screen.findByText(artistDetail(id)!.bio!)
+    expect(bio).toHaveClass('line-clamp-3')
+    const more = screen.getByRole('button', { name: 'More' })
+    expect(more).toHaveAttribute('aria-expanded', 'false')
+    await userEvent.click(more)
+    expect(bio).not.toHaveClass('line-clamp-3')
+    expect(screen.getByRole('button', { name: 'Less' })).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('offers no More for a biography three lines hold', async () => {
+    await renderPage(artist => artist)
+    expect(await screen.findByText(artistDetail(id)!.bio!)).toHaveClass('line-clamp-3')
+    expect(screen.queryByRole('button', { name: 'More' })).toBeNull()
+  })
+
   it('gives the release cards the album page’s menu', async () => {
     renderWithApp(<AppRoutes />, `/artist/${id}`)
     await screen.findByRole('heading', { level: 1, name: 'Mira Vale' })

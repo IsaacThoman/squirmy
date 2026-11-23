@@ -203,6 +203,28 @@
 
 @utility tabular { font-variant-numeric: tabular-nums; }
 
+/*
+ * The touch target: on a touch screen a control a finger presses is at least 44 × 44 px. A control
+ * drawn smaller is pressed through a square of that size centered on it, a pseudo-element past its
+ * box, so it keeps its look. The control must be positioned (`relative`, `absolute`), and its
+ * neighbors must be 44 px apart, center to center, so the squares do not overlap; where they are
+ * closer, grow the boxes instead (`pointer-coarse:size-11`, `pointer-coarse:min-h-11`).
+ * `scripts/e2e-touch-targets.mjs` presses every control on the main pages to check it.
+ */
+@utility touch-target {
+  @media (pointer: coarse) {
+    &::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: max(100%, 2.75rem);
+      height: max(100%, 2.75rem);
+      transform: translate(-50%, -50%);
+    }
+  }
+}
+
 /* A row of links or tabs that scrolls sideways without showing a scrollbar. */
 @utility scrollbar-none {
   scrollbar-width: none;

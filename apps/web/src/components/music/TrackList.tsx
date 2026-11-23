@@ -1,7 +1,7 @@
 import type { AlbumDisc, TrackSummary } from '@squirmy/contracts'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Clock3, Disc3, MoreHorizontal, Pause, Play } from 'lucide-react'
-import { Fragment, useId, useLayoutEffect, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent } from 'react'
+import { Fragment, useId, useLayoutEffect, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent, type RefObject } from 'react'
 import { useNavigate } from 'react-router'
 import { useScrollContainer } from '@/components/layout/scroll-context'
 import { ExplicitBadge, Spinner } from '@/components/ui/feedback'
@@ -96,6 +96,35 @@ const revealed = 'md:pointer-fine:opacity-0 md:pointer-fine:group-hover/row:opac
 /** The heart and the menu button: a finger's 44 px on touch screens, with no gap between them. */
 const rowAction = 'pointer-coarse:size-11'
 
+/**
+ * How many of the links in `box`, a line cut short with an ellipsis, are drawn whole: the rest
+ * leave the Tab order, stops with nothing to see. It follows the line's width (the row's columns
+ * change with the window, the sidebar and the queue) and its words (`text`). The row's menu goes
+ * to the album and each artist whatever is cut.
+ */
+function useWholeLinks(box: RefObject<HTMLElement | null>, text: string): number {
+  const [whole, setWhole] = useState(Number.POSITIVE_INFINITY)
+  useLayoutEffect(() => {
+    const element = box.current
+    if (!element) return
+    const measure = () => {
+      const edge = element.getBoundingClientRect().right
+      let count = 0
+      // A half pixel of slack: a link that ends at the edge is whole, however its width rounds.
+      for (const link of element.querySelectorAll('a')) {
+        if (link.getBoundingClientRect().right > edge + 0.5) break
+        count += 1
+      }
+      setWhole(count)
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [box, text])
+  return whole
+}
+
 /** Where a row dragged within its list would land: before or after the row under the pointer. */
 type DropTarget = { index: number; side: 'before' | 'after' }
 type Reorder = { list: string; count: number; target: DropTarget | null; setTarget: (target: DropTarget | null) => void; onMove: (from: number, to: number) => void }
@@ -167,6 +196,7 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
   const playButton = (overArt: boolean) => !unavailable && (
     <button
       type="button"
+      data-slot="row-play"
       aria-label={playing ? `Pause ${track.title}` : `Play ${track.title}`}
       onClick={play}
       className={cn(
@@ -186,6 +216,10 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
    */
   const resting = cn('pointer-events-none transition-opacity', !unavailable && 'group-hover/row:opacity-0 peer-focus-visible:opacity-0')
 
+  const creditLine = useRef<HTMLDivElement>(null)
+  const wholeCredits = useWholeLinks(creditLine, track.artistCredit)
+  const albumLine = useRef<HTMLDivElement>(null)
+  const albumWhole = useWholeLinks(albumLine, track.album?.title ?? '') > 0
   const title = (
     <div className="flex min-w-0 items-center gap-1.5">
       <span title={track.title} className={cn('truncate text-sm font-medium', current && 'text-primary', unavailable && 'text-faded-foreground')}>{track.title}</span>
@@ -196,17 +230,17 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
   // Under the title. On an album page only where they are not the album's own (a featured artist):
   // a column repeating the album's artist on every row says nothing.
   const showArtists = !album || albumCredit === undefined || track.artistCredit !== albumCredit
-  // The links leave the Tab order: cut short, they would be stops with nothing to see. The row's
-  // menu goes to each artist and the album, and the tooltip has the whole credit.
+  // A link the ellipsis cuts leaves the Tab order (`useWholeLinks`); the tooltip has the whole credit.
   const artists = (
-    <div title={track.artistCredit} className={cn('min-w-0 truncate text-xs', unavailable ? 'text-faded-foreground' : 'text-muted-foreground')}>
-      <ArtistLinks credit={track} plain={unavailable} focusable={false} />
+    <div ref={creditLine} title={track.artistCredit} className={cn('min-w-0 truncate text-xs', unavailable ? 'text-faded-foreground' : 'text-muted-foreground')}>
+      <ArtistLinks credit={track} plain={unavailable} focusable={index => index < wholeCredits} />
     </div>
   )
 
   return (
     <ContextMenu entries={menu}>
       <li
+        data-slot="track-row"
         aria-current={current ? 'true' : undefined}
         // Only playing is unavailable, and the title says so to screen readers; the heart and the
         // menu still work, so the row is not marked disabled (that would disable them too).
@@ -261,8 +295,8 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
           )}
 
           {albumColumnOf(variant, addedAt !== undefined) && (
-            <div className={cn('min-w-0 truncate text-sm', unavailable ? 'text-faded-foreground' : 'text-muted-foreground', albumColumnOf(variant, addedAt !== undefined))}>
-              {track.album && <PrefetchLink kind="album" id={track.album.id} to={`/album/${track.album.id}`} title={track.album.title} tabIndex={-1} className={cn('hover:underline', !unavailable && 'hover:text-foreground')}>{track.album.title}</PrefetchLink>}
+            <div ref={albumLine} className={cn('min-w-0 truncate text-sm', unavailable ? 'text-faded-foreground' : 'text-muted-foreground', albumColumnOf(variant, addedAt !== undefined))}>
+              {track.album && <PrefetchLink kind="album" id={track.album.id} to={`/album/${track.album.id}`} title={track.album.title} tabIndex={albumWhole ? undefined : -1} className={cn('hover:underline', !unavailable && 'hover:text-foreground')}>{track.album.title}</PrefetchLink>}
             </div>
           )}
           {variant === 'playlist' && addedAt !== undefined && <div className="hidden truncate text-sm text-muted-foreground @2xl:block">{formatRelative(addedAt)}</div>}

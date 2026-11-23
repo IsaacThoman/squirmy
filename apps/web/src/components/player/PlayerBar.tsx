@@ -40,9 +40,10 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
       {/*
         Narrow: the track takes what the transport and the tools leave, and below 36rem shuffle, repeat
         and lyrics step aside (the queue and Now Playing have them) so the title stays readable.
-        Wider: the transport is centered between equal sides.
+        Wider: the transport is centered between equal sides. On a touch screen the transport and the
+        seek bar are each a finger's 44 px tall, so the bar is taller.
       */}
-      <div className="grid h-[4.5rem] grid-cols-[minmax(0,1.3fr)_minmax(10rem,1fr)_auto] items-center gap-3 border-t px-4 @[36rem]:grid-cols-[minmax(0,1fr)_minmax(12rem,1.2fr)_auto] @[36rem]:gap-4 @[44rem]:grid-cols-[minmax(14rem,1fr)_minmax(0,36rem)_minmax(14rem,1fr)] @[62rem]:grid-cols-[minmax(17rem,1fr)_minmax(0,36rem)_minmax(17rem,1fr)]">
+      <div className="grid h-[4.5rem] pointer-coarse:h-[5.75rem] grid-cols-[minmax(0,1.3fr)_minmax(10rem,1fr)_auto] items-center gap-3 border-t px-4 @[36rem]:grid-cols-[minmax(0,1fr)_minmax(12rem,1.2fr)_auto] @[36rem]:gap-4 @[44rem]:grid-cols-[minmax(14rem,1fr)_minmax(0,36rem)_minmax(14rem,1fr)] @[62rem]:grid-cols-[minmax(17rem,1fr)_minmax(0,36rem)_minmax(17rem,1fr)]">
         <div className="flex min-w-0 items-center gap-3">
           {item ? (
             <>
@@ -52,7 +53,8 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
                   <Maximize2 aria-hidden className="size-4" />
                 </span>
               </button>
-              <div className="min-w-0">
+              {/* Two lines of words, too close for 44 px each; on a touch screen the cover opens Now Playing (`data-inline-links`). */}
+              <div data-inline-links className="min-w-0">
                 {item.track.album
                   ? <Link to={`/album/${item.track.album.id}`} title={item.track.title} className="block truncate text-sm font-medium hover:underline">{item.track.title}</Link>
                   : <p title={item.track.title} className="truncate text-sm font-medium">{item.track.title}</p>}
@@ -123,8 +125,8 @@ export function MiniPlayer({ player, onOpenNowPlaying }: Pick<PlayerChromeProps,
           player={player}
           trigger={<IconButton label="Devices" tooltip={false} size="lg" className={cn('size-11', (elsewhere || state.detached) && 'text-primary hover:text-primary')}><MonitorSpeaker /></IconButton>}
         />
-        {/* A 40px disc whose touch target is 44px. */}
-        <PlayPauseButton playing={state.playing} loading={state.waiting} onClick={controls.togglePlay} className="mx-1 size-10 after:absolute after:-inset-0.5 after:rounded-full [&_svg]:size-5" />
+        {/* A 40px disc whose touch target is 44px (the icon button's own). */}
+        <PlayPauseButton playing={state.playing} loading={state.waiting} onClick={controls.togglePlay} className="mx-1 size-10 [&_svg]:size-5" />
       </div>
       <MiniProgress durationMs={item.entry.durationMs} />
     </section>

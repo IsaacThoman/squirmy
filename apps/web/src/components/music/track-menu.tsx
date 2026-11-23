@@ -19,11 +19,13 @@ export type TrackMenuOptions = {
 }
 
 /**
- * A song's menu, the same wherever a song is listed (track lists, search results): play
- * next, queue, playlists, radio, saving it (the heart), the Wantlist, its album and artists.
+ * A song's menu, the same wherever a song is listed (track lists, search results): on a touch
+ * screen its whole title and credit, then play next, queue, playlists, radio, saving it (the heart), the Wantlist, its album and artists.
  */
 export function trackMenuEntries(track: TrackSummary, { unavailable, wanted, playlists, act, navigate, extraMenu, reorder, onAlbumPage = false }: TrackMenuOptions): MenuEntry[] {
   return [
+    // On a touch screen the menu opens with the song's whole title and credit, which its row cuts short.
+    { kind: 'header', label: track.title, detail: track.artistCredit },
     { label: 'Play next', icon: <ListStart />, onSelect: () => act('play-next'), disabled: unavailable },
     { label: 'Add to queue', icon: <ListEnd />, onSelect: () => act('enqueue'), disabled: unavailable },
     ...(playlists ? [{

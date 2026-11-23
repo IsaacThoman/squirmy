@@ -134,7 +134,7 @@ export function SettingsDialog({
             </nav>
             {onOpenAdmin && (
               <div className="mt-auto hidden border-t pt-3 sm:block">
-                <button type="button" onClick={onOpenAdmin} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-muted-foreground outline-none transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+                <button type="button" onClick={onOpenAdmin} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 pointer-coarse:min-h-11 text-sm text-muted-foreground outline-none transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
                   <ShieldCheck aria-hidden className="size-4" />Admin panel
                 </button>
               </div>

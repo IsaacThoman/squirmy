@@ -32,7 +32,7 @@ export function SearchField({ value, onValueChange, size = 'md', className, plac
         className={cn(
           'w-full min-w-0 rounded-md border border-input bg-transparent shadow-xs outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring dark:bg-input/15 [&::-webkit-search-cancel-button]:hidden',
           // 16px on phones: iOS zooms into any smaller field that gets focus.
-          size === 'lg' ? 'h-11 rounded-lg pl-10 pr-10 text-base' : 'h-9 pl-9 pr-9 text-base md:text-sm',
+          size === 'lg' ? 'h-11 rounded-lg pl-10 pr-10 text-base' : 'h-9 pl-9 pr-9 text-base md:text-sm pointer-coarse:h-11',
         )}
         {...props}
       />
@@ -44,7 +44,7 @@ export function SearchField({ value, onValueChange, size = 'md', className, plac
             onValueChange('')
             input.current?.focus()
           }}
-          className="absolute right-1.5 flex size-6 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          className="touch-target absolute right-1.5 flex size-6 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
         >
           <X className="size-4" />
         </button>

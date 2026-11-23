@@ -1,15 +1,15 @@
 import type { ComponentProps, ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
-/** The edge is the input color, 3:1 off the surface; in dark mode a fifteenth of it fills the field. */
-export const inputClass = 'flex h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive md:text-sm dark:bg-input/15'
+/** The edge is the input color, 3:1 off the surface; in dark mode a fifteenth of it fills the field. 44 px tall for a finger. */
+export const inputClass = 'flex h-9 pointer-coarse:min-h-11 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive md:text-sm dark:bg-input/15'
 
 export function Input({ className, ...props }: ComponentProps<'input'>) {
   return <input data-slot="input" className={cn(inputClass, className)} {...props} />
 }
 
 export function Textarea({ className, ...props }: ComponentProps<'textarea'>) {
-  return <textarea data-slot="textarea" className={cn(inputClass, 'h-auto min-h-16 py-2 field-sizing-content', className)} {...props} />
+  return <textarea data-slot="textarea" className={cn(inputClass, 'h-auto min-h-16 pointer-coarse:min-h-16 py-2 field-sizing-content', className)} {...props} />
 }
 
 export function Label({ className, ...props }: ComponentProps<'label'>) {
