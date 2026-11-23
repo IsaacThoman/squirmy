@@ -192,6 +192,16 @@ export function nextDownloaded(
   return candidates.find(entry => entry.state === 'ready' && isDownloaded(entry.trackId)) ?? null;
 }
 
+/**
+ * The line under the queue's Up next heading: where the songs come from, as Apple Music's
+ * "From …", else how many there are. Nothing for an empty queue, which says so itself.
+ */
+export function upNextDetail(context: { title: string } | null, count: number): string | null {
+  if (!count) return null;
+  if (context) return `From ${context.title}`;
+  return `${count} ${count === 1 ? 'song' : 'songs'}`;
+}
+
 /** Where a row of Up next (or of the autoplay suggestions) sits, for what its menu offers. */
 export type QueuePosition = { index: number; total: number; autoplay: boolean };
 

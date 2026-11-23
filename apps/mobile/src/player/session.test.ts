@@ -2,7 +2,7 @@ import type { DeviceInfo, QueueEntry, TrackSummary } from '@squirmy/contracts';
 import { describe, expect, it } from 'vitest';
 import {
   codecsFor, deviceRows, isPlayable, pendingQueueRow, queuedEntryActions, queuedEntryCommand, queueRow, isRemote, nextDownloaded, nextRepeat, outputDevice, playableSeeds, qualityFor,
-  seedOf, whereItPlays,
+  seedOf, upNextDetail, whereItPlays,
 } from './session';
 
 const phone: DeviceInfo = { id: 'phone', name: 'Isa’s iPhone', kind: 'ios', canPlay: true, isActive: false };
@@ -213,5 +213,17 @@ describe('queued rows', () => {
 
   it('keeps the usual menu for an autoplay suggestion, which joins the queue', () => {
     expect(queuedEntryActions(menu, { index: 0, total: 3, autoplay: true })).toEqual(menu);
+  });
+});
+
+describe('upNextDetail', () => {
+  it('says where the songs come from, as Apple Music does', () => {
+    expect(upNextDetail({ title: 'Dummy' }, 12)).toBe('From Dummy');
+  });
+
+  it('counts the songs when they come from nowhere in particular, and says nothing of an empty queue', () => {
+    expect(upNextDetail(null, 1)).toBe('1 song');
+    expect(upNextDetail(null, 25)).toBe('25 songs');
+    expect(upNextDetail({ title: 'Dummy' }, 0)).toBeNull();
   });
 });
