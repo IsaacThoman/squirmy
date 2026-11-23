@@ -57,7 +57,7 @@ export function AccountSheet() {
     <SheetFrame title="Account" onClose={() => closeSheet(router)}>
       <SheetInfo icon="person.crop.circle.fill" title={user.displayName ?? user.username}
         subtitle={[user.displayName && user.username, user.role === 'admin' ? 'Admin' : 'Member'].filter(Boolean).join(' · ')} />
-      <SheetInfo icon="server.rack" title={server.name} subtitle={displayAddress(server.url)} />
+      <SheetInfo icon="server.rack" title={server.name} subtitle={displayAddress(server.url)} address />
       <SheetRows>
         {/* Opened over this sheet, so closing them comes back here. */}
         <SheetRow title="Settings" subtitle="Volume, streaming quality, scrobbling" icon="gearshape" onPress={() => router.push('/settings')} />

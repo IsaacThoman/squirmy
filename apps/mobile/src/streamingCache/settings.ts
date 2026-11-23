@@ -1,8 +1,9 @@
 import { useContext, useSyncExternalStore } from 'react';
-import { Platform } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import { formatBytes } from '../downloads/model';
 import { tapFeedback } from '../library/shared';
 import { StreamingCacheContext } from './context';
+import { clearCacheMessage } from './model';
 import type { CacheSummary } from './manager';
 
 export { limitOptions } from './model';
@@ -24,9 +25,13 @@ export function useStorageSection() {
     setLimit,
     used: summary.count ? `${summary.count} ${summary.count === 1 ? 'song' : 'songs'} · ${formatBytes(summary.usedBytes)}` : 'Nothing yet',
     empty: !summary.count,
+    // One tap would empty what plays offline, so it asks first, as Sign out does.
     clear: () => {
       tapFeedback();
-      cache?.clear();
+      Alert.alert('Clear streaming cache?', clearCacheMessage(summary, device), [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Clear Cache', style: 'destructive', onPress: () => cache?.clear() },
+      ]);
     },
   };
 }

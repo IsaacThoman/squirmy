@@ -1,7 +1,7 @@
 import type { DeviceInfo, QueueEntry, TrackSummary } from '@squirmy/contracts';
 import { describe, expect, it } from 'vitest';
 import {
-  codecsFor, deviceRows, isPlayable, pendingQueueRow, queueRow, isRemote, nextDownloaded, nextRepeat, outputDevice, playableSeeds, qualityFor,
+  codecsFor, deviceRows, isPlayable, pendingQueueRow, queuedEntryActions, queuedEntryCommand, queueRow, isRemote, nextDownloaded, nextRepeat, outputDevice, playableSeeds, qualityFor,
   seedOf, whereItPlays,
 } from './session';
 
@@ -191,5 +191,27 @@ describe('pendingQueueRow', () => {
   it('says a missing summary is loading, or offline that it needs a connection', () => {
     expect(pendingQueueRow(false)).toEqual({ title: 'Loading…', detail: '' });
     expect(pendingQueueRow(true)).toEqual({ title: 'Song not loaded', detail: 'Needs a connection' });
+  });
+});
+
+describe('queued rows', () => {
+  const menu = [
+    { id: 'play', title: 'Play now' }, { id: 'next', title: 'Play next' }, { id: 'last', title: 'Add to queue' },
+    { id: 'like', title: 'Save to library' },
+  ];
+
+  it('moves the entry for Play now, Play next and Add to queue, rather than queueing the song again', () => {
+    expect(['play', 'next', 'last', 'like', 'radio'].map(queuedEntryCommand)).toEqual(['playEntry', 'promote', 'moveToEnd', null, null]);
+  });
+
+  it('offers Move to end for an Up next entry, and no move that would leave it in place', () => {
+    expect(queuedEntryActions(menu, { index: 2, total: 5, autoplay: false }).map(action => action.title))
+      .toEqual(['Play now', 'Play next', 'Move to end', 'Save to library']);
+    expect(queuedEntryActions(menu, { index: 0, total: 5, autoplay: false }).map(action => action.id)).toEqual(['play', 'last', 'like']);
+    expect(queuedEntryActions(menu, { index: 4, total: 5, autoplay: false }).map(action => action.id)).toEqual(['play', 'next', 'like']);
+  });
+
+  it('keeps the usual menu for an autoplay suggestion, which joins the queue', () => {
+    expect(queuedEntryActions(menu, { index: 0, total: 3, autoplay: true })).toEqual(menu);
   });
 });
