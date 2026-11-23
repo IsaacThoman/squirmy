@@ -151,11 +151,24 @@ describe('a track the server refuses to stream', () => {
     const [first] = blueHour.discs[0].tracks
     api.streaming.playback.mockRejectedValueOnce(new ApiError(404, 'not_found', 'Not found'))
     renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
-    await userEvent.click((await screen.findAllByRole('button', { name: 'Play Blue Hour' }))[0]!)
+    // The song's own row: picked by name.
+    await userEvent.click(await screen.findByRole('button', { name: `Play ${first.title}` }))
     expect(await screen.findByText(`Couldn’t play “${first.title}”`)).toBeInTheDocument()
     await waitFor(() => expect(socket.session.playing).toBe(false))
     expect(socket.session.current?.trackId).toBe(first.id)
     expect(lines().join(' ')).not.toMatch(/Skipped/)
+  })
+
+  it('moves on past a first song it cannot have when the album is played from its header', async () => {
+    const { services, socket, api } = fakeServices()
+    const blueHour = album('blue-hour')
+    const [first] = blueHour.discs[0].tracks
+    api.streaming.playback.mockRejectedValueOnce(new ApiError(404, 'not_found', 'Not found'))
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Play Blue Hour' }))[0]!)
+    // Played as a whole, as streaming apps play a list with a grayed-out first song.
+    await waitFor(() => expect(socket.session.current?.trackId).not.toBe(first.id))
+    expect(lines().join(' ')).not.toMatch(/Couldn’t play “.*”\. It isn’t available/)
   })
 
   it('is told and skipped when playback came to it by itself', async () => {
