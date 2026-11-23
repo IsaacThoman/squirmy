@@ -15,6 +15,8 @@ function toImport(row: typeof catalogIndexImports.$inferSelect): CatalogIndexImp
     totalBytes: row.totalBytes,
     rowsRead: row.rowsRead,
     error: row.error,
+    resumes: row.resumes,
+    resumedAt: row.resumedAt?.toISOString() ?? null,
     startedAt: row.startedAt.toISOString(),
     finishedAt: row.finishedAt?.toISOString() ?? null,
   }

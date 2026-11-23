@@ -277,7 +277,10 @@ export function AdminSearchIndexPage() {
   const status = useQuery({
     queryKey: catalogIndexKey,
     queryFn: () => api.catalogIndex.status(),
-    refetchInterval: query => query.state.data?.latest?.state === 'running' || waiting(query.state.data) ? RUNNING_REFRESH_MS : false,
+    refetchInterval: query => {
+      const state = query.state.data?.latest?.state
+      return state === 'running' || state === 'interrupted' || waiting(query.state.data) ? RUNNING_REFRESH_MS : false
+    },
   })
   const refresh = () => queryClient.invalidateQueries({ queryKey: catalogIndexKey })
   const start = useMutation({

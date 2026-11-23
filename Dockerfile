@@ -82,5 +82,9 @@ EXPOSE 4747
 # it is healthy, then every 15 s.
 HEALTHCHECK --interval=15s --timeout=5s --start-period=60s --start-interval=2s --retries=4 \
   CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT || 4747) + '/ready').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+# tini passes SIGTERM on to Node, which stops within 20 seconds: long jobs such as the search
+# index import record a checkpoint and are resumed by the next start. Give the container at
+# least 30 seconds to stop (Coolify's default; compose.yaml sets it, `docker stop` alone waits 10).
+STOPSIGNAL SIGTERM
 ENTRYPOINT ["tini", "--"]
 CMD ["node", "apps/server/dist/index.js"]
