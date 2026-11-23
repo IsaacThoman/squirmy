@@ -463,7 +463,9 @@ await step('Home’s rails list every album the server sends', async () => {
   // The page may draw what it kept from an earlier visit first: the steps before saved and
   // removed albums, so it waits for the server's albums before they are compared.
   const albums = source.albums.map(item => item.title)
-  const shown = await until(() => rail.getByRole('link').allTextContents(), titles => JSON.stringify(titles) === JSON.stringify(albums), 10_000)
+  // The albums' links, not the rail's own See all in its heading.
+  const albumLinks = () => rail.getByRole('link').filter({ hasNotText: /^See all$/ }).allTextContents()
+  const shown = await until(albumLinks, titles => JSON.stringify(titles) === JSON.stringify(albums), 10_000)
   check(`${source.title} keeps all its albums, the first one too`, JSON.stringify(shown) === JSON.stringify(albums), shown.join(' | '))
   const order = await main().getByRole('heading', { level: 2 }).allTextContents()
   const sent = home.sections.map(section => section.title).filter(name => order.includes(name))
