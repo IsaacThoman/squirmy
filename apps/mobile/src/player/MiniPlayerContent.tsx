@@ -31,7 +31,7 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
   const title = track?.title ?? (current ? '' : 'Not Playing');
   // A detached phone says so where "Playing on …" would be, so pressing play here is never a surprise.
   // The marker outlasts a slow load: the play button's spinner already says it is loading.
-  const subtitle = detached ? DETACHED_LABEL : loading === 'slow' ? STILL_LOADING_LABEL : remote ? whereItPlays(output) : track?.artistCredit ?? '';
+  const subtitle = detached ? DETACHED_LABEL : loading === 'slow' ? STILL_LOADING_LABEL : remote ? whereItPlays(output, session.playing ? 'Playing' : 'Paused') : track?.artistCredit ?? '';
   const deviceLabel = detached ? `${DETACHED_LABEL}. Playback devices` : `Playback device, ${output.name}`;
   const size = miniCoverSize(compact, native);
   const { motion } = usePlayerTransition();
