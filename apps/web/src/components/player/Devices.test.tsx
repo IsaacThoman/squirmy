@@ -89,12 +89,13 @@ describe('devices picker', () => {
     expect(screen.queryByText('Chrome on macOS')).toBeNull()
   })
 
-  it('says "Playing in another tab" in the player bar', () => {
+  it('marks the device button when another tab is playing', () => {
     const browser = '0b6f3c1e-8f2a-4c1d-9e7b-2a5d6c7e8f90'
     const tabs = [{ id: browser, name: 'Chrome on macOS', kind: 'web' as const, canPlay: true, isActive: true }, { id: `${browser}-2`, name: 'Chrome on macOS', kind: 'web' as const, canPlay: true, isActive: false }]
     const value = player({ devices: tabs, thisDeviceId: `${browser}-2`, activeDeviceId: browser }).player
     renderWithApp(<PlayerBar player={value} liked={false} onToggleLike={() => {}} queueOpen={false} onToggleQueue={() => {}} lyricsOpen={false} onToggleLyrics={() => {}} onOpenNowPlaying={() => {}} />)
-    expect(screen.getAllByText('Playing in another tab').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Playing in another tab')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Devices' })).toHaveClass('text-primary')
   })
 
   it('hides detaching where it cannot work', () => {
@@ -142,10 +143,13 @@ describe('devices picker', () => {
       expect(toasts()).toEqual(['Couldn’t rejoin. Try again.'])
     })
 
-    it('marks the player bar “Only on this device”, which opens the picker', async () => {
+    it('marks the device button while detached and opens rejoin controls', async () => {
       const { player: value } = player({ detached: true })
       renderWithApp(<PlayerBar player={value} liked={false} onToggleLike={() => {}} queueOpen={false} onToggleQueue={() => {}} lyricsOpen={false} onToggleLyrics={() => {}} onOpenNowPlaying={() => {}} />)
-      await userEvent.click(screen.getByRole('button', { name: 'Only on this device' }))
+      expect(screen.queryByText('Only on this device')).toBeNull()
+      const trigger = screen.getByRole('button', { name: 'Devices' })
+      expect(trigger).toHaveClass('text-primary')
+      await userEvent.click(trigger)
       expect(await screen.findByRole('button', { name: 'Rejoin your other devices' })).toBeInTheDocument()
     })
   })

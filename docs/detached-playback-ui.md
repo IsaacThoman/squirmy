@@ -26,7 +26,7 @@ From `SessionClient` (client-core), already wired into each app's player:
 
 A detached device that looks like a normal one is a trap: the user presses play on the phone, expects the living room to change, and nothing happens. So:
 
-- **A persistent marker in the player.** While detached, the player bar (web) and the mini player and now-playing screen (iOS) show a small label: **Only on this device**, with an "unlinked" icon (web: `Unlink2` from lucide; iOS: the SF Symbol closest to it, chosen so it reads as "not linked" next to the existing device icons). It sits where "Playing on …" sits for a remote: the same slot, so the two never show at once. It is a button: pressing it opens the devices picker, where re-attaching lives. In the iOS mini player the label sits under the title in a bubble 44 pt tall, too little for two buttons stacked, so there the unlinked icon beside it is the button and the label opens Now Playing with the title.
+- **The device button marks detached playback.** On web it is highlighted in the player bar and Now Playing. On iOS it uses a highlighted unlinked icon, labeled **Only on this device** in Now Playing. The button opens the device picker with rejoin controls.
 - **Tint, not alarm.** Use the theme's accent colour for the label, not a warning colour. Detached is a choice, not an error.
 - **The tab title (web) is unchanged.** It already shows the track.
 - **The lock screen and Control Center (iOS) are unchanged.** They control this phone's audio either way.

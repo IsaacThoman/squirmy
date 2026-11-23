@@ -15,7 +15,7 @@ import { Equalizer } from '@/components/music/Equalizer'
 import { Rail, RailItem } from '@/components/music/Rail'
 import { SectionHeader } from '@/components/music/SectionHeader'
 import { TrackList, TrackRow, type NowPlaying } from '@/components/music/TrackList'
-import { DeviceList, PlayingElsewhere } from '@/components/player/Devices'
+import { DeviceList } from '@/components/player/Devices'
 import { LyricsPane } from '@/components/player/Lyrics'
 import { MiniPlayer, PlayerBar } from '@/components/player/PlayerBar'
 import { QueueContent } from '@/components/player/Queue'
@@ -464,7 +464,6 @@ function Music() {
           <PlayerBar player={player} liked onToggleLike={() => {}} queueOpen={false} onToggleQueue={() => {}} lyricsOpen={false} onToggleLyrics={() => {}} onOpenNowPlaying={() => {}} />
         </div>
         <div className="max-w-sm"><MiniPlayer player={player} onOpenNowPlaying={() => {}} /></div>
-        <PlayingElsewhere player={player} device={player.state.devices[2]} onPlayHere={() => {}} />
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="rounded-xl border bg-card p-2"><DeviceList player={player} /></div>
           <ScrollArea className="h-[28rem] rounded-xl border bg-card p-3"><QueueContent player={player} /></ScrollArea>

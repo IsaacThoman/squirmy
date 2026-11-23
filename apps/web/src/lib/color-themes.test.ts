@@ -163,8 +163,6 @@ describe('readability', () => {
       ['text on the sidebar', palette.text, palette.sidebar],
       ['muted text on the background', flattenHex(palette.mutedText, palette.background), palette.background],
       ['action text on the action color', palette.actionText, palette.action],
-      // The "Playing on …" and "Only on this device" strips: text on a 10 % tint of the action color.
-      ['text on the action tint', palette.text, mixHex(palette.background, palette.action, 0.1)],
     ].map(([pair, text, behind]) => [theme.name, appearance, pair, text, behind] as const)
   }))
 
