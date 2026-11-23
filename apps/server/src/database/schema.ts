@@ -188,6 +188,12 @@ export const artists = pgTable('artists', {
   bioUrl: text('bio_url'),
   detailLevel: smallint('detail_level').notNull().default(0),
   fetchedAt: at('fetched_at'),
+  /**
+   * When the second-page repair last kept this row as a namesake of the others of its name
+   * (enrichment/artist-copies.ts). It looks at rows never checked first and checks a kept
+   * one again after a while, instead of drawing kept rows again on every run.
+   */
+  copyCheckedAt: at('copy_checked_at'),
   mergedIntoId: uuid('merged_into_id'),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
