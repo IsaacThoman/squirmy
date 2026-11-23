@@ -3,7 +3,17 @@ module.exports = ({ config }) => {
   const development = variant === 'development';
   const plugins = [...config.plugins, ['expo-dev-client', { addGeneratedScheme: false }]];
 
-  if (!development) return { ...config, plugins };
+  if (!development) {
+    return {
+      ...config,
+      version: process.env.SQUIRMY_IOS_VERSION ?? config.version,
+      ios: {
+        ...config.ios,
+        buildNumber: process.env.SQUIRMY_IOS_BUILD_NUMBER ?? config.ios.buildNumber,
+      },
+      plugins,
+    };
+  }
 
   return {
     ...config,

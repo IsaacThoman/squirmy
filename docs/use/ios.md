@@ -4,7 +4,7 @@ The iOS app connects to your Squirmy server, browses and searches the library, a
 
 ## Getting the app
 
-There is no App Store or TestFlight release yet. To use it today you build it yourself from the repository, on a Mac with Xcode. The app is in `apps/mobile` and uses Expo SDK 58. The system Liquid Glass tab bar and mini-player need iOS 26 or later.
+If you have a TestFlight invitation, open it on your iPhone or iPad and install Squirmy in TestFlight once a build is available. You can also build the app from the repository on a Mac with Xcode. The app is in `apps/mobile` and uses Expo SDK 58. The system Liquid Glass tab bar and mini-player need iOS 26 or later.
 
 You need Node.js 22.13 or newer. Install from the repository root, which also applies the patch in `patches/` that the app depends on:
 
