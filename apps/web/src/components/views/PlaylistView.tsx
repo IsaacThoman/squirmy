@@ -11,6 +11,7 @@ import { IconButton } from '@/components/ui/icon-button'
 import { DropdownMenu } from '@/components/ui/menu'
 import { isPlayable } from '@/lib/catalog'
 import { formatTotalDuration, plural } from '@/lib/format'
+import { useMediaQuery } from '@/lib/use-media-query'
 import { usePlayerControls, type PlayOptions } from '@/player/player-context'
 import { useViewer } from '@/player/on-demand-context'
 import { useTrackActions } from '@/player/use-track-actions'
@@ -28,6 +29,8 @@ type PlaylistViewProps = {
 
 export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete, onMove, onRemove }: PlaylistViewProps) {
   const tracks = playlist.items.map(item => item.track)
+  // A finger cannot drag a song onto the sidebar (on a phone it is a drawer over the songs), so touch screens are told the menu's way.
+  const touch = useMediaQuery('(pointer: coarse)')
   return (
     <TrackCollection
       kind={playlist.isPublic ? 'Public playlist' : 'Playlist'}
@@ -60,7 +63,9 @@ export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete
         <EmptyState
           icon={<ListMusic />}
           title="This playlist is empty"
-          description={owned ? 'Add songs from any album, artist or search with the track menu, or drag them onto the playlist in the sidebar.' : undefined}
+          description={!owned ? undefined
+            : touch ? 'Add songs from any album, artist or search: open a song’s menu and choose Add to playlist.'
+              : 'Add songs from any album, artist or search with the track menu, or drag them onto the playlist in the sidebar.'}
           action={owned && <Button asChild variant="primary"><Link to="/search">Find something</Link></Button>}
         />
       )}
