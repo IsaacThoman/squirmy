@@ -6,7 +6,7 @@ import { errorMessage } from '@/api/errors'
 import { usePrefetch } from '@/api/prefetch'
 import { searchesServer } from '@/api/queries'
 import { Page, PageHeader } from '@/components/layout/Page'
-import { AlbumCard, AlbumRow, ArtistCard, CollectionRow, LikedCard, Monogram, PlaylistCard, PlaylistRow } from '@/components/music/Cards'
+import { AlbumCard, AlbumRow, ArtistCard, CollectionRow, LikedCard, Monogram, PlaylistCard, PlaylistRow, type CardPin } from '@/components/music/Cards'
 import { LikedCover } from '@/components/music/CollectionArt'
 import { Cover } from '@/components/music/Cover'
 import { GridSkeleton, TrackRowsSkeleton } from '@/components/music/Skeletons'
@@ -29,12 +29,15 @@ import { filterLabels, LIBRARY_FILTERS, type LibraryFilterName, type LibraryLayo
 
 const sortLabels: Record<LibraryItemsSort, string> = { played: 'Recently played', recent: 'Recently added', title: 'Title', artist: 'Artist', year: 'Year' }
 
-/** One tile or row of the Library: Liked Songs, a playlist, an album or an artist. */
+/**
+ * One tile or row of the Library: Liked Songs, a playlist, an album or an artist. `pinned` is
+ * known for All's own list (not its search), whose first page starts with the pins.
+ */
 export type LibraryItem =
-  | { kind: 'liked' }
-  | { kind: 'playlist'; playlist: PlaylistSummary }
-  | { kind: 'album'; album: AlbumSummary }
-  | { kind: 'artist'; artist: ArtistSummary }
+  | { kind: 'liked'; pinned?: boolean }
+  | { kind: 'playlist'; playlist: PlaylistSummary; pinned?: boolean }
+  | { kind: 'album'; album: AlbumSummary; pinned?: boolean }
+  | { kind: 'artist'; artist: ArtistSummary; pinned?: boolean }
 
 /** A request that failed, and how to ask again. */
 export type Failure = { error: unknown; onRetry: () => void; retrying?: boolean }
@@ -94,6 +97,15 @@ export type LibraryViewProps = {
   onPlayLiked: () => void
   onPlaySong: (index: number) => void
   onNewPlaylist: () => void
+  /** Pins an item whose `pinned` is known to the top of All, or unpins it; a failure is said on the menu entry. */
+  onPin?: (item: LibraryItem, pinned: boolean) => Promise<unknown>
+}
+
+/** An item's pin, where it is known. */
+function itemPin(item: LibraryItem, onPin: LibraryViewProps['onPin']): CardPin | undefined {
+  if (item.pinned === undefined || !onPin) return undefined
+  const pinned = item.pinned
+  return { pinned, onToggle: () => onPin(item, !pinned) }
 }
 
 const empties = {
@@ -224,7 +236,7 @@ function Songs({ tracks, onPlay, onEndReached }: { tracks: TrackSummary[]; onPla
   return <div className="-mx-2"><VirtualTrackList label="Songs" tracks={tracks} variant="compact" onEndReached={onEndReached} {...actions} /></div>
 }
 
-function Collections({ items, layout, filter, likedCount, onEndReached, onPlayAlbum, onPlayPlaylist, onPlayLiked }: LibraryViewProps & { items: LibraryItem[] }) {
+function Collections({ items, layout, filter, likedCount, onEndReached, onPlayAlbum, onPlayPlaylist, onPlayLiked, onPin }: LibraryViewProps & { items: LibraryItem[] }) {
   const wants = useAlbumWants()
   const list = layout === 'list'
   const label = filter === 'all' ? 'Library' : filterLabels[filter]
@@ -237,12 +249,13 @@ function Collections({ items, layout, filter, likedCount, onEndReached, onPlayAl
         getKey={itemKey}
         onEndReached={onEndReached}
         renderItem={item => {
-          if (list) return <ItemRow item={item} likedCount={likedCount} onPlayAlbum={onPlayAlbum} onPlayPlaylist={onPlayPlaylist} onPlayLiked={onPlayLiked} />
+          const pin = itemPin(item, onPin)
+          if (list) return <ItemRow item={item} pin={pin} likedCount={likedCount} onPlayAlbum={onPlayAlbum} onPlayPlaylist={onPlayPlaylist} onPlayLiked={onPlayLiked} />
           switch (item.kind) {
-            case 'liked': return <LikedCard count={likedCount} onPlay={onPlayLiked} />
-            case 'playlist': return <PlaylistCard playlist={item.playlist} onPlay={() => onPlayPlaylist(item.playlist)} />
-            case 'album': return <AlbumCard album={item.album} onPlay={() => onPlayAlbum(item.album)} {...wants(item.album)} />
-            case 'artist': return <ArtistCard artist={item.artist} />
+            case 'liked': return <LikedCard count={likedCount} onPlay={onPlayLiked} pin={pin} />
+            case 'playlist': return <PlaylistCard playlist={item.playlist} onPlay={() => onPlayPlaylist(item.playlist)} pin={pin} />
+            case 'album': return <AlbumCard album={item.album} onPlay={() => onPlayAlbum(item.album)} pin={pin} {...wants(item.album)} />
+            case 'artist': return <ArtistCard artist={item.artist} pin={pin} />
           }
         }}
       />
@@ -253,22 +266,22 @@ function Collections({ items, layout, filter, likedCount, onEndReached, onPlayAl
 const rowArt = 'size-11 rounded-md'
 
 /** A row of the list layout, with the same play button (and, for albums, menu) as its card. */
-function ItemRow({ item, likedCount, onPlayAlbum, onPlayPlaylist, onPlayLiked }: Pick<LibraryViewProps, 'likedCount' | 'onPlayAlbum' | 'onPlayPlaylist' | 'onPlayLiked'> & { item: LibraryItem }) {
+function ItemRow({ item, pin, likedCount, onPlayAlbum, onPlayPlaylist, onPlayLiked }: Pick<LibraryViewProps, 'likedCount' | 'onPlayAlbum' | 'onPlayPlaylist' | 'onPlayLiked'> & { item: LibraryItem; pin?: CardPin }) {
   switch (item.kind) {
-    case 'liked': return <CollectionRow to="/liked" title="Liked Songs" subtitle={likedCount ? `Playlist · ${likedCount}` : 'Playlist'} art={<LikedCover className={rowArt} />} onPlay={onPlayLiked} />
-    case 'playlist': return <PlaylistRow playlist={item.playlist} onPlay={() => onPlayPlaylist(item.playlist)} className={rowArt} />
-    case 'album': return <AlbumRow album={item.album} onPlay={() => onPlayAlbum(item.album)} className={rowArt} />
-    case 'artist': return <ArtistRow artist={item.artist} />
+    case 'liked': return <CollectionRow to="/liked" title="Liked Songs" subtitle={likedCount ? `Playlist · ${likedCount}` : 'Playlist'} art={<LikedCover className={rowArt} />} onPlay={onPlayLiked} pin={pin} />
+    case 'playlist': return <PlaylistRow playlist={item.playlist} onPlay={() => onPlayPlaylist(item.playlist)} className={rowArt} pin={pin} />
+    case 'album': return <AlbumRow album={item.album} onPlay={() => onPlayAlbum(item.album)} className={rowArt} pin={pin} />
+    case 'artist': return <ArtistRow artist={item.artist} pin={pin} />
   }
 }
 
-function ArtistRow({ artist }: { artist: ArtistSummary }) {
+function ArtistRow({ artist, pin }: { artist: ArtistSummary; pin?: CardPin }) {
   const viewer = useViewer()
   const prefetch = usePrefetch({ kind: 'artist', id: artist.id })
   // The same rule as `ArtistCard`.
   const dimmed = !artist.inLibrary && !canFetch(viewer)
   const art = artist.image ? <Cover artwork={artist.image} size={96} round dimmed={dimmed} className="size-11" /> : <Monogram name={artist.name} className="size-11 text-base" />
-  return <CollectionRow to={`/artist/${artist.id}`} title={artist.name} subtitle="Artist" dimmed={dimmed} prefetch={prefetch} art={art} />
+  return <CollectionRow to={`/artist/${artist.id}`} title={artist.name} subtitle="Artist" dimmed={dimmed} prefetch={prefetch} art={art} pin={pin} />
 }
 
 /** Nothing to list: a search or a genre that matched nothing, or a library with nothing in it yet. */

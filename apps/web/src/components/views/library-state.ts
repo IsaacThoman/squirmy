@@ -1,4 +1,5 @@
-import type { LibraryItemsSort } from '@squirmy/contracts'
+import { LIKED_SONGS_ID, type LibraryItemsSort, type LibraryPinKind } from '@squirmy/contracts'
+import type { LibraryItem } from './LibraryView'
 
 /**
  * The Library's filter chips, as the iOS app has them. `all`: Liked Songs, the playlists, the
@@ -87,4 +88,14 @@ export function readLibraryLayout(): LibraryLayout {
 
 export function writeLibraryLayout(layout: LibraryLayout) {
   write(LAYOUT_KEY, layout)
+}
+
+/** The kind and id that pin an item of All to the top (`PUT /me/pins/:kind/:id`). */
+export function pinTarget(item: LibraryItem): [LibraryPinKind, string] {
+  switch (item.kind) {
+    case 'liked': return ['liked', LIKED_SONGS_ID]
+    case 'playlist': return ['playlist', item.playlist.id]
+    case 'album': return ['album', item.album.id]
+    case 'artist': return ['artist', item.artist.id]
+  }
 }

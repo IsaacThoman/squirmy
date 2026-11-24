@@ -273,6 +273,8 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
       wants: vi.fn(async () => list(wants)),
       want: vi.fn(async () => ok),
       unwant: vi.fn(async () => ok),
+      pin: vi.fn(async () => ok),
+      unpin: vi.fn(async () => ok),
     },
     search: {
       library: vi.fn(async (params: SearchParams & { genre?: string }) => searchPage(searchFixtures(params.q).library, params)),

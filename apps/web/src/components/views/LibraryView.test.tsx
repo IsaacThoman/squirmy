@@ -95,6 +95,48 @@ describe('Library', () => {
     expect(fake.api.catalog.albums).not.toHaveBeenCalled()
   })
 
+  it('marks pinned items, which the server lists first, and pins and unpins from their menus', async () => {
+    const fake = fakeServices()
+    const [first] = libraryAlbums
+    const playlist = ownPlaylists.items[0]!
+    fake.api.catalog.items.mockResolvedValue({ nextCursor: null, items: [
+      { kind: 'album', album: first!, playedAt: null, pinned: true },
+      { kind: 'liked', playedAt: null, pinned: false },
+      { kind: 'playlist', playlist, playedAt: null, pinned: false },
+    ] })
+    await renderLibrary('/library?filter=all', fake)
+    const list = await main().findByRole('list', { name: 'Library' })
+    await waitFor(() => expect(titles(list)).toEqual([first!.title, 'Liked Songs', playlist.name]))
+    const [album, liked] = within(list).getAllByRole('listitem')
+    expect(within(album!).getByText('Pinned,')).toBeInTheDocument()
+    expect(within(liked!).queryByText('Pinned,')).toBeNull()
+
+    await userEvent.click(within(list).getByRole('button', { name: `More options for ${first!.title}` }))
+    expect((await screen.findAllByRole('menuitem')).at(-1)).toHaveTextContent('Unpin')
+    const listed = fake.api.catalog.items.mock.calls.length
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Unpin' }))
+    expect(fake.api.userdata.unpin).toHaveBeenCalledWith('album', first!.id)
+    // The list is asked for again, in its new order.
+    await waitFor(() => expect(fake.api.catalog.items.mock.calls.length).toBeGreaterThan(listed))
+
+    // A playlist's menu is the pin alone; Liked Songs is pinned by its own id.
+    fireEvent.contextMenu(within(list).getByRole('link', { name: playlist.name }))
+    expect((await screen.findAllByRole('menuitem')).map(item => item.textContent)).toEqual(['Pin to top'])
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Pin to top' }))
+    expect(fake.api.userdata.pin).toHaveBeenCalledWith('playlist', playlist.id)
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+    fireEvent.contextMenu(within(list).getByRole('link', { name: 'Liked Songs' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Pin to top' }))
+    expect(fake.api.userdata.pin).toHaveBeenCalledWith('liked', '00000000-0000-0000-0000-000000000000')
+  })
+
+  it('offers no pin where it is not known: other filters and searches', async () => {
+    await renderLibrary('/library?filter=playlists')
+    const list = await main().findByRole('list', { name: 'Playlists' })
+    fireEvent.contextMenu(within(list).getByRole('link', { name: 'Liked Songs' }))
+    expect(screen.queryByRole('menuitem', { name: 'Pin to top' })).toBeNull()
+  })
+
   describe('old addresses', () => {
     it.each([
       ['/library/albums', 'albums', 'Albums'],

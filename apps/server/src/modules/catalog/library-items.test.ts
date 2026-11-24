@@ -140,7 +140,7 @@ describe('the Library\'s All', () => {
     // Playing Liked Songs again moves it to the front.
     await played('liked', LIKED_SONGS_ID, day(35))
     expect((await walk('', 3)).slice(0, 2)).toEqual(['Liked Songs', 'Road Trip'])
-    expect((await page('?limit=1')).items).toEqual([{ kind: 'liked', playedAt: day(35).toISOString() }])
+    expect((await page('?limit=1')).items).toEqual([{ kind: 'liked', playedAt: day(35).toISOString(), pinned: false }])
   })
 
   it('keeps a genre to its albums', async () => {

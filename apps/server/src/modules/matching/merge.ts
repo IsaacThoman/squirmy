@@ -70,6 +70,19 @@ async function moveCollectionPlays(tx: Transaction, type: 'album' | 'artist', fr
   await tx.execute(sql`update collection_plays set entity_id = ${into} where entity_type = ${type} and entity_id = ${from}`)
 }
 
+/** Re-points pins of the Library (`library_pins`); where the user pinned both, the earlier pin is kept. */
+async function moveLibraryPins(tx: Transaction, type: 'album' | 'artist', from: string, into: string) {
+  await tx.execute(sql`
+    update library_pins t set pinned_at = f.pinned_at from library_pins f
+    where f.entity_type = ${type} and f.entity_id = ${from}
+      and t.user_id = f.user_id and t.entity_type = ${type} and t.entity_id = ${into}
+      and f.pinned_at < t.pinned_at`)
+  await tx.execute(sql`
+    delete from library_pins f where f.entity_type = ${type} and f.entity_id = ${from}
+      and exists (select 1 from library_pins t where t.user_id = f.user_id and t.entity_type = ${type} and t.entity_id = ${into})`)
+  await tx.execute(sql`update library_pins set entity_id = ${into} where entity_type = ${type} and entity_id = ${from}`)
+}
+
 async function moveExternalIds(tx: Transaction, type: EntityType, from: string, into: string) {
   await tx.update(externalIds).set({ entityId: into }).where(sql`${externalIds.entityType} = ${type} and ${externalIds.entityId} = ${from}`)
 }
@@ -150,6 +163,7 @@ export async function mergeAlbum(fromId: string, intoId: string, executor: Execu
     await moveExternalIds(tx, 'album', fromId, into)
     for (const table of ['likes', 'ratings', 'wants'] as const) await moveUserRows(tx, table, 'album', fromId, into)
     await moveCollectionPlays(tx, 'album', fromId, into)
+    await moveLibraryPins(tx, 'album', fromId, into)
     await tx.execute(sql`
       update ${albums} a set
         artwork_asset_id = coalesce(a.artwork_asset_id, f.artwork_asset_id),
@@ -177,6 +191,7 @@ export async function mergeArtist(fromId: string, intoId: string, executor: Exec
     await moveExternalIds(tx, 'artist', fromId, into)
     for (const table of ['likes', 'ratings'] as const) await moveUserRows(tx, table, 'artist', fromId, into)
     await moveCollectionPlays(tx, 'artist', fromId, into)
+    await moveLibraryPins(tx, 'artist', fromId, into)
     await tx.execute(sql`
       update ${artists} a set image_asset_id = coalesce(a.image_asset_id, f.image_asset_id),
         disambiguation = coalesce(a.disambiguation, f.disambiguation),
