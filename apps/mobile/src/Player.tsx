@@ -245,20 +245,22 @@ export default function Player() {
   }));
 
   // Laid out once at its size in the player and moved there by transforms, so the image is
-  // decoded once, at full size, and nothing is laid out while it flies.
-  const artworkFrame = (): ArtworkFrame => {
+  // decoded once, at full size, and nothing is laid out while it flies. The styles read the shared
+  // values themselves: Reanimated reruns a style only for those its own closure holds.
+  const artworkFrame = (bubble: Bubble | null, follow: number, d: number, drag: number): ArtworkFrame => {
     'worklet';
-    const placed = placedArtwork(detail.value, trackDrag.value);
-    const bubble = motion.bubble.value;
+    const placed = placedArtwork(d, drag);
     if (!bubble) return placed;
-    const { follow } = progress(motion);
     const art = artworkInFlight(bubble, follow, placed);
     return { ...art, x: art.x - sideInsets(bubble, follow, width).left };
   };
-  const artworkStyle = useAnimatedStyle(() => artworkTransform(artworkFrame(), artSize));
+  const artworkStyle = useAnimatedStyle(() => artworkTransform(
+    artworkFrame(motion.bubble.value, progress(motion).follow, detail.value, trackDrag.value), artSize));
   // Without artwork, the note keeps its size as the frame around it grows.
   const hasArtwork = Boolean(artworkImage);
-  const noArtworkStyle = useAnimatedStyle(() => ({ transform: [{ scale: hasArtwork ? 1 : artSize / artworkFrame().size }] }));
+  const noArtworkStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: hasArtwork ? 1 : artSize / artworkFrame(motion.bubble.value, progress(motion).follow, detail.value, trackDrag.value).size }],
+  }));
   const artworkDetailsStyle = useAnimatedStyle(() => ({
     opacity: interpolate(detail.value, [0, 0.44], [1, 0], clamp),
     transform: [{ translateX: trackDrag.value }],
