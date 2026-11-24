@@ -382,6 +382,17 @@ await step('lyrics', async () => {
   check('clicking a line seeks to it', line === 'Blue on the water', line)
   const later = await until(active, text => text === 'No one around us', 6000)
   check('the lines follow the position', later === 'No one around us', later)
+  // On a small phone the lines stay in their pane, above the song's title and the controls.
+  await page.setViewportSize({ width: 375, height: 667 })
+  const fit = await until(() => page.evaluate(() => {
+    const box = element => element.getBoundingClientRect()
+    const scroller = box(document.querySelector('[role="listbox"][aria-label="Lyrics"]').parentElement)
+    const pane = box(document.getElementById('now-playing-lyrics'))
+    const title = box(document.querySelector('[role="dialog"] h2.truncate'))
+    return { scroller: Math.round(scroller.bottom), pane: Math.round(pane.bottom), title: Math.round(title.top) }
+  }), at => at.scroller <= at.pane && at.pane <= at.title, 2000)
+  check('the lyrics stay above the song\'s title on a small phone', fit.scroller <= fit.pane && fit.pane <= fit.title, `lines end at ${fit.scroller}, pane at ${fit.pane}, title at ${fit.title}`)
+  await page.setViewportSize({ width: 1440, height: 900 })
   await page.getByRole('button', { name: 'Close Now Playing' }).click()
   await page.getByRole('dialog').waitFor({ state: 'detached' })
 })
