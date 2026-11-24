@@ -7,7 +7,7 @@ import { BackHandler, Platform, StyleSheet, Text, useWindowDimensions, View } fr
 import { GestureDetector, useCompetingGestures, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
   Easing, Extrapolation, interpolate, interpolateColor, useAnimatedProps, useAnimatedReaction, useAnimatedStyle, useReducedMotion,
-  useSharedValue, withDelay, withSpring, withTiming,
+  useSharedValue, withDelay, withSpring, withTiming, type SharedValue,
 } from 'react-native-reanimated';
 import { initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
@@ -18,11 +18,13 @@ import { useLibraryActions, useLiked, useLikeFailure } from './data/library';
 import { heartButton, heartColor } from './library/heart';
 import { MiniPlayerContent } from './MiniPlayer';
 import {
-  grab, progress, settle, sideInsets, travel, usePlayerTransition, type Bubble, type BubbleVariant, type PlayerPage,
+  grab, progress, settle, sideInsets, travel, usePlayerTransition, type Bubble, type BubbleVariant, type Motion, type PlayerPage,
 } from './player/transition';
 import { useLoading, usePlaybackState, usePosition } from './playback';
 import { DETACHED_LABEL, DETACHED_SYMBOL } from './player/detach';
 import { playPauseLabel, STILL_LOADING_LABEL } from './player/loading';
+import { artworkTransform, type ArtworkFrame } from './player/artwork';
+import { ArtworkPrefetch } from './player/ArtworkPrefetch';
 import { usePlaybackStatus } from './player/usePlaybackStatus';
 import { usePlayerShown } from './player/visibility';
 import { useVolumeSlider } from './player/volume';
@@ -60,10 +62,9 @@ const clamp = Extrapolation.CLAMP;
 const Glass = Animated.createAnimatedComponent(BlurView);
 
 type DetailPage = Exclude<PlayerPage, 'player'>;
-type Artwork = { x: number; y: number; size: number; radius: number };
 
 /** The artwork on its way between the bubble's cover and its place in the player, `y` from the panel's top. */
-function artworkInFlight(bubble: Bubble, follow: number, placed: Artwork) {
+function artworkInFlight(bubble: Bubble, follow: number, placed: ArtworkFrame): ArtworkFrame & { margin: number } {
   'worklet';
   const coverX = bubble.x + bubble.coverInset;
   const coverY = (bubble.height - bubble.coverSize) / 2;
@@ -212,7 +213,7 @@ export default function Player() {
     return Math.max(-reach, Math.min(Math.max(0, availableHeight - reach), shift)) * shown;
   };
 
-  const placedArtwork = (d: number, drag: number, shift = 0): Artwork => {
+  const placedArtwork = (d: number, drag: number, shift = 0): ArtworkFrame => {
     'worklet';
     return {
       x: insets.left + artX + (artworkInset - artX) * d + drag * (1 - d),
@@ -264,21 +265,23 @@ export default function Player() {
     opacity: motion.bubble.value ? interpolate(progress(motion).lead, [0.72, 0.95], [0, 1], clamp) : 1,
   }));
 
-  const artworkStyle = useAnimatedStyle(() => {
-    const placed = placedArtwork(detail.value, trackDrag.value, queueShift(queueShown.value, nowPlayingShift.value));
-    const bubble = motion.bubble.value;
-    const hidden = onQueue(detail.value, queueShown.value, bubble ? progress(motion).follow : 1) ? 0 : 1;
-    if (!bubble) return { left: placed.x, top: placed.y, width: placed.size, height: placed.size, borderRadius: placed.radius, opacity: hidden };
-    const { follow } = progress(motion);
+  // Laid out once at its size in the player and moved there by transforms, so the image is
+  // decoded once, at full size, and nothing is laid out while it flies. It is drawn from the decoded
+  // cover itself: a copy resized to the view (`allowDownscaling`) is made on the main thread, which
+  // a skip would wait on mid-swipe.
+  const artworkFrame = (bubble: Bubble | null, follow: number, d: number, drag: number, shift = 0): ArtworkFrame => {
+    'worklet';
+    const placed = placedArtwork(d, drag, shift);
+    if (!bubble) return placed;
     const art = artworkInFlight(bubble, follow, placed);
-    return {
-      left: art.x - sideInsets(bubble, follow, width).left,
-      top: art.y,
-      width: art.size,
-      height: art.size,
-      borderRadius: art.radius,
-      opacity: hidden,
-    };
+    return { ...art, x: art.x - sideInsets(bubble, follow, width).left };
+  };
+  const artworkStyle = useAnimatedStyle(() => {
+    const bubble = motion.bubble.value;
+    const follow = progress(motion).follow;
+    const frame = artworkFrame(bubble, follow, detail.value, trackDrag.value, queueShift(queueShown.value, nowPlayingShift.value));
+    const hidden = onQueue(detail.value, queueShown.value, bubble ? follow : 1) ? 0 : 1;
+    return { ...artworkTransform(frame, artSize), opacity: hidden };
   });
   const artworkDetailsStyle = useAnimatedStyle(() => ({
     opacity: interpolate(detail.value, [0, 0.44], [1, 0], clamp),
@@ -358,12 +361,14 @@ export default function Player() {
 
   return (
     <Overlay>
+      {/* Outside the panel, which is laid out again on every frame of the morph. */}
+      <ArtworkPrefetch size={artSize} />
       <Animated.View style={[styles.panel, panelStyle]}>
         <Glass tint="systemThinMaterial" animatedProps={glassProps} style={StyleSheet.absoluteFill} />
         <Animated.View style={[styles.page, { width, height }, pageStyle]}>
           <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: artwork?.color ?? fallbackTint }, backdropStyle]} pointerEvents="none">
             {backdropImage && <Image source={backdropImage.source} placeholder={backdropImage.placeholder} blurRadius={70}
-              contentFit="cover" transition={210} style={styles.backdropArt} />}
+              contentFit="cover" cachePolicy="memory-disk" transition={210} style={styles.backdropArt} />}
             <LinearGradient
               colors={colors.playerGradient}
               locations={[0, 0.39, 0.85, 1]}
@@ -421,15 +426,33 @@ export default function Player() {
         {variants.map(variant => (
           <BubbleContent key={`${variant.native}-${variant.compact}`} variant={variant} width={width} />
         ))}
-        <Animated.View pointerEvents="none" style={[styles.artwork, artworkStyle]}>
+        <Animated.View pointerEvents="none" style={[styles.artwork, { width: artSize, height: artSize }, artworkStyle]}>
           {artworkImage
             ? <Image source={artworkImage.source} placeholder={artworkImage.placeholder} placeholderContentFit="cover"
-              contentFit="cover" transition={160} style={StyleSheet.absoluteFill} />
-            : <View style={styles.noArtwork}><Icon name="music.note" size={48} color={colors.quiet} /></View>}
+              contentFit="cover" cachePolicy="memory-disk" allowDownscaling={false} transition={160} style={StyleSheet.absoluteFill} />
+            : <NoArtwork base={artSize} frame={artworkFrame} motion={motion} detail={detail} trackDrag={trackDrag} />}
         </Animated.View>
       </Animated.View>
     </Overlay>
   );
+}
+
+/** The note shown without artwork, kept at its size as the frame around it grows. */
+function NoArtwork({ base, frame, motion, detail, trackDrag }: {
+  base: number;
+  frame: (bubble: Bubble | null, follow: number, d: number, drag: number) => ArtworkFrame;
+  motion: Motion;
+  detail: SharedValue<number>;
+  trackDrag: SharedValue<number>;
+}) {
+  const colors = useColors();
+  const styles = useStyles();
+  const style = useAnimatedStyle(() => ({
+    transform: [{ scale: base / frame(motion.bubble.value, progress(motion).follow, detail.value, trackDrag.value).size }],
+  }));
+  return <View style={styles.noArtwork}>
+    <Animated.View style={style}><Icon name="music.note" size={48} color={colors.quiet} /></Animated.View>
+  </View>;
 }
 
 /**
@@ -635,7 +658,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   deckFrame: { flex: 1 },
   // The artwork at the top, the title's room under it; a tall screen's spare height goes below them.
   nowPlaying: { flex: 1, justifyContent: 'flex-start', alignItems: 'center', paddingHorizontal: edgeInset },
-  artwork: { position: 'absolute', overflow: 'hidden', backgroundColor: colors.surface },
+  artwork: { position: 'absolute', top: 0, left: 0, overflow: 'hidden', backgroundColor: colors.surface },
   noArtwork: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   details: { ...StyleSheet.absoluteFill, paddingTop: compactArtworkTop },
   detailPanel: { flex: 1 },

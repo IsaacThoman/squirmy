@@ -1,0 +1,71 @@
+diff --git a/node_modules/expo-blur/ios/BlurEffectView.swift b/node_modules/expo-blur/ios/BlurEffectView.swift
+index 185f69a..367fab0 100644
+--- a/node_modules/expo-blur/ios/BlurEffectView.swift
++++ b/node_modules/expo-blur/ios/BlurEffectView.swift
+@@ -10,7 +10,7 @@ final class BlurEffectView: UIVisualEffectView {
+   @Clamping(lowerBound: 0.01, upperBound: 1)
+   var intensity: Double = 0.5 {
+     didSet {
+-      setNeedsDisplay()
++      applyIntensity()
+     }
+   }
+ 
+@@ -22,13 +22,14 @@ final class BlurEffectView: UIVisualEffectView {
+ 
+   private var visualEffect: UIVisualEffect = UIBlurEffect(style: TintStyle.default.toBlurEffect()) {
+     didSet {
+-      setNeedsDisplay()
++      setUpEffect()
+     }
+   }
+   private var animator: UIViewPropertyAnimator?
+ 
+   init() {
+     super.init(effect: nil)
++    setUpEffect()
+   }
+ 
+   required init?(coder aDecoder: NSCoder) { nil }
+@@ -37,12 +38,21 @@ final class BlurEffectView: UIVisualEffectView {
+     animator?.stopAnimation(true)
+   }
+ 
+-  override func draw(_ rect: CGRect) {
+-    super.draw(rect)
++  override func didMoveToWindow() {
++    super.didMoveToWindow()
++    if window != nil {
++      setUpEffect()
++    }
++  }
+ 
+-    // BlurView intensity relies on running an animation and making it partially complete. This means that there
+-    // is a continually running animation, which makes detox hang (it waits for the animation to finish indefinitely).
+-    // We can detect if detoxServer is running and in that case replace smooth intensity value with an on/off behaviour.
++  // BlurView intensity relies on running an animation and making it partially complete. This means that there
++  // is a continually running animation, which makes detox hang (it waits for the animation to finish indefinitely).
++  // We can detect if detoxServer is running and in that case replace smooth intensity value with an on/off behaviour.
++  //
++  // The animator used to be rebuilt in `draw(_:)` on every change. Overriding `draw(_:)` gave the view a backing
++  // store as large as itself, and an animated intensity rebuilt the effect on every frame. A new effect or tint
++  // rebuilds the animator; a new intensity only moves the paused animator, which renders the same blur.
++  private func setUpEffect() {
+     if isDetoxPresent() {
+       effect = intensity > 0 ? visualEffect : nil
+       return
+@@ -55,6 +65,14 @@ final class BlurEffectView: UIVisualEffectView {
+     }
+     animator?.fractionComplete = CGFloat(intensity)
+   }
++
++  private func applyIntensity() {
++    guard let animator, !isDetoxPresent() else {
++      setUpEffect()
++      return
++    }
++    animator.fractionComplete = CGFloat(intensity)
++  }
+ }
+ 
+ private func isDetoxPresent() -> Bool {
