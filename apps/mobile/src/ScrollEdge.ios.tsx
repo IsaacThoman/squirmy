@@ -1,14 +1,16 @@
-import { Host, Mask, Rectangle, ZStack } from '@expo/ui/swift-ui';
-import { accessibilityHidden, foregroundStyle } from '@expo/ui/swift-ui/modifiers';
+import { requireNativeView } from 'expo';
 import { useEffect, useMemo, useState } from 'react';
-import { AccessibilityInfo, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, StyleSheet, type ViewProps } from 'react-native';
+import Animated, { Extrapolation, interpolate, useAnimatedStyle } from 'react-native-reanimated';
 import { EdgeFade, edgeStops } from './edgeFade';
 import type { ScrollEdgeProps } from './ScrollEdge';
-import { useColors } from './theme';
+import { useAppearance } from './theme';
 
-const material = foregroundStyle({ type: 'material', material: 'ultraThin' });
-/** How much of the page colour lies over the blur: content under the status bar dims a little as well as blurs. */
-const dim = '99';
+type ExpoGlobal = { expo?: { getViewConfig?: (moduleName: string) => { validAttributes: Record<string, unknown> } | null } };
+type BlurProps = ViewProps & { tint: 'dark' | 'light'; intensity: number; gradientMask: string[] };
+
+const ScrollBlur = (globalThis as ExpoGlobal).expo?.getViewConfig?.('ExpoBlur')?.validAttributes.gradientMask
+  ? requireNativeView<BlurProps>('ExpoBlur') : null;
 
 function useReduceTransparency() {
   const [reduce, setReduce] = useState(false);
@@ -22,31 +24,25 @@ function useReduceTransparency() {
 }
 
 /**
- * A soft top edge, as the system draws under its bars: content scrolling under the status bar
- * blurs and dims, more towards the top, with no line where it starts. It is static; nothing in
- * it changes as the page scrolls. With Reduce Transparency, a fade of the page colour instead.
+ * Soften artwork behind the status text and taper the material off within the safe area.
+ * Below a pinned header, a shorter fade blends the clipped rows into the page colour.
  */
-export function ScrollEdge({ solid, fade }: ScrollEdgeProps) {
-  const colors = useColors();
+export function ScrollEdge({ solid, fade, scrollOffset, contentGap = 0 }: ScrollEdgeProps) {
+  const appearance = useAppearance();
   const reduce = useReduceTransparency();
-  const mask = useMemo(() => foregroundStyle({
-    type: 'linearGradient', colors: edgeStops(solid, fade), startPoint: { x: 0.5, y: 0 }, endPoint: { x: 0.5, y: 1 },
-  }), [solid, fade]);
-  return <View pointerEvents="none" style={[styles.edge, { height: solid + fade }]}>
-    {reduce ? <EdgeFade solid={solid} fade={fade} /> : (
-      <Host ignoreSafeArea="container" style={StyleSheet.absoluteFill}>
-        <Mask modifiers={[accessibilityHidden(true)]}>
-          <ZStack>
-            <Rectangle modifiers={[material]} />
-            <Rectangle modifiers={[foregroundStyle(`${colors.background}${dim}`)]} />
-          </ZStack>
-          <Mask.Content>
-            <Rectangle modifiers={[mask]} />
-          </Mask.Content>
-        </Mask>
-      </Host>
-    )}
-  </View>;
+  const statusBar = solid > 0;
+  const fadeStart = solid * 0.44;
+  const blurHeight = statusBar ? solid * 0.86 : fade * 2 / 3;
+  const reachesEdge = solid - blurHeight + contentGap;
+  const mask = useMemo(() => edgeStops(fadeStart, blurHeight - fadeStart), [fadeStart, blurHeight]);
+  const reveal = useAnimatedStyle(() => ({
+    opacity: scrollOffset && !reduce
+      ? interpolate(scrollOffset.value, [reachesEdge, reachesEdge + 12], [0, 1], Extrapolation.CLAMP) : 1,
+  }));
+  return <Animated.View pointerEvents="none" style={[styles.edge, { height: reduce ? solid + fade : blurHeight }, reveal]}>
+    {!reduce && ScrollBlur && <ScrollBlur tint={appearance} intensity={16} gradientMask={mask} style={StyleSheet.absoluteFill} />}
+    {reduce ? <EdgeFade solid={solid} fade={fade} /> : !statusBar && <EdgeFade solid={0} fade={blurHeight} />}
+  </Animated.View>;
 }
 
 const styles = StyleSheet.create({ edge: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1 } });

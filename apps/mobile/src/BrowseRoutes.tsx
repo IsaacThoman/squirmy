@@ -14,7 +14,12 @@ export function BrowseStack() {
   // The edge sits over every page of the tab, not in each one, so it stays put under the
   // bars while pages push and zoom beneath it.
   return <View style={styles.stack}>
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }} />
+    <Stack screenOptions={{
+      headerShown: false,
+      contentStyle: { backgroundColor: colors.background },
+      // The browse pages draw their own top edge. An automatic edge can tint the same area.
+      scrollEdgeEffects: { top: 'hidden' },
+    }} />
     <TabBarEdge height={edgeHeight} />
   </View>;
 }

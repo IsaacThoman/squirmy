@@ -96,7 +96,7 @@ export function LyricButton({ line, active, onPress, opacity: shown, blur: blurr
     hitShape, frame({ maxWidth: Infinity, alignment: 'leading' }), padding({ bottom: 20 }), ...look,
   ]}>{line}</Text>;
   return <View style={styles.lyricRow}>
-    <Host matchContents={{ vertical: true }}>
+    <Host ignoreSafeArea="container" matchContents={{ vertical: true }}>
       {onPress ? <Button onPress={onPress} modifiers={[
         plainButton, accessibilityHint('Seek to this line'),
         ...(active ? [accessibilityAddTraits(['isSelected'])] : []),
@@ -109,7 +109,7 @@ export function LyricButton({ line, active, onPress, opacity: shown, blur: blurr
 export function LyricCredits({ credits, opacity: shown }: { credits: string; opacity: number }) {
   const colors = useColors();
   return <View style={styles.lyricRow}>
-    <Host matchContents={{ vertical: true }}>
+    <Host ignoreSafeArea="container" matchContents={{ vertical: true }}>
       <Text modifiers={[
         foregroundStyle(colors.text), font({ textStyle: 'subheadline', weight: 'semibold' }), opacity(shown),
         frame({ maxWidth: Infinity, alignment: 'leading' }), padding({ top: 8, bottom: 20 }),

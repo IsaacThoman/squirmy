@@ -39,7 +39,7 @@ export function SearchField({ value, onChange, placeholder, autoFocus, inputRef 
     setText,
   }), [fieldText, onChange]);
 
-  return <Host style={styles.search}>
+  return <Host ignoreSafeArea="container" style={styles.search}>
     <HStack spacing={9} modifiers={[
       padding({ horizontal: 12 }), frame({ height: 46 }), background(colors.surface), clipShape('roundedRectangle', 12),
     ]}>
@@ -61,7 +61,7 @@ function trailingIcon(icon: string, title: string | undefined) {
 export function BrowseButton({ label, icon, title, glass, onPress }: BrowseButtonProps) {
   const colors = useColors();
   const useGlass = glass && isLiquidGlassAvailable();
-  return <Host matchContents>
+  return <Host ignoreSafeArea="container" matchContents>
     <Button modifiers={[...(useGlass ? iconGlass : [plainButton]), accessibilityLabel(label)]} onPress={onPress}>
       <HStack spacing={6} modifiers={[frame({ minWidth: useGlass ? 30 : 44, minHeight: useGlass ? 30 : 44 }), hitShape]}>
         {icon && !trailingIcon(icon, title) && <Symbol name={icon} size={title ? 14 : 19} color={title ? colors.accent : colors.text} />}
@@ -100,7 +100,7 @@ export function LibraryFilters<T extends string>({ options, value, onChange }: F
 
 export function LibrarySort<T extends string>({ options, value, onChange }: FilterProps<T>) {
   const colors = useColors();
-  return <Host matchContents>
+  return <Host ignoreSafeArea="container" matchContents>
     <Menu modifiers={[plainButton, menuIndicator('hidden'), accessibilityLabel(`Sort library, ${value}`)]}
       label={<HStack spacing={6} modifiers={[frame({ minHeight: 44 }), hitShape, dynamicTypeSize({ max: 'accessibility1' })]}>
         <Symbol name="arrow.up.arrow.down" size={14} color={colors.muted} />
@@ -170,7 +170,7 @@ function TileButton({ title, subtitle, cover, size, dim, onPress, actions }: Lin
 }
 
 export function CollectionRow({ href, ...props }: CollectionButtonProps) {
-  return <Host matchContents={{ vertical: true }}>
+  return <Host ignoreSafeArea="container" matchContents={{ vertical: true }}>
     <ZoomLink href={href}><RowButton {...props} /></ZoomLink>
   </Host>;
 }

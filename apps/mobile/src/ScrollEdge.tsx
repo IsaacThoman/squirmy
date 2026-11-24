@@ -1,4 +1,5 @@
 import { StyleSheet, View } from 'react-native';
+import type { SharedValue } from 'react-native-reanimated';
 import { EdgeFade } from './edgeFade';
 
 export type ScrollEdgeProps = {
@@ -6,6 +7,10 @@ export type ScrollEdgeProps = {
   solid: number;
   /** Then fading out over this much. */
   fade: number;
+  /** Keep the iOS blur clear until scrolling brings content up behind it. */
+  scrollOffset?: SharedValue<number>;
+  /** Space from the status bar to the scroll content when at rest. */
+  contentGap?: number;
 };
 
 /** A soft top edge for content scrolling under the status bar. Without the blur, a fade of the page colour. */

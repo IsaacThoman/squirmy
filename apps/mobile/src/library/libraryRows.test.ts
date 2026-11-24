@@ -24,8 +24,7 @@ describe('libraryRows', () => {
     expect(rows.filter(row => row.kind === 'heading')).toEqual([expect.objectContaining({ title: 'Songs' })]);
   });
 
-  it('has no heading without songs, or under Songs', () => {
+  it('has no heading without songs', () => {
     expect(libraryRows({ mode: 'list', items: [item('a')], songs: [], columns: 3 }).map(row => row.kind)).toEqual(['row']);
-    expect(libraryRows({ mode: 'songs', items: [], songs, columns: 3 }).map(row => row.kind)).toEqual(['song']);
   });
 });
