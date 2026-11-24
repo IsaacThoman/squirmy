@@ -25,7 +25,6 @@ import { announce, useBriefFailures } from '../inlineFeedback';
 import { usePlaybackActions } from '../playback';
 import { createThemedStyles, useColors } from '../theme';
 import { AlbumNavButton, AlbumPlaybackButtons, BrowseBackButton, type AlbumNavProps, type AlbumPlaybackProps } from './AlbumButtons';
-import { AlbumStatusBlur } from './AlbumStatusBlur';
 import { AlbumMetadata, type AlbumMetadataProps } from './AlbumMetadata';
 import { CollectionGridRow } from './BrowseControls';
 import { useDownloadControl } from './DownloadControl';
@@ -41,6 +40,8 @@ import { uniqueTracks } from './loadAll';
 import { useStartGuard } from './pending';
 import { underStatusBar, useRefreshControl } from './refresh';
 import { displayFontScale, secondaryFontScale } from '../fontScale';
+import { scrollEdgeFade } from '../edgeFade';
+import { ScrollEdge } from '../ScrollEdge';
 import { SongList, useSongListItems, type SongListProps } from './SongList';
 import { chunk, type SongListItems, type SongRowItem } from './rows';
 import { usePlayAll } from './usePlayAll';
@@ -104,8 +105,9 @@ function DetailPage({
     scrollOffset.value = event.contentOffset.y + inset;
     if (onEndReached && nearEnd(event)) scheduleOnRN(onEndReached);
   });
-  // Leave the gradient uninterrupted until the artwork approaches the status bar.
-  const blurStyle = useAnimatedStyle(() => ({
+  // Leave the gradient uninterrupted until the artwork approaches the status bar. Only the
+  // opacity changes as the page scrolls, on the UI thread; the edge itself is static.
+  const edgeStyle = useAnimatedStyle(() => ({
     opacity: interpolate(scrollOffset.value, [albumNavSize, albumNavSize + 20], [0, 1], Extrapolation.CLAMP),
   }));
   // Fill whatever shows above the header (the status bar inset, an overscroll) with its tint.
@@ -134,8 +136,8 @@ function DetailPage({
 
   return <View style={styles.page}>
     <Animated.View pointerEvents="none" style={[styles.overscrollFill, { backgroundColor: headerColor }, overscrollStyle]} />
-    <Animated.View pointerEvents="none" style={[styles.status, { height: top }, blurStyle]}>
-      <AlbumStatusBlur />
+    <Animated.View pointerEvents="none" style={[styles.status, { height: top + scrollEdgeFade }, edgeStyle]}>
+      <ScrollEdge solid={top} fade={scrollEdgeFade} />
     </Animated.View>
     {/* No title here: the header's own, an accessibility header, names the page for VoiceOver. */}
     <View pointerEvents="box-none" style={[styles.nav, { top: top + 6 }]}>
@@ -728,7 +730,8 @@ function CollectionGridPage({ title, detail, items, header, onBack, onRefresh, o
   const { width, fontScale } = useWindowDimensions();
   const collectionDim = useCollectionDim();
   const actionsFor = useCollectionActions();
-  const refreshControl = useRefreshControl(onRefresh);
+  const refreshControl = useRefreshControl(onRefresh, top);
+  const statusBar = underStatusBar(top);
   const columns = gridColumns(width, fontScale);
   const size = Math.floor((width - gutter * 2 - (columns - 1) * 12) / columns);
   const rows = useMemo(() => chunk(items.map(collectionDim), columns), [items, columns, collectionDim]);
@@ -736,11 +739,15 @@ function CollectionGridPage({ title, detail, items, header, onBack, onRefresh, o
     id: item.key, title: item.title, subtitle: item.subtitle, size, cover: <CollectionCover item={item} size={size} />, href: item.href, dim: item.dim,
     actions: actionsFor(item),
   }))} />, [actionsFor, size]);
-  return <View style={[styles.page, { paddingTop: top + 8 }]}>
-    <View style={styles.fallbackNav}><BrowseBackButton onPress={onBack} /></View>
+  // The tiles scroll on under the status bar and the floating back button, as on the other pages.
+  return <View style={styles.page}>
+    <ScrollEdge solid={top} fade={scrollEdgeFade} />
+    <View pointerEvents="box-none" style={[styles.nav, { top: top + 8 }]}><BrowseBackButton onPress={onBack} /></View>
     <FlatList data={rows} renderItem={renderRow} keyExtractor={gridRowKey} refreshControl={refreshControl}
       initialNumToRender={listBatch} maxToRenderPerBatch={listBatch} windowSize={listWindow}
-      contentContainerStyle={[styles.genreBody, { paddingBottom: bottomInset }]} showsVerticalScrollIndicator={false}
+      contentInsetAdjustmentBehavior="never" {...statusBar.props}
+      contentContainerStyle={[styles.genreBody, { paddingTop: statusBar.contentTop + 8 + albumNavSize, paddingBottom: bottomInset }]}
+      showsVerticalScrollIndicator={false}
       onEndReached={onEndReached} onEndReachedThreshold={1.5}
       ListHeaderComponent={<>
         {detail && <Text style={styles.gridDetail} numberOfLines={1}>{detail}</Text>}
