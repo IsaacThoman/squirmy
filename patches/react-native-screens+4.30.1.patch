@@ -1,5 +1,5 @@
 diff --git a/node_modules/react-native-screens/ios/RNSScreenStack.mm b/node_modules/react-native-screens/ios/RNSScreenStack.mm
-index 5da1196..acabf37 100644
+index 5da1196..b0eecc5 100644
 --- a/node_modules/react-native-screens/ios/RNSScreenStack.mm
 +++ b/node_modules/react-native-screens/ios/RNSScreenStack.mm
 @@ -662,6 +662,30 @@ - (void)setModalViewControllers:(NSArray<UIViewController *> *)controllers
@@ -65,7 +65,34 @@ index 5da1196..acabf37 100644
      }
  
      if ([self isInGestureResponseDistance:gestureRecognizer topScreen:topScreen]) {
-@@ -1142,6 +1166,57 @@ - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event
+@@ -998,7 +1022,26 @@ - (void)handleSwipe:(UIPanGestureRecognizer *)gestureRecognizer
+   switch (gestureRecognizer.state) {
+     case UIGestureRecognizerStateBegan: {
+       _interactionController = [RNSPercentDrivenInteractiveTransition new];
++      // Squirmy: a zoom can't follow a drag, so a page that zoomed open slides away under the finger instead.
++      // It keeps its zoom for the back button and the edge if the swipe is let go.
++      UIViewController *top = _controller.topViewController;
++      id zoom = nil;
++      if (@available(iOS 18, *)) {
++        zoom = top.preferredTransition;
++        top.preferredTransition = nil;
++      }
+       [_controller popViewControllerAnimated:YES];
++      if (zoom != nil) {
++        [_controller.transitionCoordinator
++            animateAlongsideTransition:nil
++                            completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
++                              if (@available(iOS 18, *)) {
++                                if (context.isCancelled && top.preferredTransition == nil) {
++                                  top.preferredTransition = zoom;
++                                }
++                              }
++                            }];
++      }
+       break;
+     }
+ 
+@@ -1142,6 +1185,60 @@ - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event
  
  #if !TARGET_OS_TV && !TARGET_OS_VISION
  
@@ -80,8 +107,11 @@ index 5da1196..acabf37 100644
 +  BOOL isRTL = _controller.view.semanticContentAttribute == UISemanticContentAttributeForceRightToLeft;
 +  CGPoint translation = [gestureRecognizer translationInView:view];
 +  CGPoint location = [gestureRecognizer locationInView:view];
-+  CGFloat towardBack = isRTL ? -translation.x : translation.x;
-+  if (towardBack <= 0 || fabs(translation.y) >= towardBack) {
++  // The pan begins past its own small threshold, so a slow drag can arrive with no translation yet: its
++  // velocity tells the direction then.
++  CGPoint direction = hypot(translation.x, translation.y) >= 2 ? translation : [gestureRecognizer velocityInView:view];
++  CGFloat towardBack = isRTL ? -direction.x : direction.x;
++  if (towardBack <= 0 || fabs(direction.y) >= towardBack) {
 +    return NO;
 +  }
 +  CGPoint start = CGPointMake(location.x - translation.x, location.y - translation.y);
@@ -123,7 +153,7 @@ index 5da1196..acabf37 100644
  - (BOOL)isScrollViewPanGestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
  {
    // NOTE: This hack is required to restore native behavior of edge swipe (interactive pop gesture)
-@@ -1192,13 +1267,14 @@ - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceive
+@@ -1192,13 +1289,14 @@ - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceive
      // On iOS 26, depending on whether custom animations are on, we select
      // either interactiveContentPopGestureRecognizer or RNSPanGestureRecognizer,
      // then we allow them to proceed iff full screen swipe is enabled.
@@ -142,7 +172,7 @@ index 5da1196..acabf37 100644
      }
    } else {
      // We want to pass events to RNSPanGestureRecognizer iff full screen swipe is enabled.
-@@ -1213,6 +1289,14 @@ - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceive
+@@ -1213,6 +1311,14 @@ - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceive
    }
  #endif // check for iOS >= 26
  
@@ -157,7 +187,7 @@ index 5da1196..acabf37 100644
    // RNSScreenEdgeGestureRecognizer || _UIParallaxTransitionPanGestureRecognizer
    return YES;
  }
-@@ -1251,6 +1335,11 @@ - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
+@@ -1251,6 +1357,11 @@ - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
  - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
      shouldRequireFailureOfGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer
  {
@@ -169,7 +199,7 @@ index 5da1196..acabf37 100644
    if (@available(iOS 26, *)) {
      if (gestureRecognizer == _controller.interactiveContentPopGestureRecognizer &&
          [self isScrollViewPanGestureRecognizer:otherGestureRecognizer]) {
-@@ -1280,6 +1369,13 @@ - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
+@@ -1280,6 +1391,13 @@ - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
    }
  #endif // check for iOS >= 26
  
