@@ -99,11 +99,7 @@ public class SystemVolumeModule: Module {
  * travels from where it started, as Apple Music's does.
  */
 class SystemVolumeView: ExpoView {
-  /** Track heights at rest and while dragging. */
-  static let restHeight: CGFloat = 6
-  static let activeHeight: CGFloat = 10
-
-  let volumeView = MPVolumeView(frame: .zero)
+  let volumeView = AlignedVolumeView(frame: .zero)
   private var dragging = false
   private var dragStart: Float = 0
 
@@ -116,12 +112,21 @@ class SystemVolumeView: ExpoView {
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
-    // The output picker sits beside the slider as its own view.
+    // Only the slider: choosing where the sound goes is in the device sheet.
     volumeView.showsRouteButton = false
     addSubview(volumeView)
     let pan = UIPanGestureRecognizer(target: self, action: #selector(drag(_:)))
     pan.maximumNumberOfTouches = 1
     addGestureRecognizer(pan)
+  }
+
+  /** Only a sideways drag moves the volume: one that goes up or down is swiping Now Playing away. */
+  override func gestureRecognizerShouldBegin(_ gesture: UIGestureRecognizer) -> Bool {
+    guard let pan = gesture as? UIPanGestureRecognizer else {
+      return super.gestureRecognizerShouldBegin(gesture)
+    }
+    let velocity = pan.velocity(in: self)
+    return abs(velocity.x) > abs(velocity.y)
   }
 
   override func layoutSubviews() {
@@ -170,26 +175,31 @@ class SystemVolumeView: ExpoView {
       return
     }
     styled = (tint, trackTint, dragging, slider)
-    let clear = SystemVolumeView.image(color: .clear, height: 1)
     for state: UIControl.State in [.normal, .highlighted, .selected, .disabled, [.highlighted, .selected]] {
-      volumeView.setVolumeThumbImage(clear, for: state)
+      volumeView.setVolumeThumbImage(SliderTrack.clearThumb, for: state)
     }
-    let height = dragging ? SystemVolumeView.activeHeight : SystemVolumeView.restHeight
-    volumeView.setMinimumVolumeSliderImage(SystemVolumeView.image(color: tint ?? .white, height: height), for: .normal)
-    volumeView.setMaximumVolumeSliderImage(SystemVolumeView.image(color: trackTint ?? .gray, height: height), for: .normal)
+    let height = dragging ? SliderTrack.activeHeight : SliderTrack.restHeight
+    volumeView.setMinimumVolumeSliderImage(SliderTrack.image(color: tint ?? .white, height: height, part: .filled), for: .normal)
+    volumeView.setMaximumVolumeSliderImage(SliderTrack.image(color: trackTint ?? .gray, height: height, part: .rest), for: .normal)
+    volumeView.setNeedsLayout()
   }
+}
 
-  /** A capsule `height` tall that stretches in width: the slider draws its track parts with these. */
-  static func image(color: UIColor, height: CGFloat) -> UIImage {
-    let width = max(height, 1) + 2
-    let format = UIGraphicsImageRendererFormat()
-    format.opaque = false
-    let image = UIGraphicsImageRenderer(size: CGSize(width: width, height: height), format: format).image { _ in
-      color.setFill()
-      UIBezierPath(roundedRect: CGRect(x: 0, y: 0, width: width, height: height), cornerRadius: height / 2).fill()
+/**
+ * A volume view whose track spans its bounds, centred, as the scrubber's does. Left alone, the
+ * volume view lays its slider out at the slider's own height from the top, so the track sits
+ * above the middle, and the slider insets its track from both ends.
+ */
+class AlignedVolumeView: MPVolumeView {
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    guard let slider = volumeSlider, bounds.width > 0 else {
+      return
     }
-    let cap = height / 2
-    return image.resizableImage(withCapInsets: UIEdgeInsets(top: 0, left: cap, bottom: 0, right: cap), resizingMode: .stretch)
+    let track = slider.trackRect(forBounds: CGRect(origin: .zero, size: bounds.size))
+    let leading = max(0, track.minX)
+    let trailing = max(0, bounds.width - track.maxX)
+    slider.frame = CGRect(x: bounds.minX - leading, y: bounds.minY, width: bounds.width + leading + trailing, height: bounds.height)
   }
 }
 

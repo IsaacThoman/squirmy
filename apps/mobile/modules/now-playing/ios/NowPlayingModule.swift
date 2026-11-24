@@ -1,4 +1,5 @@
 import AVFoundation
+import AVKit
 import ExpoModulesCore
 import MediaPlayer
 import UIKit
@@ -31,6 +32,8 @@ public class NowPlayingModule: Module {
   private var artwork: MPMediaItemArtwork?
   private var observers: [NSObjectProtocol] = []
   private var favorite = Favorite()
+  /** The system output picker, kept invisible in the view on top, whose button `showRoutePicker` presses. */
+  private var routePicker: AVRoutePickerView?
   private var backgroundTask: UIBackgroundTaskIdentifier = .invalid
 
   public func definition() -> ModuleDefinition {
@@ -51,14 +54,30 @@ public class NowPlayingModule: Module {
       ]
     }
 
-    View(RoutePickerView.self) {
-      Prop("tint") { (view: RoutePickerView, color: UIColor?) in
-        view.picker.tintColor = color
+    View(SliderBarView.self) {
+      Prop("value") { (view: SliderBarView, value: Double) in
+        view.value = Float(min(1, max(0, value)))
       }
-      Prop("activeTint") { (view: RoutePickerView, color: UIColor?) in
-        view.picker.activeTintColor = color
+      Prop("stretch") { (view: SliderBarView, stretch: Double) in
+        view.stretch = CGFloat(stretch)
+      }
+      Prop("active") { (view: SliderBarView, active: Bool) in
+        view.active = active
+      }
+      Prop("tint") { (view: SliderBarView, color: UIColor?) in
+        view.tint = color
+      }
+      Prop("trackTint") { (view: SliderBarView, color: UIColor?) in
+        view.trackTint = color
       }
     }
+
+    // Squirmy's device list chooses which device plays; this chooses where this phone's own
+    // sound goes: AirPlay, Bluetooth or the speaker. The system's picker opens from its own
+    // button, so the button is pressed for it.
+    AsyncFunction("showRoutePicker") {
+      self.showRoutePicker()
+    }.runOnQueue(.main)
 
     AsyncFunction("setItem") { (item: NowPlayingItem) in
       self.enableCommands()
@@ -120,9 +139,50 @@ public class NowPlayingModule: Module {
       self.observers.removeAll()
       DispatchQueue.main.async {
         self.clear()
+        self.routePicker?.removeFromSuperview()
+        self.routePicker = nil
         self.endBackgroundTime()
       }
     }
+  }
+
+  private func showRoutePicker() {
+    guard let window = UIApplication.shared.connectedScenes
+      .compactMap({ ($0 as? UIWindowScene)?.keyWindow }).first,
+      var top = window.rootViewController
+    else {
+      return
+    }
+    // The picker presents from the controller its view is in, so it goes in the one on top,
+    // such as the device sheet that asked for it.
+    while let presented = top.presentedViewController, !presented.isBeingDismissed {
+      top = presented
+    }
+    let host = top.view ?? window
+    let picker = routePicker ?? AVRoutePickerView()
+    picker.prioritizesVideoDevices = false
+    picker.alpha = 0.01
+    picker.isAccessibilityElement = false
+    picker.accessibilityElementsHidden = true
+    // Low in the middle, so the picker's popover points somewhere sensible.
+    picker.frame = CGRect(x: host.bounds.midX - 22, y: host.bounds.maxY - host.safeAreaInsets.bottom - 88, width: 44, height: 44)
+    if picker.superview !== host {
+      picker.removeFromSuperview()
+      host.addSubview(picker)
+    }
+    routePicker = picker
+    picker.layoutIfNeeded()
+    let button = NowPlayingModule.button(in: picker)
+    button?.sendActions(for: .touchUpInside)
+  }
+
+  private static func button(in view: UIView) -> UIButton? {
+    for subview in view.subviews {
+      if let button = subview as? UIButton ?? button(in: subview) {
+        return button
+      }
+    }
+    return nil
   }
 
   private func interruption(_ note: Notification) {
