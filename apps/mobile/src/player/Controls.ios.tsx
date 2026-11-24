@@ -8,10 +8,13 @@ import { IconButton, Symbol, TrackMenu, hitShape, plainButton } from '../native/
 import type { DeviceButtonProps, LyricButtonProps, PlayerButtonProps, TrackMenuButtonProps } from './Controls';
 import { useColors } from '../theme';
 
+// The heart and menu buttons ignore the safe area: inside the iOS queue's scroll view, where
+// the song playing rides with the page, its insets pushed their symbols out of the 44 pt frame
+// at accessibility text sizes.
 export function PlayerButton({ icon, label, size, color, onPress, style, selected, busy }: PlayerButtonProps) {
   const colors = useColors();
   const { width = 44, height = 44 } = StyleSheet.flatten(style) ?? {};
-  return <Host style={[styles.icon, style]}>
+  return <Host ignoreSafeArea="container" style={[styles.icon, style]}>
     <IconButton symbol={icon} label={label} size={size} color={color ?? colors.text} onPress={onPress} selected={selected} busy={busy}
       width={Number(width)} height={Number(height)} />
   </Host>;
@@ -30,7 +33,7 @@ export function CollapseButton({ onPress }: { onPress: () => void }) {
 
 export function TrackMenuButton({ track }: TrackMenuButtonProps) {
   const colors = useColors();
-  return <Host style={styles.icon}><TrackMenu track={track} label="Song options" color={colors.text} /></Host>;
+  return <Host ignoreSafeArea="container" style={styles.icon}><TrackMenu track={track} label="Song options" color={colors.text} /></Host>;
 }
 
 export function DeviceButton({ icon, name, highlighted, onPress }: DeviceButtonProps) {
