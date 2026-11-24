@@ -245,10 +245,16 @@ describe('sessions', () => {
     const state = await a.state(1)
     // The four arrive in order on one socket, but not necessarily in one read: wait for the
     // last of them before checking the order.
-    const fromAck = () => a.log.slice(a.log.findIndex(([event]) => event === 'ack')).map(([event, payload]) => ({ event, payload }))
-    await eventually(() => fromAck().map(({ event }) => event), (events) => expect(events).toContain('devices'))
+    // Starting an album is also a play of it, so the Library's All is invalidated: on the
+    // user's own channel, and only after the session's broadcast, never between its events.
+    const all = () => a.log.slice(a.log.findIndex(([event]) => event === 'ack')).map(([event, payload]) => ({ event, payload }))
+    const fromAck = () => all().filter(({ event }) => event !== 'invalidate')
+    await eventually(() => all().map(({ event }) => event), (events) => expect(events).toEqual(expect.arrayContaining(['devices', 'invalidate'])))
     expect(fromAck().map(({ event }) => event)).toEqual(['ack', 'session:queue', 'session:state', 'devices'])
     expect(fromAck()[1]!.payload).toMatchObject({ version: 1, queueVersion: 1 })
+    const events = all().map(({ event }) => event)
+    expect(events.indexOf('invalidate')).toBeGreaterThan(events.indexOf('session:state'))
+    expect(all().find(({ event }) => event === 'invalidate')!.payload).toEqual({ keys: [['library', 'items']] })
     expect(state).toMatchObject({ playing: true, activeDeviceId: 'device-a-0002', current: { id: 'play-1.0', trackId: album.tracks[0]!.recordingId } })
     expect(a.lastDevices().find((item) => item.isActive)?.id).toBe('device-a-0002')
 
