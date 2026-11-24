@@ -1,9 +1,11 @@
 import { useRouter } from 'expo-router';
+import { useRef } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
-import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
+import { GestureDetector, useCompetingGestures, usePanGesture } from 'react-native-gesture-handler';
 import { measure, useAnimatedRef, useReducedMotion, useSharedValue } from 'react-native-reanimated';
-import { scheduleOnUI } from 'react-native-worklets';
+import { scheduleOnRN, scheduleOnUI } from 'react-native-worklets';
 import { MiniPlayerContent, type MiniPlayerContentProps } from './player/MiniPlayerContent';
+import { useSkipSwipe } from './player/SwipeTitles';
 import { grab, miniCoverSize, present, settle, travel, usePlayerTransition } from './player/transition';
 
 export { MiniPlayerContent };
@@ -33,14 +35,27 @@ export function MiniPlayer({ compact = false, native = false }: Pick<MiniPlayerC
     settle(motion, true);
   };
   const open = () => scheduleOnUI(expand);
+  // A touch that became a pull or a swipe is not also a tap on the bubble.
+  const moved = useRef(false);
+  const markMoved = () => { moved.current = true; };
+  const resetMoved = () => { moved.current = false; };
+  const tap = () => {
+    if (!moved.current) open();
+  };
+  const swipe = useSkipSwipe(motion, markMoved);
 
   const pullUp = usePanGesture({
     activeOffsetY: -8,
     failOffsetY: 10,
     failOffsetX: [-16, 16],
     maxPointers: 1,
+    onBegin: () => {
+      'worklet';
+      scheduleOnRN(resetMoved);
+    },
     onActivate: (event) => {
       'worklet';
+      scheduleOnRN(markMoved);
       if (reduceMotion || motion.expanding.value) return;
       if (!motion.active.value) {
         const frame = locate();
@@ -90,10 +105,13 @@ export function MiniPlayer({ compact = false, native = false }: Pick<MiniPlayerC
     });
   };
 
-  return <GestureDetector gesture={pullUp} touchAction="none">
+  // Up opens Now Playing, sideways changes the song: whichever the finger commits to first.
+  const gesture = useCompetingGestures(pullUp, swipe.gesture);
+
+  return <GestureDetector gesture={gesture} touchAction="none">
     <View collapsable={false} style={styles.gestureArea} onLayout={onLayout}>
       <MiniPlayerContent compact={compact} native={native} containerRef={bubble}
-        onOpen={open} onDevices={() => router.push('/devices')} />
+        swipe={swipe} onOpen={tap} onDevices={() => router.push('/devices')} />
     </View>
   </GestureDetector>;
 }

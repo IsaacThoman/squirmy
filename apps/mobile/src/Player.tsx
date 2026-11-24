@@ -37,6 +37,7 @@ import { CollapseButton, DeviceButton, LyricButton, PlayerButton, TrackLinksMenu
 import { selectionFeedback } from './player/design';
 import { metadataHeight as metadataHeightFor, rhythm as rhythmFor, type Rhythm } from './player/layout';
 import { seekLanded } from './player/scrub';
+import { skipCommits } from './player/skipSwipe';
 import { displayFontScale, secondaryFontScale } from './fontScale';
 import { createThemedStyles, useColors } from './theme';
 
@@ -184,9 +185,7 @@ export default function Player() {
       if (motion.expanding.value) trackDrag.value = Math.max(-48, Math.min(48, event.translationX * 0.32));
     },
     onDeactivate: (event) => {
-      const distance = Math.abs(event.translationX);
-      if (motion.expanding.value && !event.canceled &&
-        (distance > 60 || (distance > 20 && Math.abs(event.velocityX) > 720))) {
+      if (motion.expanding.value && !event.canceled && skipCommits(event.translationX, event.velocityX)) {
         scheduleOnRN(skipTrack, event.translationX);
       }
       trackDrag.value = withSpring(0, { damping: 25, stiffness: 280 });
