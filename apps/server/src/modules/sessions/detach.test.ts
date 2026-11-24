@@ -29,9 +29,9 @@ type Logged = [event: string, payload: unknown]
 async function eventually<T>(read: () => T | Promise<T>, check: (value: T) => void, timeoutMs = 5000): Promise<void> {
   const deadline = performance.now() + timeoutMs
   for (;;) {
-    const value = await read()
     try {
-      check(value)
+      // `read` may throw too: a socket's first event of a kind can land a read after the one waited on.
+      check(await read())
       return
     } catch (error) {
       if (performance.now() > deadline) throw error

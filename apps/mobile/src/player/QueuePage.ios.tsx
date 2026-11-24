@@ -7,7 +7,8 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 import { Alert, StyleSheet, useWindowDimensions, View, type LayoutRectangle } from 'react-native';
 import Animated, {
-  useAnimatedRef, useAnimatedScrollHandler, useAnimatedStyle, useDerivedValue, useReducedMotion, useSharedValue, type SharedValue,
+  useAnimatedReaction, useAnimatedRef, useAnimatedScrollHandler, useAnimatedStyle, useDerivedValue, useReducedMotion, useSharedValue,
+  type SharedValue,
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { contextLabel } from '@squirmy/client-core';
@@ -21,7 +22,7 @@ import { Symbol, TrackActionsMenu, TrackCover, hitShape, plainButton } from '../
 import { useCurrentTrackState, usePlaybackActions, usePlaybackState, type QueueEntry } from '../playback';
 import type { QueueProps } from './QueuePage';
 import { selectionFeedback } from './design';
-import { clipInset, pushedOpacity, restingStop, snapStops, stickyShift, type Band } from './queueScroll';
+import { clipInset, pushedOpacity, restingStop, rowWindow, snapStops, stickyShift, type Band, type RowWindow } from './queueScroll';
 import { pendingQueueRow, queuedEntryActions, queuedEntryCommand, queueRow, upNextDetail, upNextTitle, type QueuePosition } from './session';
 import { isAccessibilitySize } from '../fontScale';
 import { unavailableOpacity, useColors } from '../theme';
@@ -38,6 +39,15 @@ const headingTextLimit = dynamicTypeSize({ max: 'xxxLarge' });
 const headingHeight = 44;
 /** Up next shows this many entries at first, and this many more each time more are asked for. */
 const upNextPage = 100;
+/**
+ * Only the rows near the part of the page in view are laid out (`rowWindow`): every row is a
+ * SwiftUI row with a React Native cover, and every Fabric commit, one per frame of any animation,
+ * walks each mounted view of a scroll view. The window takes in half a screen above and below the
+ * view, more than the page scrolls between two moves of the window, which moves on whole chunks of
+ * rows at most once every `windowStep` points scrolled.
+ */
+const windowStep = 240;
+const windowChunk = 8;
 const rowModifiers = [
   listRowInsets({ top: 0, bottom: 0, leading: 0, trailing: 0 }),
   listRowBackground('clear'),
@@ -54,9 +64,9 @@ const reordering = environment({ key: 'editMode', value: 'active' });
 
 /**
  * The lists sit inside the page's scroll view, so each is exactly as tall as its rows, and rows
- * grow with the text: each reports its height, and the list is sized to their sum. Until a row
- * has reported it is counted generously, so every row is laid out and measured on the first
- * pass (a row below the list's bottom edge would never be).
+ * grow with the text: each reports its height once laid out, and the list is sized to their sum.
+ * Until a row has reported it is counted generously, so a row is never cut off by the list's
+ * bottom edge.
  */
 function useRowHeights() {
   const { fontScale } = useWindowDimensions();
@@ -69,9 +79,14 @@ function useRowHeights() {
   const measure = useCallback((id: string, height: number) => {
     setHeights(current => Math.abs((current[id] ?? -1) - height) < 0.5 ? current : { ...current, [id]: height });
   }, []);
-  const total = (entries: readonly QueueEntry[]) => Math.ceil(entries.reduce((sum, entry) => sum + (heights[entry.id] ?? estimate), 0));
-  return { floor, measure, total };
+  const heightsOf = (entries: readonly QueueEntry[]) => entries.map(entry => heights[entry.id] ?? estimate);
+  const total = (entries: readonly QueueEntry[]) => Math.ceil(heightsOf(entries).reduce((sum, height) => sum + height, 0));
+  return { floor, measure, total, heightsOf };
 }
+
+type RowHeights = ReturnType<typeof useRowHeights>;
+/** The lists whose rows are laid out only near the view. */
+type ListKey = 'historyRows' | 'upNextRows' | 'autoplayRows';
 
 const headingFont = font({ textStyle: 'headline', weight: 'semibold' });
 const detailFont = font({ textStyle: 'footnote' });
@@ -115,6 +130,9 @@ export default function QueuePage({ selected = true, nowPlaying, nowPlayingShift
   const { session, queue, actions } = usePlaybackState();
   const { history } = queue;
   const historyRows = useRowHeights();
+  const upNextRows = useRowHeights();
+  const autoplayRows = useRowHeights();
+  const { height: screenHeight } = useWindowDimensions();
   const reduceMotion = useReducedMotion();
   const scroll = useAnimatedRef<Animated.ScrollView>();
   // Until the page is laid out, the song playing is expected below the history at its estimated height.
@@ -124,6 +142,12 @@ export default function QueuePage({ selected = true, nowPlaying, nowPlayingShift
   const scrollY = useSharedValue(estimatedHome.current);
   const bands = useSharedValue<Bands>({});
   const measured = useRef<Bands>({});
+  // Where each list starts in the page, and which stretch of it is in view, for the rows laid out.
+  const [listTops, setListTops] = useState<Partial<Record<ListKey, number>>>({});
+  const [viewChunk, setViewChunk] = useState(() => Math.floor(estimatedHome.current / windowStep));
+  useAnimatedReaction(() => Math.floor(scrollY.value / windowStep), (now, before) => {
+    if (before !== null && now !== before) scheduleOnRN(setViewChunk, now);
+  });
   const placed = useRef(false);
   const [viewport, setViewport] = useState(0);
   const [upNextShown, setUpNextShown] = useState(upNextPage);
@@ -132,6 +156,14 @@ export default function QueuePage({ selected = true, nowPlaying, nowPlayingShift
   const hidden = queue.queue.length - upNext.length;
   const context = contextLabel(session.context);
   const stops = snapStops(history.length ? home : 0, viewport);
+  // Until a list has been laid out, it is taken to start about where it will.
+  const view = viewport || screenHeight;
+  const viewTop = viewChunk * windowStep;
+  const windowOf = (key: ListKey, heights: number[], expectedTop: number) =>
+    rowWindow(heights, listTops[key] ?? expectedTop, viewTop, viewTop + view + windowStep, view / 2, windowChunk);
+  const historyWindow = windowOf('historyRows', historyRows.heightsOf(history), headingHeight);
+  const upNextWindow = windowOf('upNextRows', upNextRows.heightsOf(upNext), home + 160);
+  const autoplayWindow = windowOf('autoplayRows', autoplayRows.heightsOf(queue.autoplayQueue), home + 220 + upNextRows.total(upNext));
 
   const jump = useCallback((y: number) => {
     scrollY.set(y);
@@ -144,6 +176,9 @@ export default function QueuePage({ selected = true, nowPlaying, nowPlayingShift
     if (before && Math.abs(before.y - y) < 0.5 && Math.abs(before.height - height) < 0.5) return;
     measured.current = { ...measured.current, [key]: { y, height } };
     bands.set(measured.current);
+    if (key === 'historyRows' || key === 'upNextRows' || key === 'autoplayRows') {
+      setListTops(tops => Math.abs((tops[key] ?? -1) - y) < 0.5 ? tops : { ...tops, [key]: y });
+    }
     if (key !== 'now') return;
     // The history grows above what is on screen as songs finish; the view keeps its place. The
     // first time, the page is put on the song playing.
@@ -204,13 +239,13 @@ export default function QueuePage({ selected = true, nowPlaying, nowPlayingShift
           </QueueBand>
         </Sticky>
         <Clipped band="historyRows" under={pins.history} scrolling={scrolling}>
-          <Host ignoreSafeArea="container" style={[styles.list, { height: historyRows.total(history) }]}>
+          <Windowed height={historyRows.total(history)} window={historyWindow}>
             <List modifiers={listModifiers}>
-              {history.map(entry => <VStack key={entry.id} modifiers={rowModifiers}>
+              {history.slice(historyWindow.start, historyWindow.end).map(entry => <VStack key={entry.id} modifiers={rowModifiers}>
                 <QueueTrack entry={entry} handlers={historyHandlers} minHeight={historyRows.floor} onHeight={historyRows.measure} />
               </VStack>)}
             </List>
-          </Host>
+          </Windowed>
         </Clipped>
       </>}
       <View onLayout={({ nativeEvent }) => onBand('now', nativeEvent.layout)}>{nowPlaying}</View>
@@ -228,7 +263,7 @@ export default function QueuePage({ selected = true, nowPlaying, nowPlayingShift
         <QueueHeading title={upNextTitle(context, queue.queue)} detail={upNextDetail(context, queue.queue) ?? 'Songs you queue appear here.'} />
       </Sticky>
       <Clipped band="upNextRows" under={pins.upNext} scrolling={scrolling}>
-        {queue.queue.length > 0 && <QueueRows entries={upNext} total={queue.queue.length} />}
+        {queue.queue.length > 0 && <QueueRows entries={upNext} total={queue.queue.length} rows={upNextRows} window={upNextWindow} />}
         {hidden > 0 && <QueueBand height={44}>
           <TextButton label={`Show ${Math.min(upNextPage, hidden)} more`} color={colors.accent} onPress={() => setUpNextShown(shown => shown + upNextPage)} />
         </QueueBand>}
@@ -238,7 +273,7 @@ export default function QueuePage({ selected = true, nowPlaying, nowPlayingShift
           detail={session.autoplay ? 'Similar music will keep playing' : 'Turn on Autoplay to keep listening'} />
       </Sticky>
       <Clipped band="autoplayRows" under={pins.autoplay} scrolling={scrolling}>
-        {session.autoplay && <QueueRows entries={queue.autoplayQueue} autoplay />}
+        {session.autoplay && <QueueRows entries={queue.autoplayQueue} autoplay rows={autoplayRows} window={autoplayWindow} />}
       </Clipped>
     </Animated.ScrollView>
   </View>;
@@ -284,6 +319,15 @@ function Clipped({ band, under, scrolling: { bands, scrollY, onBand }, children 
     style={[styles.clip, frameStyle]}>
     <Animated.View style={contentStyle}>{children}</Animated.View>
   </Animated.View>;
+}
+
+/** A list's rows near the view (`window`), at their place in a frame as tall as all of its rows. */
+function Windowed({ height, window, children }: { height: number; window: RowWindow; children: ReactNode }) {
+  return <View style={[styles.list, { height }]}>
+    {window.end > window.start && <Host ignoreSafeArea="container" style={[styles.window, { top: window.above, bottom: window.below }]}>
+      {children}
+    </Host>}
+  </View>;
 }
 
 /** A heading or note between the lists, at least `height` tall and taller when its text needs it. */
@@ -365,15 +409,17 @@ function useQueueHandlers(history: boolean): QueueHandlers {
   }), [actions, history, run]);
 }
 
-function QueueRows({ entries, total = entries.length, autoplay = false }: {
-  entries: readonly QueueEntry[]; total?: number; autoplay?: boolean;
+function QueueRows({ entries, total = entries.length, autoplay = false, rows, window }: {
+  entries: readonly QueueEntry[]; total?: number; autoplay?: boolean; rows: RowHeights; window: RowWindow;
 }) {
   const actions = usePlaybackActions();
   const handlers = useQueueHandlers(false);
-  const rows = useRowHeights();
   if (!entries.length) return null;
 
-  const onMove = ([source]: number[], destination: number) => {
+  // The list holds the window's rows, so its indexes count from the window's first row.
+  const onMove = ([moved]: number[], to: number) => {
+    const source = moved + window.start;
+    const destination = to + window.start;
     const entry = entries[source];
     if (!entry) return;
     const index = destination > source ? destination - 1 : destination;
@@ -383,17 +429,17 @@ function QueueRows({ entries, total = entries.length, autoplay = false }: {
     }
   };
 
-  return <Host ignoreSafeArea="container" style={[styles.list, { height: rows.total(entries) }]}>
+  return <Windowed height={rows.total(entries)} window={window}>
     <List modifiers={[...listModifiers, reordering]}>
-      <List.ForEach data={entries} keyExtractor={entry => entry.id} recycling={false}
+      <List.ForEach data={entries.slice(window.start, window.end)} keyExtractor={entry => entry.id} recycling={false}
         onMove={entries.length > 1 ? onMove : undefined}>
         {({ item, index }) => <VStack modifiers={rowModifiers}>
-          <QueueTrack entry={item} handlers={handlers} position={{ index, total, autoplay }}
+          <QueueTrack entry={item} handlers={handlers} position={{ index: index + window.start, total, autoplay }}
             minHeight={rows.floor} onHeight={rows.measure} />
         </VStack>}
       </List.ForEach>
     </List>
-  </Host>;
+  </Windowed>;
 }
 
 type QueueTrackProps = {
@@ -473,6 +519,7 @@ const styles = StyleSheet.create({
   page: { flex: 1 },
   band: { marginHorizontal: 24 },
   list: { marginHorizontal: 24 },
+  window: { position: 'absolute', left: 0, right: 0 },
   sticky: { zIndex: 1 },
   toggles: { zIndex: 2 },
   clip: { overflow: 'hidden' },
