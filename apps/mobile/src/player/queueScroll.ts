@@ -65,3 +65,39 @@ export function restingStop(offset: number, stops: readonly number[]): number | 
   if (offset <= first || offset >= last) return null;
   return offset - first < last - offset ? first : last;
 }
+
+/** The rows of a list that are laid out, and the room the rows before and after them take. */
+export type RowWindow = { start: number; end: number; above: number; below: number };
+
+/**
+ * Which rows of a list to lay out: those within `margin` of the part of the page in view
+ * (`viewTop` to `viewBottom`), for a list starting at `top` whose rows are `heights` tall. The
+ * window is widened to whole `chunk`s of rows, so it changes only every so often as the page
+ * scrolls. A list wholly out of reach lays out no rows; the room the others take keeps its
+ * height, so the page around it does not move.
+ */
+export function rowWindow(heights: readonly number[], top: number, viewTop: number, viewBottom: number, margin: number, chunk = 8): RowWindow {
+  const from = viewTop - margin;
+  const to = viewBottom + margin;
+  let start = heights.length;
+  let end = 0;
+  let y = top;
+  for (let index = 0; index < heights.length; index++) {
+    const bottom = y + heights[index]!;
+    if (bottom > from && y < to) {
+      start = Math.min(start, index);
+      end = index + 1;
+    }
+    y = bottom;
+  }
+  if (end <= start) return { start: 0, end: 0, above: 0, below: y - top };
+  start = Math.floor(start / chunk) * chunk;
+  end = Math.min(heights.length, Math.ceil(end / chunk) * chunk);
+  let above = 0;
+  let below = 0;
+  heights.forEach((height, index) => {
+    if (index < start) above += height;
+    else if (index >= end) below += height;
+  });
+  return { start, end, above, below };
+}

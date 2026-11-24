@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clipInset, pushedOpacity, restingStop, snapStops, stickyShift } from './queueScroll';
+import { clipInset, pushedOpacity, restingStop, rowWindow, snapStops, stickyShift } from './queueScroll';
 
 describe('stickyShift', () => {
   const heading = { y: 500, height: 60 };
@@ -80,5 +80,39 @@ describe('restingStop', () => {
     expect(restingStop(200, stops)).toBeNull();
     expect(restingStop(2000, stops)).toBeNull();
     expect(restingStop(1700, [])).toBeNull();
+  });
+});
+
+describe('rowWindow', () => {
+  const rows = (count: number, height = 56) => Array.from({ length: count }, () => height);
+
+  it('lays out the rows within a margin of the view, in whole chunks, and keeps the room of the rest', () => {
+    // 100 rows from 2000; the view shows 2500 to 3300, so rows 7 to 24 are in reach with a 100 pt
+    // margin, and whole chunks of 8 make that rows 0 to 31.
+    expect(rowWindow(rows(100), 2000, 2500, 3300, 100, 8)).toEqual({ start: 0, end: 32, above: 0, below: 68 * 56 });
+    // Further down, rows 23 to 41 are in reach: rows 16 to 47.
+    expect(rowWindow(rows(100), 2000, 3400, 4200, 100, 8)).toEqual({ start: 16, end: 48, above: 16 * 56, below: 52 * 56 });
+  });
+
+  it('keeps the list its full height whatever the window', () => {
+    const heights = [56, 80, 56, 120, 56, 56, 90, 56, 56, 56, 56, 56];
+    const { start, end, above, below } = rowWindow(heights, 0, 150, 260, 0, 2);
+    const inside = heights.slice(start, end).reduce((sum, height) => sum + height, 0);
+    expect(above + inside + below).toBe(heights.reduce((sum, height) => sum + height, 0));
+    expect(start).toBe(2);
+    expect(end).toBe(4);
+  });
+
+  it('lays out no rows of a list out of reach above or below', () => {
+    expect(rowWindow(rows(10), 5000, 0, 800, 800)).toEqual({ start: 0, end: 0, above: 0, below: 560 });
+    expect(rowWindow(rows(10), 0, 5000, 5800, 800)).toEqual({ start: 0, end: 0, above: 0, below: 560 });
+  });
+
+  it('does not run past the last row', () => {
+    expect(rowWindow(rows(10), 0, 300, 1100, 100, 8)).toEqual({ start: 0, end: 10, above: 0, below: 0 });
+  });
+
+  it('is empty for an empty list', () => {
+    expect(rowWindow([], 0, 0, 800, 800)).toEqual({ start: 0, end: 0, above: 0, below: 0 });
   });
 });
