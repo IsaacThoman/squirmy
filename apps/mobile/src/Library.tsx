@@ -1,6 +1,5 @@
 import { albumPresentation, librarySave, searchContext, searchFilters, searchItemKey, searchQueue, type SearchFilter, type SearchItem } from '@squirmy/client-core';
 import { queryKeys, type AlbumSummary, type HomeSection, type LibraryItem, type TrackSummary } from '@squirmy/contracts';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRouter, type Href } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
@@ -29,7 +28,9 @@ import { listSort, sortFor, sortOptions, sortsFor, type SortChoices } from './li
 import type { Page } from './library/links';
 import { useAlbumPlayer, useCollectionActions } from './library/collectionActions';
 import { underStatusBar, useRefreshControl } from './library/refresh';
+import { scrollEdgeFade } from './edgeFade';
 import { displayFontScale, isAccessibilitySize } from './fontScale';
+import { ScrollEdge } from './ScrollEdge';
 import {
   albumCollection, albumTypeLabels, artistCollection, CollectionCover, CollectionRail, EmptyState, FailureLine, gridColumns, gutter, largeTextScale, likedCollection, matches,
   OfflineBadge, playlistCollection, QueryState, SectionTitle, tapFeedback, useCollectionDim, type Collection,
@@ -99,7 +100,6 @@ function useTabRetap(onRetap: () => void) {
 }
 
 export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAccount, bottomInset = 155 }: BrowseProps) {
-  const colors = useColors();
   const styles = useStyles();
   const { top } = useSafeAreaInsets();
   const { state } = useAccount();
@@ -128,12 +128,13 @@ export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAcc
         description={`Add music to a library folder on ${serverName}. It shows up here as soon as it has been scanned.`} />}
       {sections.map(section => <HomeRail key={section.id} section={section} link={link} onOpen={onOpen} onTrackMenu={onTrackMenu} />)}
     </ScrollView>
-    <LinearGradient pointerEvents="none" colors={[colors.background, colors.background, `${colors.background}00`]}
-      locations={[0, top / (top + 14), 1]} style={[styles.statusFade, { height: top + 14 }]} />
+    <ScrollEdge solid={top} fade={scrollEdgeFade} />
   </View>;
 }
 
 const filters = ['All', 'Playlists', 'Albums', 'Artists', 'Songs'] as const;
+/** The soft edge where a list meets the title and chips pinned above it. */
+const underChips = 12;
 /** A tap on a song plays it and this many after it. */
 const songsAfter = 300;
 type LibraryFilter = (typeof filters)[number];
@@ -309,12 +310,14 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
     <View style={styles.filters}>
       <LibraryFilters options={filters} value={filter} onChange={value => { tapFeedback(); setFilter(value); }} />
     </View>
+    {/* Rows scrolling up soften into the chips rather than being cut off under them. */}
+    <View style={styles.flex}><ScrollEdge solid={0} fade={underChips} />
     <FlatList ref={list} key={mode} data={rows} renderItem={renderRow} keyExtractor={libraryRowKey}
       refreshControl={refreshControl}
       initialNumToRender={libraryBatch} maxToRenderPerBatch={libraryBatch} windowSize={libraryWindow}
       keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
       onEndReached={loadMore} onEndReachedThreshold={1.5}
-      contentContainerStyle={[styles.libraryBody, { paddingBottom: bottomInset }]} showsVerticalScrollIndicator={false}
+      contentContainerStyle={[styles.libraryBody, styles.belowChips, { paddingBottom: bottomInset }]} showsVerticalScrollIndicator={false}
       ListHeaderComponent={<>
         <View style={styles.sortRow}>
           {/* Matches from the server come best first, whatever the sort. */}
@@ -338,7 +341,7 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
       ListFooterComponent={<>
         {(searching ? found.pending && !empty : listed.isFetchingNextPage) && <ActivityIndicator style={styles.more} />}
         {capped && <Text style={styles.matchNote}>Showing the best {libraryMatchLimit} matches. Type more to narrow them down.</Text>}
-      </>} />
+      </>} /></View>
   </View>;
 }
 
@@ -527,17 +530,18 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
       {active && list.pending && !offline && <ActivityIndicator color={colors.muted} />}
       <OfflineBadge />
     </View>
-    <View style={styles.searchHeader}><SearchField inputRef={searchInput} value={query} onChange={setQuery} placeholder="Songs, albums, artists, playlists" /></View>
+    <View style={[styles.searchHeader, active && styles.searchHeaderOverChips]}><SearchField inputRef={searchInput} value={query} onChange={setQuery} placeholder="Songs, albums, artists, playlists" /></View>
     {/* Fixed above the list, as the Library's are, so a filter is a tap away however far down the results go. */}
     {active && <View style={styles.searchFilters}>
       <LibraryFilters options={searchFilterOptions} value={searchFilterLabels[filter]} onChange={label => { tapFeedback(); setFilter(filterOf(label)); }} />
     </View>}
+    <View style={styles.flex}><ScrollEdge solid={0} fade={underChips} />
     <FlatList data={offline && active ? [] : rows} renderItem={renderRow} keyExtractor={searchRowKey}
       refreshControl={refreshControl} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
       onEndReached={active ? list.loadMore : undefined} onEndReachedThreshold={1.5}
       style={list.stale && styles.stale}
-      contentContainerStyle={[styles.searchBody, { paddingBottom: bottomInset }]} showsVerticalScrollIndicator={false}
-      ListHeaderComponent={header} ListFooterComponent={footer} />
+      contentContainerStyle={[styles.searchBody, active ? styles.belowSearchChips : styles.belowSearchField, { paddingBottom: bottomInset }]}
+      showsVerticalScrollIndicator={false} ListHeaderComponent={header} ListFooterComponent={footer} /></View>
   </View>;
 }
 
@@ -549,9 +553,12 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   pageTitle: { color: colors.text, fontSize: 37, letterSpacing: -1.65, fontWeight: '800' },
   pageHeader: { marginHorizontal: gutter, flexDirection: 'row', alignItems: 'center', minHeight: 48, gap: 12 },
   homeSection: { marginTop: 26 },
-  statusFade: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1 },
   librarySearch: { paddingHorizontal: gutter, paddingTop: 11 },
-  filters: { paddingHorizontal: gutter, marginTop: 13, marginBottom: 10 },
+  filters: { paddingHorizontal: gutter, marginTop: 13 },
+  // The space under the pinned header is the list's own, so its soft edge lies over nothing at rest.
+  belowChips: { paddingTop: 10 },
+  belowSearchChips: { paddingTop: 8 },
+  belowSearchField: { paddingTop: 12 },
   libraryBody: { paddingHorizontal: gutter },
   sortRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 43, marginBottom: 4 },
   songs: { marginHorizontal: -4 },
@@ -559,8 +566,9 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   more: { marginVertical: 20 },
   matchNote: { color: colors.quiet, fontSize: 13, textAlign: 'center', marginVertical: 18, marginHorizontal: 12 },
   searching: { paddingVertical: 48, alignItems: 'center' },
-  searchHeader: { marginHorizontal: gutter, marginTop: 13, marginBottom: 12 },
-  searchFilters: { marginHorizontal: gutter, marginBottom: 8 },
+  searchHeader: { marginHorizontal: gutter, marginTop: 13 },
+  searchHeaderOverChips: { marginBottom: 12 },
+  searchFilters: { marginHorizontal: gutter },
   searchBody: { paddingHorizontal: gutter },
   searchGenres: { marginTop: 22, marginHorizontal: -gutter },
   genres: { paddingHorizontal: gutter },
