@@ -1,10 +1,9 @@
 import { albumPresentation, librarySave, searchContext, searchFilters, searchItemKey, searchQueue, type SearchFilter, type SearchItem } from '@squirmy/client-core';
-import { queryKeys, type AlbumSummary, type HomeSection, type LibraryItem, type TrackSummary } from '@squirmy/contracts';
+import { type AlbumSummary, type HomeSection, type LibraryItem, type TrackSummary } from '@squirmy/contracts';
 import { useNavigation, useRouter, type Href } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQueryClient } from '@tanstack/react-query';
 import { useAccount, useSignedInApi, useWantlistEnabled } from './account/AccountProvider';
 import { shade } from './data/color';
 import {
@@ -27,7 +26,6 @@ import { playbackStatus } from './player/usePlaybackStatus';
 import { listSort, sortFor, sortOptions, sortsFor, type SortChoices } from './library/sorting';
 import type { Page } from './library/links';
 import { useAlbumPlayer, useCollectionActions } from './library/collectionActions';
-import { underStatusBar, useRefreshControl } from './library/refresh';
 import { scrollEdgeFade } from './edgeFade';
 import { displayFontScale, isAccessibilitySize } from './fontScale';
 import { ScrollEdge } from './ScrollEdge';
@@ -108,15 +106,13 @@ export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAcc
   // A Home saved before the wantlist was switched off, or from an older server, may still have it.
   const sections = (home.data?.sections ?? []).filter(section => sectionSize(section) > 0 && (wantlist || section.id !== 'wantlist'));
   const serverName = state.status === 'signedIn' ? state.server.name : 'your server';
-  const refreshControl = useRefreshControl(home.refetch, top);
-  const statusBar = underStatusBar(top);
   const list = useRef<React.ComponentRef<typeof ScrollView>>(null);
   // Re-tapping Home goes back to its top, as the system's tabs do.
-  useTabRetap(() => list.current?.scrollTo({ y: -statusBar.inset, animated: true }));
+  useTabRetap(() => list.current?.scrollTo({ y: 0, animated: true }));
 
   return <View style={styles.page}>
-    <ScrollView ref={list} contentInsetAdjustmentBehavior="never" refreshControl={refreshControl} {...statusBar.props}
-      contentContainerStyle={{ paddingTop: statusBar.contentTop + 12, paddingBottom: bottomInset }} showsVerticalScrollIndicator={false}>
+    <ScrollView ref={list} contentInsetAdjustmentBehavior="never"
+      contentContainerStyle={{ paddingTop: top + 12, paddingBottom: bottomInset }} showsVerticalScrollIndicator={false}>
       <View style={[styles.pageHeader, styles.homeHeader]}>
         <Text accessibilityRole="header" maxFontSizeMultiplier={displayFontScale} style={[styles.pageTitle, styles.flex]}>Listen now</Text>
         {onOpenDevices && <BrowseButton label="Playback devices" icon="laptopcomputer.and.iphone" glass onPress={onOpenDevices} />}
@@ -282,11 +278,6 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
         cover={<CollectionCover item={row.item} size={50} radius={9} />} href={row.item.href} />;
     }
   }, [collectionActions, renderSong, size, styles]);
-  // Searching, a pull reloads the matches and the playlists shown with them; otherwise the list.
-  const refreshControl = useRefreshControl(() => Promise.all([
-    active.refetch(), searching && showsPlaylists && playlists.refetch(),
-  ]));
-
   // An empty library is an invitation: Search is where music is found and added.
   const findMusic = { title: 'Find music', onPress: () => { tapFeedback(); router.navigate('/(tabs)/(search)'); } };
 
@@ -313,7 +304,6 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
     {/* Rows scrolling up soften into the chips rather than being cut off under them. */}
     <View style={styles.flex}><ScrollEdge solid={0} fade={underChips} />
     <FlatList ref={list} key={mode} data={rows} renderItem={renderRow} keyExtractor={libraryRowKey}
-      refreshControl={refreshControl}
       initialNumToRender={libraryBatch} maxToRenderPerBatch={libraryBatch} windowSize={libraryWindow}
       keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
       onEndReached={loadMore} onEndReachedThreshold={1.5}
@@ -491,10 +481,6 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
 
   const genreNames = (genres.data ?? []).slice(0, 6).map(genre => genre.name);
   const genreCovers = useGenreCovers(genreNames);
-  const queryClient = useQueryClient();
-  const refreshControl = useRefreshControl(() => active
-    ? list.refetch()
-    : Promise.all([genres.refetch(), queryClient.refetchQueries({ queryKey: [...queryKeys.libraryAlbums(), 'genre'], type: 'active' })]));
 
   const empty = active && list.items !== null && !list.items.length && !list.pending && !list.stale;
   const header = active ? <>
@@ -537,7 +523,7 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
     </View>}
     <View style={styles.flex}><ScrollEdge solid={0} fade={underChips} />
     <FlatList data={offline && active ? [] : rows} renderItem={renderRow} keyExtractor={searchRowKey}
-      refreshControl={refreshControl} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
+      keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
       onEndReached={active ? list.loadMore : undefined} onEndReachedThreshold={1.5}
       style={list.stale && styles.stale}
       contentContainerStyle={[styles.searchBody, active ? styles.belowSearchChips : styles.belowSearchField, { paddingBottom: bottomInset }]}

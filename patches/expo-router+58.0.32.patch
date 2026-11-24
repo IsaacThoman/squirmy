@@ -1,0 +1,16 @@
+diff --git a/node_modules/expo-router/build/link/zoom/usePreventZoomTransitionDismissal.ios.js b/node_modules/expo-router/build/link/zoom/usePreventZoomTransitionDismissal.ios.js
+index b5533b9..2442501 100644
+--- a/node_modules/expo-router/build/link/zoom/usePreventZoomTransitionDismissal.ios.js
++++ b/node_modules/expo-router/build/link/zoom/usePreventZoomTransitionDismissal.ios.js
+@@ -73,8 +73,10 @@ function usePreventZoomTransitionDismissal(options) {
+             // Disable React Navigation's gesture handler when we have custom bounds to prevent conflicts.
+             // The native zoom transition's interactiveDismissShouldBegin callback handles dismissal instead.
+             // We use the internal option to preserve the user's gestureEnabled setting.
++            // Squirmy: bounds from the caller only limit where the zoom's own dismissal starts. The stack's full screen
++            // back swipe stays on; react-native-screens leaves the edge of a zoomed page to the zoom.
+             navigation.setOptions({
+-                [_navigationParams.INTERNAL_EXPO_ROUTER_GESTURE_ENABLED_OPTION_NAME]: computedRect ? false : undefined
++                [_navigationParams.INTERNAL_EXPO_ROUTER_GESTURE_ENABLED_OPTION_NAME]: computedRect && !rect ? false : undefined
+             });
+         }
+         // Cleanup on unmount
