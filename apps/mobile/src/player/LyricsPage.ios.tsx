@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import { AccessibilityInfo, StyleSheet, useWindowDimensions, View, type LayoutChangeEvent } from 'react-native';
 import Animated, {
   Easing, ReduceMotion, scrollTo, useAnimatedRef, useAnimatedStyle, useScrollOffset, useSharedValue, withTiming, type SharedValue,
@@ -198,7 +198,9 @@ export default function LyricsPage({ selected, ref, onControlsHidden }: LyricsPr
             opacity={look.opacity} blur={look.blur} delay={following && timed && !reduceMotion ? lineDelay(index, Math.max(0, sung - 2)) : 0}
             wave={wave} onSeek={seek} onLayout={lineLaidOut} watched={index === watched} />;
         })}
-        {credits && <LyricCredits credits={credits} opacity={browsing ? 0.62 : 0.45} />}
+        {credits && <Riding index={lines.length} wave={wave}>
+          <LyricCredits credits={credits} opacity={browsing ? 0.62 : 0.45} />
+        </Riding>}
       </Animated.ScrollView>
     </View>
   );
@@ -219,12 +221,22 @@ type LyricRowProps = {
   watched: boolean;
 };
 
-const LyricRow = memo(function LyricRow({ index, text, startMs, active, opacity, blur, delay, wave, onSeek, onLayout, watched }: LyricRowProps) {
-  const style = useAnimatedStyle(() => {
+/** Line `index`'s place in the wave: held where it was, then sprung home a moment after the line above. */
+function useWaveStyle(index: number, wave: Wave) {
+  return useAnimatedStyle(() => {
     const shift = wave.shift.value;
     if (!shift) return { transform: [{ translateY: 0 }] };
     return { transform: [{ translateY: shift * springRemaining(wave.clock.value - lineDelay(index, wave.from.value)) }] };
   });
+}
+
+/** What follows the lines (the credits) rides the wave as the line after the last. */
+function Riding({ index, wave, children }: PropsWithChildren<{ index: number; wave: Wave }>) {
+  return <Animated.View style={useWaveStyle(index, wave)}>{children}</Animated.View>;
+}
+
+const LyricRow = memo(function LyricRow({ index, text, startMs, active, opacity, blur, delay, wave, onSeek, onLayout, watched }: LyricRowProps) {
+  const style = useWaveStyle(index, wave);
   const top = useRef<number | null>(null);
   const laidOut = (event: LayoutChangeEvent) => {
     top.current = event.nativeEvent.layout.y;
