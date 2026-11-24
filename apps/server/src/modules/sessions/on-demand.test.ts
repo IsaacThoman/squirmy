@@ -37,7 +37,8 @@ import { sessionsModule } from './index.js'
  * how many entries are fetched ahead and in which order, and what an outage looks like.
  */
 
-async function eventually(check: () => void | Promise<void>, timeoutMs = 60_000): Promise<void> {
+/** Polls until `check` passes. Gives up well inside the tests' own timeouts, so a failure shows what it saw. */
+async function eventually(check: () => void | Promise<void>, timeoutMs = 30_000): Promise<void> {
   const deadline = performance.now() + timeoutMs
   for (;;) {
     try {
@@ -81,6 +82,8 @@ describe('sessions with on-demand tracks', () => {
     await createProvider({ name: 'Mock', baseUrl: await mock.listen(), secret, enabled: true, priority: 0 })
   }, 60_000)
   afterEach(async () => {
+    // A test that failed half way must not leave the provider lacking songs or failing for the next.
+    Object.assign(mock.settings, { has: () => true, fail: false, delayMs: 0 })
     for (const device of devices.splice(0)) {
       device.client.dispose()
       device.socket.disconnect()
@@ -160,7 +163,6 @@ describe('sessions with on-demand tracks', () => {
     expect((await jobsFor(album.ids)).length).toBe(requested)
     expect(phone.events.filter((event) => event.type === 'playback.unavailable')).toHaveLength(1)
     expect(phone.client.getSnapshot().session).toMatchObject({ playing: false, current: { trackId: current!.trackId } })
-    mock.settings.fail = false
   }, 90_000)
 
   // A provider outage is not about the tracks: none it failed during it may stay gray.
@@ -206,7 +208,6 @@ describe('sessions with on-demand tracks', () => {
     expect(failed.map((event) => event.trackId).sort()).toEqual(album.ids.slice(0, 4).sort())
     expect(failed.every((event) => event.failure === 'unavailable')).toBe(true)
     expect(phone.client.failureOf(album.ids[0]!)).toBe('unavailable')
-    mock.settings.has = () => true
   }, 60_000)
 
   it('stays on a song the listener picked when it cannot be had, rather than start another', async () => {
@@ -224,7 +225,6 @@ describe('sessions with on-demand tracks', () => {
     // Next goes on as usual.
     phone.client.dispatch({ type: 'next' })
     await eventually(() => expect(phone.client.getSnapshot().session).toMatchObject({ playing: true, current: { trackId: album.ids[2], state: 'ready' } }))
-    mock.settings.has = () => true
   }, 60_000)
 
   it.each([
@@ -236,7 +236,6 @@ describe('sessions with on-demand tracks', () => {
     const phone = await device(await signIn({ canAcquire: true }))
     phone.client.dispatch({ type: 'playTracks', tracks: album.ids.map((trackId) => ({ trackId, albumId: album.albumId, durationMs: 0, state: 'preparing' as const })), startIndex: 0, seed: 1, ...(startedFrom ? { startedFrom } : {}) })
     await eventually(() => expect(phone.client.getSnapshot().session).toMatchObject({ playing: true, current: { trackId: album.ids[1], state: 'ready' } }))
-    mock.settings.has = () => true
   }, 60_000)
 
   it('stops once nothing left in the queue is available, saying so once', async () => {
@@ -250,7 +249,6 @@ describe('sessions with on-demand tracks', () => {
     await new Promise((resolve) => setTimeout(resolve, 500))
     const stops = phone.events.filter((event) => event.type === 'playback.unavailable')
     expect(stops).toEqual([{ type: 'playback.unavailable', trackId: phone.client.getSnapshot().session.current!.trackId, kind: 'exhausted', reason: null }])
-    mock.settings.has = () => true
   }, 60_000)
 
   it('pauses once, rather than skipping on, when song after song is not available', async () => {
@@ -268,7 +266,6 @@ describe('sessions with on-demand tracks', () => {
     // It stopped short of the end: the rest of the queue is kept for when the user plays on.
     expect(album.ids.indexOf(current!.trackId)).toBeLessThan(9)
     expect(queue.at(-1)!.trackId).toBe(album.ids.at(-1))
-    mock.settings.has = () => true
   }, 60_000)
 
   it('pauses on the first track when the provider cannot be asked, with the outage reason', async () => {
@@ -285,7 +282,6 @@ describe('sessions with on-demand tracks', () => {
     expect(current!.trackId).toBe(album.ids[0])
     expect(queue.map((entry) => entry.trackId)).toEqual(album.ids.slice(1))
     expect(phone.events.filter((event) => event.type === 'playback.unavailable')).toHaveLength(1)
-    mock.settings.has = () => true
   }, 60_000)
 
   it('fetches the current entry and the next five, in queue order', async () => {
@@ -321,6 +317,5 @@ describe('sessions with on-demand tracks', () => {
     await eventually(() => expect(phone.events.filter((event) => event.type === 'playback.unavailable')).toEqual([{ type: 'playback.unavailable', trackId: current.trackId, kind: 'outage', reason: OUTAGE_REASON }]))
     expect(laptop.events.filter((event) => event.type === 'playback.unavailable')).toEqual([])
     expect(laptop.client.getSnapshot().session.current).toBeNull()
-    mock.settings.fail = false
   }, 90_000)
 })
