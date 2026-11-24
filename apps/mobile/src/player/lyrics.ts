@@ -123,8 +123,12 @@ export type ChromeEvent =
   | { type: 'tap' }
   /** A touch on the transport itself keeps it up. */
   | { type: 'touchControls' }
-  /** A reader starts scrolling: the transport gets out of the way and the page stops following. */
+  /** A reader puts a finger on the lyrics to scroll them: the page stops following, and the transport stays as it is until they move. */
+  | { type: 'grab' }
+  /** A reader scrolls on through the lyrics: the transport gets out of the way. */
   | { type: 'scroll' }
+  /** A reader scrolls back up the lyrics: the transport comes back, as in Apple Music. */
+  | { type: 'scrollBack' }
   /** The scroll has come to rest. */
   | { type: 'rest' }
   /** Time has passed; see `chromeDeadline`. */
@@ -134,8 +138,9 @@ export const initialChrome: LyricsChrome = { controls: true, following: true, hi
 
 /**
  * The lyrics page's rules, as Apple Music's lyrics behave: the transport hides a few seconds
- * after the last touch and comes back on a tap; scrolling hides it too and stops the page
- * following the song until a few seconds after the scroll rests, or a tap.
+ * after the last touch and comes back on a tap. Scrolling on through the lyrics hides it too,
+ * and scrolling back up brings it back. Either stops the page following the song until a few
+ * seconds after the scroll rests, or a tap.
  */
 export function lyricsChrome(state: LyricsChrome, event: ChromeEvent, now: number, rules: ChromeRules): LyricsChrome {
   const hideAt = rules.canHide ? now + lyricTiming.hideControls : null;
@@ -149,6 +154,9 @@ export function lyricsChrome(state: LyricsChrome, event: ChromeEvent, now: numbe
       return { controls: true, following: true, hideAt, resumeAt: null };
     case 'touchControls':
       return { ...state, controls: true, hideAt };
+    case 'grab':
+      // The transport stays while the finger is down; `rest` starts its timer again.
+      return { ...state, following: !rules.synced, hideAt: rules.canHide ? null : state.hideAt, resumeAt: null };
     case 'scroll':
       return {
         controls: rules.canHide ? false : state.controls,
@@ -156,8 +164,12 @@ export function lyricsChrome(state: LyricsChrome, event: ChromeEvent, now: numbe
         hideAt: rules.canHide ? null : state.hideAt,
         resumeAt: null,
       };
-    case 'rest':
-      return state.following ? state : { ...state, resumeAt: now + lyricTiming.resumeFollow };
+    case 'scrollBack':
+      return { controls: true, following: !rules.synced, hideAt: null, resumeAt: null };
+    case 'rest': {
+      const hide = state.controls && rules.canHide && state.hideAt === null ? { hideAt } : {};
+      return state.following ? { ...state, ...hide } : { ...state, ...hide, resumeAt: now + lyricTiming.resumeFollow };
+    }
     case 'tick': {
       let next = state;
       if (next.hideAt !== null && now >= next.hideAt) next = { ...next, controls: false, hideAt: null };
@@ -165,6 +177,19 @@ export function lyricsChrome(state: LyricsChrome, event: ChromeEvent, now: numbe
       return next;
     }
   }
+}
+
+/** How far a scroll must carry the lyrics one way before it counts as turning that way, in points. */
+export const scrollTurn = 12;
+
+/**
+ * The run of a scroll so far, after a step of `step` points (positive is on through the
+ * lyrics): steps the same way add up, and a step the other way starts a new run. A run of
+ * `scrollTurn` or more decides which way the reader is going, so a finger's wobble does not.
+ */
+export function scrollRun(run: number, step: number): number {
+  'worklet';
+  return run === 0 || Math.sign(step) === Math.sign(run) ? run + step : step;
 }
 
 /** When the chrome next changes by itself, or null if it waits for a touch. */
