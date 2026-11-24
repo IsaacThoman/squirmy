@@ -1,18 +1,18 @@
 import { Button, Capsule, Host, Text, VStack } from '@expo/ui/swift-ui';
 import {
-  accessibilityAddTraits, accessibilityHint, accessibilityLabel, dynamicTypeSize, font, foregroundStyle, frame, lineLimit, minimumScaleFactor,
-  padding,
+  accessibilityAddTraits, accessibilityHint, accessibilityLabel, animation, Animation, blur, dynamicTypeSize, font, foregroundStyle, frame,
+  lineLimit, minimumScaleFactor, opacity, padding,
 } from '@expo/ui/swift-ui/modifiers';
 import { StyleSheet, View } from 'react-native';
 import { IconButton, Symbol, TrackMenu, hitShape, plainButton } from '../native/Controls';
 import type { DeviceButtonProps, LyricButtonProps, PlayerButtonProps, TrackMenuButtonProps } from './Controls';
 import { useColors } from '../theme';
 
-export function PlayerButton({ icon, label, size, color, onPress, style, selected, busy }: PlayerButtonProps) {
+export function PlayerButton({ icon, label, size, color, onPress, style, selected, busy, filled }: PlayerButtonProps) {
   const colors = useColors();
   const { width = 44, height = 44 } = StyleSheet.flatten(style) ?? {};
   return <Host style={[styles.icon, style]}>
-    <IconButton symbol={icon} label={label} size={size} color={color ?? colors.text} onPress={onPress} selected={selected} busy={busy}
+    <IconButton symbol={icon} label={label} size={size} color={color ?? colors.text} onPress={onPress} selected={selected} busy={busy} filled={filled}
       width={Number(width)} height={Number(height)} />
   </Host>;
 }
@@ -49,11 +49,17 @@ export function DeviceButton({ icon, name, highlighted, onPress }: DeviceButtonP
   </Host>;
 }
 
-export function LyricButton({ line, active, onPress }: LyricButtonProps) {
+export function LyricButton({ line, active, onPress, opacity: shown, blur: blurred = 0, delay = 0 }: LyricButtonProps) {
   const colors = useColors();
+  // Given a look, the line is drawn in the text color and dimmed by opacity, so a line coming
+  // into song brightens and sharpens in one ease, a moment after the line above it.
+  const look = shown === undefined ? [] : [
+    blur(blurred), opacity(shown),
+    animation(Animation.easeInOut({ duration: 0.42 }).delay(delay / 1000), shown * 100 + blurred),
+  ];
   const text = <Text modifiers={[
-    foregroundStyle(active ? colors.text : colors.quiet), font({ textStyle: 'largeTitle', weight: 'bold' }),
-    frame({ maxWidth: Infinity, alignment: 'leading' }), padding({ bottom: 20 }), hitShape,
+    foregroundStyle(active || shown !== undefined ? colors.text : colors.quiet), font({ textStyle: 'largeTitle', weight: 'bold' }),
+    frame({ maxWidth: Infinity, alignment: 'leading' }), padding({ bottom: 20 }), hitShape, ...look,
   ]}>{line}</Text>;
   return <View style={styles.lyricRow}>
     <Host matchContents={{ vertical: true }}>
@@ -61,6 +67,19 @@ export function LyricButton({ line, active, onPress }: LyricButtonProps) {
         plainButton, accessibilityHint('Seek to this line'),
         ...(active ? [accessibilityAddTraits(['isSelected'])] : []),
       ]}>{text}</Button> : text}
+    </Host>
+  </View>;
+}
+
+/** "Written By" after the last line, quieter and smaller than the lyrics. */
+export function LyricCredits({ credits, opacity: shown }: { credits: string; opacity: number }) {
+  const colors = useColors();
+  return <View style={styles.lyricRow}>
+    <Host matchContents={{ vertical: true }}>
+      <Text modifiers={[
+        foregroundStyle(colors.text), font({ textStyle: 'subheadline', weight: 'semibold' }), opacity(shown),
+        frame({ maxWidth: Infinity, alignment: 'leading' }), padding({ top: 8, bottom: 20 }),
+      ]}>{`Written By: ${credits}`}</Text>
     </Host>
   </View>;
 }
