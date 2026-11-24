@@ -26,6 +26,8 @@ import { useLoading, usePlaybackState, usePosition } from './playback';
 import { DETACHED_LABEL, DETACHED_SYMBOL } from './player/detach';
 import { playPauseLabel, STILL_LOADING_LABEL } from './player/loading';
 import { activeLine, lineInView, lyricLines } from './player/lyrics';
+import { artworkTransform, type ArtworkFrame } from './player/artwork';
+import { ArtworkPrefetch } from './player/ArtworkPrefetch';
 import { usePlaybackStatus } from './player/usePlaybackStatus';
 import { usePlayerShown } from './player/visibility';
 import { useVolumeSlider } from './player/volume';
@@ -57,10 +59,9 @@ const clamp = Extrapolation.CLAMP;
 const Glass = Animated.createAnimatedComponent(BlurView);
 
 type DetailPage = Exclude<PlayerPage, 'player'>;
-type Artwork = { x: number; y: number; size: number; radius: number };
 
 /** The artwork on its way between the bubble's cover and its place in the player, `y` from the panel's top. */
-function artworkInFlight(bubble: Bubble, follow: number, placed: Artwork) {
+function artworkInFlight(bubble: Bubble, follow: number, placed: ArtworkFrame): ArtworkFrame & { margin: number } {
   'worklet';
   const coverX = bubble.x + bubble.coverInset;
   const coverY = (bubble.height - bubble.coverSize) / 2;
@@ -186,7 +187,7 @@ export default function Player() {
   });
   const artworkGesture = useCompetingGestures(artworkDismiss, skipSwipe);
 
-  const placedArtwork = (d: number, drag: number): Artwork => {
+  const placedArtwork = (d: number, drag: number): ArtworkFrame => {
     'worklet';
     return {
       x: insets.left + artX + (artworkInset - artX) * d + drag * (1 - d),
@@ -238,20 +239,21 @@ export default function Player() {
     opacity: motion.bubble.value ? interpolate(progress(motion).lead, [0.72, 0.95], [0, 1], clamp) : 1,
   }));
 
-  const artworkStyle = useAnimatedStyle(() => {
+  // Laid out once at its size in the player and moved there by transforms, so the image is
+  // decoded once, at full size, and nothing is laid out while it flies.
+  const artworkFrame = (): ArtworkFrame => {
+    'worklet';
     const placed = placedArtwork(detail.value, trackDrag.value);
     const bubble = motion.bubble.value;
-    if (!bubble) return { left: placed.x, top: placed.y, width: placed.size, height: placed.size, borderRadius: placed.radius };
+    if (!bubble) return placed;
     const { follow } = progress(motion);
     const art = artworkInFlight(bubble, follow, placed);
-    return {
-      left: art.x - sideInsets(bubble, follow, width).left,
-      top: art.y,
-      width: art.size,
-      height: art.size,
-      borderRadius: art.radius,
-    };
-  });
+    return { ...art, x: art.x - sideInsets(bubble, follow, width).left };
+  };
+  const artworkStyle = useAnimatedStyle(() => artworkTransform(artworkFrame(), artSize));
+  // Without artwork, the note keeps its size as the frame around it grows.
+  const hasArtwork = Boolean(artworkImage);
+  const noArtworkStyle = useAnimatedStyle(() => ({ transform: [{ scale: hasArtwork ? 1 : artSize / artworkFrame().size }] }));
   const artworkDetailsStyle = useAnimatedStyle(() => ({
     opacity: interpolate(detail.value, [0, 0.44], [1, 0], clamp),
     transform: [{ translateX: trackDrag.value }],
@@ -303,7 +305,7 @@ export default function Player() {
         <Animated.View style={[styles.page, { width, height }, pageStyle]}>
           <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: artwork?.color ?? fallbackTint }, backdropStyle]} pointerEvents="none">
             {backdropImage && <Image source={backdropImage.source} placeholder={backdropImage.placeholder} blurRadius={70}
-              contentFit="cover" transition={210} style={styles.backdropArt} />}
+              contentFit="cover" cachePolicy="memory-disk" transition={210} style={styles.backdropArt} />}
             <LinearGradient
               colors={colors.playerGradient}
               locations={[0, 0.39, 0.85, 1]}
@@ -359,14 +361,17 @@ export default function Player() {
               onDevices={() => router.push('/devices')} />
           </Animated.View>
         </Animated.View>
+        <ArtworkPrefetch size={artSize} />
         {variants.map(variant => (
           <BubbleContent key={`${variant.native}-${variant.compact}`} variant={variant} width={width} />
         ))}
-        <Animated.View pointerEvents="none" style={[styles.artwork, artworkStyle]}>
+        <Animated.View pointerEvents="none" style={[styles.artwork, { width: artSize, height: artSize }, artworkStyle]}>
           {artworkImage
             ? <Image source={artworkImage.source} placeholder={artworkImage.placeholder} placeholderContentFit="cover"
-              contentFit="cover" transition={160} style={StyleSheet.absoluteFill} />
-            : <View style={styles.noArtwork}><Icon name="music.note" size={48} color={colors.quiet} /></View>}
+              contentFit="cover" cachePolicy="memory-disk" transition={160} style={StyleSheet.absoluteFill} />
+            : <View style={styles.noArtwork}>
+              <Animated.View style={noArtworkStyle}><Icon name="music.note" size={48} color={colors.quiet} /></Animated.View>
+            </View>}
         </Animated.View>
       </Animated.View>
     </Overlay>
@@ -656,7 +661,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   contextTitle: { color: colors.text, fontSize: 13, fontWeight: '600', marginTop: 1 },
   deckFrame: { flex: 1 },
   nowPlaying: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: artworkInset, gap: artworkGap },
-  artwork: { position: 'absolute', overflow: 'hidden', backgroundColor: colors.surface },
+  artwork: { position: 'absolute', top: 0, left: 0, overflow: 'hidden', backgroundColor: colors.surface },
   noArtwork: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   details: { ...StyleSheet.absoluteFill, paddingTop: compactArtworkTop },
   detailPanel: { flex: 1 },
