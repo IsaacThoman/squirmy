@@ -16,6 +16,7 @@ import type {
   BrowseButtonProps, CollectionButtonProps, CollectionGridRowProps, FilterProps, GenreCardProps, GenreGridProps,
   LinkedButtonProps, RowAction, SearchFieldProps,
 } from './BrowseControls';
+import { collectionLabel } from './collectionLabel';
 import { unavailableOpacity, useColors } from '../theme';
 import { ZoomLink, ZoomSource } from './ZoomLink';
 
@@ -39,7 +40,7 @@ export function SearchField({ value, onChange, placeholder, autoFocus, inputRef 
     setText,
   }), [fieldText, onChange]);
 
-  return <Host style={styles.search}>
+  return <Host ignoreSafeArea="container" style={styles.search}>
     <HStack spacing={9} modifiers={[
       padding({ horizontal: 12 }), frame({ height: 46 }), background(colors.surface), clipShape('roundedRectangle', 12),
     ]}>
@@ -61,7 +62,7 @@ function trailingIcon(icon: string, title: string | undefined) {
 export function BrowseButton({ label, icon, title, glass, onPress }: BrowseButtonProps) {
   const colors = useColors();
   const useGlass = glass && isLiquidGlassAvailable();
-  return <Host matchContents>
+  return <Host ignoreSafeArea="container" matchContents>
     <Button modifiers={[...(useGlass ? iconGlass : [plainButton]), accessibilityLabel(label)]} onPress={onPress}>
       <HStack spacing={6} modifiers={[frame({ minWidth: useGlass ? 30 : 44, minHeight: useGlass ? 30 : 44 }), hitShape]}>
         {icon && !trailingIcon(icon, title) && <Symbol name={icon} size={title ? 14 : 19} color={title ? colors.accent : colors.text} />}
@@ -100,7 +101,7 @@ export function LibraryFilters<T extends string>({ options, value, onChange }: F
 
 export function LibrarySort<T extends string>({ options, value, onChange }: FilterProps<T>) {
   const colors = useColors();
-  return <Host matchContents>
+  return <Host ignoreSafeArea="container" matchContents>
     <Menu modifiers={[plainButton, menuIndicator('hidden'), accessibilityLabel(`Sort library, ${value}`)]}
       label={<HStack spacing={6} modifiers={[frame({ minHeight: 44 }), hitShape, dynamicTypeSize({ max: 'accessibility1' })]}>
         <Symbol name="arrow.up.arrow.down" size={14} color={colors.muted} />
@@ -147,10 +148,17 @@ function CollectionTileButton({ href, ...props }: CollectionButtonProps) {
   return <ZoomLink href={href}><TileButton {...props} /></ZoomLink>;
 }
 
-function TileButton({ title, subtitle, cover, size, dim, onPress, actions }: LinkedButtonProps<CollectionButtonProps>) {
+/** A collection's subtitle; a pinned one's starts with a pin. */
+function Subtitle({ subtitle, pinned, dim, lines }: { subtitle: string; pinned?: boolean; dim?: boolean; lines: number }) {
+  const colors = useColors();
+  const text = <Text modifiers={[footnote, foregroundStyle(dim ? colors.fadedCredit : colors.muted), lineLimit(lines)]}>{subtitle}</Text>;
+  return pinned ? <HStack spacing={4}><Symbol name="pin.fill" size={10} color={colors.accent} />{text}</HStack> : text;
+}
+
+function TileButton({ title, subtitle, cover, size, dim, pinned, onPress, actions }: LinkedButtonProps<CollectionButtonProps>) {
   const colors = useColors();
   const large = isAccessibilitySize(useWindowDimensions().fontScale);
-  const button = <Button modifiers={[plainButton, accessibilityLabel(`${title}, ${subtitle}`)]} onPress={onPress}>
+  const button = <Button modifiers={[plainButton, accessibilityLabel(collectionLabel({ title, subtitle, pinned }))]} onPress={onPress}>
     <VStack alignment="leading" spacing={6} modifiers={[frame({ width: size, alignment: 'leading' }), hitShape]}>
       <HostedCover cover={cover} size={size} zoom dim={dim} />
       <VStack alignment="leading" spacing={2}>
@@ -158,7 +166,7 @@ function TileButton({ title, subtitle, cover, size, dim, onPress, actions }: Lin
             release differ at the end of the title ("… (Acoustic Version)"), which a cut at the
             end would hide, and in a narrow grid tile the qualifier alone can take two lines. */}
         <Text modifiers={[labelFont, ...(dim ? [foregroundStyle(colors.fadedTitle)] : []), lineLimit(large ? 5 : 4), truncationMode('middle')]}>{title}</Text>
-        <Text modifiers={[footnote, foregroundStyle(dim ? colors.fadedCredit : colors.muted), lineLimit(large ? 2 : 1)]}>{subtitle}</Text>
+        <Subtitle subtitle={subtitle} pinned={pinned} dim={dim} lines={large ? 2 : 1} />
       </VStack>
     </VStack>
   </Button>;
@@ -170,21 +178,21 @@ function TileButton({ title, subtitle, cover, size, dim, onPress, actions }: Lin
 }
 
 export function CollectionRow({ href, ...props }: CollectionButtonProps) {
-  return <Host matchContents={{ vertical: true }}>
+  return <Host ignoreSafeArea="container" matchContents={{ vertical: true }}>
     <ZoomLink href={href}><RowButton {...props} /></ZoomLink>
   </Host>;
 }
 
-function RowButton({ title, subtitle, cover, size, dim, onPress, onSelect, actions }: LinkedButtonProps<CollectionButtonProps>) {
+function RowButton({ title, subtitle, cover, size, dim, pinned, onPress, onSelect, actions }: LinkedButtonProps<CollectionButtonProps>) {
   const colors = useColors();
   const menu = actions?.length ? menuItems(actions) : null;
-  const button = <Button modifiers={[plainButton, accessibilityLabel(`${title}, ${subtitle}`)]} onPress={() => { onSelect?.(); onPress?.(); }}>
+  const button = <Button modifiers={[plainButton, accessibilityLabel(collectionLabel({ title, subtitle, pinned }))]} onPress={() => { onSelect?.(); onPress?.(); }}>
     <HStack spacing={12} modifiers={[padding({ vertical: 7 }), hitShape]}>
       <HostedCover cover={cover} size={size} zoom dim={dim} />
       <VStack alignment="leading" spacing={3}>
         {/* Cut in the middle, as on tiles: editions differ at the end of a title. */}
         <Text modifiers={[labelFont, ...(dim ? [foregroundStyle(colors.fadedTitle)] : []), lineLimit(2), truncationMode('middle')]}>{title}</Text>
-        <Text modifiers={[footnote, foregroundStyle(dim ? colors.fadedCredit : colors.muted), lineLimit(1)]}>{subtitle}</Text>
+        <Subtitle subtitle={subtitle} pinned={pinned} dim={dim} lines={1} />
       </VStack>
       <Spacer minLength={4} />
       {!menu && <Symbol name="chevron.right" size={12} color={colors.muted} />}

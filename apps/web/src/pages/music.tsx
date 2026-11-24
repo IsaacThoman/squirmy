@@ -30,7 +30,7 @@ import { ArtistReleasesView, ArtistView } from '@/components/views/ArtistView'
 import { HomeView, type ScanProgress } from '@/components/views/HomeView'
 import { LibraryView, type LibraryItem } from '@/components/views/LibraryView'
 import {
-  defaultSort, isLibraryFilter, isLibrarySort, matches, readLibraryFilter, readLibraryLayout, sortFor, sortsFor, writeLibraryFilter, writeLibraryLayout,
+  defaultSort, isLibraryFilter, isLibrarySort, matches, pinTarget, readLibraryFilter, readLibraryLayout, sortFor, sortsFor, writeLibraryFilter, writeLibraryLayout,
   type LibraryFilterName,
 } from '@/components/views/library-state'
 import { LikedView, PlaylistView } from '@/components/views/PlaylistView'
@@ -557,6 +557,15 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
     return next
   }, { replace: true })
 
+  const api = useApi()
+  const queryClient = useQueryClient()
+  // The list moves once the server has the pin, so the menu waits for both.
+  const pinItem = async (item: LibraryItem, pinned: boolean) => {
+    const [kind, id] = pinTarget(item)
+    await (pinned ? api.userdata.pin(kind, id) : api.userdata.unpin(kind, id))
+    await queryClient.invalidateQueries({ queryKey: queryKeys.libraryItems() })
+  }
+
   const playSong = async (index: number) => {
     // Filtered, the matches on screen are what is played.
     if (query.trim()) controls.playTracks(tracks ?? [], index, songsContext)
@@ -602,6 +611,7 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
       onPlayLiked={() => void loadItems(liked, 5000).then(list => controls.playTracks(list, 0, likedContext, { collection: true }))}
       onPlaySong={index => void playSong(index)}
       onNewPlaylist={() => library.newPlaylist()}
+      onPin={pinItem}
     />
   )
 }

@@ -2,9 +2,9 @@ import type { AlbumDetail, AlbumSummary, ArtistDetail, HistoryItem, HomeSection,
 import { albumNote, albumPresentation, canFetch, formatReleaseDate, formatTotalDuration, releaseSubtitle } from '@squirmy/client-core';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useEffect, useMemo, useState, type ReactElement, type ReactNode } from 'react';
-import { ActionSheetIOS, ActivityIndicator, Alert, FlatList, Platform, Pressable, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ActionSheetIOS, ActivityIndicator, Alert, Platform, Pressable, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, {
-  Extrapolation, interpolate, interpolateColor, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue,
+  Extrapolation, interpolate, interpolateColor, useAnimatedRef, useAnimatedScrollHandler, useAnimatedStyle, useScrollOffset, useSharedValue,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
@@ -128,17 +128,7 @@ function DetailPage({
   </>;
 
   return <View style={styles.page}>
-    <Animated.View pointerEvents="none" style={[styles.overscrollFill, { backgroundColor: headerColor }, overscrollStyle]} />
-    <Animated.View pointerEvents="none" style={[styles.status, { height: top + scrollEdgeFade }, edgeStyle]}>
-      <ScrollEdge solid={top} fade={scrollEdgeFade} />
-    </Animated.View>
-    {/* No title here: the header's own, an accessibility header, names the page for VoiceOver. */}
-    <View pointerEvents="box-none" style={[styles.nav, { top: top + 6 }]}>
-      <BrowseBackButton onPress={onBack} />
-      <View style={styles.navActions}>
-        {nav.filter((button): button is AlbumNavProps => Boolean(button)).map(button => <AlbumNavButton key={button.label} {...button} />)}
-      </View>
-    </View>
+    {/* The native stack finds its content scroll view through the first child. */}
     {list ? (
       <Animated.FlatList data={list.data} renderItem={renderItem} keyExtractor={list.keyExtractor}
         ListHeaderComponent={header} ListFooterComponent={list.footer || undefined}
@@ -151,6 +141,17 @@ function DetailPage({
         {header}
       </Animated.ScrollView>
     )}
+    <Animated.View pointerEvents="none" style={[styles.overscrollFill, { backgroundColor: headerColor }, overscrollStyle]} />
+    <Animated.View pointerEvents="none" style={[styles.status, { height: top + scrollEdgeFade }, edgeStyle]}>
+      <ScrollEdge solid={top} fade={scrollEdgeFade} />
+    </Animated.View>
+    {/* No title here: the header's own, an accessibility header, names the page for VoiceOver. */}
+    <View pointerEvents="box-none" style={[styles.nav, { top: top + 6 }]}>
+      <BrowseBackButton onPress={onBack} />
+      <View style={styles.navActions}>
+        {nav.filter((button): button is AlbumNavProps => Boolean(button)).map(button => <AlbumNavButton key={button.label} {...button} />)}
+      </View>
+    </View>
   </View>;
 }
 
@@ -716,6 +717,9 @@ function CollectionGridPage({ title, detail, items, header, onBack, onEndReached
 }) {
   const styles = useStyles();
   const { top } = useSafeAreaInsets();
+  const contentGap = 8 + albumNavSize;
+  const list = useAnimatedRef<Animated.FlatList<Collection[]>>();
+  const scrollOffset = useScrollOffset(list);
   const { width, fontScale } = useWindowDimensions();
   const collectionDim = useCollectionDim();
   const actionsFor = useCollectionActions();
@@ -728,12 +732,10 @@ function CollectionGridPage({ title, detail, items, header, onBack, onEndReached
   }))} />, [actionsFor, size]);
   // The tiles scroll on under the status bar and the floating back button, as on the other pages.
   return <View style={styles.page}>
-    <ScrollEdge solid={top} fade={scrollEdgeFade} />
-    <View pointerEvents="box-none" style={[styles.nav, { top: top + 8 }]}><BrowseBackButton onPress={onBack} /></View>
-    <FlatList data={rows} renderItem={renderRow} keyExtractor={gridRowKey}
+    <Animated.FlatList ref={list} data={rows} renderItem={renderRow} keyExtractor={gridRowKey}
       initialNumToRender={listBatch} maxToRenderPerBatch={listBatch} windowSize={listWindow}
       contentInsetAdjustmentBehavior="never"
-      contentContainerStyle={[styles.genreBody, { paddingTop: top + 8 + albumNavSize, paddingBottom: bottomInset }]}
+      contentContainerStyle={[styles.genreBody, { paddingTop: top + contentGap, paddingBottom: bottomInset }]}
       showsVerticalScrollIndicator={false}
       onEndReached={onEndReached} onEndReachedThreshold={1.5}
       ListHeaderComponent={<>
@@ -742,6 +744,8 @@ function CollectionGridPage({ title, detail, items, header, onBack, onEndReached
         {header}
       </>}
       ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.more} /> : undefined} />
+    <ScrollEdge solid={top} fade={scrollEdgeFade} scrollOffset={scrollOffset} contentGap={contentGap} />
+    <View pointerEvents="box-none" style={[styles.nav, { top: top + 8 }]}><BrowseBackButton onPress={onBack} /></View>
   </View>;
 }
 

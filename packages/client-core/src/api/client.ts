@@ -55,6 +55,7 @@ import {
   LibraryRoot,
   LibraryRootList,
   LibraryStats,
+  type LibraryPinKind,
   type LikeEntityType,
   type LikeQuery,
   type LoginRequest,
@@ -419,6 +420,9 @@ export function createApiClient(options: ApiClientOptions) {
       unlike: (type: LikeEntityType, entityId: string) => send('DELETE', `/me/likes/${type}/${id(entityId)}`, UnlikeResponse),
       likes: <T extends LikeEntityType>(type: T, query: Partial<PageQuery> = {}) =>
         get(`/me/likes/${type}`, likedPages[type] as unknown as z.ZodType<Page<LikedItems[T]>>, query),
+      /** Pins an item to the top of the Library's All, on every device; Liked Songs by `LIKED_SONGS_ID`. */
+      pin: (kind: LibraryPinKind, entityId: string) => send('PUT', `/me/pins/${kind}/${id(entityId)}`, Ok),
+      unpin: (kind: LibraryPinKind, entityId: string) => send('DELETE', `/me/pins/${kind}/${id(entityId)}`, Ok),
       playlists: (query: Partial<PageQuery> = {}) => get('/playlists', PlaylistPage, query),
       createPlaylist: (body: CreatePlaylistRequest) => send('POST', '/playlists', PlaylistSummary, body),
       playlist: (playlistId: string) => get(`/playlists/${id(playlistId)}`, PlaylistDetail),

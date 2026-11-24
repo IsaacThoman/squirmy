@@ -75,6 +75,8 @@ export const apiRoutes = {
   'userdata.like': 'PUT /me/likes/:type/:id',
   'userdata.unlike': 'DELETE /me/likes/:type/:id',
   'userdata.likes': 'GET /me/likes/:type',
+  'userdata.pin': 'PUT /me/pins/:kind/:id',
+  'userdata.unpin': 'DELETE /me/pins/:kind/:id',
   'userdata.playlists': 'GET /playlists',
   'userdata.createPlaylist': 'POST /playlists',
   'userdata.playlist': 'GET /playlists/:id',

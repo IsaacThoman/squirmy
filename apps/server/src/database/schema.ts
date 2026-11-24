@@ -792,6 +792,23 @@ export const collectionPlays = pgTable('collection_plays', {
   index('collection_plays_entity').on(t.entityType, t.entityId),
 ])
 
+/**
+ * What each user pinned to the top of the Library's All (`userdata/library-pins.ts`, read by
+ * `catalog/library-items.ts`): an album, artist or playlist, or Liked Songs under
+ * `LIKED_SONGS_ID`. A pin shows while its item is in the user's library. Album and artist
+ * rows follow merges.
+ */
+export const libraryPins = pgTable('library_pins', {
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  entityType: text('entity_type').$type<'album' | 'artist' | 'playlist' | 'liked'>().notNull(),
+  entityId: uuid('entity_id').notNull(),
+  pinnedAt: at('pinned_at').notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.entityType, t.entityId] }),
+  // Merges repoint rows by entity.
+  index('library_pins_entity').on(t.entityType, t.entityId),
+])
+
 /** Outbound scrobbles, one row per play and target, retried until sent. */
 export const scrobbleDeliveries = pgTable('scrobble_deliveries', {
   playId: uuid('play_id').notNull().references(() => plays.id, { onDelete: 'cascade' }),

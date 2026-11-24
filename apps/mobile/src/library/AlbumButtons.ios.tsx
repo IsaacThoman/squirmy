@@ -61,8 +61,8 @@ export function BrowseBackButton({ onPress }: { onPress: () => void }) {
 export function AlbumPlaybackButtons({ title, actions }: AlbumPlaybackProps) {
   const colors = useColors();
   return (
-    // As tall as the labels need: they follow the reader's text size, up to where two still fit side by side.
-    <Host matchContents={{ vertical: true }} style={{ marginTop: 18, alignSelf: 'stretch' }}>
+    // The page handles its insets. Keep the buttons in their measured row as it passes the status bar.
+    <Host ignoreSafeArea="container" matchContents={{ vertical: true }} style={{ marginTop: 18, alignSelf: 'stretch' }}>
       <HStack spacing={9} modifiers={[dynamicTypeSize({ max: 'accessibility2' })]}>
         {actions.map(({ label, symbol, onPress, busy, disabled, failed, spoken }, index) => {
           // A failure keeps the button's place and shape; the error color says what went wrong.

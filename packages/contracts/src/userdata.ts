@@ -67,13 +67,34 @@ export type PlaylistPage = z.infer<typeof PlaylistPage>
  * queue, and playback that carries on by itself, do not count. Null when never.
  */
 const playedAt = IsoDateTime.nullable()
+/** The user pinned it (`PUT /me/pins/:kind/:id`): it heads the list. Missing from servers before pins. */
+const pinned = z.boolean().optional()
 export const LibraryItem = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('album'), album: AlbumSummary, playedAt }),
-  z.object({ kind: z.literal('artist'), artist: ArtistSummary, playedAt }),
-  z.object({ kind: z.literal('playlist'), playlist: PlaylistSummary, playedAt }),
-  z.object({ kind: z.literal('liked'), playedAt }),
+  z.object({ kind: z.literal('album'), album: AlbumSummary, playedAt, pinned }),
+  z.object({ kind: z.literal('artist'), artist: ArtistSummary, playedAt, pinned }),
+  z.object({ kind: z.literal('playlist'), playlist: PlaylistSummary, playedAt, pinned }),
+  z.object({ kind: z.literal('liked'), playedAt, pinned }),
 ])
 export type LibraryItem = z.infer<typeof LibraryItem>
+
+/** Liked Songs has no row of its own; this id stands for it where an id is needed, as in `PUT /me/pins/liked/:id`. */
+export const LIKED_SONGS_ID = '00000000-0000-0000-0000-000000000000'
+
+/**
+ * `PUT/DELETE /me/pins/:kind/:id`, both idempotent and answering `Ok`: pins an item of the
+ * Library's All to its top, or unpins it. The first page of `GET /library/items` (no cursor)
+ * starts with the pinned items, most recently pinned first, whatever the sort, and the rest of
+ * the list leaves them out; so that page holds up to `limit` items beyond the pins. A pin shows
+ * while its item is in the library (a playlist while the user may see it), and under a genre
+ * only pinned albums of that genre show. Album and artist ids follow merges; an unknown id is
+ * 404. Liked Songs is pinned with `LIKED_SONGS_ID`. More than `LIBRARY_PIN_LIMIT` pins is
+ * `too_many_pins` (409); pins whose item left the library do not count.
+ */
+export const LibraryPinKind = z.enum(['album', 'artist', 'playlist', 'liked'])
+export type LibraryPinKind = z.infer<typeof LibraryPinKind>
+
+/** Most items one user pins. */
+export const LIBRARY_PIN_LIMIT = 50
 
 export const LibraryItemPage = page(LibraryItem)
 export type LibraryItemPage = z.infer<typeof LibraryItemPage>

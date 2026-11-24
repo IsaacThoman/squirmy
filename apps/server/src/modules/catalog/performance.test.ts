@@ -7,6 +7,7 @@
  * It prints EXPLAIN ANALYZE execution times for first and deep pages and the wall time
  * of each route, and fails if a list query loses its index (over 50 ms).
  */
+import { LIBRARY_PIN_LIMIT } from '@squirmy/contracts'
 import { sql, type SQL } from 'drizzle-orm'
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
@@ -133,6 +134,13 @@ describe.skipIf(!process.env.SQUIRMY_PERF)('catalog performance', () => {
       const built = { first: await libraryItemsQuery(user.id, { sort, limit: 50 }), deep: await libraryItemsQuery(user.id, { sort, limit: 50, cursor: deep }) }
       cases.push([`items ${sort}`, (cursor) => (cursor ? built.deep : built.first), url])
     }
+    // With the most pins a user may have, every branch reads that many rows more and the merge leaves the pins out.
+    const pinnedDeep = await deepCursor('/api/v1/library/items?sort=played', 4)
+    const pinned = {
+      first: await libraryItemsQuery(user.id, { sort: 'played', limit: 50 }, LIBRARY_PIN_LIMIT),
+      deep: await libraryItemsQuery(user.id, { sort: 'played', limit: 50, cursor: pinnedDeep }, LIBRARY_PIN_LIMIT),
+    }
+    cases.push(['items played with pins', (cursor) => (cursor ? pinned.deep : pinned.first), '/api/v1/library/items?sort=played'])
 
     for (const [name, query, url] of cases) {
       const first = await explain(query())

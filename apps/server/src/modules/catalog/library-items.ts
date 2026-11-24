@@ -14,8 +14,12 @@
  * save and its library albums' times, a playlist's its creation, Liked Songs' the latest
  * liked song. Under `played` a played item's second key is `-infinity` and a never-played
  * item's first, so the cursor says which part of the list it is in.
+ *
+ * Pinned items (`library_pins`, written by the userdata module) head the first page, most
+ * recently pinned first, and every page leaves them out of the list after them. Each branch
+ * reads as many rows more as the user has pins, so a page still fills once they are left out.
  */
-import type { LibraryItem, LibraryItemPage, LibraryItemsQuery, LibraryItemsSort } from '@squirmy/contracts'
+import { LIKED_SONGS_ID, type LibraryItem, type LibraryItemPage, type LibraryItemsQuery, type LibraryItemsSort } from '@squirmy/contracts'
 import { sql, type SQL } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { sortKey } from '../../lib/text.js'
@@ -26,8 +30,8 @@ import { after, cursorKeys, decode, encode, leadingBound, orderBy, toPage, type 
 import { isoTime, sortKeys, uuidArray } from './sql.js'
 import { albumSummaries, artistSummaries } from './summaries.js'
 
-/** Liked Songs has no row of its own; this id stands for it in the list and in `collection_plays`. */
-export const LIKED_SONGS_ID = '00000000-0000-0000-0000-000000000000'
+/** Liked Songs has no row of its own; this id stands for it in the list, in `collection_plays` and in `library_pins`. */
+export { LIKED_SONGS_ID }
 
 type Kind = LibraryItem['kind']
 type KeyShape = Omit<SortKey, 'expression'>
@@ -216,28 +220,53 @@ function collectionsBranch(userId: string, list: Collection[], sort: LibraryItem
   return typed(branch, orders[sort].keys, { prefix: sort === 'played' ? ["'-infinity'"] : [] })
 }
 
+/**
+ * Condition: the row `alias` (with `entity_type` and `entity_id`, as in `collection_plays` and
+ * `library_pins`) names an item the list holds: a library album or artist, a playlist the user
+ * can see, or Liked Songs. Under a genre, only a library album of that genre.
+ */
+export function listsEntry(alias: string, userId: string, genre?: string): SQL {
+  const type = sql.raw(`${alias}.entity_type`)
+  const id = `${alias}.entity_id`
+  return genre
+    ? sql`${type} = 'album' and ${albumIsMember(id, userId)}
+      and exists (select 1 from albums a where a.id = ${sql.raw(id)} and ${hasGenre('a', genre)})`
+    : sql`case ${type}
+        when 'album' then ${albumIsMember(id, userId)}
+        when 'artist' then ${artistIsMember(id, userId)}
+        when 'playlist' then ${playlistIsVisible(id, userId)}
+        else ${type} = 'liked'
+      end`
+}
+
 /** What the user played from and is still in their library (or a playlist they can see), newest first. */
 function playedBranch(userId: string, cursor: string | undefined, limit: number, genre: string | undefined): SQL {
   const order = ordering('played', ['p.played_at', "'-infinity'::timestamptz", 'p.entity_id'])
-  const member = genre
-    ? sql`p.entity_type = 'album' and ${albumIsMember('p.entity_id', userId)}
-      and exists (select 1 from albums a where a.id = p.entity_id and ${hasGenre('a', genre)})`
-    : sql`case p.entity_type
-        when 'album' then ${albumIsMember('p.entity_id', userId)}
-        when 'artist' then ${artistIsMember('p.entity_id', userId)}
-        when 'playlist' then ${playlistIsVisible('p.entity_id', userId)}
-        else p.entity_type = 'liked'
-      end`
   return typed(sql`
     select p.entity_type as kind, p.entity_id as id, ${cursorKeys(order)} from collection_plays p
-    where p.user_id = ${userId} and ${leadingBound(order, cursor)} and ${member} and ${after(order, cursor)}
+    where p.user_id = ${userId} and ${leadingBound(order, cursor)} and ${listsEntry('p', userId, genre)} and ${after(order, cursor)}
     order by ${orderBy(order)} limit ${limit}`, orders.played.keys)
 }
 
-/** The query behind `GET /library/items`, returning `kind`, `id` and `cursorKeys` for `limit + 1` rows. Exported for EXPLAIN in tests. */
-export async function libraryItemsQuery(userId: string, query: LibraryItemsQuery): Promise<SQL> {
+type Pin = { kind: Kind; id: string; shows: boolean }
+
+/** The user's pins, most recently pinned first; `shows` when the list holds the item (`listsEntry`). */
+async function pins(userId: string, genre: string | undefined): Promise<Pin[]> {
+  return db.execute<Pin>(sql`
+    select pin.entity_type as kind, pin.entity_id as id, ${listsEntry('pin', userId, genre)} as shows
+    from library_pins pin where pin.user_id = ${userId}
+    order by pin.pinned_at desc, pin.entity_id desc`)
+}
+
+/**
+ * The query behind `GET /library/items`, returning `kind`, `id` and `cursorKeys` for `limit + 1`
+ * rows, the user's pins left out. `pinCount` is how many pins they have: each branch reads that
+ * many rows more, since that many of its rows may be left out. Exported for EXPLAIN in tests.
+ */
+export async function libraryItemsQuery(userId: string, query: LibraryItemsQuery, pinCount = 0): Promise<SQL> {
   const { sort, genre } = query
-  const limit = query.limit + 1
+  const limit = query.limit + 1 + pinCount
+  const albumLimit = query.limit + pinCount
   const branches: SQL[] = []
   // A genre keeps the list to its albums.
   const list = genre ? [] : await collections(userId)
@@ -248,14 +277,14 @@ export async function libraryItemsQuery(userId: string, query: LibraryItemsQuery
     // The never-played part is the `recent` order; a cursor inside it carries on there.
     const cursor = neverPart ? encode(ordering('recent', []), [values![1]!, values![2]!]) : undefined
     const recent = orders.recent.name
-    branches.push(typed(libraryAlbumsQuery(userId, { sort: 'recent', limit: query.limit, cursor, genre }, 'large', { name: recent, unplayed: true }),
+    branches.push(typed(libraryAlbumsQuery(userId, { sort: 'recent', limit: albumLimit, cursor, genre }, 'large', { name: recent, unplayed: true }),
       orders.played.keys, { kind: 'album', prefix: ["'-infinity'"] }))
     if (!genre) {
       branches.push(typed(artistsByRecency(userId, cursor, limit, true), orders.played.keys, { kind: 'artist', prefix: ["'-infinity'"] }))
       branches.push(collectionsBranch(userId, list, 'played', cursor, limit))
     }
   } else if (sort === 'recent') {
-    branches.push(typed(libraryAlbumsQuery(userId, { sort, limit: query.limit, cursor: query.cursor, genre }, 'large', { name: orders.recent.name }),
+    branches.push(typed(libraryAlbumsQuery(userId, { sort, limit: albumLimit, cursor: query.cursor, genre }, 'large', { name: orders.recent.name }),
       orders.recent.keys, { kind: 'album' }))
     if (!genre) {
       branches.push(typed(artistsByRecency(userId, query.cursor, limit, false), orders.recent.keys, { kind: 'artist' }))
@@ -263,7 +292,7 @@ export async function libraryItemsQuery(userId: string, query: LibraryItemsQuery
     }
   } else {
     const shape = await libraryShape(userId, 'albums')
-    branches.push(typed(libraryAlbumsQuery(userId, { sort, limit: query.limit, cursor: query.cursor, genre }, shape, { name: orders[sort].name }),
+    branches.push(typed(libraryAlbumsQuery(userId, { sort, limit: albumLimit, cursor: query.cursor, genre }, shape, { name: orders[sort].name }),
       orders[sort].keys, { kind: 'album' }))
     if (!genre) {
       branches.push(artistsByName(userId, sort, query.cursor, limit, shape))
@@ -271,16 +300,22 @@ export async function libraryItemsQuery(userId: string, query: LibraryItemsQuery
     }
   }
   const merged = mergedOrdering(sort)
+  const unpinned = pinCount === 0 ? sql`true` : sql`not exists (
+    select 1 from library_pins pin where pin.user_id = ${userId} and pin.entity_type = u.kind and pin.entity_id = u.id
+  )`
   return sql`
     select u.kind, u.id, ${cursorKeys(merged)}
     from (${sql.join(branches.map((branch) => sql`(${branch})`), sql` union all `)}) u
-    order by ${orderBy(merged)} limit ${limit}`
+    where ${unpinned}
+    order by ${orderBy(merged)} limit ${query.limit + 1}`
 }
 
-/** One page of the Library's All. */
+/** One page of the Library's All; the first starts with the pinned items. */
 export async function listLibraryItems(userId: string, query: LibraryItemsQuery): Promise<LibraryItemPage> {
-  const rows = await db.execute<{ kind: Kind; id: string; cursorKeys: string[] }>(await libraryItemsQuery(userId, query))
-  const shown = rows.slice(0, query.limit)
+  const pinned = await pins(userId, query.genre)
+  const rows = await db.execute<{ kind: Kind; id: string; cursorKeys: string[] }>(await libraryItemsQuery(userId, query, pinned.length))
+  const pinnedKeys = new Set(pinned.map((pin) => `${pin.kind}:${pin.id}`))
+  const shown = [...(query.cursor ? [] : pinned.filter((pin) => pin.shows)), ...rows.slice(0, query.limit)]
   const ids = (kind: Kind) => shown.filter((row) => row.kind === kind).map((row) => row.id)
   const [albums, artists, playlists, played] = await Promise.all([
     albumSummaries(ids('album')),
@@ -297,22 +332,25 @@ export async function listLibraryItems(userId: string, query: LibraryItemsQuery)
   }
   const playedAt = new Map(played.map((row) => [`${row.kind}:${row.id}`, row.at]))
   const items = shown.flatMap((row): LibraryItem[] => {
-    const at = playedAt.get(`${row.kind}:${row.id}`) ?? null
+    const key = `${row.kind}:${row.id}`
+    const at = playedAt.get(key) ?? null
+    const pin = pinnedKeys.has(key)
     switch (row.kind) {
-      case 'liked': return [{ kind: 'liked', playedAt: at }]
+      case 'liked': return [{ kind: 'liked', playedAt: at, pinned: pin }]
       case 'album': {
         const album = byKind.album.get(row.id)
-        return album ? [{ kind: 'album', album, playedAt: at }] : []
+        return album ? [{ kind: 'album', album, playedAt: at, pinned: pin }] : []
       }
       case 'artist': {
         const artist = byKind.artist.get(row.id)
-        return artist ? [{ kind: 'artist', artist, playedAt: at }] : []
+        return artist ? [{ kind: 'artist', artist, playedAt: at, pinned: pin }] : []
       }
       case 'playlist': {
         const playlist = byKind.playlist.get(row.id)
-        return playlist ? [{ kind: 'playlist', playlist, playedAt: at }] : []
+        return playlist ? [{ kind: 'playlist', playlist, playedAt: at, pinned: pin }] : []
       }
     }
   })
-  return toPage(mergedOrdering(query.sort), rows, query.limit, items)
+  // The pins are on top of the page's `limit`, which the cursor is cut at.
+  return { items, nextCursor: toPage(mergedOrdering(query.sort), rows, query.limit, []).nextCursor }
 }
