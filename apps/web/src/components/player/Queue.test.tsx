@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/react'
+import { act, fireEvent, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { track } from '@/fixtures/catalog'
@@ -19,29 +19,66 @@ function renderQueue() {
 }
 
 describe('SortableQueue', () => {
-  it('moves an entry with the arrow keys on its handle', () => {
+  it('moves an entry with the arrow keys on its song button', () => {
     const { onMove } = renderQueue()
-    fireEvent.keyDown(screen.getByRole('button', { name: 'Reorder Amber, position 2 of 3' }), { key: 'ArrowDown' })
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Play Amber' }), { key: 'ArrowDown' })
     expect(onMove).toHaveBeenCalledWith('e1', 2)
-    fireEvent.keyDown(screen.getByRole('button', { name: 'Reorder Amber, position 2 of 3' }), { key: 'ArrowUp' })
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Play Amber' }), { key: 'ArrowUp' })
     expect(onMove).toHaveBeenLastCalledWith('e1', 0)
     expect(screen.getByText('Amber moved to position 1 of 3')).toBeInTheDocument()
   })
 
   it('does not move past either end', () => {
     const { onMove } = renderQueue()
-    fireEvent.keyDown(screen.getByRole('button', { name: /Reorder Soft Signal/ }), { key: 'ArrowUp' })
-    fireEvent.keyDown(screen.getByRole('button', { name: /Reorder Passing Glass/ }), { key: 'ArrowDown' })
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Play Soft Signal' }), { key: 'ArrowUp' })
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Play Passing Glass' }), { key: 'ArrowDown' })
     expect(onMove).not.toHaveBeenCalled()
   })
 
-  it('drops a dragged entry where the pointer lets go', () => {
-    const { onMove } = renderQueue()
-    const handle = screen.getByRole('button', { name: /Reorder Soft Signal/ })
-    fireEvent.pointerDown(handle, { button: 0, clientY: 100, pointerId: 1 })
-    fireEvent.pointerMove(handle, { clientY: 100 + 56 * 2, pointerId: 1 })
-    fireEvent.pointerUp(handle, { pointerId: 1 })
+  it('drags the song row and suppresses the click that would play it', () => {
+    const { onMove, onPlay } = renderQueue()
+    const row = screen.getByRole('button', { name: 'Play Soft Signal' })
+    fireEvent.pointerDown(row, { button: 0, clientY: 100, pointerId: 1 })
+    fireEvent.pointerMove(row, { clientY: 100 + 48 * 2, pointerId: 1 })
+    fireEvent.pointerUp(row, { pointerId: 1 })
+    fireEvent.click(row, { detail: 1 })
     expect(onMove).toHaveBeenCalledWith('e0', 2)
+    expect(onPlay).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: /Reorder/ })).toBeNull()
+  })
+
+  it('still plays when a pointer clicks without dragging', () => {
+    const { onMove, onPlay } = renderQueue()
+    const row = screen.getByRole('button', { name: 'Play Amber' })
+    fireEvent.pointerDown(row, { button: 0, clientY: 100, pointerId: 1 })
+    fireEvent.pointerMove(row, { clientY: 102, pointerId: 1 })
+    fireEvent.pointerUp(row, { pointerId: 1 })
+    fireEvent.click(row, { detail: 1 })
+    expect(onMove).not.toHaveBeenCalled()
+    expect(onPlay).toHaveBeenCalledWith('e1')
+  })
+
+  it('starts a touch drag after holding, but lets an ordinary swipe scroll', () => {
+    vi.useFakeTimers()
+    try {
+      const { onMove } = renderQueue()
+      const row = screen.getByRole('button', { name: 'Play Soft Signal' })
+      const down = () => fireEvent.pointerDown(row, { button: 0, clientY: 100, pointerId: 1, pointerType: 'touch' })
+      const swipe = () => fireEvent.pointerMove(row, { clientY: 148, pointerId: 1, pointerType: 'touch' })
+      const up = () => fireEvent.pointerUp(row, { pointerId: 1, pointerType: 'touch' })
+      down()
+      swipe()
+      act(() => vi.advanceTimersByTime(360))
+      up()
+      expect(onMove).not.toHaveBeenCalled()
+      down()
+      act(() => vi.advanceTimersByTime(360))
+      swipe()
+      up()
+      expect(onMove).toHaveBeenCalledWith('e0', 1)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('has the heart on every song, saved or not', () => {

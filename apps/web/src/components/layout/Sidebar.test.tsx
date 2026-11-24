@@ -346,10 +346,11 @@ describe('Sidebar', () => {
       const links = playlistLinks()
       expect(links.map(link => link.textContent)).toEqual(['Liked Songs24 songs', ...playlists.map(playlist => playlist.name)])
       for (const link of links) expect(link.closest('[inert]')).toBeNull()
-      // Named by a tooltip, not the browser's own title, which would show beside it.
       expect(playlistLink('Road Trip')).not.toHaveAttribute('title')
+      await userEvent.hover(playlistLink('Road Trip'))
       playlistLink('Road Trip').focus()
-      expect(await screen.findByRole('tooltip')).toHaveTextContent('Road Trip')
+      expect(playlistLink('Road Trip')).toHaveFocus()
+      expect(screen.queryByRole('tooltip')).toBeNull()
     })
 
     it('leaves out the playlists’ heading and New playlist', () => {

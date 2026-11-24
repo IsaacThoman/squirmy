@@ -16,6 +16,8 @@ const palettes = {
     // The unfilled part of a slider: at least 3:1 against Now Playing's backdrop and the sheets, so the control shows before any of it is filled.
     sliderTrack: '#7A7484',
     overlay: '#FFFFFF0D',
+    // An off toggle on a translucent backdrop, such as the queue's Shuffle, Repeat and Autoplay.
+    chip: '#FFFFFF24',
     selection: '#CBC1FF1F',
     grabber: '#FFFFFF66',
     draggedRow: '#332A49',
@@ -41,6 +43,7 @@ const palettes = {
     stroke: '#30213B26',
     sliderTrack: '#857D91',
     overlay: '#30213B0D',
+    chip: '#30213B17',
     selection: '#5B439E17',
     grabber: '#30213B75',
     draggedRow: '#E9E0F6',
