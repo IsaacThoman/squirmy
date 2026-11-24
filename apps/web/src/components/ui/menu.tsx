@@ -1,6 +1,6 @@
 import { Check, ChevronRight, CircleAlert } from 'lucide-react'
 import { ContextMenu as ContextPrimitive, DropdownMenu as DropdownPrimitive } from 'radix-ui'
-import { createContext, use, useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react'
+import { createContext, use, useEffect, useRef, useState, type ComponentProps, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
 import { errorMessage } from '@/api/errors'
 import { cn } from '@/lib/utils'
 import { Spinner } from './feedback'
@@ -181,11 +181,43 @@ type DropdownMenuProps = {
   contentClassName?: string
 } & ComponentProps<typeof DropdownPrimitive.Root>
 
+/** How far a finger may move between touching a menu's button and lifting off for it still to be a tap. */
+export const TAP_SLOP_PX = 10
+
+/**
+ * Radix opens a dropdown as soon as the pointer goes down, which a mouse wants. A finger going
+ * down may be starting to scroll the page or a rail (a card's or a row's ⋯ is always shown on a
+ * touch screen), so a touch or a pen opens the menu on its tap instead: the browser sends no
+ * click for a gesture it scrolled with, and one that moved further than a tap is not one either.
+ * Keyboard (Enter, Space, ArrowDown) and mouse are left to Radix.
+ */
+function useTapToOpen(open: boolean, onOpenChange: (open: boolean) => void) {
+  const start = useRef<{ x: number; y: number; open: boolean } | null>(null)
+  return {
+    onPointerDown: (event: PointerEvent) => {
+      start.current = null
+      if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return
+      // Whether it was open: a tap that closes it (from outside) does not open it again.
+      start.current = { x: event.clientX, y: event.clientY, open }
+      // Stops Radix opening the menu now. It does not stop the browser scrolling.
+      event.preventDefault()
+    },
+    onPointerCancel: () => { start.current = null },
+    onClick: (event: MouseEvent) => {
+      const from = start.current
+      start.current = null
+      if (!from || Math.hypot(event.clientX - from.x, event.clientY - from.y) > TAP_SLOP_PX) return
+      onOpenChange(!from.open)
+    },
+  }
+}
+
 export function DropdownMenu({ trigger, entries, align = 'end', side, contentClassName, open: givenOpen, onOpenChange: givenChange, ...props }: DropdownMenuProps) {
   const { open, onOpenChange, feedback } = useMenuState({ open: givenOpen, onOpenChange: givenChange })
+  const tap = useTapToOpen(open, onOpenChange)
   return (
     <DropdownPrimitive.Root open={open} onOpenChange={onOpenChange} {...props}>
-      <DropdownPrimitive.Trigger asChild>{trigger}</DropdownPrimitive.Trigger>
+      <DropdownPrimitive.Trigger asChild {...tap}>{trigger}</DropdownPrimitive.Trigger>
       <DropdownPrimitive.Portal>
         <DropdownPrimitive.Content align={align} side={side} sideOffset={4} collisionPadding={8} className={cn(menuContentClass, fitsDropdown, contentClassName)}>
           <MenuFeedbackContext value={feedback}>
