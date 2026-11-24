@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   activeLine, blurReach, chromeDeadline, initialChrome, lineDelay, lineInView, lineLook, lyricCredits, lyricLines, lyricsChrome, lyricTiming,
-  springRemaining, waveDuration, type ChromeEvent, type ChromeRules, type LyricsChrome,
+  scrollRun, scrollTurn, springRemaining, waveDuration, type ChromeEvent, type ChromeRules, type LyricsChrome,
 } from './lyrics';
 
 describe('lyricLines', () => {
@@ -163,6 +163,30 @@ describe('lyricsChrome', () => {
     expect(run([['rest', 6000]], playing, again).resumeAt).toBe(6000 + lyricTiming.resumeFollow);
   });
 
+  it('brings the transport back when the reader scrolls back up, and hides it again after the scroll rests', () => {
+    const back = run([['show', 0], ['tick', 5000], ['grab', 6000], ['scrollBack', 6100]]);
+    expect(back).toMatchObject({ controls: true, following: false, hideAt: null, resumeAt: null });
+    const rested = run([['rest', 7000]], playing, back);
+    expect(rested).toMatchObject({ controls: true, hideAt: 7000 + lyricTiming.hideControls, resumeAt: 7000 + lyricTiming.resumeFollow });
+    expect(run([['tick', 7000 + lyricTiming.hideControls]], playing, rested)).toMatchObject({ controls: false, following: true });
+  });
+
+  it('hides the transport again when the reader turns back down', () => {
+    expect(run([['show', 0], ['grab', 1000], ['scrollBack', 1100], ['scroll', 1500]])).toMatchObject({ controls: false, hideAt: null });
+  });
+
+  it('leaves the transport as it is when a finger lands without scrolling, and times it out from the rest', () => {
+    const grabbed = run([['show', 0], ['grab', 1000]]);
+    expect(grabbed).toMatchObject({ controls: true, following: false, hideAt: null });
+    expect(run([['rest', 1200]], playing, grabbed).hideAt).toBe(1200 + lyricTiming.hideControls);
+    expect(run([['show', 0], ['tick', 5000], ['grab', 6000], ['rest', 6200]])).toMatchObject({ controls: false, hideAt: null });
+  });
+
+  it('keeps the transport up when scrolling back while it may not hide', () => {
+    expect(run([['show', 0], ['grab', 1000], ['scrollBack', 1100], ['rest', 2000]], { canHide: false, synced: true }))
+      .toMatchObject({ controls: true, hideAt: null });
+  });
+
   it('goes back at once on a tap', () => {
     expect(run([['show', 0], ['scroll', 1000], ['rest', 2000], ['tap', 2500]])).toMatchObject({ following: true, resumeAt: null, controls: true });
   });
@@ -173,6 +197,14 @@ describe('lyricsChrome', () => {
 
   it('starts over when the page is shown again', () => {
     expect(run([['show', 0], ['scroll', 1000], ['show', 9000]])).toMatchObject({ controls: true, following: true, resumeAt: null });
+  });
+
+  it('tells which way a reader scrolls without following a wobble', () => {
+    const steps = (list: number[]) => list.reduce(scrollRun, 0);
+    expect(steps([4, 5, 6])).toBe(15);
+    expect(steps([20, -3, -4])).toBe(-7);
+    expect(Math.abs(steps([20, -3, -4]))).toBeLessThan(scrollTurn);
+    expect(steps([20, -3, -4, -6])).toBeLessThanOrEqual(-scrollTurn);
   });
 
   it('has no deadline when nothing changes by itself', () => {
