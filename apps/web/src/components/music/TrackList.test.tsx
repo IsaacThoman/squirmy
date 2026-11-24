@@ -1,24 +1,36 @@
 import type { TrackSummary } from '@squirmy/contracts'
 import { fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { track } from '@/fixtures/catalog'
 import type { Viewer } from '@/lib/catalog'
 import { OnDemandContext } from '@/player/on-demand-context'
+import { NowPlayingContext, NowPlayingStore, PlayerControlsContext, usePlayerControls, type NowPlaying } from '@/player/player-context'
 import { renderWithApp } from '@/test/render'
-import { TrackRow, type NowPlaying } from './TrackList'
+import { TrackRow } from './TrackList'
 
 const requester: Viewer = { role: 'member', canAcquire: true }
 const member: Viewer = { role: 'member', canAcquire: false }
 
-type RowOptions = { nowPlaying?: NowPlaying; viewer?: Viewer; wanted?: boolean; track?: TrackSummary }
+type RowOptions = { nowPlaying?: NowPlaying; onTogglePlay?: () => void; viewer?: Viewer; wanted?: boolean; track?: TrackSummary }
 
-function renderRow(slug: string, { viewer = requester, ...props }: RowOptions = {}) {
+/** The fixture player's commands, with play and pause going to `onTogglePlay`. */
+function TogglePlay({ onTogglePlay, children }: { onTogglePlay?: () => void; children: ReactNode }) {
+  const controls = usePlayerControls()
+  return <PlayerControlsContext value={onTogglePlay ? { ...controls, togglePlay: onTogglePlay } : controls}>{children}</PlayerControlsContext>
+}
+
+function renderRow(slug: string, { viewer = requester, nowPlaying, onTogglePlay, ...props }: RowOptions = {}) {
   const onPlay = vi.fn()
   const onAction = vi.fn()
   renderWithApp(
     <OnDemandContext value={{ viewer }}>
-      <ul><TrackRow track={track(slug)} index={0} variant="album" onPlay={onPlay} onAction={onAction} {...props} /></ul>
+      <NowPlayingContext value={new NowPlayingStore(nowPlaying ?? null)}>
+        <TogglePlay onTogglePlay={onTogglePlay}>
+          <ul><TrackRow track={track(slug)} index={0} variant="album" onPlay={onPlay} onAction={onAction} {...props} /></ul>
+        </TogglePlay>
+      </NowPlayingContext>
     </OnDemandContext>,
   )
   return { onPlay, onAction, row: screen.getByRole('listitem') }
@@ -98,20 +110,20 @@ describe('TrackRow', () => {
 
   it('shows the buffering spinner on the current track while its music is on its way, under the artist as always', () => {
     const id = track('night-swimming-demo').id
-    const { row } = renderRow('night-swimming-demo', { nowPlaying: { trackId: id, playing: true, loading: true, onTogglePlay: () => {} } })
+    const { row } = renderRow('night-swimming-demo', { nowPlaying: { trackId: id, playing: true, loading: true } })
     expect(within(row).getByRole('status', { name: 'Loading' })).toBeInTheDocument()
     expect(within(row).getByRole('link', { name: 'Mira Vale' })).toBeInTheDocument()
     expect(row.textContent).not.toMatch(/preparing/i)
   })
 
   it('shows nothing special on a song that is not current, while it waits to be fetched', () => {
-    const { row } = renderRow('night-swimming-demo', { nowPlaying: { trackId: track('soft-signal').id, playing: true, loading: true, onTogglePlay: () => {} } })
+    const { row } = renderRow('night-swimming-demo', { nowPlaying: { trackId: track('soft-signal').id, playing: true, loading: true } })
     expect(within(row).queryByRole('status')).toBeNull()
   })
 
   it('marks the playing track and pauses it from its button', async () => {
     const onTogglePlay = vi.fn()
-    const { row } = renderRow('night-swimming', { nowPlaying: { trackId: track('night-swimming').id, playing: true, loading: false, onTogglePlay } })
+    const { row } = renderRow('night-swimming', { nowPlaying: { trackId: track('night-swimming').id, playing: true, loading: false }, onTogglePlay })
     expect(row).toHaveAttribute('aria-current', 'true')
     // A fill and the playing glyph mark it; the title keeps the text color, which reads on the fill in every theme.
     expect(row).toHaveClass('bg-accent/40')
@@ -123,7 +135,7 @@ describe('TrackRow', () => {
 
   it('shows the current song its fetch failed for as unavailable, not as current', () => {
     const id = track('night-swimming-demo').id
-    const { row } = renderRow('night-swimming-demo', { nowPlaying: { trackId: id, playing: false, loading: false, failed: true, onTogglePlay: () => {} } })
+    const { row } = renderRow('night-swimming-demo', { nowPlaying: { trackId: id, playing: false, loading: false, failed: true } })
     // Unavailable as #129 marks it: faded, the title and a hidden label say so, no play button;
     // its heart and menu still work, so the row is not disabled.
     expect(row).toHaveAttribute('title', 'Not available')

@@ -2,7 +2,7 @@ import type { QueueEntry, TrackSummary } from '@squirmy/contracts'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
 import { LibraryContext, type LibraryActions } from '@/player/library-context'
 import { OnDemandContext, type OnDemand } from '@/player/on-demand-context'
-import { PlayerContext, PlayerControlsContext, PositionClock, PositionContext, type Player, type PlayerControls, type PlayerState, type QueueItem, type StatusMessage } from '@/player/player-context'
+import { NowPlayingContext, PlayerContext, PlayerControlsContext, PositionClock, PositionContext, useNowPlayingStore, type Player, type PlayerControls, type PlayerState, type QueueItem, type StatusMessage } from '@/player/player-context'
 import { ArtUrlContext } from '@/lib/artwork'
 import { STILL_LOADING_MS } from '@/player/use-still-loading'
 import { STATUS_ERROR_MS, STATUS_EVENT_MS } from '@/player/status'
@@ -92,6 +92,7 @@ export function FixtureProviders({ children, initial }: { children: ReactNode; i
 
   // No audio here: what waits is what the fake server is still fetching.
   const player = useMemo<Player>(() => ({ state: { ...state, waiting: state.waiting || (state.playing && state.current?.entry.state === 'preparing') }, controls }), [state, controls])
+  const nowPlaying = useNowPlayingStore(player.state)
 
   return (
     <ArtUrlContext value={fixtureArtUrl}>
@@ -99,7 +100,9 @@ export function FixtureProviders({ children, initial }: { children: ReactNode; i
         <OnDemandContext value={onDemand}>
           <PlayerControlsContext value={controls}>
             <PlayerContext value={player}>
-              <PositionContext value={positionClock.shown}>{children}</PositionContext>
+              <NowPlayingContext value={nowPlaying}>
+                <PositionContext value={positionClock.shown}>{children}</PositionContext>
+              </NowPlayingContext>
             </PlayerContext>
           </PlayerControlsContext>
         </OnDemandContext>

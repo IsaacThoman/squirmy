@@ -19,7 +19,7 @@ import { AUDIO_BLOCKED_MESSAGE } from './engine/errors'
 import type { WebPlayerEngine } from './engine/web-engine'
 import { MediaSessionAdapter, mediaArtwork, type MediaSessionTrack } from './engine/media-session'
 import { Listening, type Audible } from './listening'
-import { PlayerContext, PlayerControlsContext, PositionClock, PositionContext, RadioPendingContext, type PlayerControls, type PlayerState, type QueueItem, type RadioSeed } from './player-context'
+import { NowPlayingContext, PlayerContext, PlayerControlsContext, PositionClock, PositionContext, RadioPendingContext, useNowPlayingStore, type PlayerControls, type PlayerState, type QueueItem, type RadioSeed } from './player-context'
 import { useShortcuts } from './shortcuts'
 import { STATUS_ERROR_MS, STATUS_EVENT_MS, StatusLine, type PlayerStatus } from './status'
 
@@ -327,12 +327,15 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     radioPending,
     outage: snapshot.outage,
   }
+  const nowPlaying = useNowPlayingStore(state)
 
   return (
     <PlayerControlsContext value={controls}>
       <PlayerContext value={{ state, controls }}>
         <RadioPendingContext value={radioPending}>
-          <PositionContext value={clock}>{children}</PositionContext>
+          <NowPlayingContext value={nowPlaying}>
+            <PositionContext value={clock}>{children}</PositionContext>
+          </NowPlayingContext>
         </RadioPendingContext>
       </PlayerContext>
     </PlayerControlsContext>

@@ -16,7 +16,7 @@ import { Equalizer } from '@/components/music/Equalizer'
 import { SaveHeart } from '@/components/music/LibrarySave'
 import { Rail, RailItem } from '@/components/music/Rail'
 import { SectionHeader } from '@/components/music/SectionHeader'
-import { TrackList, TrackRow, type NowPlaying } from '@/components/music/TrackList'
+import { TrackList, TrackRow } from '@/components/music/TrackList'
 import { DeviceList } from '@/components/player/Devices'
 import { LyricsPane } from '@/components/player/Lyrics'
 import { MiniPlayer, PlayerBar } from '@/components/player/PlayerBar'
@@ -45,7 +45,7 @@ import { COLOR_THEMES } from '@/lib/color-themes'
 import type { UploadFileState, UploadSnapshot } from '@/lib/upload'
 import { cn } from '@/lib/utils'
 import { LibraryFailures, LibraryFailuresContext } from '@/player/library-context'
-import { usePlayer } from '@/player/player-context'
+import { NowPlayingContext, NowPlayingStore, usePlayer } from '@/player/player-context'
 
 /** Each surface token with the text color that goes on it, then the line colors. */
 const swatches: [name: string, text?: string][] = [
@@ -433,17 +433,20 @@ function Overlays() {
   )
 }
 
+/** Rows as the session marks them, each under a session of its own; `idle` plays nothing. */
+const idle = new NowPlayingStore()
+const rowStates: { label: string; track: TrackSummary; nowPlaying?: NowPlayingStore }[] = [
+  { label: 'In library', track: track('soft-signal') },
+  { label: 'Playing', track: track('night-swimming'), nowPlaying: new NowPlayingStore({ trackId: track('night-swimming').id, playing: true, loading: false }) },
+  { label: 'Paused', track: track('blue-in-the-dark'), nowPlaying: new NowPlayingStore({ trackId: track('blue-in-the-dark').id, playing: false, loading: false }) },
+  { label: 'Loading', track: track('night-swimming-demo'), nowPlaying: new NowPlayingStore({ trackId: track('night-swimming-demo').id, playing: true, loading: true }) },
+  { label: 'Fetched as it plays', track: track('low-tide-song') },
+  { label: 'Not available', track: track('soft-signal-live') },
+  { label: 'Explicit', track: track('after-the-rain') },
+]
+
 function Music() {
   const player = usePlayer()
-  const states: { label: string; track: TrackSummary; nowPlaying?: NowPlaying }[] = [
-    { label: 'In library', track: track('soft-signal') },
-    { label: 'Playing', track: track('night-swimming'), nowPlaying: { trackId: track('night-swimming').id, playing: true, loading: false, onTogglePlay: () => {} } },
-    { label: 'Paused', track: track('blue-in-the-dark'), nowPlaying: { trackId: track('blue-in-the-dark').id, playing: false, loading: false, onTogglePlay: () => {} } },
-    { label: 'Loading', track: track('night-swimming-demo'), nowPlaying: { trackId: track('night-swimming-demo').id, playing: true, loading: true, onTogglePlay: () => {} } },
-    { label: 'Fetched as it plays', track: track('low-tide-song') },
-    { label: 'Not available', track: track('soft-signal-live') },
-    { label: 'Explicit', track: track('after-the-rain') },
-  ]
   return (
     <>
       <Group title="Artwork">
@@ -483,11 +486,13 @@ function Music() {
 
       <Group title="Track rows">
         <div className="flex flex-col">
-          {states.map(({ label, track: item, nowPlaying }, index) => (
+          {rowStates.map(({ label, track: item, nowPlaying }, index) => (
             <div key={label} className="flex items-center gap-3">
               <span className="w-24 shrink-0 text-right text-xs text-muted-foreground max-sm:hidden">{label}</span>
               <ul className="min-w-0 flex-1">
-                <TrackRow track={item} index={index} variant="compact" nowPlaying={nowPlaying} onPlay={() => {}} onAction={() => {}} />
+                <NowPlayingContext value={nowPlaying ?? idle}>
+                  <TrackRow track={item} index={index} variant="compact" onPlay={() => {}} onAction={() => {}} />
+                </NowPlayingContext>
               </ul>
             </div>
           ))}
