@@ -11,6 +11,7 @@ import { playingElsewhere, usePosition, type Player } from '@/player/player-cont
 import { STILL_LOADING_LABEL, useStillLoading } from '@/player/use-still-loading'
 import { DevicesPopover } from './Devices'
 import { PlayerStatusLine } from './PlayerStatus'
+import { progressPosition } from './progress'
 import { PlayPauseButton, SeekBar, touchTarget, TransportButtons, VolumeControl } from './Transport'
 import { useNowPlayingWheel } from './use-now-playing-wheel'
 
@@ -43,7 +44,11 @@ function useBarSize(element: HTMLElement | null) {
   useLayoutEffect(() => {
     if (!element || typeof ResizeObserver === 'undefined') return
     const short = window.matchMedia('(orientation: landscape) and (max-height: 32rem)')
-    const measure = () => setSize({ width: element.clientWidth || Infinity, short: short.matches })
+    // The bar resizes on every frame of the sidebar's fold; it renders again only when that changes what fits.
+    const measure = () => {
+      const next = { width: element.clientWidth || Infinity, short: short.matches }
+      setSize(size => (sameFit(size.width, next.width) && size.short === next.short ? size : next))
+    }
     measure()
     const observer = new ResizeObserver(measure)
     observer.observe(element)
@@ -54,6 +59,11 @@ function useBarSize(element: HTMLElement | null) {
     }
   }, [element])
   return size
+}
+
+/** Whether two bar widths fit the same controls: on the same side of every width the bar lays itself out by. */
+function sameFit(a: number, b: number) {
+  return [ONE_ROW_FITS, NOW_PLAYING_FITS, VOLUME_FITS].every(fits => (a >= fits) === (b >= fits))
 }
 
 /**
@@ -257,10 +267,11 @@ export function MiniPlayer({ player, onOpenNowPlaying }: Pick<PlayerChromeProps,
 
 /** How far the track is, drawn over the bar's top border. */
 function MiniProgress({ durationMs }: { durationMs: number }) {
-  const position = usePosition()
+  const position = usePosition(positionMs => progressPosition(positionMs, durationMs))
+  // Scaled rather than sized: a transform moves without laying the bar out again on every step.
   return (
     <div aria-hidden className="absolute inset-x-0 top-0 h-0.5">
-      <div className="h-full bg-primary" style={{ width: `${Math.min(100, (position / Math.max(durationMs, 1)) * 100)}%` }} />
+      <div className="h-full origin-left bg-primary" style={{ transform: `scaleX(${Math.min(1, Math.max(0, position / Math.max(durationMs, 1)))})` }} />
     </div>
   )
 }
