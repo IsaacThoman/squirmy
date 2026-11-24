@@ -175,7 +175,9 @@ const seeds = z.array(QueueSeed).min(1).max(COMMAND_TRACK_LIMIT)
  * - `previous`: restart the current entry when 3 s or more in (or with nothing behind it
  *   in `playedInCycle`); otherwise step back to the last playable entry there, putting the
  *   current entry back at the front of the queue. It never goes back past the `playTracks`
- *   that started the cycle, into what played before.
+ *   that started the cycle, into what played before. With `restart: false` it never
+ *   restarts: it steps back however far in, and does nothing with nothing to step back to
+ *   (a swipe on the mini-player, which shows the song it goes back to).
  * - `setShuffle`: on shuffles the collection's entries still to come with `seed`: those
  *   of the queue, and those behind the current one that were skipped rather than played
  *   (not in `history`). `queued` entries keep their places. The collection order is kept
@@ -205,7 +207,7 @@ export const SessionCommand = z.discriminatedUnion('type', [
   z.object({ type: z.literal('play') }),
   z.object({ type: z.literal('pause') }),
   z.object({ type: z.literal('next') }),
-  z.object({ type: z.literal('previous') }),
+  z.object({ type: z.literal('previous'), restart: z.boolean().optional() }),
   z.object({ type: z.literal('seek'), positionMs: z.number().nonnegative() }),
   z.object({ type: z.literal('setShuffle'), value: z.boolean(), seed: z.number().int() }),
   z.object({ type: z.literal('setRepeat'), value: RepeatMode }),
