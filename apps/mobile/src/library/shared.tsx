@@ -2,8 +2,8 @@ import { albumPresentation, type Viewer } from '@squirmy/client-core';
 import type { AlbumSummary, ArtistSummary, Artwork, PlaylistSummary } from '@squirmy/contracts';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { usePreventZoomTransitionDismissal, type Href } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { Href } from 'expo-router';
+import { useCallback, useMemo } from 'react';
 import {
   ActivityIndicator, FlatList, StyleSheet, Text, useWindowDimensions, View, type StyleProp, type ViewStyle, type NativeScrollEvent, type NativeSyntheticEvent,
 } from 'react-native';
@@ -46,8 +46,6 @@ export function gridColumns(width: number, fontScale: number): number {
 export function railTileSize(size: number, width: number, fontScale: number): number {
   return fontScale >= largeTextScale ? Math.max(size, Math.floor((width - gutter * 2) * 0.72)) : size;
 }
-/** How far in from the left edge a swipe can start and still close a zoomed collection. */
-const backSwipeEdge = 40;
 /** Start loading the next page this far before the end of the list. */
 const endThreshold = 900;
 
@@ -274,18 +272,6 @@ export function onScrollNearEnd(onEnd: () => void) {
 export function nearEnd(event: NativeScrollEvent) {
   'worklet';
   return event.layoutMeasurement.height + event.contentOffset.y > event.contentSize.height - endThreshold;
-}
-
-/**
- * A page that zoomed open zooms back only for a swipe from the left edge; pulling down scrolls it
- * instead. A swipe right from anywhere else is the stack's full screen back swipe, which slides it away.
- * The bounds go on after the first render because the zoom transition registers itself in an
- * effect, and the hook only applies bounds when one of them changes.
- */
-export function useBackSwipeOnly() {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  usePreventZoomTransitionDismissal({ unstable_dismissalBoundsRect: mounted ? { maxX: backSwipeEdge } : undefined });
 }
 
 /** Case- and accent-insensitive match of every word of `query` against `values`. */
