@@ -1,6 +1,6 @@
 import { Button, Image, Menu, ProgressView, RNHostView } from '@expo/ui/swift-ui';
 import {
-  accessibilityAddTraits, accessibilityHidden, accessibilityLabel, buttonStyle, contentShape, controlSize, frame, menuIndicator, progressViewStyle, shapes, tint,
+  accessibilityAddTraits, accessibilityHidden, accessibilityLabel, background, buttonStyle, contentShape, controlSize, frame, menuIndicator, progressViewStyle, shapes, tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { View } from 'react-native';
 import type { ComponentProps } from 'react';
@@ -22,7 +22,7 @@ export function Symbol({ name, size = 20, color }: { name: string; size?: number
   return <Image systemName={name as SymbolName} size={size} color={color} modifiers={[accessibilityHidden(true)]} />;
 }
 
-export function IconButton({ symbol, label, size = 20, color, width = 44, height = 44, selected, busy, onPress }: {
+export function IconButton({ symbol, label, size = 20, color, width = 44, height = 44, selected, busy, filled, onPress }: {
   symbol: string;
   label: string;
   size?: number;
@@ -32,9 +32,12 @@ export function IconButton({ symbol, label, size = 20, color, width = 44, height
   selected?: boolean;
   /** Shows the system's activity spinner in place of the symbol; the button still works. */
   busy?: boolean;
+  /** The symbol knocked out of a circle filled with `color`, for a toggle that is on. */
+  filled?: boolean;
   onPress?: () => void;
 }) {
   const colors = useColors();
+  const fill = filled ? [frame({ width: 36, height: 36 }), background(color ?? colors.text, shapes.circle())] : [];
   return (
     <Button onPress={onPress} modifiers={[
       plainButton, accessibilityLabel(label),
@@ -43,8 +46,8 @@ export function IconButton({ symbol, label, size = 20, color, width = 44, height
       {busy
         ? <ProgressView modifiers={[progressViewStyle('circular'), controlSize(size >= 32 ? 'large' : 'regular'), tint(color ?? colors.text),
           frame({ width, height }), hitShape]} />
-        : <Image systemName={symbol as SymbolName} size={size} color={color ?? colors.text}
-          modifiers={[frame({ width, height }), hitShape]} />}
+        : <Image systemName={symbol as SymbolName} size={filled ? size * 0.82 : size} color={filled ? colors.background : color ?? colors.text}
+          modifiers={[...fill, frame({ width, height }), hitShape]} />}
     </Button>
   );
 }

@@ -1,6 +1,6 @@
-import { type AwayDevice, deviceLabel, listedDevices, type DeviceLabel, type SessionMoveResult, type SessionOutage } from '@squirmy/client-core'
+import { type AwayDevice, deviceLabel, listedDevices, readsUnavailable, type DeviceLabel, type SessionMoveResult, type SessionOutage } from '@squirmy/client-core'
 import type { DeviceInfo, Lyrics, PlaybackContext, QueueEntry, RepeatMode, TrackSummary } from '@squirmy/contracts'
-import { createContext, useContext, useSyncExternalStore } from 'react'
+import { createContext, useContext, useLayoutEffect, useState, useSyncExternalStore } from 'react'
 import type { PlayerStatus } from './status'
 
 /** A queue entry with the track it points at, hydrated for display. */
@@ -196,6 +196,81 @@ export class PositionClock {
 }
 
 export const PositionContext = createContext(new PositionClock(() => 0))
+
+/**
+ * The session's current track as a song row shows it. `loading`: its music is on its way (a
+ * fetch looks like buffering). `failed`: its music could not be had, so that row is unavailable
+ * rather than current, before the track's own availability reaches the list.
+ */
+export type NowPlaying = { trackId: string; playing: boolean; loading: boolean; failed?: boolean }
+
+/** What one row shows of the session: nothing, unless it is the current track. */
+export type TrackPlayback = 'playing' | 'paused' | 'loading' | 'failed' | null
+
+const sameNowPlaying = (a: NowPlaying | null, b: NowPlaying | null) => a === b || (a !== null && b !== null
+  && a.trackId === b.trackId && a.playing === b.playing && a.loading === b.loading && Boolean(a.failed) === Boolean(b.failed))
+
+/**
+ * The current track, kept apart from the session as the position is, so that song rows render
+ * only when what they show changes: a volume, a seek or a queue change renders none, and a new
+ * current track renders the row it leaves and the row it reaches.
+ */
+export class NowPlayingStore {
+  private value: NowPlaying | null
+  private readonly listeners = new Set<() => void>()
+
+  constructor(value: NowPlaying | null = null) {
+    this.value = value
+  }
+
+  get = (): NowPlaying | null => this.value
+
+  subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
+
+  set(value: NowPlaying | null): void {
+    if (sameNowPlaying(value, this.value)) return
+    this.value = value
+    for (const listener of [...this.listeners]) listener()
+  }
+}
+
+/** What the rows show of `state`. */
+export function nowPlayingOf(state: Pick<PlayerState, 'current' | 'playing' | 'waiting' | 'outage'>): NowPlaying | null {
+  return state.current && {
+    trackId: state.current.track.id,
+    playing: state.playing,
+    loading: state.waiting,
+    failed: readsUnavailable(state.current.entry, state.outage),
+  }
+}
+
+/**
+ * A `NowPlayingStore` that follows `state`. It is told after the provider's render commits, so
+ * the rows that change render in the same frame, after it.
+ */
+export function useNowPlayingStore(state: Pick<PlayerState, 'current' | 'playing' | 'waiting' | 'outage'>): NowPlayingStore {
+  const [store] = useState(() => new NowPlayingStore(nowPlayingOf(state)))
+  const value = nowPlayingOf(state)
+  useLayoutEffect(() => store.set(value))
+  return store
+}
+
+export const NowPlayingContext = createContext(new NowPlayingStore())
+
+function playbackOf(now: NowPlaying | null, trackId: string): TrackPlayback {
+  if (now?.trackId !== trackId) return null
+  if (now.failed) return 'failed'
+  return now.loading ? 'loading' : now.playing ? 'playing' : 'paused'
+}
+
+/** Whether `trackId` is the current track, and how it plays. The caller re-renders only when that changes. */
+export function useTrackPlayback(trackId: string): TrackPlayback {
+  const store = useContext(NowPlayingContext)
+  return useSyncExternalStore(store.subscribe, () => playbackOf(store.get(), trackId))
+}
 
 /**
  * The position in milliseconds, or what `select` makes of it. The caller re-renders only

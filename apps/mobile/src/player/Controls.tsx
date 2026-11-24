@@ -13,23 +13,37 @@ export type PlayerButtonProps = {
   selected?: boolean;
   /** Shows an activity spinner in place of the icon, as while a track loads; the button still works. */
   busy?: boolean;
+  /** Draws the icon knocked out of a filled circle, as Now Playing's lyrics and queue buttons while their page is open. */
+  filled?: boolean;
 };
 
 export type DeviceButtonProps = { icon: string; name: string; highlighted: boolean; onPress: () => void };
 export type TrackMenuButtonProps = { track: TrackSummary; onPress: () => void };
 /** The title and artist, which open a menu of the pages they lead to. */
 export type TrackLinksMenuProps = { track: TrackSummary | undefined; accessibilityLabel: string; children: React.ReactNode };
-/** Without `onPress` (plain lyrics) the line is only text. */
-export type LyricButtonProps = { line: string; active: boolean; onPress?: () => void };
+/**
+ * Without `onPress` (plain lyrics) the line is only text. iOS draws the line at `opacity` and
+ * blurred by `blur` points, easing to a new look after `delay` milliseconds; elsewhere the
+ * active line is bright and the rest quiet.
+ */
+export type LyricButtonProps = {
+  line: string;
+  active: boolean;
+  onPress?: () => void;
+  opacity?: number;
+  blur?: number;
+  delay?: number;
+};
 
-export function PlayerButton({ icon, label, size = 20, color, onPress, style, selected, busy }: PlayerButtonProps) {
+export function PlayerButton({ icon, label, size = 20, color, onPress, style, selected, busy, filled }: PlayerButtonProps) {
   const colors = useColors();
   const styles = useStyles();
   return <Pressable accessibilityRole="button" accessibilityLabel={label}
     accessibilityState={selected === undefined ? { busy } : { selected, busy }} onPress={onPress}
     style={({ pressed }) => [styles.icon, style, pressed && styles.pressed]}>
+    {filled && <View style={[styles.fill, { backgroundColor: color ?? colors.text }]} />}
     {busy ? <ActivityIndicator size={size >= 32 ? 'large' : 'small'} color={color ?? colors.text} />
-      : <Icon name={icon} size={size} color={color ?? colors.text} />}
+      : <Icon name={icon} size={size} color={filled ? colors.background : color ?? colors.text} />}
   </Pressable>;
 }
 
@@ -69,8 +83,15 @@ export function LyricButton({ line, active, onPress }: LyricButtonProps) {
   </Pressable>;
 }
 
+/** "Written By" after the last line, quieter and smaller than the lyrics. */
+export function LyricCredits({ credits, opacity }: { credits: string; opacity: number }) {
+  const styles = useStyles();
+  return <Text style={[styles.credits, { opacity }]}>{`Written By: ${credits}`}</Text>;
+}
+
 const useStyles = createThemedStyles(colors => StyleSheet.create({
   icon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  fill: { position: 'absolute', width: 36, height: 36, borderRadius: 18 },
   pressed: { opacity: 0.65 },
   // 44 pt to touch, with the grabber where it sits in Now Playing's 32 pt row.
   grabberPress: { width: 105, height: 44, alignItems: 'center', paddingTop: 14 },
@@ -81,4 +102,5 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   lyricButton: { paddingBottom: 21, maxWidth: 530 },
   lyric: { color: colors.quiet, fontWeight: '700', fontSize: 32, letterSpacing: -0.7 },
   lyricActive: { color: colors.text },
+  credits: { color: colors.text, fontSize: 15, fontWeight: '600', paddingTop: 8, paddingBottom: 21, maxWidth: 530 },
 }));

@@ -28,7 +28,7 @@ import { albumSummaries, artistSummaries, trackSummaries } from './summaries.js'
 type IdRow = { id: string; cursorKeys: string[] }
 
 /** Condition: the album (alias) carries the genre, ignoring case; `true` without one. */
-function hasGenre(album: string, genre: string | undefined): SQL {
+export function hasGenre(album: string, genre: string | undefined): SQL {
   return genre ? sql`exists (select 1 from unnest(${sql.raw(album)}.genres) as genre where lower(genre) = lower(${genre}))` : sql`true`
 }
 
@@ -43,7 +43,7 @@ export type LibraryShape = 'small' | 'large'
 const SMALL_LIBRARY = 2000
 
 /** Ids of the albums in the user's library: linked to a collection file, or saved (duplicates possible). */
-function libraryAlbumIds(userId: string): SQL {
+export function libraryAlbumIds(userId: string): SQL {
   return sql`
     select collected.album_id from media_files collected where collected.album_id is not null and ${collectionFile('collected')}
     union all
@@ -67,7 +67,7 @@ function libraryRecordingIds(userId: string): SQL {
  * union so the planner probes the indexes row by row: an OR of two EXISTS is planned as
  * hashed subplans that read every collection file before the first row.
  */
-function albumIsMember(album: string, userId: string): SQL {
+export function albumIsMember(album: string, userId: string): SQL {
   return sql`exists (
     select 1 from media_files collected where collected.album_id = ${sql.raw(album)} and ${collectionFile('collected')}
     union all
@@ -127,7 +127,7 @@ const byRecency = (name: string, at: string, id: string): Ordering => ({
 // so a cursor from before is refused rather than misread.
 const albumsRecent = byRecency('albums:recent2', 'm.at', 'm.id')
 
-const albumOrderings: Record<LibrarySort, Ordering> = {
+export const albumOrderings: Record<LibrarySort, Ordering> = {
   recent: albumsRecent,
   title: {
     name: 'albums:title',
@@ -155,17 +155,33 @@ const albumOrderings: Record<LibrarySort, Ordering> = {
 }
 
 /**
+ * How the Library's All (`library-items.ts`) reuses the album query: `name` is the ordering
+ * its cursors carry, and `unplayed` leaves out the albums the user played from (its
+ * "Recently played" lists those first, from `collection_plays`).
+ */
+export type AlbumBranch = { name?: string; unplayed?: boolean }
+
+/** Condition: the user never started playback from the album (expression). */
+export function neverPlayed(type: 'album' | 'artist' | 'playlist' | 'liked', entity: string, userId: string): SQL {
+  return sql`not exists (
+    select 1 from collection_plays played
+    where played.user_id = ${userId} and played.entity_type = ${type} and played.entity_id = ${sql.raw(entity)}
+  )`
+}
+
+/**
  * The query behind `GET /library/albums`, returning `limit + 1` rows. Exported for EXPLAIN in tests.
  *
  * `recent` places an album at its newest collection file's `added_at` or its save's
  * `created_at`, whichever is later; each branch below keeps only the albums whose time it
  * holds (the collection on a tie), so every album appears once.
  */
-export function libraryAlbumsQuery(userId: string, query: LibraryQuery, shape: LibraryShape): SQL {
-  const ordering = albumOrderings[query.sort]
+export function libraryAlbumsQuery(userId: string, query: LibraryQuery, shape: LibraryShape, branch: AlbumBranch = {}): SQL {
+  const ordering = { ...albumOrderings[query.sort], name: branch.name ?? albumOrderings[query.sort].name }
   const genre = hasGenre('a', query.genre)
   const limit = query.limit + 1
   if (query.sort === 'recent') {
+    const unplayed = (album: string) => (branch.unplayed ? neverPlayed('album', album, userId) : sql`true`)
     const collection = byRecency(ordering.name, 'f.added_at', 'f.album_id')
     const saves = byRecency(ordering.name, 's.created_at', 's.entity_id')
     return sql`
@@ -181,6 +197,7 @@ export function libraryAlbumsQuery(userId: string, query: LibraryQuery, shape: L
             select 1 from likes later
             where later.user_id = ${userId} and later.entity_type = 'album' and later.entity_id = f.album_id and later.created_at > f.added_at
           )
+          and ${unplayed('f.album_id')}
           and ${after(collection, query.cursor)}
         order by ${orderBy(collection)} limit ${limit})
         union all
@@ -191,6 +208,7 @@ export function libraryAlbumsQuery(userId: string, query: LibraryQuery, shape: L
             select 1 from media_files later
             where later.album_id = s.entity_id and ${collectionFile('later')} and later.added_at >= s.created_at
           )
+          and ${unplayed('s.entity_id')}
           and ${after(saves, query.cursor)}
         order by ${orderBy(saves)} limit ${limit})
       ) m

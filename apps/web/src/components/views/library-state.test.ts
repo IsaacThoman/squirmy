@@ -2,15 +2,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { matches, readLibraryFilter, readLibraryLayout, sortFor, sortsFor, writeLibraryFilter, writeLibraryLayout } from './library-state'
 
 describe('library sorts', () => {
-  it('match the iOS app: no year for songs, none for artists and playlists', () => {
-    expect(sortsFor('all')).toEqual(['recent', 'title', 'artist', 'year'])
+  it('match the iOS app: recently played for All alone, no year for songs, none for artists and playlists', () => {
+    expect(sortsFor('all')).toEqual(['played', 'recent', 'title', 'artist', 'year'])
     expect(sortsFor('albums')).toEqual(['recent', 'title', 'artist', 'year'])
     expect(sortsFor('songs')).toEqual(['recent', 'title', 'artist'])
     expect(sortsFor('artists')).toEqual([])
     expect(sortsFor('playlists')).toEqual([])
   })
 
-  it('keep the order chosen where it applies, and fall back to Recently added elsewhere', () => {
+  it('keep the order chosen where it applies, and fall back to the filter’s own default elsewhere', () => {
+    expect(sortFor('all', null)).toBe('played')
+    expect(sortFor('albums', null)).toBe('recent')
+    expect(sortFor('albums', 'played')).toBe('recent')
+    expect(sortFor('all', 'year')).toBe('year')
     expect(sortFor('albums', 'year')).toBe('year')
     expect(sortFor('songs', 'year')).toBe('recent')
     expect(sortFor('songs', 'title')).toBe('title')
