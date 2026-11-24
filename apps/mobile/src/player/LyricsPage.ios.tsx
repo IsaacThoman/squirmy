@@ -1,15 +1,16 @@
 import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import { AccessibilityInfo, StyleSheet, useWindowDimensions, View, type LayoutChangeEvent } from 'react-native';
 import Animated, {
-  Easing, ReduceMotion, scrollTo, useAnimatedRef, useAnimatedStyle, useScrollOffset, useSharedValue, withTiming, type SharedValue,
+  Easing, ReduceMotion, scrollTo, useAnimatedReaction, useAnimatedRef, useAnimatedStyle, useScrollOffset, useSharedValue, withTiming,
+  type SharedValue,
 } from 'react-native-reanimated';
-import { scheduleOnUI } from 'react-native-worklets';
+import { scheduleOnRN, scheduleOnUI } from 'react-native-worklets';
 import { useLyrics } from '../data/queries';
 import { usePlaybackState, usePosition } from '../playback';
 import { LyricButton, LyricCredits } from './Controls';
 import { selectionFeedback } from './design';
 import {
-  activeLine, chromeDeadline, initialChrome, lineDelay, lineLook, lyricCredits, lyricLines, lyricsChrome, springRemaining, waveDuration,
+  activeLine, chromeDeadline, initialChrome, lineDelay, lineLook, lyricCredits, lyricLines, lyricsChrome, scrollRun, scrollTurn, springRemaining, waveDuration,
   type ChromeEvent, type ChromeRules,
 } from './lyrics';
 import LyricsEmpty from './LyricsEmpty';
@@ -46,8 +47,8 @@ type Wave = { shift: SharedValue<number>; clock: SharedValue<number>; from: Shar
 /**
  * Lyrics as Apple Music draws them: big, bold lines with the sung one bright near the top
  * and the rest dim and blurred more the farther they are, rippling up as the song moves on.
- * Left untouched while it plays, the page hides the transport and takes the screen; a tap
- * brings it back. Scrolling by hand clears the blur, and a few seconds after the scroll rests
+ * Left untouched while it plays, the page hides the transport and takes the screen; a tap,
+ * or scrolling back up, brings it back. Scrolling by hand clears the blur, and a few seconds after the scroll rests
  * the page goes back to the sung line. The rules are `lyricsChrome`'s.
  */
 export default function LyricsPage({ selected, ref, onControlsHidden }: LyricsProps) {
@@ -145,9 +146,31 @@ export default function LyricsPage({ selected, ref, onControlsHidden }: LyricsPr
     // `wave`'s values and `scroll` are stable; `placed` re-runs this once the sung line has a place.
   }, [sung, visible, following, viewport, placed, anchor, reduceMotion]);
 
+  // Which way a reader scrolls, read on the UI thread: on through the lyrics hides the
+  // transport and back up brings it back, told to JS only when the way turns.
+  const reading = useSharedValue(false);
+  const run = useSharedValue(0);
+  const heading = useSharedValue(0);
+  const scrollable = useSharedValue(0);
+  useAnimatedReaction(() => offset.value, (now, before) => {
+    if (!reading.value || before === null) return;
+    // The bounce past either end springs back the other way; it is not the reader turning.
+    if (now < 0 || before < 0 || now > scrollable.value || before > scrollable.value) return;
+    run.value = scrollRun(run.value, now - before);
+    if (Math.abs(run.value) < scrollTurn) return;
+    const way = Math.sign(run.value);
+    if (way === heading.value) return;
+    heading.value = way;
+    scheduleOnRN(dispatch, { type: way > 0 ? 'scroll' : 'scrollBack' });
+  });
+
   const momentum = useRef(false);
   const dragged = useRef(false);
-  const rest = () => dispatch({ type: 'rest' });
+  const contentHeight = useRef(0);
+  const rest = () => {
+    reading.value = false;
+    dispatch({ type: 'rest' });
+  };
   const actionsRef = useRef(actions);
   actionsRef.current = actions;
   const seek = useCallback((startMs: number) => {
@@ -172,12 +195,22 @@ export default function LyricsPage({ selected, ref, onControlsHidden }: LyricsPr
       <Animated.ScrollView
         ref={scroll}
         contentInsetAdjustmentBehavior="never"
-        onLayout={(event) => setViewport(event.nativeEvent.layout.height)}
+        onLayout={(event) => {
+          setViewport(event.nativeEvent.layout.height);
+          scrollable.value = contentHeight.current - event.nativeEvent.layout.height;
+        }}
+        onContentSizeChange={(_, height) => {
+          contentHeight.current = height;
+          scrollable.value = height - viewport;
+        }}
         contentContainerStyle={[styles.content, { paddingTop: anchor, paddingBottom: screenHeight * 0.6 }]}
         scrollsToTop={false}
         onScrollBeginDrag={() => {
           dragged.current = true;
-          dispatch({ type: 'scroll' });
+          run.value = 0;
+          heading.value = 0;
+          reading.value = true;
+          dispatch({ type: 'grab' });
         }}
         onMomentumScrollBegin={() => { momentum.current = true; }}
         // A drag that ends without a fling has come to rest; one with a fling rests when its momentum ends.
