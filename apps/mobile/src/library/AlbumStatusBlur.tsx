@@ -1,3 +1,3 @@
-export function AlbumStatusBlur(_props: { solid?: boolean }) {
+export function AlbumStatusBlur() {
   return null;
 }
