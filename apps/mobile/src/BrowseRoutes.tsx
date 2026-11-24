@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { HomeScreen, LibraryScreen, SearchScreen } from './Library';
 import { pageHref, type Page, type Tab } from './library/links';
 import { AlbumScreen, ArtistScreen, GenreScreen, PlaylistScreen, ReleasesScreen, SongsScreen } from './library/Pages';
+import { noScrollEdgeEffects } from './scrollEdgeEffects';
 import { useTabChrome } from './tabChrome';
 import { TabBarEdge } from './TabBarEdge';
 import { useColors } from './theme';
@@ -17,8 +18,8 @@ export function BrowseStack() {
     <Stack screenOptions={{
       headerShown: false,
       contentStyle: { backgroundColor: colors.background },
-      // The browse pages draw their own top edge. An automatic edge can tint the same area.
-      scrollEdgeEffects: { top: 'hidden' },
+      // The app draws its own edges (modules/scroll-edges hides the system's); keep the stack from showing them again.
+      scrollEdgeEffects: noScrollEdgeEffects,
     }} />
     <TabBarEdge height={edgeHeight} />
   </View>;
