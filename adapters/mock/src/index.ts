@@ -87,6 +87,18 @@ export type MockTrack = {
 }
 type Track = MockTrack
 
+/**
+ * The tone's frequency in Hz for a title and artist, so the same recording sounds the same
+ * and others differ. Tones of one length and volume at one frequency are the same audio,
+ * which the server de-duplicates by its hash: with only 800 whole-hertz pitches, two songs
+ * of a test run shared one often enough that a delivery was taken for an earlier song. Steps
+ * of a thousandth of a hertz over 200 to 2200 Hz still give different audio, even a second long.
+ */
+export function tonePitch(artist: string, title: string): string {
+  const steps = createHash('sha256').update(`${artist}\n${title}`).digest().readUInt32BE(0) % 2_000_000
+  return (200 + steps / 1000).toFixed(3)
+}
+
 /** Writes one tagged tone, the way the server's test fixtures do: -50 dB, below the loudness gate. */
 async function writeTone(settings: MockSettings, file: string, track: Track) {
   const seconds = Math.min(settings.maxSeconds, Math.max(1, Math.round((track.durationMs ?? 30_000) / 1000)))
@@ -97,9 +109,7 @@ async function writeTone(settings: MockSettings, file: string, track: Track) {
     ...(track.mbid ? { MUSICBRAINZ_TRACKID: track.mbid } : {}),
     ...(track.isrcs[0] ? { ISRC: track.isrcs[0] } : {}),
   }
-  // A pitch of its own for each title and artist: the same recording sounds the same, others differ.
-  const pitch = 200 + createHash('sha256').update(`${track.artist}\n${track.title}`).digest().readUInt16BE(0) % 800
-  const args = ['-v', 'error', '-y', '-f', 'lavfi', '-i', `sine=frequency=${pitch}:duration=${seconds}:sample_rate=44100`]
+  const args = ['-v', 'error', '-y', '-f', 'lavfi', '-i', `sine=frequency=${tonePitch(track.artist, track.title)}:duration=${seconds}:sample_rate=44100`]
   args.push('-af', 'volume=-50dB', '-ac', '2', '-c:a', 'flac')
   for (const [key, value] of Object.entries(tags)) args.push('-metadata', `${key}=${value}`)
   args.push(file)
