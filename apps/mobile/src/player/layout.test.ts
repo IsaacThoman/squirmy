@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { contextHeight, metadataHeight } from './layout';
+import { metadataHeight, rhythm } from './layout';
 
 describe('metadataHeight', () => {
   it('leaves room for a two-line title and a two-line credit at the default text size', () => {
@@ -16,13 +16,23 @@ describe('metadataHeight', () => {
   });
 });
 
-describe('contextHeight', () => {
-  it('is the designed 34 pt at the default text size', () => {
-    expect(contextHeight(1)).toBe(34);
+describe('rhythm', () => {
+  it('spaces a 6.1-inch iPhone as Apple Music does', () => {
+    expect(rhythm(852)).toEqual({ artworkGap: 16, buttonsTop: 22, buttonsBottom: 32, footerTop: 12 });
   });
 
-  it('grows with larger text until the secondary cap, so its two lines stay clear of the artwork', () => {
-    expect(contextHeight(1.6)).toBe(Math.ceil(31 * 1.6));
-    expect(contextHeight(3.1)).toBe(contextHeight(1.6));
+  it('keeps that spacing on taller screens, where the artwork grows instead', () => {
+    expect(rhythm(932)).toEqual(rhythm(852));
+  });
+
+  it('tightens in step with the height on shorter screens, down to an iPhone SE', () => {
+    const mini = rhythm(812);
+    const se = rhythm(667);
+    expect(se).toEqual({ artworkGap: 8, buttonsTop: 8, buttonsBottom: 8, footerTop: 4 });
+    expect(rhythm(568)).toEqual(se);
+    for (const key of Object.keys(se) as (keyof typeof se)[]) {
+      expect(mini[key]).toBeGreaterThan(se[key]);
+      expect(mini[key]).toBeLessThanOrEqual(rhythm(852)[key]);
+    }
   });
 });
