@@ -275,7 +275,8 @@ export function nearEnd(event: NativeScrollEvent) {
 }
 
 /**
- * Only a swipe from the left edge closes a page that zoomed open; pulling down scrolls it instead.
+ * A page that zoomed open zooms back only for a swipe from the left edge; pulling down scrolls it
+ * instead. A swipe right from anywhere else is the stack's full screen back swipe, which slides it away.
  * The bounds go on after the first render because the zoom transition registers itself in an
  * effect, and the hook only applies bounds when one of them changes.
  */

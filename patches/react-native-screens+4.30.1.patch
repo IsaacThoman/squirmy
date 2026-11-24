@@ -1,5 +1,5 @@
 diff --git a/node_modules/react-native-screens/ios/RNSScreenStack.mm b/node_modules/react-native-screens/ios/RNSScreenStack.mm
-index 5da1196..0782de6 100644
+index 5da1196..acabf37 100644
 --- a/node_modules/react-native-screens/ios/RNSScreenStack.mm
 +++ b/node_modules/react-native-screens/ios/RNSScreenStack.mm
 @@ -662,6 +662,30 @@ - (void)setModalViewControllers:(NSArray<UIViewController *> *)controllers
@@ -44,3 +44,142 @@ index 5da1196..0782de6 100644
      if (!_updateScheduled) {
        _updateScheduled = YES;
        __weak RNSScreenStackView *weakSelf = self;
+@@ -885,15 +913,11 @@ - (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)gestureRecognizer
+ #else
+ 
+   if ([gestureRecognizer isKindOfClass:[RNSPanGestureRecognizer class]]) {
+-    // On iOS < 26, we have a custom full screen swipe recognizer that functions similarily
+-    // to interactiveContentPopGestureRecognizer introduced in iOS 26.
+-    // On iOS >= 26, we want to use the native one, but we are unable to handle custom animations
+-    // with native interactiveContentPopGestureRecognizer, so we have to fallback to the old implementation
+-    // for this one case only.
+-    if (@available(iOS 26, *)) {
+-      if (!customAnimationOnSwipePropSetAndSelectedAnimationIsCustom) {
+-        return NO;
+-      }
++    // Squirmy: this recognizer is the full screen back swipe on iOS 26 too (see shouldReceivePressOrTouchEvent).
++    // It starts only for a swipe toward the back, away from the edge, and not over something that scrolls back.
++    if (topScreen.swipeDirection != RNSScreenSwipeDirectionVertical &&
++        ![self isBackSwipe:(UIPanGestureRecognizer *)gestureRecognizer]) {
++      return NO;
+     }
+ 
+     if ([self isInGestureResponseDistance:gestureRecognizer topScreen:topScreen]) {
+@@ -1142,6 +1166,57 @@ - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event
+ 
+ #if !TARGET_OS_TV && !TARGET_OS_VISION
+ 
++// Squirmy: how far in from the edge the system's edge swipe (and a zoomed page's own dismissal) keeps the gesture.
++static const CGFloat RNSBackSwipeEdgeWidth = 24;
++
++// Squirmy: a full screen back swipe moves toward the back more than up or down, starts away from the edge, and
++// does not start over a horizontal scroll view that can still scroll back: that one scrolls first, as in Apple Music.
++- (BOOL)isBackSwipe:(UIPanGestureRecognizer *)gestureRecognizer
++{
++  UIView *view = gestureRecognizer.view;
++  BOOL isRTL = _controller.view.semanticContentAttribute == UISemanticContentAttributeForceRightToLeft;
++  CGPoint translation = [gestureRecognizer translationInView:view];
++  CGPoint location = [gestureRecognizer locationInView:view];
++  CGFloat towardBack = isRTL ? -translation.x : translation.x;
++  if (towardBack <= 0 || fabs(translation.y) >= towardBack) {
++    return NO;
++  }
++  CGPoint start = CGPointMake(location.x - translation.x, location.y - translation.y);
++  CGFloat fromEdge = isRTL ? view.bounds.size.width - start.x : start.x;
++  if (fromEdge < RNSBackSwipeEdgeWidth) {
++    return NO;
++  }
++  for (UIView *hit = [view hitTest:start withEvent:nil]; hit != nil && hit != view; hit = hit.superview) {
++    if ([hit isKindOfClass:[UIScrollView class]]) {
++      UIScrollView *scrollView = (UIScrollView *)hit;
++      UIEdgeInsets inset = scrollView.adjustedContentInset;
++      CGFloat maxOffset = scrollView.contentSize.width + inset.right - scrollView.bounds.size.width;
++      BOOL canScrollBack = isRTL ? scrollView.contentOffset.x < maxOffset - 0.5
++                                 : scrollView.contentOffset.x > -inset.left + 0.5;
++      if ([self scrollViewHasHorizontalPart:scrollView] && canScrollBack) {
++        return NO;
++      }
++    }
++  }
++  return YES;
++}
++
++// Squirmy: whether a list has a row slid open to show its swipe actions.
++- (BOOL)showsSwipeActions:(UIView *)view depth:(int)depth
++{
++  for (UIView *subview in view.subviews) {
++    // The row keeps an empty container for its actions; it holds them only while they show.
++    if (!subview.hidden && subview.subviews.count > 0 &&
++        [NSStringFromClass([subview class]) containsString:@"SwipeAction"]) {
++      return YES;
++    }
++    if (depth > 1 && [self showsSwipeActions:subview depth:depth - 1]) {
++      return YES;
++    }
++  }
++  return NO;
++}
++
+ - (BOOL)isScrollViewPanGestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
+ {
+   // NOTE: This hack is required to restore native behavior of edge swipe (interactive pop gesture)
+@@ -1192,13 +1267,14 @@ - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceive
+     // On iOS 26, depending on whether custom animations are on, we select
+     // either interactiveContentPopGestureRecognizer or RNSPanGestureRecognizer,
+     // then we allow them to proceed iff full screen swipe is enabled.
++    // Squirmy: the native content swipe does not start on a page that zoomed open, and gives way to any
++    // horizontal scroll view even when it is scrolled all the way back. The full screen pan handles both,
++    // so it is the full screen back swipe on every page.
+     if ([gestureRecognizer isKindOfClass:[RNSPanGestureRecognizer class]]) {
+-      return customAnimationOnSwipePropSetAndSelectedAnimationIsCustom ? topScreen.isFullScreenSwipeEffectivelyEnabled
+-                                                                       : NO;
++      return topScreen.isFullScreenSwipeEffectivelyEnabled;
+     }
+     if (gestureRecognizer == _controller.interactiveContentPopGestureRecognizer) {
+-      return customAnimationOnSwipePropSetAndSelectedAnimationIsCustom ? NO
+-                                                                       : topScreen.isFullScreenSwipeEffectivelyEnabled;
++      return NO;
+     }
+   } else {
+     // We want to pass events to RNSPanGestureRecognizer iff full screen swipe is enabled.
+@@ -1213,6 +1289,14 @@ - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceive
+   }
+ #endif // check for iOS >= 26
+ 
++  // Squirmy: a page that zoomed open closes from the edge with the zoom's own interactive dismissal.
++  if (@available(iOS 18, *)) {
++    if (gestureRecognizer == _controller.interactivePopGestureRecognizer &&
++        topScreen.controller.preferredTransition != nil) {
++      return NO;
++    }
++  }
++
+   // RNSScreenEdgeGestureRecognizer || _UIParallaxTransitionPanGestureRecognizer
+   return YES;
+ }
+@@ -1251,6 +1335,11 @@ - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
+ - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
+     shouldRequireFailureOfGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer
+ {
++  // Squirmy: while a list row shows its swipe actions, a swipe toward the back closes the row first.
++  if ([gestureRecognizer isKindOfClass:[RNSPanGestureRecognizer class]] &&
++      [NSStringFromClass([otherGestureRecognizer class]) containsString:@"SwipeAction"]) {
++    return [self showsSwipeActions:otherGestureRecognizer.view depth:3];
++  }
+   if (@available(iOS 26, *)) {
+     if (gestureRecognizer == _controller.interactiveContentPopGestureRecognizer &&
+         [self isScrollViewPanGestureRecognizer:otherGestureRecognizer]) {
+@@ -1280,6 +1369,13 @@ - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
+   }
+ #endif // check for iOS >= 26
+ 
++  // Squirmy: the full screen back swipe decides first. It fails at once for any other swipe, and a scroll view
++  // that already started scrolling would otherwise take a back swipe for its own.
++  if ([gestureRecognizer isKindOfClass:[RNSPanGestureRecognizer class]] &&
++      [self isScrollViewPanGestureRecognizer:otherGestureRecognizer]) {
++    return YES;
++  }
++
+   // edge swipe to dismiss should take precedence over scrolling (both horizontally and vertically)
+   return isEdgeSwipeGestureRecognizer && [self isScrollViewPanGestureRecognizer:otherGestureRecognizer];
+ }
