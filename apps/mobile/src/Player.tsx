@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { usePathname, useRouter } from 'expo-router';
 import { useEffect, useRef, useState, type PropsWithChildren } from 'react';
-import { ActivityIndicator, BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { BackHandler, Platform, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, useCompetingGestures, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
   Easing, Extrapolation, interpolate, interpolateColor, useAnimatedProps, useAnimatedReaction, useAnimatedStyle, useReducedMotion,
@@ -16,8 +16,6 @@ import { useArtworkImage } from './data/artwork';
 import { fallbackTint } from './data/color';
 import { useLibraryActions, useLiked, useLikeFailure } from './data/library';
 import { heartButton, heartColor } from './library/heart';
-import { loadFailure } from './data/errors';
-import { useLyrics } from './data/queries';
 import { MiniPlayerContent } from './MiniPlayer';
 import {
   grab, progress, settle, sideInsets, travel, usePlayerTransition, type Bubble, type BubbleVariant, type PlayerPage,
@@ -25,15 +23,15 @@ import {
 import { useLoading, usePlaybackState, usePosition } from './playback';
 import { DETACHED_LABEL, DETACHED_SYMBOL } from './player/detach';
 import { playPauseLabel, STILL_LOADING_LABEL } from './player/loading';
-import { activeLine, lineInView, lyricLines } from './player/lyrics';
 import { usePlaybackStatus } from './player/usePlaybackStatus';
 import { usePlayerShown } from './player/visibility';
 import { useVolumeSlider } from './player/volume';
 import { Icon } from './ui';
 import { SystemVolumeSlider } from '../modules/now-playing';
+import LyricsPage, { type LyricsHandle } from './player/LyricsPage';
 import QueuePage, { queueShowsNowPlaying } from './player/QueuePage';
 import TransportSlider from './player/TransportSlider';
-import { CollapseButton, DeviceButton, LyricButton, PlayerButton, TrackLinksMenu, TrackMenuButton } from './player/Controls';
+import { CollapseButton, DeviceButton, PlayerButton, TrackLinksMenu, TrackMenuButton } from './player/Controls';
 import { selectionFeedback } from './player/design';
 import { metadataHeight as metadataHeightFor, rhythm as rhythmFor, type Rhythm } from './player/layout';
 import { seekLanded } from './player/scrub';
@@ -55,6 +53,8 @@ const handover = 50;
 const sheetRoutes = ['/devices', '/track-actions', '/add-to-playlist'];
 const modeMotion = { duration: 360, easing: Easing.inOut(Easing.cubic) };
 const panelMotion = { duration: 210 };
+// Instant under Reduce Motion, as Reanimated's timings are by default.
+const chromeMotion = { duration: 300, easing: Easing.out(Easing.cubic) };
 const clamp = Extrapolation.CLAMP;
 
 const Glass = Animated.createAnimatedComponent(BlurView);
@@ -90,6 +90,10 @@ export default function Player() {
   const [page, setPage] = useState<PlayerPage>('player');
   const [seenLyrics, setSeenLyrics] = useState(false);
   const [seenQueue, setSeenQueue] = useState(false);
+  // Lyrics left to play untouched hide the transport and take the screen down to its bottom edge.
+  const [lyricsHideControls, setLyricsHideControls] = useState(false);
+  const lyricsPage = useRef<LyricsHandle>(null);
+  const [transportHeight, setTransportHeight] = useState(0);
   const [availableHeight, setAvailableHeight] = useState(0);
   const { width, height, fontScale } = useWindowDimensions();
   const metadataHeight = metadataHeightFor(fontScale);
@@ -291,7 +295,15 @@ export default function Player() {
   const queueArtworkStyle = useAnimatedStyle(() => ({
     opacity: onQueue(detail.value, queueShown.value, motion.bubble.value ? progress(motion).follow : 1) ? 1 : 0,
   }));
-  const lyricsStyle = useAnimatedStyle(() => ({ opacity: withTiming(page === 'lyrics' ? 1 : 0, panelMotion) }));
+  const controlsHidden = page === 'lyrics' && lyricsHideControls;
+  const lyricsStyle = useAnimatedStyle(() => ({
+    opacity: withTiming(page === 'lyrics' ? 1 : 0, panelMotion),
+    bottom: withTiming(controlsHidden ? -(transportHeight + bottom) : 0, chromeMotion),
+  }));
+  const transportStyle = useAnimatedStyle(() => ({
+    opacity: withTiming(controlsHidden ? 0 : 1, chromeMotion),
+    transform: [{ translateY: withTiming(controlsHidden ? 18 : 0, chromeMotion) }],
+  }));
   const queueStyle = useAnimatedStyle(() => ({ opacity: withTiming(page === 'queue' ? 1 : 0, panelMotion) }));
 
   const togglePage = (next: DetailPage) => {
@@ -386,7 +398,7 @@ export default function Player() {
                     accessibilityElementsHidden={page !== 'lyrics'}
                     importantForAccessibility={page === 'lyrics' ? 'auto' : 'no-hide-descendants'}
                     style={[StyleSheet.absoluteFill, lyricsStyle]}>
-                    <LyricsPage key={current?.id ?? 'none'} selected={page === 'lyrics'} />
+                    <LyricsPage key={current?.id ?? 'none'} ref={lyricsPage} selected={page === 'lyrics'} onControlsHidden={setLyricsHideControls} />
                   </Animated.View>}
                   {!queueShowsNowPlaying && queuePanel}
                 </View>
@@ -395,8 +407,14 @@ export default function Player() {
               </Animated.View>}
             </View>
             <GestureDetector gesture={transportDismiss}>
-              <Transport key={current?.id ?? 'none'} compact={smallScreen} rhythm={rhythm} page={page} onToggle={togglePage}
-                onDevices={() => router.push('/devices')} />
+              {/* Lyrics left to play hide the transport; a touch on it keeps it up. */}
+              <Animated.View style={transportStyle} pointerEvents={controlsHidden ? 'none' : 'auto'}
+                accessibilityElementsHidden={controlsHidden} importantForAccessibility={controlsHidden ? 'no-hide-descendants' : 'auto'}
+                onLayout={(event) => setTransportHeight(event.nativeEvent.layout.height)}
+                onTouchStart={() => lyricsPage.current?.touchControls()}>
+                <Transport key={current?.id ?? 'none'} compact={smallScreen} rhythm={rhythm} page={page} onToggle={togglePage}
+                  onDevices={() => router.push('/devices')} />
+              </Animated.View>
             </GestureDetector>
           </Animated.View>
         </Animated.View>
@@ -476,115 +494,6 @@ function BubbleContent({ variant, width }: { variant: BubbleVariant; width: numb
     <Animated.View pointerEvents="none" style={[styles.bubbleContent, { width: variant.width, height: variant.height }, style]}>
       <MiniPlayerContent native={variant.native} compact={variant.compact} preview />
     </Animated.View>
-  );
-}
-
-function LyricsPage({ selected }: { selected: boolean }) {
-  const colors = useColors();
-  const styles = useStyles();
-  const shown = usePlayerShown();
-  const visible = selected && shown;
-  const { track, actions } = usePlaybackState();
-  const lyrics = useLyrics(track);
-  const { lines, synced } = lyricLines(lyrics.data);
-  const position = usePosition(visible && synced);
-  const active = synced ? Math.max(0, activeLine(lines, position)) : -1;
-  const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
-  const lineCenters = useRef<number[]>([]);
-  const [viewport, setViewport] = useState(0);
-  // Whether the active line has been laid out. Lines lay out after the page appears, and while
-  // paused the active line never changes, so without this the page would open on the first
-  // lines with the current one somewhere below.
-  const [placed, setPlaced] = useState(false);
-  // Scrolling by hand stops the page following the song, so a reader can look ahead or back;
-  // "Back to current line" resumes it, as on Apple Music, and so does scrolling back to the sung
-  // line, tapping a line or leaving the page. No timer pulls a reader back while they read.
-  const [following, setFollowing] = useState(true);
-  const momentum = useRef(false);
-  const follows = following || !synced;
-
-  useEffect(() => {
-    if (!visible) setFollowing(true);
-  }, [visible]);
-
-  useEffect(() => {
-    const center = lineCenters.current[active];
-    if (visible && follows && viewport && center !== undefined) {
-      scroll.current?.scrollTo({ y: Math.max(0, center - viewport * 0.33), animated: active > 0 });
-    }
-  }, [active, visible, viewport, placed, follows]);
-
-  const browse = () => setFollowing(false);
-  const settle = (offset: number) => {
-    if (lineInView(lineCenters.current[active], offset, viewport)) setFollowing(true);
-  };
-
-  // Loading, none and failed look different: a failed request is not a song without lyrics.
-  // A request waiting for the connection (paused) has failed for now, too.
-  const failure = lyrics.isError || (lyrics.isPending && lyrics.fetchStatus === 'paused') ? loadFailure(lyrics.error) : null;
-  const empty: { icon: string; title: string; detail?: string; retry?: boolean } | null = lyrics.data?.instrumental
-    ? { icon: 'music.note', title: 'Instrumental' }
-    : failure ? { icon: failure.connection ? 'wifi.exclamationmark' : 'exclamationmark.circle', title: 'Couldn’t load lyrics',
-      detail: failure.description, retry: failure.retry }
-      : lyrics.isLoading ? null : { icon: 'quote.bubble', title: 'No lyrics available' };
-
-  return (
-    <View style={styles.lyricPage}>
-      {lines.length ? (
-        <ScrollView
-          ref={scroll}
-          contentInsetAdjustmentBehavior="never"
-          onLayout={(event) => setViewport(event.nativeEvent.layout.height)}
-          contentContainerStyle={{ paddingTop: 22, paddingBottom: viewport * 0.6 }}
-          showsVerticalScrollIndicator={false}
-          onScrollBeginDrag={browse}
-          onMomentumScrollBegin={() => { momentum.current = true; }}
-          // A drag that ends without a fling has come to rest; one with a fling rests when its momentum ends.
-          onScrollEndDrag={({ nativeEvent }) => {
-            momentum.current = false;
-            if (!nativeEvent.velocity?.y) settle(nativeEvent.contentOffset.y);
-          }}
-          onMomentumScrollEnd={({ nativeEvent }) => {
-            if (!momentum.current) return;
-            momentum.current = false;
-            settle(nativeEvent.contentOffset.y);
-          }}
-        >
-          {lines.map((line, index) => (
-            <View key={index} onLayout={(event) => {
-              const { y, height } = event.nativeEvent.layout;
-              lineCenters.current[index] = y + height / 2;
-              if (index === active) setPlaced(true);
-            }}>
-              <LyricButton line={line.text} active={!synced || index === active}
-                onPress={line.startMs === null ? undefined : () => { selectionFeedback(); setFollowing(true); actions.seek(line.startMs!); }} />
-            </View>
-          ))}
-        </ScrollView>
-      ) : null}
-      {lines.length > 0 && !follows && (
-        <Pressable accessibilityRole="button" onPress={() => { selectionFeedback(); setFollowing(true); }}
-          style={({ pressed }) => [styles.backToLine, pressed && styles.pressed]}>
-          <Icon name="arrow.up.arrow.down" size={14} color={colors.accent} />
-          <Text maxFontSizeMultiplier={secondaryFontScale} style={styles.backToLineText}>Back to current line</Text>
-        </Pressable>
-      )}
-      {lines.length ? null : empty ? (
-        <View style={styles.noLyrics}>
-          <Icon name={empty.icon} size={29} color={colors.quiet} />
-          <Text style={styles.noLyricsTitle}>{empty.title}</Text>
-          {empty.detail && <Text style={styles.noLyricsDetail}>{empty.detail}</Text>}
-          {empty.retry && <Pressable accessibilityRole="button" hitSlop={10} onPress={() => { selectionFeedback(); void lyrics.refetch(); }}
-            style={({ pressed }) => [styles.retry, pressed && styles.pressed]}>
-            <Text style={styles.retryText}>Try again</Text>
-          </Pressable>}
-        </View>
-      ) : (
-        <View style={styles.noLyrics} accessible accessibilityLabel="Loading lyrics">
-          <ActivityIndicator color={colors.muted} />
-        </View>
-      )}
-    </View>
   );
 }
 
@@ -692,8 +601,9 @@ function Transport({ compact, rhythm, page, onToggle, onDevices }: {
           <PlayerButton icon="quote.bubble"
             label={page === 'lyrics' ? 'Hide lyrics' : 'Show lyrics'}
             selected={page === 'lyrics'}
+            filled={page === 'lyrics'}
             size={22}
-            color={page === 'lyrics' ? colors.accent : colors.muted}
+            color={colors.muted}
             onPress={() => onToggle('lyrics')} />
         </View>
         <View style={styles.output}>
@@ -704,8 +614,9 @@ function Transport({ compact, rhythm, page, onToggle, onDevices }: {
           <PlayerButton icon="list.bullet"
             label={page === 'queue' ? 'Hide queue' : 'Show queue'}
             selected={page === 'queue'}
+            filled={page === 'queue'}
             size={22}
-            color={page === 'queue' ? colors.accent : colors.muted}
+            color={colors.muted}
             onPress={() => onToggle('queue')} />
         </View>
       </View>
@@ -744,17 +655,6 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   artist: { marginTop: 3, color: colors.muted, fontWeight: '500', fontSize: 16 },
   status: { color: colors.accent, fontWeight: '600' },
   statusDetail: { color: colors.muted, fontWeight: '500' },
-  lyricPage: { flex: 1, paddingHorizontal: 25 },
-  noLyrics: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  noLyricsTitle: { color: colors.muted, fontSize: 16, fontWeight: '600', textAlign: 'center' },
-  noLyricsDetail: { color: colors.quiet, fontSize: 14, textAlign: 'center', marginTop: -6 },
-  retry: { minHeight: 44, paddingHorizontal: 16, justifyContent: 'center' },
-  retryText: { color: colors.accent, fontSize: 16, fontWeight: '700' },
-  // Floats over the lyrics' bottom edge, clear of the lines' own touches, 44 pt tall.
-  backToLine: { position: 'absolute', bottom: 12, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 7, minHeight: 44,
-    paddingHorizontal: 18, borderRadius: 22, backgroundColor: colors.sheet, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.stroke },
-  backToLineText: { color: colors.accent, fontSize: 15, fontWeight: '700' },
-  pressed: { opacity: 0.65 },
   transport: { width: '100%', maxWidth: 500, alignSelf: 'center', paddingHorizontal: edgeInset, paddingTop: 8, paddingBottom: 6 },
   transportCompact: { paddingTop: 2, paddingBottom: 2 },
   timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: -1, paddingHorizontal: 1 },

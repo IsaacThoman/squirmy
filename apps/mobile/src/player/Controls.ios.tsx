@@ -1,7 +1,7 @@
 import { Button, Capsule, Host, Image, Menu, Rectangle, Text, VStack } from '@expo/ui/swift-ui';
 import {
-  accessibilityAddTraits, accessibilityHint, accessibilityLabel, dynamicTypeSize, font, foregroundStyle, frame, lineLimit, menuIndicator,
-  menuOrder, minimumScaleFactor, padding,
+  accessibilityAddTraits, accessibilityHint, accessibilityLabel, animation, Animation, blur, dynamicTypeSize, font, foregroundStyle, frame,
+  lineLimit, menuIndicator, menuOrder, minimumScaleFactor, opacity, padding,
 } from '@expo/ui/swift-ui/modifiers';
 import type { ComponentProps } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -14,11 +14,11 @@ import { useColors } from '../theme';
 // The heart and menu buttons ignore the safe area: inside the iOS queue's scroll view, where
 // the song playing rides with the page, its insets pushed their symbols out of the 44 pt frame
 // at accessibility text sizes.
-export function PlayerButton({ icon, label, size, color, onPress, style, selected, busy }: PlayerButtonProps) {
+export function PlayerButton({ icon, label, size, color, onPress, style, selected, busy, filled }: PlayerButtonProps) {
   const colors = useColors();
   const { width = 44, height = 44 } = StyleSheet.flatten(style) ?? {};
   return <Host ignoreSafeArea="container" style={[styles.icon, style]}>
-    <IconButton symbol={icon} label={label} size={size} color={color ?? colors.text} onPress={onPress} selected={selected} busy={busy}
+    <IconButton symbol={icon} label={label} size={size} color={color ?? colors.text} onPress={onPress} selected={selected} busy={busy} filled={filled}
       width={Number(width)} height={Number(height)} />
   </Host>;
 }
@@ -82,11 +82,18 @@ export function DeviceButton({ icon, name, highlighted, onPress }: DeviceButtonP
   </Host>;
 }
 
-export function LyricButton({ line, active, onPress }: LyricButtonProps) {
+export function LyricButton({ line, active, onPress, opacity: shown, blur: blurred = 0, delay = 0 }: LyricButtonProps) {
   const colors = useColors();
+  // Given a look, the line is drawn in the text color and dimmed by opacity, so a line coming
+  // into song brightens and sharpens in one ease, a moment after the line above it.
+  const look = shown === undefined ? [] : [
+    blur(blurred), opacity(shown),
+    animation(Animation.easeInOut({ duration: 0.42 }).delay(delay / 1000), shown * 100 + blurred),
+  ];
   const text = <Text modifiers={[
-    foregroundStyle(active ? colors.text : colors.quiet), font({ textStyle: 'largeTitle', weight: 'bold' }),
-    frame({ maxWidth: Infinity, alignment: 'leading' }), padding({ bottom: 20 }), hitShape,
+    foregroundStyle(active || shown !== undefined ? colors.text : colors.quiet), font({ textStyle: 'largeTitle', weight: 'bold' }),
+    // Only the words take a tap, so a tap beside or between lines can bring the controls back without seeking.
+    hitShape, frame({ maxWidth: Infinity, alignment: 'leading' }), padding({ bottom: 20 }), ...look,
   ]}>{line}</Text>;
   return <View style={styles.lyricRow}>
     <Host matchContents={{ vertical: true }}>
@@ -94,6 +101,19 @@ export function LyricButton({ line, active, onPress }: LyricButtonProps) {
         plainButton, accessibilityHint('Seek to this line'),
         ...(active ? [accessibilityAddTraits(['isSelected'])] : []),
       ]}>{text}</Button> : text}
+    </Host>
+  </View>;
+}
+
+/** "Written By" after the last line, quieter and smaller than the lyrics. */
+export function LyricCredits({ credits, opacity: shown }: { credits: string; opacity: number }) {
+  const colors = useColors();
+  return <View style={styles.lyricRow}>
+    <Host matchContents={{ vertical: true }}>
+      <Text modifiers={[
+        foregroundStyle(colors.text), font({ textStyle: 'subheadline', weight: 'semibold' }), opacity(shown),
+        frame({ maxWidth: Infinity, alignment: 'leading' }), padding({ top: 8, bottom: 20 }),
+      ]}>{`Written By: ${credits}`}</Text>
     </Host>
   </View>;
 }
