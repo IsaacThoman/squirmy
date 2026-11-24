@@ -94,14 +94,21 @@ public class SystemVolumeModule: Module {
  * thickens while a finger drags it, and the whole bar to drag on. It follows the side
  * buttons by itself, and moving it moves the system volume.
  *
- * The slider's own thumb is replaced by a clear image in every state, rather than covered.
- * With no thumb to grab, a pan over the whole view moves the volume by how far the finger
- * travels from where it started, as Apple Music's does.
+ * It is dragged as the scrubber is (`TransportSlider` and `scrub.ts`): the volume moves by how
+ * far the finger travels from where it started, never jumping to where it touched down, so a
+ * tap changes nothing. Past an end the track stretches a little and springs back on release,
+ * with a light tap of haptics on arriving at an end. The slider's own thumb is replaced by a
+ * clear image in every state, and the slider never sees a touch: the view takes them all for
+ * its pan. VoiceOver still adjusts the slider itself.
  */
 class SystemVolumeView: ExpoView {
   let volumeView = AlignedVolumeView(frame: .zero)
   private var dragging = false
   private var dragStart: Float = 0
+  private var lastValue: Float = 0
+  /** How far the track is pulled past an end, in points on screen, negative to the left. */
+  private var stretch: CGFloat = 0
+  private let endHaptic = UIImpactFeedbackGenerator(style: .light)
 
   var tint: UIColor? {
     didSet { style() }
@@ -129,10 +136,35 @@ class SystemVolumeView: ExpoView {
     return abs(velocity.x) > abs(velocity.y)
   }
 
+  /**
+   * Every touch on the bar is the view's own, for its pan. Left to itself the system slider
+   * would take a touch first and jump the volume to where the finger landed.
+   */
+  override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+    guard isUserInteractionEnabled, !isHidden, alpha > 0.01, self.point(inside: point, with: event) else {
+      return nil
+    }
+    return self
+  }
+
   override func layoutSubviews() {
     super.layoutSubviews()
-    volumeView.frame = bounds
+    place(springing: false)
     style()
+  }
+
+  /** The volume view fills this view, and reaches past the side it is pulled toward. */
+  private func place(springing: Bool) {
+    let frame = CGRect(x: bounds.minX + min(stretch, 0), y: bounds.minY, width: bounds.width + abs(stretch), height: bounds.height)
+    guard springing, window != nil, !UIAccessibility.isReduceMotionEnabled else {
+      volumeView.frame = frame
+      return
+    }
+    UIView.animate(withDuration: 0.5, delay: 0, usingSpringWithDamping: 0.55, initialSpringVelocity: 0,
+                   options: [.allowUserInteraction, .beginFromCurrentState]) {
+      self.volumeView.frame = frame
+      self.volumeView.layoutIfNeeded()
+    }
   }
 
   @objc private func drag(_ pan: UIPanGestureRecognizer) {
@@ -142,15 +174,33 @@ class SystemVolumeView: ExpoView {
     switch pan.state {
     case .began:
       dragStart = slider.value
+      lastValue = slider.value
+      endHaptic.prepare()
       setDragging(true)
     case .changed:
-      let moved = Float(pan.translation(in: self).x / bounds.width)
       let direction: Float = effectiveUserInterfaceLayoutDirection == .rightToLeft ? -1 : 1
-      // Setting the volume view's slider is what moves the system volume.
-      slider.value = min(1, max(0, dragStart + moved * direction))
-      slider.sendActions(for: .valueChanged)
+      let raw = dragStart + Float(pan.translation(in: self).x / bounds.width) * direction
+      let value = min(1, max(0, raw))
+      if value != slider.value {
+        // Setting the volume view's slider is what moves the system volume.
+        slider.value = value
+        slider.sendActions(for: .valueChanged)
+      }
+      if (value <= 0 && lastValue > 0) || (value >= 1 && lastValue < 1) {
+        endHaptic.impactOccurred()
+      }
+      lastValue = value
+      let pulled = SliderTrack.rubberBand(CGFloat(raw - value) * bounds.width * CGFloat(direction))
+      if pulled != stretch {
+        stretch = pulled
+        place(springing: false)
+      }
     default:
       setDragging(false)
+      if stretch != 0 {
+        stretch = 0
+        place(springing: true)
+      }
     }
   }
 
