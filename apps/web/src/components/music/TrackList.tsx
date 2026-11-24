@@ -1,7 +1,7 @@
 import type { AlbumDisc, TrackSummary } from '@squirmy/contracts'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Clock3, Disc3, MoreHorizontal, Pause, Play } from 'lucide-react'
-import { Fragment, memo, useId, useLayoutEffect, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent, type RefObject } from 'react'
+import { Fragment, memo, useContext, useId, useLayoutEffect, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent, type RefObject } from 'react'
 import { useNavigate } from 'react-router'
 import { useScrollContainer } from '@/components/layout/scroll-context'
 import { ExplicitBadge, Spinner } from '@/components/ui/feedback'
@@ -12,6 +12,7 @@ import { draggedTracks, endTrackDrag, startTrackDrag } from '@/lib/drag'
 import { formatDuration, formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useViewer } from '@/player/on-demand-context'
+import { PlayerControlsContext, useTrackPlayback } from '@/player/player-context'
 import { ArtistLinks } from './ArtistLinks'
 import { Cover } from './Cover'
 import { Equalizer } from './Equalizer'
@@ -28,14 +29,6 @@ export type TrackAction = 'play-next' | 'enqueue' | 'like' | 'want' | 'radio' | 
 
 export type PlaylistChoice = { id: string; name: string }
 
-/** What is playing, so the list can mark its row. `loading`: its music is on its way (a fetch looks like buffering). */
-/**
- * The session's current entry, for the row that shows it. `failed`: its music could not be
- * had, so that row is unavailable rather than current, before the track's own availability
- * reaches the list.
- */
-export type NowPlaying = { trackId: string; playing: boolean; loading: boolean; failed?: boolean; onTogglePlay: () => void }
-
 /**
  * - `album`: track numbers, no artwork, and the artists only on songs whose credit differs from
  *   the album's (`albumCredit`), as the iOS app does; for album pages.
@@ -46,7 +39,6 @@ export type TrackListVariant = 'album' | 'playlist' | 'compact'
 
 type SharedProps = {
   variant?: TrackListVariant
-  nowPlaying?: NowPlaying | null
   isWanted?: (track: TrackSummary) => boolean
   onPlay: (index: number) => void
   /** Resolves (or rejects) for the actions that answer later: the menu entry waits for those. */
@@ -150,16 +142,18 @@ type TrackRowProps = Omit<SharedProps, 'onPlay' | 'isWanted' | 'onMove'> & {
  * One song. A song that plays looks the same wherever its file is (on the server, or fetched
  * as it plays); one that does not is gray and says "Not available".
  */
-export function TrackRow({ track, index, number, addedAt, variant = 'album', nowPlaying, wanted, onPlay, onAction, playlists, extraMenu, reorder, style, albumCredit }: TrackRowProps) {
+export function TrackRow({ track, index, number, addedAt, variant = 'album', wanted, onPlay, onAction, playlists, extraMenu, reorder, style, albumCredit }: TrackRowProps) {
   const navigate = useNavigate()
   const viewer = useViewer()
+  const controls = useContext(PlayerControlsContext)
+  // Only this row's part of the session: it renders again when it becomes or stops being the current track, or that track plays, pauses or waits.
+  const playback = useTrackPlayback(track.id)
   const { liked } = track
-  const failed = nowPlaying?.trackId === track.id && nowPlaying.failed === true
-  const unavailable = failed || !isPlayable(track, viewer)
-  const current = nowPlaying?.trackId === track.id && !failed
-  const playing = current && nowPlaying.playing
-  const loading = current && nowPlaying.loading
-  const play = current ? nowPlaying.onTogglePlay : onPlay
+  const unavailable = playback === 'failed' || !isPlayable(track, viewer)
+  const current = playback !== null && playback !== 'failed'
+  const playing = playback === 'playing' || playback === 'loading'
+  const loading = playback === 'loading'
+  const play = current ? controls?.togglePlay ?? onPlay : onPlay
   const act = (action: TrackAction) => onAction?.(action, track, index)
   /**
    * A finger cannot hover to find the play button over the number or the artwork, so on a touch

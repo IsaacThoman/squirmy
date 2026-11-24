@@ -24,7 +24,7 @@ import { albumPresentation, canFetch, genreColor, isPlayable, UNAVAILABLE_LABEL 
 import { formatDuration } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useViewer } from '@/player/on-demand-context'
-import { usePlayer } from '@/player/player-context'
+import { usePlayerControls, useTrackPlayback } from '@/player/player-context'
 import { useTrackActions } from '@/player/use-track-actions'
 
 /** The results for what is typed and the filter chosen, however they were found. */
@@ -293,16 +293,18 @@ const focusedRow = 'has-[[data-search-row]:focus-visible]:bg-accent'
  */
 function ResultRow({ item, stale, onChoose, trackMenu, resultMenu, onLike }: ResultRowProps) {
   const viewer = useViewer()
-  const { state, controls } = usePlayer()
+  const controls = usePlayerControls()
   const detailId = useId()
   const { title, detail } = searchItemText(item)
   const track = item.type === 'track' ? item.track : null
   const unavailable = track ? !isPlayable(track, viewer) : false
   const dimmed = item.type === 'album' ? albumPresentation(item.album, viewer) === 'dimmed'
     : item.type === 'artist' ? !item.artist.inLibrary && !canFetch(viewer) : unavailable
-  const current = track !== null && state.current?.track.id === track.id
-  const playing = current && state.playing
-  const loading = current && state.waiting
+  // Only this result's part of the session, so a volume or position change renders no rows.
+  const playback = useTrackPlayback(track?.id ?? '')
+  const current = playback !== null
+  const playing = playback === 'playing' || playback === 'loading'
+  const loading = playback === 'loading'
   const menu = track ? trackMenu!(track) : resultMenu(item as Exclude<SearchItem, { type: 'track' }>)
 
   const overlay = 'absolute inset-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring'
