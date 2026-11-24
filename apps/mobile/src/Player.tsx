@@ -7,7 +7,7 @@ import { ActivityIndicator, BackHandler, Platform, Pressable, ScrollView, StyleS
 import { GestureDetector, useCompetingGestures, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
   Easing, Extrapolation, interpolate, interpolateColor, useAnimatedProps, useAnimatedReaction, useAnimatedStyle, useReducedMotion,
-  useSharedValue, withDelay, withSpring, withTiming,
+  useSharedValue, withDelay, withSpring, withTiming, type SharedValue,
 } from 'react-native-reanimated';
 import { initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
@@ -20,7 +20,7 @@ import { loadFailure } from './data/errors';
 import { useLyrics } from './data/queries';
 import { MiniPlayerContent } from './MiniPlayer';
 import {
-  grab, progress, settle, sideInsets, travel, usePlayerTransition, type Bubble, type BubbleVariant, type PlayerPage,
+  grab, progress, settle, sideInsets, travel, usePlayerTransition, type Bubble, type BubbleVariant, type Motion, type PlayerPage,
 } from './player/transition';
 import { useLoading, usePlaybackState, usePosition } from './playback';
 import { DETACHED_LABEL, DETACHED_SYMBOL } from './player/detach';
@@ -256,11 +256,6 @@ export default function Player() {
   };
   const artworkStyle = useAnimatedStyle(() => artworkTransform(
     artworkFrame(motion.bubble.value, progress(motion).follow, detail.value, trackDrag.value), artSize));
-  // Without artwork, the note keeps its size as the frame around it grows.
-  const hasArtwork = Boolean(artworkImage);
-  const noArtworkStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: hasArtwork ? 1 : artSize / artworkFrame(motion.bubble.value, progress(motion).follow, detail.value, trackDrag.value).size }],
-  }));
   const artworkDetailsStyle = useAnimatedStyle(() => ({
     opacity: interpolate(detail.value, [0, 0.44], [1, 0], clamp),
     transform: [{ translateX: trackDrag.value }],
@@ -309,6 +304,8 @@ export default function Player() {
 
   return (
     <Overlay>
+      {/* Outside the panel, which is laid out again on every frame of the morph. */}
+      <ArtworkPrefetch size={artSize} />
       <Animated.View style={[styles.panel, panelStyle]}>
         <Glass tint="systemThinMaterial" animatedProps={glassProps} style={StyleSheet.absoluteFill} />
         <Animated.View style={[styles.page, { width, height }, pageStyle]}>
@@ -366,7 +363,6 @@ export default function Player() {
             </GestureDetector>
           </Animated.View>
         </Animated.View>
-        <ArtworkPrefetch size={artSize} />
         {variants.map(variant => (
           <BubbleContent key={`${variant.native}-${variant.compact}`} variant={variant} width={width} />
         ))}
@@ -374,13 +370,29 @@ export default function Player() {
           {artworkImage
             ? <Image source={artworkImage.source} placeholder={artworkImage.placeholder} placeholderContentFit="cover"
               contentFit="cover" cachePolicy="memory-disk" transition={160} style={StyleSheet.absoluteFill} />
-            : <View style={styles.noArtwork}>
-              <Animated.View style={noArtworkStyle}><Icon name="music.note" size={48} color={colors.quiet} /></Animated.View>
-            </View>}
+            : <NoArtwork base={artSize} frame={artworkFrame} motion={motion} detail={detail} trackDrag={trackDrag} />}
         </Animated.View>
       </Animated.View>
     </Overlay>
   );
+}
+
+/** The note shown without artwork, kept at its size as the frame around it grows. */
+function NoArtwork({ base, frame, motion, detail, trackDrag }: {
+  base: number;
+  frame: (bubble: Bubble | null, follow: number, d: number, drag: number) => ArtworkFrame;
+  motion: Motion;
+  detail: SharedValue<number>;
+  trackDrag: SharedValue<number>;
+}) {
+  const colors = useColors();
+  const styles = useStyles();
+  const style = useAnimatedStyle(() => ({
+    transform: [{ scale: base / frame(motion.bubble.value, progress(motion).follow, detail.value, trackDrag.value).size }],
+  }));
+  return <View style={styles.noArtwork}>
+    <Animated.View style={style}><Icon name="music.note" size={48} color={colors.quiet} /></Animated.View>
+  </View>;
 }
 
 /**
