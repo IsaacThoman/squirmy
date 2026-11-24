@@ -2,7 +2,7 @@ import type { AddressInfo } from 'node:net'
 import { positionAt } from '@squirmy/client-core'
 import {
   COMMAND_TRACK_LIMIT, QUEUE_LIMIT,
-  type ClientToServerEvents, type CommandAck, type QueueSeed, type ServerToClientEvents, type SessionCommand, type SessionHelloAck,
+  type ClientToServerEvents, type CommandAck, type PlaybackContext, type QueueSeed, type ServerToClientEvents, type SessionCommand, type SessionHelloAck,
   type ServerEvent, type SessionQueue, type SessionState,
 } from '@squirmy/contracts'
 import { eq, sql } from 'drizzle-orm'
@@ -11,7 +11,7 @@ import { io as connect, type Socket } from 'socket.io-client'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { albums, devices, mediaFiles, playbackSessions, plays, recordings } from '../../database/schema.js'
+import { albums, collectionPlays, devices, mediaFiles, playbackSessions, plays, recordings } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { matchKey } from '../../lib/text.js'
 import { startRealtime } from '../../realtime/index.js'
@@ -1018,6 +1018,60 @@ describe('sessions', () => {
     } finally {
       unsubscribe()
     }
+  })
+
+  it('records a play of a collection when playback starts from it, and of nothing else', async () => {
+    const clock = stoppedClock()
+    const a = await device('device-a-0020')
+    // A second device, such as the iPhone beside a web tab, hears that its Library moved.
+    const b = await device('device-b-0020', { canPlay: false })
+    const playedRows = () => db.select({ type: collectionPlays.entityType, id: collectionPlays.entityId, at: collectionPlays.playedAt })
+      .from(collectionPlays).where(eq(collectionPlays.userId, user.id)).orderBy(collectionPlays.playedAt)
+    const itemsInvalidations = () => b.events('invalidate').filter((event) => JSON.stringify(event).includes('"items"')).length
+    const playFrom = (context: PlaybackContext, startIndex?: number): Extract<SessionCommand, { type: 'playTracks' }> =>
+      ({ type: 'playTracks', tracks: seeds(), startIndex, startedFrom: startIndex === undefined ? 'collection' : 'song', seed: 1, context })
+
+    // A song row of the album page counts for the album.
+    await a.send(playFrom({ type: 'album', id: album.albumId, title: album.title }, 1))
+    await eventually(playedRows, (rows) => expect(rows).toEqual([{ type: 'album', id: album.albumId, at: new Date(clock.now()) }]))
+    await eventually(itemsInvalidations, (count) => expect(count).toBe(1))
+
+    // Carrying on, pausing, resuming and skipping are not new plays.
+    clock.advance(60_000)
+    for (const command of [{ type: 'pause' }, { type: 'play' }, { type: 'next' }, { type: 'previous' }] as const) await a.send(command)
+    // Nor are songs started from Search, Home, a radio or the history, whatever album they are on.
+    for (const type of ['search', 'other', 'radio', 'history'] as const) await a.send(playFrom({ type, id: null, title: type }, 0))
+    await a.send(playFrom({ type: 'radio', id: `artist:${album.artist.id}`, title: 'Radio' }))
+    // A context naming no collection, or one that does not exist, records nothing either.
+    await a.send(playFrom({ type: 'album', id: null, title: 'Album' }))
+    await a.send(playFrom({ type: 'album', id: newId(), title: 'Gone' }))
+
+    // Play and Shuffle on an artist, a playlist and Liked Songs each count.
+    const playlistId = newId()
+    clock.advance(1000)
+    await a.send(playFrom({ type: 'artist', id: album.artist.id, title: album.artist.name }))
+    clock.advance(1000)
+    await a.send({ ...playFrom({ type: 'playlist', id: playlistId, title: 'Mix' }), shuffle: true })
+    clock.advance(1000)
+    await a.send(playFrom({ type: 'liked', id: null, title: 'Liked Songs' }))
+    const start = clock.now() - 3000
+    await eventually(playedRows, (rows) => expect(rows).toEqual([
+      { type: 'album', id: album.albumId, at: new Date(start - 60_000) },
+      { type: 'artist', id: album.artist.id, at: new Date(start + 1000) },
+      { type: 'playlist', id: playlistId, at: new Date(start + 2000) },
+      { type: 'liked', id: '00000000-0000-0000-0000-000000000000', at: new Date(start + 3000) },
+    ]))
+    await eventually(itemsInvalidations, (count) => expect(count).toBe(4))
+
+    // Starting the latest played again moves nothing, so no list is fetched again.
+    clock.advance(1000)
+    await a.send(playFrom({ type: 'liked', id: null, title: 'Liked Songs' }, 0))
+    await eventually(playedRows, (rows) => expect(rows.at(-1)?.at).toEqual(new Date(clock.now())))
+    // The album played again comes to the front.
+    clock.advance(1000)
+    await a.send(playFrom({ type: 'album', id: album.albumId, title: album.title }))
+    await eventually(playedRows, (rows) => expect(rows.at(-1)).toEqual({ type: 'album', id: album.albumId, at: new Date(clock.now()) }))
+    await eventually(itemsInvalidations, (count) => expect(count).toBe(5))
   })
 
   it('re-anchors on engine reports that drift or stall, and ignores the rest', async () => {

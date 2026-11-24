@@ -15,6 +15,7 @@ import type { RealtimeServer } from '../../realtime/index.js'
 import { requestRecording } from '../acquisition/coverage.js'
 import { rememberDevice } from '../auth/service.js'
 import { suggestAutoplay } from '../radio/suggest.js'
+import { recordCollectionPlay } from './collection-plays.js'
 import { entryUpdates, lookupTracks, trustSeeds } from './entries.js'
 import { countUntil, followPlay, insertPlay, isCompleted, notifyPlayStart, type OpenPlay, savePlay } from './plays.js'
 import { connectedDevice, connectedDeviceIds, deviceSockets, joinDevice, leaveDevice, listDevices, seeDevice, socketDevices } from './presence.js'
@@ -851,6 +852,8 @@ export function runCommand(userId: string, deviceId: string | null, raw: unknown
     if (!change) return
     broadcast(record, change)
     afterChange(record)
+    // Starting a collection is a play of it, for the Library's Recently played.
+    if (command.type === 'playTracks') void recordCollectionPlay(userId, command.context, settings.now()).catch(report)
   }).catch(error => {
     report(error)
     ack({ ok: false, error: 'internal_error' })
