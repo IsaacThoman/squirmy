@@ -1,10 +1,8 @@
-import { Button, Host, HStack, ProgressView, RNHostView, Spacer, Text, VStack, ZStack } from '@expo/ui/swift-ui';
-import {
-  accessibilityHidden, accessibilityLabel, dynamicTypeSize, font, foregroundStyle, frame, lineLimit, padding, tint,
-} from '@expo/ui/swift-ui/modifiers';
-import { StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Host, HStack, ProgressView, RNHostView, ZStack } from '@expo/ui/swift-ui';
+import { accessibilityHidden, frame, padding, tint } from '@expo/ui/swift-ui/modifiers';
+import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
-import { IconButton, hitShape, plainButton } from '../native/Controls';
+import { IconButton } from '../native/Controls';
 import { useCurrentDurationMs, useLoading, usePlaybackState, usePositionEvery } from '../playback';
 import { DETACHED_LABEL, DETACHED_SYMBOL } from './detach';
 import { playPauseLabel, STILL_LOADING_LABEL } from './loading';
@@ -13,6 +11,7 @@ import { miniCoverSize, usePlayerTransition } from './transition';
 import type { MiniPlayerContentProps } from './MiniPlayerContent';
 import { usePlaybackStatus } from './usePlaybackStatus';
 import { usePlayerShown } from './visibility';
+import { skipActions, SwipeTitles, useSkipNeighbours } from './SwipeTitles';
 
 import { useColors } from '../theme';
 
@@ -25,12 +24,17 @@ const progressIntervalMs = 1000;
  * lines at every size, held at xLarge: the app has no toasts.
  */
 const twoLineFontScale = 1.15;
-const twoLineLimit = dynamicTypeSize({ max: 'xLarge' });
-const oneLineLimit = dynamicTypeSize({ max: 'accessibility1' });
+/** The font scales of xLarge and of the first accessibility size: the caps above. */
+const twoLineLimit = 1.118;
+const oneLineLimit = 1.786;
+/** The gap SwiftUI's stacks left between the cover and the titles, and after the titles. */
+const coverGap = 9;
+const titlesEnd = 4;
 
-export function MiniPlayerContent({ compact = false, native = false, containerRef, onOpen, onDevices, preview = false }: MiniPlayerContentProps) {
+export function MiniPlayerContent({ compact = false, native = false, containerRef, onOpen, onDevices, preview = false, swipe }: MiniPlayerContentProps) {
   const colors = useColors();
-  const { current, track, output, session, actions, remote, detached } = usePlaybackState();
+  const { current, track, output, session, queue, actions, remote, detached } = usePlaybackState();
+  const { previous, next } = useSkipNeighbours(session, queue);
   const loading = useLoading();
   const status = usePlaybackStatus();
   // Until the current song's details load, say nothing rather than claim nothing is playing.
@@ -42,15 +46,8 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
   const deviceLabel = detached ? `${DETACHED_LABEL}. Playback devices` : `Playback device, ${output.name}`;
   const size = miniCoverSize(compact, native);
   const { motion } = usePlayerTransition();
-  const cover = preview ? <Spacer minLength={0} modifiers={[frame({ width: size, height: size })]} /> : (
-    <RNHostView matchContents>
-      <View style={{ width: size, height: size }}>
-        <Cover artwork={track?.album?.artwork} size={size} radius={8} />
-      </View>
-    </RNHostView>
-  );
-  const titleText = <Text modifiers={[font({ textStyle: 'subheadline', weight: 'semibold' }), foregroundStyle(colors.text), lineLimit(1)]}>{title}</Text>;
-  const subtitleText = <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(status ? colors.accent : colors.muted), lineLimit(1)]}>{subtitle}</Text>;
+  // The cover crossfades to a new song's (`Cover`'s transition) as the titles land on it.
+  const cover = preview ? <View style={{ width: size, height: size }} /> : <Cover artwork={track?.album?.artwork} size={size} radius={8} />;
   // While Now Playing grows out of this bubble it draws the bubble's content itself. Stay barely
   // visible rather than hidden so the controls still take touches as the player settles back in.
   const visibility = useAnimatedStyle(() => ({
@@ -63,18 +60,22 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
       <Host ignoreSafeArea="container" style={styles.container}>
         <ZStack alignment="bottom">
           <HStack spacing={0} modifiers={[padding({ horizontal: compact ? 10 : 12 }), frame({ maxHeight: Infinity })]}>
-            <Button onPress={onOpen} modifiers={[plainButton,
-              accessibilityLabel(`Open Now Playing, ${[title, status?.message].filter(Boolean).join(', ')}`)]}>
-              <HStack spacing={9} modifiers={[frame({ minHeight: 44 }), hitShape]}>
+            {/* React Native rather than SwiftUI, so the titles can slide on the UI thread with a swipe
+                and VoiceOver can offer the swipe's Next and Previous track as actions. */}
+            <RNHostView matchContents={{ vertical: true }}>
+              <Pressable accessibilityRole="button"
+                accessibilityLabel={`Open Now Playing, ${[title, status?.message].filter(Boolean).join(', ')}`}
+                {...skipActions(swipe, onOpen, previous !== null, next !== null)}
+                onPress={onOpen} style={styles.opener}>
                 {cover}
                 {/* The compact bubble, inline with the shrunken tab bar, is shorter still and keeps the smaller limit. */}
-                <VStack alignment="leading" spacing={1} modifiers={[twoLines || compact ? twoLineLimit : oneLineLimit]}>
-                  {titleText}
-                  {twoLines && subtitleText}
-                </VStack>
-                <Spacer minLength={4} />
-              </HStack>
-            </Button>
+                <SwipeTitles swipe={swipe} current={{ key: current?.id ?? '', title, subtitle }} previous={previous} next={next}
+                  twoLines={twoLines} statusShown={status !== null || loading === 'slow'}
+                  maxFontSizeMultiplier={twoLines || compact ? twoLineLimit : oneLineLimit}
+                  titleStyle={[styles.title, { color: colors.text }]}
+                  subtitleStyle={[styles.subtitle, { color: status ? colors.accent : colors.muted }]} />
+              </Pressable>
+            </RNHostView>
             {!compact && <IconButton symbol={detached ? DETACHED_SYMBOL : 'laptopcomputer.and.iphone'} label={deviceLabel}
               size={20} color={remote || detached ? colors.accent : colors.muted} onPress={onDevices} />}
             <IconButton symbol={session.playing ? 'pause.fill' : 'play.fill'} label={playPauseLabel(session.playing, loading)}
@@ -101,4 +102,10 @@ function Progress({ preview }: { preview: boolean }) {
     modifiers={[tint(colors.accent), padding({ horizontal: 26, bottom: 1 }), accessibilityHidden(true)]} />;
 }
 
-const styles = StyleSheet.create({ container: { flex: 1 } });
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  opener: { flexDirection: 'row', alignItems: 'center', minHeight: 44, gap: coverGap, paddingRight: titlesEnd },
+  // SwiftUI's subheadline and caption, which grow with the system text size as these do.
+  title: { fontSize: 15, lineHeight: 20, fontWeight: '600' },
+  subtitle: { fontSize: 12, lineHeight: 16 },
+});
