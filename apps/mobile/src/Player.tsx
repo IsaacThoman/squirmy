@@ -6,12 +6,12 @@ import { useEffect, useRef, useState, type PropsWithChildren } from 'react';
 import { BackHandler, Platform, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, useCompetingGestures, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
-  Easing, Extrapolation, interpolate, useAnimatedProps, useAnimatedReaction, useAnimatedStyle, useSharedValue, withDelay,
-  withSpring, withTiming,
+  Easing, Extrapolation, interpolate, interpolateColor, useAnimatedProps, useAnimatedReaction, useAnimatedStyle, useReducedMotion,
+  useSharedValue, withDelay, withSpring, withTiming,
 } from 'react-native-reanimated';
 import { initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
-import { contextLabel, formatDuration, formatRemaining } from '@squirmy/client-core';
+import { formatDuration, formatRemaining } from '@squirmy/client-core';
 import { useArtworkImage } from './data/artwork';
 import { fallbackTint } from './data/color';
 import { useLibraryActions, useLiked, useLikeFailure } from './data/library';
@@ -27,22 +27,24 @@ import { usePlaybackStatus } from './player/usePlaybackStatus';
 import { usePlayerShown } from './player/visibility';
 import { useVolumeSlider } from './player/volume';
 import { Icon } from './ui';
-import { RoutePicker, SystemVolumeSlider } from '../modules/now-playing';
+import { SystemVolumeSlider } from '../modules/now-playing';
 import LyricsPage, { type LyricsHandle } from './player/LyricsPage';
 import QueuePage from './player/QueuePage';
 import TransportSlider from './player/TransportSlider';
-import { CollapseButton, DeviceButton, PlayerButton, TrackMenuButton } from './player/Controls';
+import { CollapseButton, DeviceButton, PlayerButton, TrackLinksMenu, TrackMenuButton } from './player/Controls';
 import { selectionFeedback } from './player/design';
-import { contextHeight as contextHeightFor, metadataHeight as metadataHeightFor } from './player/layout';
+import { metadataHeight as metadataHeightFor, rhythm as rhythmFor, type Rhythm } from './player/layout';
+import { seekLanded } from './player/scrub';
 import { displayFontScale, secondaryFontScale } from './fontScale';
 import { createThemedStyles, useColors } from './theme';
 
 const artworkRadius = 21;
-const artworkGap = 14;
 const grabberHeight = 32;
 const compactArtworkSize = 54;
 const compactArtworkRadius = 11;
 const artworkInset = 24;
+/** The title, the controls and the volume share these edges, as in Apple Music; the artwork may reach past them. */
+const edgeInset = 32;
 const compactArtworkTop = 7;
 const miniCoverRadius = 8;
 const cardRadius = 38;
@@ -94,13 +96,13 @@ export default function Player() {
   const [availableHeight, setAvailableHeight] = useState(0);
   const { width, height, fontScale } = useWindowDimensions();
   const metadataHeight = metadataHeightFor(fontScale);
-  const contextHeight = contextHeightFor(fontScale);
-  const headerHeight = grabberHeight + contextHeight;
+  const rhythm = rhythmFor(height);
+  // The artwork sits right under the grabber, as in Apple Music.
+  const headerHeight = grabberHeight;
   const insets = useSafeAreaInsets();
   const top = insets.top || initialWindowMetrics?.insets.top || 0;
   const bottom = insets.bottom || initialWindowMetrics?.insets.bottom || 0;
-  const { current, track, actions, session } = usePlaybackState();
-  const context = contextLabel(session.context);
+  const { current, track, actions } = usePlaybackState();
   const loading = useLoading();
   const { setLiked } = useLibraryActions();
   const artwork = track?.album?.artwork;
@@ -113,9 +115,9 @@ export default function Player() {
   const startFollow = useSharedValue(1);
   const smallScreen = height < 750;
   const artSize = Math.min(width - insets.left - insets.right - 48, 440,
-    Math.max(96, (availableHeight || height - 360) - artworkGap - metadataHeight));
+    Math.max(96, (availableHeight || height - 360) - rhythm.artworkGap - metadataHeight));
   const artX = (width - insets.left - insets.right - artSize) / 2;
-  const artY = Math.max(0, (availableHeight - artSize - artworkGap - metadataHeight) / 2);
+  const artY = 0;
   const artworkPage = page === 'player';
   const isFavorite = useLiked('track', track?.id, track?.liked);
   const heart = heartButton(isFavorite, track?.title ?? '', useLikeFailure('track', track?.id));
@@ -124,6 +126,7 @@ export default function Player() {
   // What playback has to say (a skipped song, a pause the server caused) takes the artist's
   // lines for a while, in the room `metadataHeight` keeps for two: its quieter detail goes on the second.
   const status = usePlaybackStatus();
+  const statusLabel = status ? (status.detail ? `${status.message}. ${status.detail}` : status.message) : undefined;
   // Phones with a home indicator have rounded displays; a square card would show in their corners.
   const screenCorner = Platform.OS === 'ios' && !Platform.isPad && bottom > 0 ? 40 : 0;
 
@@ -168,6 +171,8 @@ export default function Player() {
   } satisfies Parameters<typeof usePanGesture>[0];
   const grabberDismiss = usePanGesture(dismissPan);
   const artworkDismiss = usePanGesture(dismissPan);
+  // Swiping down over the controls closes Now Playing too; the sliders take only sideways drags.
+  const transportDismiss = usePanGesture(dismissPan);
   const skipTrack = (direction: number) => {
     selectionFeedback();
     if (direction < 0) actions.next();
@@ -285,17 +290,19 @@ export default function Player() {
   const trackDetails = (compact: boolean) => (
     <>
       <View style={styles.trackCopy}>
-        {/* Two lines, as Apple Music gives a long title; `metadataHeight` keeps room for both. */}
-        <Text numberOfLines={compact ? 1 : 2} maxFontSizeMultiplier={displayFontScale}
-          style={compact ? styles.compactTrackTitle : [styles.trackTitle, smallScreen && styles.compactTitle]}>{title}</Text>
-        {/* Two lines too: a featured artist ("feat. Pharrell Williams & Nile Rodgers") is part of the credit. */}
-        {status
-          ? <Text numberOfLines={compact ? 1 : 2} maxFontSizeMultiplier={secondaryFontScale}
-            accessibilityLabel={status.detail ? `${status.message}. ${status.detail}` : status.message}
-            style={[compact ? styles.compactTrackArtist : styles.artist, styles.status]}>
-            {status.message}{!compact && status.detail ? <Text style={styles.statusDetail}>{`\n${status.detail}`}</Text> : null}
-          </Text>
-          : <Text numberOfLines={compact ? 1 : 2} maxFontSizeMultiplier={secondaryFontScale} style={compact ? styles.compactTrackArtist : styles.artist}>{subtitle}</Text>}
+        <TrackLinksMenu track={track} accessibilityLabel={[title, statusLabel ?? subtitle].filter(Boolean).join(', ')}>
+          {/* Two lines, as Apple Music gives a long title; `metadataHeight` keeps room for both. */}
+          <Text numberOfLines={compact ? 1 : 2} maxFontSizeMultiplier={displayFontScale}
+            style={compact ? styles.compactTrackTitle : [styles.trackTitle, smallScreen && styles.compactTitle]}>{title}</Text>
+          {/* Two lines too: a featured artist ("feat. Pharrell Williams & Nile Rodgers") is part of the credit. */}
+          {status
+            ? <Text numberOfLines={compact ? 1 : 2} maxFontSizeMultiplier={secondaryFontScale}
+              accessibilityLabel={statusLabel}
+              style={[compact ? styles.compactTrackArtist : styles.artist, styles.status]}>
+              {status.message}{!compact && status.detail ? <Text style={styles.statusDetail}>{`\n${status.detail}`}</Text> : null}
+            </Text>
+            : <Text numberOfLines={compact ? 1 : 2} maxFontSizeMultiplier={secondaryFontScale} style={compact ? styles.compactTrackArtist : styles.artist}>{subtitle}</Text>}
+        </TrackLinksMenu>
       </View>
       {track && <PlayerButton
         icon={heart.icon}
@@ -322,27 +329,21 @@ export default function Player() {
               style={StyleSheet.absoluteFill}
             />
           </Animated.View>
-          <Animated.View style={[styles.safe, { paddingTop: top, paddingBottom: bottom, paddingLeft: insets.left, paddingRight: insets.right }, contentStyle]}>
+          {/* The footer reaches a little into the home indicator's margin, as Apple Music's does. */}
+          <Animated.View style={[styles.safe, { paddingTop: top, paddingBottom: Math.max(0, bottom - 14), paddingLeft: insets.left,
+            paddingRight: insets.right }, contentStyle]}>
             <GestureDetector gesture={grabberDismiss}>
               <Animated.View style={[styles.grabberTouch, { height: headerHeight }, grabberStyle]}>
-                {/* 44 pt tall, it reaches over the top of the context line, which lets touches through to it. */}
                 <View style={styles.collapse} pointerEvents="box-none"><CollapseButton onPress={close} /></View>
-                <View style={[styles.context, { height: contextHeight }]} pointerEvents="none" accessible={Boolean(context)}
-                  accessibilityLabel={context ? `${context.heading}, ${context.title}` : undefined}>
-                  {context && <>
-                    <Text numberOfLines={1} maxFontSizeMultiplier={secondaryFontScale} style={styles.contextHeading}>{context.heading}</Text>
-                    <Text numberOfLines={1} maxFontSizeMultiplier={secondaryFontScale} style={styles.contextTitle}>{context.title}</Text>
-                  </>}
-                </View>
               </Animated.View>
             </GestureDetector>
             <View style={styles.deckFrame} onLayout={(event) => setAvailableHeight(event.nativeEvent.layout.height)}>
               <GestureDetector gesture={artworkGesture} touchAction="none">
-                <View collapsable={false} style={styles.nowPlaying}
+                <View collapsable={false} style={[styles.nowPlaying, { gap: rhythm.artworkGap }]}
                   pointerEvents={artworkPage ? 'auto' : 'none'} accessibilityElementsHidden={!artworkPage}
                   importantForAccessibility={artworkPage ? 'auto' : 'no-hide-descendants'}>
                   <View style={{ height: artSize }} />
-                  {/* A fixed height, with the lines at its top: a one-line title leaves the second line's room below. */}
+                  {/* A fixed height, with the lines in its middle: a one-line title and artist sit as Apple Music's do, and longer ones take the room around them. */}
                   <Animated.View style={[styles.metadataSlot, { height: metadataHeight }, artworkDetailsStyle]}>
                     <View style={styles.metadata}>{trackDetails(false)}</View>
                   </Animated.View>
@@ -367,13 +368,16 @@ export default function Player() {
                 </View>
               </Animated.View>}
             </View>
-            <Animated.View style={transportStyle} pointerEvents={controlsHidden ? 'none' : 'auto'}
-              accessibilityElementsHidden={controlsHidden} importantForAccessibility={controlsHidden ? 'no-hide-descendants' : 'auto'}
-              onLayout={(event) => setTransportHeight(event.nativeEvent.layout.height)}
-              onTouchStart={() => lyricsPage.current?.touchControls()}>
-              <Transport key={current?.id ?? 'none'} compact={smallScreen} page={page} onToggle={togglePage}
-                onDevices={() => router.push('/devices')} />
-            </Animated.View>
+            <GestureDetector gesture={transportDismiss}>
+              {/* Lyrics left to play hide the transport; a touch on it keeps it up. */}
+              <Animated.View style={transportStyle} pointerEvents={controlsHidden ? 'none' : 'auto'}
+                accessibilityElementsHidden={controlsHidden} importantForAccessibility={controlsHidden ? 'no-hide-descendants' : 'auto'}
+                onLayout={(event) => setTransportHeight(event.nativeEvent.layout.height)}
+                onTouchStart={() => lyricsPage.current?.touchControls()}>
+                <Transport key={current?.id ?? 'none'} compact={smallScreen} rhythm={rhythm} page={page} onToggle={togglePage}
+                  onDevices={() => router.push('/devices')} />
+              </Animated.View>
+            </GestureDetector>
           </Animated.View>
         </Animated.View>
         {variants.map(variant => (
@@ -458,12 +462,34 @@ function BubbleContent({ variant, width }: { variant: BubbleVariant; width: numb
 /** The only part of the transport that follows the playback clock, so each tick redraws just this. */
 function Scrubber() {
   const styles = useStyles();
+  const colors = useColors();
+  const reduceMotion = useReducedMotion();
   const { durationMs: duration, current, actions } = usePlaybackState();
   // Collapsed, Now Playing stays mounted but unseen; its clock waits until it opens again.
   const position = usePosition(usePlayerShown());
   const [draft, setDraft] = useState<number | null>(null);
-  const shown = Math.min(draft ?? position, duration || Infinity);
+  // Where the last drag let go, shown until playback reports it, so the bar never flicks back meanwhile.
+  const [landing, setLanding] = useState<number | null>(null);
+  const shown = Math.min(draft ?? landing ?? position, duration || Infinity);
   const elapsed = formatDuration(shown);
+  const scrubbing = useSharedValue(0);
+
+  useEffect(() => {
+    if (landing !== null && seekLanded(position, landing)) setLanding(null);
+  }, [landing, position]);
+  useEffect(() => {
+    if (landing === null) return;
+    // A seek that never lands, such as one the server refused, lets go after a while.
+    const timer = setTimeout(() => setLanding(null), 2500);
+    return () => clearTimeout(timer);
+  }, [landing]);
+
+  // While a finger scrubs, the times grow a little and brighten, as Apple Music's do; with
+  // Reduce Motion they only brighten.
+  const timeStyle = useAnimatedStyle(() => ({
+    color: interpolateColor(scrubbing.value, [0, 1], [colors.quiet, colors.text]),
+    transform: [{ scale: reduceMotion ? 1 : 1 + 0.12 * scrubbing.value }],
+  }));
 
   return (
     <>
@@ -473,19 +499,27 @@ function Scrubber() {
         maximum={duration}
         accessibilityStep={10_000}
         valueText={elapsed}
-        onChange={value => { if (current) actions.seek(value); }}
+        onChange={value => {
+          if (!current) return;
+          setLanding(value);
+          actions.seek(value);
+        }}
         onPreview={setDraft}
+        onScrubbing={active => { scrubbing.set(withTiming(active ? 1 : 0, { duration: active ? 160 : 260 })); }}
       />
       <View style={styles.timeRow}>
-        <Text maxFontSizeMultiplier={secondaryFontScale} style={styles.time}>{elapsed}</Text>
-        <Text maxFontSizeMultiplier={secondaryFontScale} style={styles.time}>{formatRemaining(shown, duration)}</Text>
+        <Animated.Text maxFontSizeMultiplier={secondaryFontScale} style={[styles.time, styles.timeStart, timeStyle]}>{elapsed}</Animated.Text>
+        <Animated.Text maxFontSizeMultiplier={secondaryFontScale} style={[styles.time, styles.timeEnd, timeStyle]}>
+          {formatRemaining(shown, duration)}
+        </Animated.Text>
       </View>
     </>
   );
 }
 
-function Transport({ compact, page, onToggle, onDevices }: {
+function Transport({ compact, rhythm, page, onToggle, onDevices }: {
   compact: boolean;
+  rhythm: Rhythm;
   page: PlayerPage;
   onToggle: (page: DetailPage) => void;
   onDevices: () => void;
@@ -499,7 +533,7 @@ function Transport({ compact, page, onToggle, onDevices }: {
   return (
     <View style={[styles.transport, compact && styles.transportCompact]}>
       <Scrubber />
-      <View style={[styles.transportButtons, compact && styles.transportButtonsCompact]}>
+      <View style={[styles.transportButtons, { marginTop: rhythm.buttonsTop, marginBottom: rhythm.buttonsBottom }]}>
         <PlayerButton icon="backward.fill" label="Previous track" size={27} onPress={() => { selectionFeedback(); actions.previous(); }} />
         <PlayerButton
           icon={session.playing ? 'pause.fill' : 'play.fill'}
@@ -512,20 +546,19 @@ function Transport({ compact, page, onToggle, onDevices }: {
         />
         <PlayerButton icon="forward.fill" label="Next track" size={27} onPress={() => { selectionFeedback(); actions.next(); }} />
       </View>
+      {/* The speakers sit at the scrubber's ends, the track centred between them. Where this phone's
+          sound goes (AirPlay, Bluetooth) is chosen in the device sheet. */}
       <View style={styles.volumeRow}>
-        <Icon name="speaker.fill" size={13} color={colors.muted} />
+        <Icon name="speaker.fill" size={13} color={colors.muted} style={styles.volumeLow} />
         <View style={styles.volumeSlider}>
           {/* This phone's volume is the system's, which the side buttons move too; another device's is the session's. */}
           {!remote && SystemVolumeSlider
             ? <SystemVolumeSlider tint={colors.accent} trackTint={colors.sliderTrack} style={styles.systemVolume} />
             : <TransportSlider label={`Volume, ${output.name}`} value={shownVolume} maximum={1} accessibilityStep={0.1} onChange={setVolume} />}
         </View>
-        <Icon name="speaker.wave.3.fill" size={15} color={colors.muted} />
-        {/* Where this phone's own sound goes: AirPlay, Bluetooth or the speaker. */}
-        {!remote && RoutePicker && <RoutePicker tint={colors.muted} activeTint={colors.accent} style={styles.routePicker}
-          accessibilityLabel="AirPlay and Bluetooth" />}
+        <Icon name="speaker.wave.3.fill" size={15} color={colors.muted} style={styles.volumeHigh} />
       </View>
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingTop: rhythm.footerTop }]}>
         <View style={styles.footerSide}>
           <PlayerButton icon="quote.bubble"
             label={page === 'lyrics' ? 'Hide lyrics' : 'Show lyrics'}
@@ -559,13 +592,11 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   bubbleContent: { position: 'absolute', top: 0, left: 0 },
   safe: { flex: 1 },
   backdropArt: { width: '110%', height: '86%', opacity: 0.62 },
-  grabberTouch: { alignItems: 'center', paddingTop: grabberHeight },
+  grabberTouch: { alignItems: 'center' },
   collapse: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center' },
-  context: { alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', paddingHorizontal: artworkInset },
-  contextHeading: { color: colors.muted, fontSize: 11, fontWeight: '600', letterSpacing: 0.6, textTransform: 'uppercase' },
-  contextTitle: { color: colors.text, fontSize: 13, fontWeight: '600', marginTop: 1 },
   deckFrame: { flex: 1 },
-  nowPlaying: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: artworkInset, gap: artworkGap },
+  // The artwork at the top, the title's room under it; a tall screen's spare height goes below them.
+  nowPlaying: { flex: 1, justifyContent: 'flex-start', alignItems: 'center', paddingHorizontal: edgeInset },
   artwork: { position: 'absolute', overflow: 'hidden', backgroundColor: colors.surface },
   noArtwork: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   details: { ...StyleSheet.absoluteFill, paddingTop: compactArtworkTop },
@@ -574,7 +605,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
     marginLeft: artworkInset + compactArtworkSize + 12, marginRight: artworkInset, marginBottom: 9 },
   compactTrackTitle: { color: colors.text, fontWeight: '700', fontSize: 18 },
   compactTrackArtist: { color: colors.muted, marginTop: 2, fontSize: 14 },
-  metadataSlot: { width: '100%', maxWidth: 440 },
+  metadataSlot: { width: '100%', maxWidth: 440, justifyContent: 'center' },
   metadata: { width: '100%', maxWidth: 440, flexDirection: 'row', alignItems: 'center', gap: 5 },
   trackCopy: { minWidth: 0, flex: 1 },
   trackTitle: { fontSize: 30, fontWeight: '700', letterSpacing: -1, color: colors.text },
@@ -582,22 +613,27 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   artist: { marginTop: 3, color: colors.muted, fontWeight: '500', fontSize: 16 },
   status: { color: colors.accent, fontWeight: '600' },
   statusDetail: { color: colors.muted, fontWeight: '500' },
-  transport: { width: '100%', maxWidth: 500, alignSelf: 'center', paddingHorizontal: 25, paddingTop: 8, paddingBottom: 6 },
+  transport: { width: '100%', maxWidth: 500, alignSelf: 'center', paddingHorizontal: edgeInset, paddingTop: 8, paddingBottom: 6 },
   transportCompact: { paddingTop: 2, paddingBottom: 2 },
   timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: -1, paddingHorizontal: 1 },
   time: { color: colors.quiet, fontVariant: ['tabular-nums'], fontSize: 12, fontWeight: '600' },
-  transportButtons: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly', marginTop: 12, marginBottom: 10 },
-  transportButtonsCompact: { marginTop: 6, marginBottom: 5 },
+  // Each time grows from the end it sits at.
+  timeStart: { transformOrigin: 'left top' },
+  timeEnd: { transformOrigin: 'right top' },
+  transportButtons: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly' },
   primaryButton: { width: 66, height: 66 },
   primaryButtonCompact: { width: 56, height: 56 },
-  volumeRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  volumeRow: { flexDirection: 'row', alignItems: 'center' },
+  // The speakers' outer edges at the scrubber's ends, and the same room between each and the track.
+  // speaker.fill draws about 2 pt inside its 13 pt box; speaker.wave.3.fill about 1 pt inside its 15 pt one.
+  volumeLow: { marginLeft: -2, marginRight: 10 },
+  volumeHigh: { marginLeft: 11, marginRight: -1 },
   volumeSlider: { flex: 1 },
-  // The whole bar takes touches, 44pt tall, laid out as the 34pt it was.
-  systemVolume: { height: 44, marginVertical: -5 },
-  // 44pt to touch; the negative margins keep the row as it was laid out for the 36pt glyph.
-  routePicker: { width: 44, height: 44, marginLeft: -2, marginVertical: -4 },
-  footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingTop: 8 },
+  // The whole bar takes touches, 44pt tall, laid out as the 28pt the other sliders take.
+  systemVolume: { height: 44, marginVertical: -8 },
+  footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   footerSide: { flex: 1, alignItems: 'center' },
-  // The sides hold one 44 pt button each; the device's name, such as "Only on this device", gets the rest.
-  output: { flex: 2, minWidth: 0 },
+  // The sides hold one 44 pt button each, centred under the previous and next buttons as in
+  // Apple Music; the device's name, such as "Only on this device", gets the rest.
+  output: { flex: 1.4, minWidth: 0 },
 }));

@@ -1,6 +1,6 @@
 import type { TrackSummary } from '@squirmy/contracts';
 import { describe, expect, it } from 'vitest';
-import { trackActionKey, trackActions, type TrackActionState } from './trackActionList';
+import { trackActionKey, trackActions, trackLinks, type TrackActionState } from './trackActionList';
 
 const track = (parts: Partial<TrackSummary> = {}): TrackSummary => ({
   id: 't', mbid: null, title: 'Song', artistCredit: 'Artist', artists: [{ id: 'ar', name: 'Artist' }], durationMs: 1,
@@ -120,5 +120,21 @@ describe('trackActions', () => {
     const playlist = { id: 'p', itemId: 'i' };
     expect(ids(track(), state(), { playlist }).at(-1)).toBe('remove');
     expect(ids(track(), state({ offline: true }), { playlist })).not.toContain('remove');
+  });
+});
+
+describe('trackLinks', () => {
+  it('leads to the album and each credited artist, naming each', () => {
+    const featured = track({ artists: [{ id: 'lead', name: 'Lead' }, { id: 'guest', name: 'Guest' }] });
+    expect(trackLinks(featured).map(link => [link.id, link.subtitle, link.page])).toEqual([
+      ['album', 'Album', { page: 'album', id: 'al' }],
+      ['artist', 'Lead', { page: 'artist', id: 'lead' }],
+      ['artist', 'Guest', { page: 'artist', id: 'guest' }],
+    ]);
+  });
+
+  it('leaves out what does not exist', () => {
+    expect(trackLinks(track({ album: null })).map(link => link.id)).toEqual(['artist']);
+    expect(trackLinks(track({ album: null, artists: [] }))).toEqual([]);
   });
 });

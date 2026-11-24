@@ -1,11 +1,14 @@
-import { Button, Capsule, Host, Text, VStack } from '@expo/ui/swift-ui';
+import { Button, Capsule, Host, Image, Menu, Rectangle, Text, VStack } from '@expo/ui/swift-ui';
 import {
   accessibilityAddTraits, accessibilityHint, accessibilityLabel, animation, Animation, blur, dynamicTypeSize, font, foregroundStyle, frame,
-  lineLimit, minimumScaleFactor, opacity, padding,
+  lineLimit, menuIndicator, menuOrder, minimumScaleFactor, opacity, padding,
 } from '@expo/ui/swift-ui/modifiers';
+import type { ComponentProps } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { trackActionKey, trackLinks } from '../library/trackActionList';
+import { useRunTrackAction } from '../library/trackActions';
 import { IconButton, Symbol, TrackMenu, hitShape, plainButton } from '../native/Controls';
-import type { DeviceButtonProps, LyricButtonProps, PlayerButtonProps, TrackMenuButtonProps } from './Controls';
+import type { DeviceButtonProps, LyricButtonProps, PlayerButtonProps, TrackLinksMenuProps, TrackMenuButtonProps } from './Controls';
 import { useColors } from '../theme';
 
 export function PlayerButton({ icon, label, size, color, onPress, style, selected, busy, filled }: PlayerButtonProps) {
@@ -32,6 +35,33 @@ export function TrackMenuButton({ track }: TrackMenuButtonProps) {
   const colors = useColors();
   return <Host style={styles.icon}><TrackMenu track={track} label="Song options" color={colors.text} /></Host>;
 }
+
+/**
+ * The title and artist as drawn by React Native, with a system menu over them, as in Apple
+ * Music: "Go to album" and "Go to artist" (one for each credited artist), each naming where it
+ * goes, and only for pages that exist. Choosing one closes Now Playing and opens the page.
+ */
+export function TrackLinksMenu({ track, accessibilityLabel: label, children }: TrackLinksMenuProps) {
+  const run = useRunTrackAction(false);
+  const links = track ? trackLinks(track) : [];
+  if (!links.length) return <>{children}</>;
+  return <View style={styles.links}>
+    <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">{children}</View>
+    <Host style={StyleSheet.absoluteFill}>
+      <Menu label={<Rectangle modifiers={[foregroundStyle('transparent'), frame({ maxWidth: Infinity, maxHeight: Infinity }), hitShape]} />}
+        // The album first, then the artists, whichever way the menu opens.
+        modifiers={[plainButton, menuIndicator('hidden'), menuOrder('fixed'), accessibilityLabel(label), accessibilityHint('Shows the album and artist')]}>
+        {links.map(link => <Button key={trackActionKey(link)} onPress={() => run(link)}>
+          <Text>{link.id === 'album' ? 'Go to album' : 'Go to artist'}</Text>
+          <Text>{link.subtitle ?? ''}</Text>
+          <Image systemName={link.icon as SymbolName} />
+        </Button>)}
+      </Menu>
+    </Host>
+  </View>;
+}
+
+type SymbolName = ComponentProps<typeof Image>['systemName'];
 
 export function DeviceButton({ icon, name, highlighted, onPress }: DeviceButtonProps) {
   const colors = useColors();
@@ -88,5 +118,7 @@ export function LyricCredits({ credits, opacity: shown }: { credits: string; opa
 const styles = StyleSheet.create({
   icon: { width: 44, height: 44 },
   device: { height: 56 },
+  // At least 44 pt to touch, however short the lines.
+  links: { minHeight: 44, justifyContent: 'center' },
   lyricRow: { width: '100%', maxWidth: 530 },
 });
