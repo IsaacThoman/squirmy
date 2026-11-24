@@ -10,6 +10,8 @@ import { Cover } from '../ui';
 import { miniCoverSize, usePlayerTransition } from './transition';
 import type { MiniPlayerContentProps } from './MiniPlayerContent';
 import { usePlaybackStatus } from './usePlaybackStatus';
+import { useCurrentTrackHeart } from './useCurrentTrackHeart';
+import { heartColor } from '../library/heart';
 import { usePlayerShown } from './visibility';
 import { skipActions, SwipeTitles, useSkipNeighbours } from './SwipeTitles';
 
@@ -37,6 +39,7 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
   const { previous, next } = useSkipNeighbours(session, queue);
   const loading = useLoading();
   const status = usePlaybackStatus();
+  const { heart, toggle: toggleLiked } = useCurrentTrackHeart();
   // Until the current song's details load, say nothing rather than claim nothing is playing.
   const title = track?.title ?? (current ? '' : 'Not Playing');
   // What playback has to say comes first, for its few seconds or for as long as the pause it explains.
@@ -78,6 +81,8 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
             </RNHostView>
             {!compact && <IconButton symbol={detached ? DETACHED_SYMBOL : 'laptopcomputer.and.iphone'} label={deviceLabel}
               size={20} color={remote || detached ? colors.accent : colors.muted} onPress={onDevices} />}
+            {!compact && track && <IconButton symbol={heart.icon} label={heart.label} selected={heart.selected}
+              size={20} color={heartColor(heart, colors, colors.muted)} onPress={preview ? undefined : toggleLiked} />}
             <IconButton symbol={session.playing ? 'pause.fill' : 'play.fill'} label={playPauseLabel(session.playing, loading)}
               busy={loading !== 'none'} size={22} onPress={preview ? undefined : actions.playPause} />
           </HStack>
