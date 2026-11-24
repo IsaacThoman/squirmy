@@ -16,6 +16,7 @@ import { updateServerSettings } from '../../lib/settings.js'
 import { signIn } from '../../test/api.js'
 import { useTestDatabase } from '../../test/database.js'
 import { seedLargeLibrary } from '../../test/library-seed.js'
+import { libraryItemsQuery } from './library-items.js'
 import { libraryAlbumsQuery, libraryArtistsQuery, libraryGenresQuery, libraryShape, libraryShapeQuery, libraryTracksQuery } from './library.js'
 
 const ALBUMS = 10_000
@@ -57,7 +58,23 @@ describe.skipIf(!process.env.SQUIRMY_PERF)('catalog performance', () => {
       from (select rt.recording_id, row_number() over (order by rt.recording_id) as n from release_tracks rt
         where not exists (select 1 from media_files f where f.recording_id = rt.recording_id) limit 500) rt
       on conflict do nothing`)
+    // Saved artists, and collections played from: the albums and artists of the latest plays.
+    await db.execute(sql`
+      insert into likes (user_id, entity_type, entity_id, created_at)
+      select ${user.id}, 'artist', ar.id, timestamptz '2026-01-01' + n * interval '30 minutes'
+      from (select id, row_number() over (order by id) as n from artists limit 300) ar
+      on conflict do nothing`)
+    await db.execute(sql`
+      insert into collection_plays (user_id, entity_type, entity_id, played_at)
+      select ${user.id}, kind, id, timestamptz '2026-06-01' + n * interval '1 hour'
+      from (
+        (select 'album' as kind, id, row_number() over (order by id) as n from albums limit 400)
+        union all
+        (select 'artist', id, row_number() over (order by id desc) from artists limit 200)
+      ) played
+      on conflict do nothing`)
     await db.execute(sql`analyze likes`)
+    await db.execute(sql`analyze collection_plays`)
     report.push(`seeded in ${Math.round(performance.now() - started)} ms`)
   }, 300_000)
   afterEach(() => {
@@ -108,10 +125,18 @@ describe.skipIf(!process.env.SQUIRMY_PERF)('catalog performance', () => {
     }
     cases.push(['tracks genre=Jazz by title', (cursor) => libraryTracksQuery(user.id, { sort: 'title', genre: 'Jazz', limit: 50, cursor }, tracks), '/api/v1/library/tracks?sort=title&genre=Jazz'])
     cases.push(['artists', (cursor) => libraryArtistsQuery(user.id, { limit: 50, cursor }, albums), '/api/v1/library/artists'])
+    // All: every kind in one list. The query reads the playlists first, so it is built ahead.
+    for (const sort of ['played', 'recent', 'title', 'artist', 'year'] as const) {
+      const url = `/api/v1/library/items?sort=${sort}`
+      // Deep enough under `played` to be past the 600 played items, into the never-played part.
+      const deep = await deepCursor(url, sort === 'played' ? 4 : 3)
+      const built = { first: await libraryItemsQuery(user.id, { sort, limit: 50 }), deep: await libraryItemsQuery(user.id, { sort, limit: 50, cursor: deep }) }
+      cases.push([`items ${sort}`, (cursor) => (cursor ? built.deep : built.first), url])
+    }
 
     for (const [name, query, url] of cases) {
       const first = await explain(query())
-      const cursor = await deepCursor(url, 3)
+      const cursor = await deepCursor(url, url.includes('items?sort=played') ? 4 : 3)
       const deep = await explain(query(cursor))
       report.push(`query ${name}: first page ${first.toFixed(2)} ms, after 600 rows ${deep.toFixed(2)} ms`)
       expect(first, name).toBeLessThan(50)

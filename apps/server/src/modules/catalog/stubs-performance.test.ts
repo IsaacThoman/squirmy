@@ -18,6 +18,7 @@ import { db } from '../../database/client.js'
 import { body, signIn } from '../../test/api.js'
 import { useTestDatabase } from '../../test/database.js'
 import { seedStubCatalog } from '../../test/library-seed.js'
+import { libraryItemsQuery } from './library-items.js'
 import { libraryAlbumsQuery, libraryArtistsQuery, libraryGenresQuery, libraryShape, libraryShapeQuery, libraryTracksQuery } from './library.js'
 
 const TRACKS_PER_ALBUM = 12
@@ -62,6 +63,7 @@ describe.skipIf(!process.env.SQUIRMY_PERF)('library lists in a catalog of stubs'
     for (const sort of ['recent', 'title', 'artist', 'year'] as const) cases.push([`albums ${sort}`, libraryAlbumsQuery(user.id, { sort, limit: 50 }, 'small')])
     for (const sort of ['recent', 'title', 'artist', 'year'] as const) cases.push([`tracks ${sort}`, libraryTracksQuery(user.id, { sort, limit: 50 }, 'small')])
     cases.push(['artists', libraryArtistsQuery(user.id, { limit: 50 }, 'small')], ['genres', libraryGenresQuery(user.id, { limit: 50 }, 'small')])
+    for (const sort of ['played', 'recent', 'title', 'artist', 'year'] as const) cases.push([`items ${sort}`, await libraryItemsQuery(user.id, { sort, limit: 50 })])
     for (const [name, query] of cases) {
       const time = await explain(query)
       report.push(`query ${name}: ${time.toFixed(2)} ms`)

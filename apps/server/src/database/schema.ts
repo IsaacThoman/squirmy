@@ -772,6 +772,26 @@ export const plays = pgTable('plays', {
   index('plays_recording').on(t.recordingId),
 ])
 
+/**
+ * When the user last started playback from a collection: an album, artist or playlist
+ * page, or Liked Songs (`entity_type` 'liked', `entity_id` the nil uuid). Written by the
+ * sessions module when a `playTracks` command names one as its context; the Library's
+ * "Recently played" order reads it. One row per collection, so it stays small however much
+ * is played. Album and artist rows follow merges; rows of deleted entities are never members.
+ */
+export const collectionPlays = pgTable('collection_plays', {
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  entityType: text('entity_type').$type<'album' | 'artist' | 'playlist' | 'liked'>().notNull(),
+  entityId: uuid('entity_id').notNull(),
+  playedAt: at('played_at').notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.entityType, t.entityId] }),
+  // Most recent first: the keyset order of the Library's played items.
+  index('collection_plays_user_recent').on(t.userId, t.playedAt.desc(), t.entityId.desc()),
+  // Merges repoint rows by entity.
+  index('collection_plays_entity').on(t.entityType, t.entityId),
+])
+
 /** Outbound scrobbles, one row per play and target, retried until sent. */
 export const scrobbleDeliveries = pgTable('scrobble_deliveries', {
   playId: uuid('play_id').notNull().references(() => plays.id, { onDelete: 'cascade' }),

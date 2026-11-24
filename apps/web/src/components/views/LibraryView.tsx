@@ -1,4 +1,4 @@
-import type { AlbumSummary, ArtistSummary, LibrarySort, PlaylistSummary, TrackSummary } from '@squirmy/contracts'
+import type { AlbumSummary, ArtistSummary, LibraryItemsSort, PlaylistSummary, TrackSummary } from '@squirmy/contracts'
 import { CloudOff, Disc3, FolderPlus, LayoutGrid, List, ListMusic, MicVocal, Plus, Search, SearchX, X } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
@@ -27,7 +27,7 @@ import { useViewer } from '@/player/on-demand-context'
 import { useAlbumWants, useTrackActions } from '@/player/use-track-actions'
 import { filterLabels, LIBRARY_FILTERS, type LibraryFilterName, type LibraryLayout } from './library-state'
 
-const sortLabels: Record<LibrarySort, string> = { recent: 'Recently added', title: 'Title', artist: 'Artist', year: 'Year' }
+const sortLabels: Record<LibraryItemsSort, string> = { played: 'Recently played', recent: 'Recently added', title: 'Title', artist: 'Artist', year: 'Year' }
 
 /** One tile or row of the Library: Liked Songs, a playlist, an album or an artist. */
 export type LibraryItem =
@@ -49,9 +49,9 @@ export type LibraryViewProps = {
   /** Where each filter chip goes: the filter, with the sort kept. */
   filterHref: (filter: LibraryFilterName) => string
   /** The order shown, and the ones this filter offers (none for artists and playlists). */
-  sort: LibrarySort
-  sorts: LibrarySort[]
-  onSortChange: (sort: LibrarySort) => void
+  sort: LibraryItemsSort
+  sorts: LibraryItemsSort[]
+  onSortChange: (sort: LibraryItemsSort) => void
   layout: LibraryLayout
   onLayoutChange: (layout: LibraryLayout) => void
   /** "Find in your library": two characters or more search the whole library, one filters what is loaded. */
@@ -68,8 +68,8 @@ export type LibraryViewProps = {
   /** The playlists did not load: Liked Songs and the albums still show, with a way to ask again. */
   playlistsFailure?: Failure
   /**
-   * The filter's own list (albums, artists or songs) did not load. Under All, Liked Songs and the
-   * playlists still show above the message; the chips and the toolbar stay either way.
+   * The filter's own list (All's, albums, artists or songs) did not load. The chips and the
+   * toolbar stay, and under Albums the playlists that loaded show above the message.
    */
   listFailure?: Failure
   /** The search of the whole library failed. It says so in place of the matches, even when the list itself loaded. */
@@ -105,7 +105,8 @@ const empties = {
 /**
  * The library in one place, as on iOS: filter chips (All, Playlists, Albums, Artists, Songs), a
  * sort where the filter has one, grid or list, and a search of the library. All is Liked Songs,
- * then the playlists, then the albums; searched, the songs that match follow them, as on iOS.
+ * the playlists, the albums and the artists in one grid, in the sort's order; searched, the
+ * songs that match follow them, as on iOS.
  */
 export function LibraryView(props: LibraryViewProps) {
   const { filter, filterHref, query, onQueryChange, genre, onClearGenre, count, sort, sorts, onSortChange, layout, onLayoutChange, capped, loadingMore, pending } = props
@@ -114,8 +115,6 @@ export function LibraryView(props: LibraryViewProps) {
   const searching = query.trim().length > 0
   const songMatches = songs ? [] : props.songMatches ?? []
   const { playlistsFailure, searchFailure, listFailure } = props
-  // Under All only the albums follow the sort: Liked Songs and the playlists always lead.
-  const sortsAlbumsOnly = filter === 'all'
   const narrow = useMediaQuery(NARROW_QUERY)
   const chips = LIBRARY_FILTERS.map(name => (
     <Link key={name} to={filterHref(name)} aria-current={name === filter ? 'page' : undefined} className={pillClass}>{filterLabels[name]}</Link>
@@ -124,7 +123,7 @@ export function LibraryView(props: LibraryViewProps) {
   const listFailed = Boolean(listFailure) && !searching && !searchFailure
   const failedList = listFailed && (
     <LoadError
-      title={`Your ${filter === 'all' ? 'albums' : filterLabels[filter].toLowerCase()} didn’t load`}
+      title={filter === 'all' ? 'Your library didn’t load' : `Your ${filterLabels[filter].toLowerCase()} didn’t load`}
       error={listFailure!.error}
       onRetry={listFailure!.onRetry}
       retrying={listFailure!.retrying}
@@ -153,11 +152,11 @@ export function LibraryView(props: LibraryViewProps) {
               // Matches from the server come best first, whatever the sort.
               : sorts.length > 0 && !searchesServer(query) && (
                 <Select
-                  label={sortsAlbumsOnly ? 'Sort albums by' : 'Sort by'}
-                  prefix={sortsAlbumsOnly ? 'Sort albums:' : 'Sort:'}
+                  label="Sort by"
+                  prefix="Sort:"
                   value={sort}
                   onValueChange={onSortChange}
-                  options={sorts.map((value): SelectOption<LibrarySort> => ({ value, label: sortLabels[value] }))}
+                  options={sorts.map((value): SelectOption<LibraryItemsSort> => ({ value, label: sortLabels[value] }))}
                   size="sm"
                 />
               )}
