@@ -114,6 +114,22 @@ enum SliderTrack {
   static let restHeight: CGFloat = 6
   static let activeHeight: CGFloat = 10
 
+  /** How far past an end a track can be pulled, in points, however far the finger goes. As `stretchLimit` in scrub.ts. */
+  static let stretchLimit: CGFloat = 14
+
+  /**
+   * How far a track stretches for a finger `overshoot` points past an end: UIScrollView's rubber
+   * band, signed, as `rubberBand` in scrub.ts, which the scrubber uses.
+   */
+  static func rubberBand(_ overshoot: CGFloat) -> CGFloat {
+    guard overshoot != 0 else {
+      return 0
+    }
+    let resistance: CGFloat = 0.55
+    let distance = abs(overshoot)
+    return (overshoot < 0 ? -1 : 1) * stretchLimit * (1 - 1 / (distance * resistance / stretchLimit + 1))
+  }
+
   /** A thumb that draws nothing, in place of the slider's knob. */
   static let clearThumb: UIImage = {
     let format = UIGraphicsImageRendererFormat()
