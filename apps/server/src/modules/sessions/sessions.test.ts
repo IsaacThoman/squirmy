@@ -37,9 +37,9 @@ type Client = Socket<ServerToClientEvents, ClientToServerEvents>
 async function eventually<T>(read: () => T | Promise<T>, check: (value: T) => void, timeoutMs = 5000): Promise<void> {
   const deadline = performance.now() + timeoutMs
   for (;;) {
-    const value = await read()
     try {
-      check(value)
+      // `read` may throw too: a socket's first event of a kind can land a read after the one waited on.
+      check(await read())
       return
     } catch (error) {
       if (performance.now() > deadline) throw error
@@ -124,8 +124,9 @@ class Peer {
     return this.events('session:queue') as { version: number; queueVersion: number; queue: SessionQueue }[]
   }
 
-  lastDevices(): { id: string; isActive: boolean }[] {
-    return this.events('devices').at(-1) as { id: string; isActive: boolean }[]
+  /** The last device list received; undefined before the first. */
+  lastDevices(): { id: string; isActive: boolean }[] | undefined {
+    return this.events('devices').at(-1) as { id: string; isActive: boolean }[] | undefined
   }
 }
 
@@ -256,7 +257,7 @@ describe('sessions', () => {
     expect(events.indexOf('invalidate')).toBeGreaterThan(events.indexOf('session:state'))
     expect(all().find(({ event }) => event === 'invalidate')!.payload).toEqual({ keys: [['library', 'items']] })
     expect(state).toMatchObject({ playing: true, activeDeviceId: 'device-a-0002', current: { id: 'play-1.0', trackId: album.tracks[0]!.recordingId } })
-    expect(a.lastDevices().find((item) => item.isActive)?.id).toBe('device-a-0002')
+    expect(a.lastDevices()?.find((item) => item.isActive)?.id).toBe('device-a-0002')
 
     await b.state(1)
     expect(b.queues().map((update) => update.version)).toEqual([1])
@@ -331,7 +332,7 @@ describe('sessions', () => {
     clock.advance(42_000)
     expect(await b.send({ type: 'transfer', deviceId: 'device-b-0005' })).toEqual({ ok: true, version: 2 })
     expect(await a.state(2)).toMatchObject({ activeDeviceId: 'device-b-0005', playing: true, positionMs: 42_000, anchorAt: clock.now() })
-    await eventually(() => a.lastDevices().find((item) => item.isActive)?.id, (value) => expect(value).toBe('device-b-0005'))
+    await eventually(() => a.lastDevices()?.find((item) => item.isActive)?.id, (value) => expect(value).toBe('device-b-0005'))
   })
 
   it('applies deviceLost when the active device does not return within the grace period', async () => {
@@ -343,7 +344,7 @@ describe('sessions', () => {
     await b.state(1)
     clock.advance(10_000)
     a.socket.disconnect()
-    await eventually(() => b.lastDevices().map((item) => item.id), (value) => expect(value).toEqual(['device-b-0006']))
+    await eventually(() => b.lastDevices()?.map((item) => item.id), (value) => expect(value).toEqual(['device-b-0006']))
     expect(await b.state(3)).toMatchObject({ activeDeviceId: null, playing: false, stalled: false, positionMs: 10_000 })
   })
 
@@ -374,7 +375,7 @@ describe('sessions', () => {
     await b.state(1)
     clock.advance(10_000)
     a.socket.disconnect()
-    await eventually(() => b.lastDevices().map((item) => item.id), (value) => expect(value).toEqual(['device-b-0023']))
+    await eventually(() => b.lastDevices()?.map((item) => item.id), (value) => expect(value).toEqual(['device-b-0023']))
     clock.advance(20_000)
     timers.fireAll()
     expect(await b.state(3)).toMatchObject({ activeDeviceId: null, playing: false, positionMs: 10_000 })

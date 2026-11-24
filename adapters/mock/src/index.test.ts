@@ -2,7 +2,7 @@ import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { parseBuffer } from 'music-metadata'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { createMockProvider, type MockProvider } from './index.js'
+import { createMockProvider, type MockProvider, tonePitch } from './index.js'
 
 type Upload = { name: string; audio: Buffer }
 
@@ -84,6 +84,15 @@ describe('mock provider', () => {
     expect(common.track.no).toBe(3)
     expect(format.duration).toBeCloseTo(2, 0)
     expect(completions).toEqual([{ status: 'completed' }])
+  })
+
+  it('gives each song a pitch of its own, so no two songs deliver the same audio', () => {
+    expect(tonePitch('Tone Generator', 'Hum')).toBe(tonePitch('Tone Generator', 'Hum'))
+    // Two songs of one test run that used to share 540 Hz, and so one audio hash.
+    expect(tonePitch('Artist 13', 'Here 01a20d6f-49eb-758d-ac29-d6b6e2b4bdc5')).not.toBe(tonePitch('Artist 4', 'Far 7'))
+    const pitches = Array.from({ length: 300 }, (_, index) => tonePitch('Artist', `Track ${index}`))
+    expect(new Set(pitches).size).toBe(pitches.length)
+    for (const pitch of pitches) expect(Number(pitch)).toBeGreaterThanOrEqual(200)
   })
 
   it('can deliver the wrong file, fail, or put a price on its offers', async () => {
