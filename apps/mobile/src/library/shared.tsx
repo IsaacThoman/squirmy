@@ -73,6 +73,8 @@ export type Collection = {
   availability?: AlbumSummary['availability'];
   /** An album's credited artists, for its menu's "Go to artist". */
   artists?: readonly { name: string; href: Href }[];
+  /** Pinned to the top of the Library; known only for the Library's own list, whose first page starts with the pins. */
+  pinned?: boolean;
 };
 
 type Link = (page: Page, id: string) => Href;

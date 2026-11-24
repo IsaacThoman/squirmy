@@ -185,12 +185,14 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
 
   // Sorted by year, the year says why an album is where it is.
   const albumSubtitle = useCallback((album: AlbumSummary) => sort === 'year' && album.year ? `${album.artistCredit} · ${album.year}` : album.artistCredit, [sort]);
-  const allItems = useMemo(() => library.items.map((item: LibraryItem) => {
+  // The server lists the pins first; whether each item is pinned is known here, not in a search.
+  const allItems = useMemo(() => library.items.map((item: LibraryItem): Collection => {
+    const pinned = { pinned: item.pinned };
     switch (item.kind) {
-      case 'liked': return likedCollection(link);
-      case 'playlist': return playlistCollection(item.playlist, link);
-      case 'album': return albumCollection(item.album, link, albumSubtitle(item.album));
-      case 'artist': return artistCollection(item.artist, link);
+      case 'liked': return { ...likedCollection(link), ...pinned };
+      case 'playlist': return { ...playlistCollection(item.playlist, link), ...pinned };
+      case 'album': return { ...albumCollection(item.album, link, albumSubtitle(item.album)), ...pinned };
+      case 'artist': return { ...artistCollection(item.artist, link), ...pinned };
     }
   }), [albumSubtitle, library.items, link]);
   const items = useMemo(() => {
@@ -225,10 +227,10 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
       case 'heading': return <View style={styles.songsHeading}><SectionTitle title={row.title} /></View>;
       case 'tiles': return <CollectionGridRow items={row.items.map(item => ({
         id: item.key, title: item.title, subtitle: item.subtitle, size,
-        cover: <CollectionCover item={item} size={size} />, href: item.href, dim: item.dim, actions: collectionActions(item),
+        cover: <CollectionCover item={item} size={size} />, href: item.href, dim: item.dim, pinned: item.pinned, actions: collectionActions(item),
       }))} />;
-      case 'row': return <CollectionRow title={row.item.title} subtitle={row.item.subtitle} size={50} dim={row.item.dim}
-        cover={<CollectionCover item={row.item} size={50} radius={9} />} href={row.item.href} />;
+      case 'row': return <CollectionRow title={row.item.title} subtitle={row.item.subtitle} size={50} dim={row.item.dim} pinned={row.item.pinned}
+        cover={<CollectionCover item={row.item} size={50} radius={9} />} href={row.item.href} actions={collectionActions(row.item)} />;
     }
   }, [collectionActions, renderSong, size, styles]);
   // An empty library is an invitation: Search is where music is found and added.

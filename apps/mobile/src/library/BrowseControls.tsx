@@ -2,6 +2,7 @@ import type { Href } from 'expo-router';
 import { useImperativeHandle, useRef, type ComponentRef, type ReactElement, type Ref } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Icon } from '../ui';
+import { collectionLabel } from './collectionLabel';
 import { createThemedStyles, unavailableOpacity, useColors } from '../theme';
 import { ZoomLink } from './ZoomLink';
 
@@ -23,11 +24,11 @@ export type RowAction = { title: string; icon: string; onPress: () => void };
  * A collection that opens `href` when pressed. On iOS the page zooms out of its cover. `dim`
  * grays it: the cover fades, and the title and subtitle take the faded colors, which stay
  * readable. `onSelect` runs as it opens. `actions` give it a menu: a long press, and on a row
- * the ellipsis that replaces its chevron.
+ * the ellipsis that replaces its chevron. `pinned` puts a pin before the subtitle.
  */
 export type CollectionButtonProps = {
   title: string; subtitle: string; cover: ReactElement; size: number; href: Href; dim?: boolean;
-  onSelect?: () => void; actions?: readonly RowAction[];
+  onSelect?: () => void; actions?: readonly RowAction[]; pinned?: boolean;
 };
 /** The button a `ZoomLink` wraps. The link supplies `onPress`. */
 export type LinkedButtonProps<T> = Omit<T, 'href'> & { onPress?: () => void };
@@ -94,13 +95,21 @@ function actionMenu(title: string, actions: readonly RowAction[] | undefined) {
   ], { cancelable: true }) : undefined;
 }
 
-function TileButton({ title, subtitle, cover, size, dim, onPress, actions }: LinkedButtonProps<CollectionButtonProps>) {
+/** A pinned collection's subtitle starts with a pin. */
+function Subtitle({ subtitle, pinned, dim, lines }: { subtitle: string; pinned?: boolean; dim?: boolean; lines: number }) {
+  const colors = useColors();
   const styles = useStyles();
-  return <Pressable accessibilityRole="button" accessibilityLabel={`${title}, ${subtitle}`} onPress={onPress} onLongPress={actionMenu(title, actions)}
+  const text = <Text numberOfLines={lines} style={[styles.subtitle, pinned && styles.pinnedSubtitle, dim && styles.fadedCredit]}>{subtitle}</Text>;
+  return pinned ? <View style={styles.pinnedLine}><Icon name="pin.fill" size={10} color={colors.accent} />{text}</View> : text;
+}
+
+function TileButton({ title, subtitle, cover, size, dim, pinned, onPress, actions }: LinkedButtonProps<CollectionButtonProps>) {
+  const styles = useStyles();
+  return <Pressable accessibilityRole="button" accessibilityLabel={collectionLabel({ title, subtitle, pinned })} onPress={onPress} onLongPress={actionMenu(title, actions)}
     style={({ pressed }) => [{ width: size }, pressed && styles.pressed]}>
     <View style={dim && styles.dim}>{cover}</View>
     <Text numberOfLines={4} style={[styles.collectionTitle, { marginTop: 7 }, dim && styles.fadedTitle]}>{title}</Text>
-    <Text numberOfLines={2} style={[styles.subtitle, dim && styles.fadedCredit]}>{subtitle}</Text>
+    <Subtitle subtitle={subtitle} pinned={pinned} dim={dim} lines={2} />
   </Pressable>;
 }
 
@@ -115,17 +124,17 @@ export function CollectionRow({ href, ...props }: CollectionButtonProps) {
   return <ZoomLink href={href}><RowButton {...props} /></ZoomLink>;
 }
 
-function RowButton({ title, subtitle, cover, dim, onPress, onSelect, actions }: LinkedButtonProps<CollectionButtonProps>) {
+function RowButton({ title, subtitle, cover, dim, pinned, onPress, onSelect, actions }: LinkedButtonProps<CollectionButtonProps>) {
   const colors = useColors();
   const styles = useStyles();
   const menu = actionMenu(title, actions);
-  return <Pressable accessibilityRole="button" accessibilityLabel={`${title}, ${subtitle}`}
+  return <Pressable accessibilityRole="button" accessibilityLabel={collectionLabel({ title, subtitle, pinned })}
     onPress={() => { onSelect?.(); onPress?.(); }} onLongPress={menu}
     style={({ pressed }) => [styles.collectionRow, pressed && styles.pressed]}>
     <View style={dim && styles.dim}>{cover}</View>
     <View style={styles.flex}>
       <Text numberOfLines={1} style={[styles.collectionTitle, dim && styles.fadedTitle]}>{title}</Text>
-      <Text numberOfLines={1} style={[styles.subtitle, dim && styles.fadedCredit]}>{subtitle}</Text>
+      <Subtitle subtitle={subtitle} pinned={pinned} dim={dim} lines={1} />
     </View>
     {menu
       ? <Pressable accessibilityRole="button" accessibilityLabel={`More options for ${title}`} onPress={menu} hitSlop={10}><Icon name="ellipsis" size={18} color={colors.muted} /></Pressable>
@@ -167,6 +176,8 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.stroke },
   collectionTitle: { color: colors.text, fontSize: 14, fontWeight: '600' },
   subtitle: { color: colors.muted, fontSize: 13, marginTop: 3 },
+  pinnedLine: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
+  pinnedSubtitle: { flexShrink: 1, marginTop: 0 },
   collectionGrid: { flexDirection: 'row', columnGap: 12, marginBottom: 19 },
   genreGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   genre: { minHeight: 106, padding: 12, borderRadius: 15, overflow: 'hidden' },
