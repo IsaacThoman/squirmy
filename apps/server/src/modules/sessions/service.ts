@@ -15,6 +15,7 @@ import type { RealtimeServer } from '../../realtime/index.js'
 import { requestRecording } from '../acquisition/coverage.js'
 import { rememberDevice } from '../auth/service.js'
 import { suggestAutoplay } from '../radio/suggest.js'
+import { AUTOPLAY_BATCH, autoplayRequest } from './autoplay.js'
 import { recordCollectionPlay } from './collection-plays.js'
 import { entryUpdates, lookupTracks, trustSeeds } from './entries.js'
 import { countUntil, followPlay, insertPlay, isCompleted, notifyPlayStart, type OpenPlay, savePlay } from './plays.js'
@@ -26,10 +27,6 @@ import {
 
 /** A reported position this far from the computed one re-anchors the session. */
 const DRIFT_THRESHOLD_MS = 1000
-/** Autoplay is refilled when fewer entries than this are left in the queue. */
-const AUTOPLAY_LOW_WATER = 3
-const AUTOPLAY_BATCH = 10
-const AUTOPLAY_SEEDS = 10
 /**
  * On-demand entries are requested while they are current or among this many next. Fetches
  * take seconds, so a few ahead keep skips and track changes from waiting on one.
@@ -480,23 +477,25 @@ function finish(record: SessionRecord, next: Session, now: number): void {
 }
 
 /**
- * Asks the radio module for more tracks once the queue runs low and the autoplay queue
- * is empty. Asked at most once per current entry, so an empty answer is not repeated.
- * Refilling only an empty autoplay queue keeps the ids of entries a device may have
- * preloaded.
+ * Asks the radio module for suggestions whenever something plays with autoplay on and there
+ * are none, from the start of a queue rather than its end, so a device can show what will
+ * play after it (`autoplayRequest`). Asked at most once per current entry, so an empty answer
+ * is not repeated. Refilling only an empty autoplay queue keeps the ids of entries a device
+ * may have preloaded.
  */
 function refillAutoplay(record: SessionRecord): void {
   const { userId, session } = record
   const { current } = session
-  if (!session.autoplay || !current || session.autoplayQueue.length || session.queue.length >= AUTOPLAY_LOW_WATER) return
-  if (record.autoplayAskedFor === current.id) return
+  const request = autoplayRequest(session)
+  if (!request || !current || record.autoplayAskedFor === current.id) return
   record.autoplayAskedFor = current.id
-  const seeds = [...session.history.slice(-AUTOPLAY_SEEDS + 1), current].map(entry => entry.trackId)
-  const exclude = [...new Set([current, ...session.queue].map(entry => entry.trackId))]
+  const { seeds, exclude } = request
   suggestAutoplay({ userId, seeds, exclude, limit: AUTOPLAY_BATCH })
     .then(tracks => serial(userId, () => {
       const latest = recordOf(record.key)
-      if (!tracks.length || latest !== record || !latest.session.autoplay || latest.session.autoplayQueue.length) return
+      // Only the latest ask's answer is used: one for a queue played over since would follow the new one.
+      if (!tracks.length || latest !== record || latest.autoplayAskedFor !== current.id || latest.session.current?.id !== current.id
+        || !latest.session.autoplay || latest.session.autoplayQueue.length) return
       applyServer(latest, { type: 'setAutoplayQueue', tracks })
     }))
     .catch(report)

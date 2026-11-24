@@ -204,6 +204,14 @@ export function upNextDetail(context: { title: string } | null, entries: readonl
   return `${count} ${count === 1 ? 'song' : 'songs'}`;
 }
 
+/**
+ * The heading of the queue's Up next: Apple Music's "Continue Playing" while every song in it
+ * comes from what is playing (its line says "From …"), otherwise "Up Next".
+ */
+export function upNextTitle(context: { title: string } | null, entries: readonly Pick<QueueEntry, 'queued'>[]): string {
+  return context && entries.length && !entries.some(entry => entry.queued) ? 'Continue Playing' : 'Up Next';
+}
+
 /** Where a row of Up next (or of the autoplay suggestions) sits, for what its menu offers. */
 export type QueuePosition = { index: number; total: number; autoplay: boolean };
 

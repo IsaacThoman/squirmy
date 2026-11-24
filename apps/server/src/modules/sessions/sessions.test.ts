@@ -905,6 +905,39 @@ describe('sessions', () => {
     expect(vi.mocked(suggestAutoplay).mock.calls[1]![0].seeds).toEqual([first!.recordingId, second!.recordingId])
   })
 
+  it('suggests what follows a long queue as soon as it starts, seeded from its end', async () => {
+    const long = await createAlbum({ owned: true, tracks: Array.from({ length: 12 }, (_, index) => ({ title: `Long ${index + 1}` })) })
+    const extra = await createAlbum({ owned: true, tracks: [{ title: 'Suggested' }] })
+    const suggestion: QueueSeed = { trackId: extra.tracks[0]!.recordingId, albumId: extra.albumId, durationMs: extra.tracks[0]!.durationMs, state: 'ready' }
+    vi.mocked(suggestAutoplay).mockResolvedValueOnce([suggestion])
+    const a = await device('device-a-0013b')
+    const ids = long.tracks.map((track) => track.recordingId)
+
+    await a.send({ type: 'playTracks', tracks: long.tracks.map((track) => ({ trackId: track.recordingId, albumId: long.albumId, durationMs: 1 })), seed: 1 })
+    await eventually(() => a.queues().at(-1)?.queue.autoplayQueue.map((entry) => entry.trackId), (value) => expect(value).toEqual([suggestion.trackId]))
+    expect(suggestAutoplay).toHaveBeenCalledTimes(1)
+    expect(suggestAutoplay).toHaveBeenCalledWith({ userId: user.id, seeds: ids.slice(-10), exclude: ids, limit: 10 })
+    expect(a.queues().at(-1)!.queue.queue).toHaveLength(11)
+  })
+
+  it('drops suggestions asked for a queue that was played over while they were on their way', async () => {
+    const extra = await createAlbum({ owned: true, tracks: [{ title: 'Suggested' }] })
+    const suggestion: QueueSeed = { trackId: extra.tracks[0]!.recordingId, albumId: extra.albumId, durationMs: extra.tracks[0]!.durationMs, state: 'ready' }
+    let answerFirst: (tracks: QueueSeed[]) => void = () => {}
+    vi.mocked(suggestAutoplay)
+      .mockImplementationOnce(() => new Promise((resolve) => { answerFirst = resolve }))
+      .mockResolvedValueOnce([])
+    const a = await device('device-a-0013c')
+    const [first, second] = album.tracks
+
+    await a.send({ type: 'playTracks', tracks: seeds([first!]), seed: 1 })
+    await a.send({ type: 'playTracks', tracks: seeds([second!]), seed: 1 })
+    await eventually(() => vi.mocked(suggestAutoplay).mock.calls.length, (calls) => expect(calls).toBe(2))
+    answerFirst([suggestion])
+    await a.send({ type: 'pause' })
+    expect(a.queues().at(-1)?.queue.autoplayQueue ?? []).toEqual([])
+  })
+
   it('accounts plays from the anchor arithmetic: pauses and seeks add nothing, skips write nothing', async () => {
     const clock = stoppedClock()
     const start = clock.now()
