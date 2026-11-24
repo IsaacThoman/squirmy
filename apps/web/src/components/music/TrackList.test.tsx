@@ -220,6 +220,14 @@ describe('TrackRow', () => {
   it('takes a link its ellipsis cuts out of the Tab order, and only that one', () => {
     // Lines 100 px wide: Mira Vale ends inside its line, Lune Park and the album's title run past the edge.
     const ends: Record<string, number> = { 'Mira Vale': 60, 'Lune Park': 140, 'Blue Hour': 150 }
+    // The lines are measured when their observer first reports, as a browser's does once laid out.
+    vi.stubGlobal('ResizeObserver', class {
+      private readonly callback: ResizeObserverCallback
+      constructor(callback: ResizeObserverCallback) { this.callback = callback }
+      observe(target: Element) { this.callback([{ target } as ResizeObserverEntry], this as unknown as ResizeObserver) }
+      unobserve() {}
+      disconnect() {}
+    })
     const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
       const right = this.tagName === 'A' ? ends[this.textContent ?? ''] ?? 0 : this.querySelector('a') ? 100 : 0
       return { right, left: 0, top: 0, bottom: 0, width: right, height: 0, x: 0, y: 0, toJSON: () => ({}) } as DOMRect
@@ -235,6 +243,7 @@ describe('TrackRow', () => {
       expect(within(row).getByRole('link', { name: 'Mira Vale' }).parentElement).toHaveAttribute('title', song.artistCredit)
     } finally {
       rect.mockRestore()
+      vi.unstubAllGlobals()
     }
   })
 
