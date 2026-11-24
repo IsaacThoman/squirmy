@@ -1,5 +1,5 @@
 import type { ComponentRef, Ref } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { useCurrentDurationMs, useLoading, usePlaybackState, usePositionEvery } from '../playback';
 import { DETACHED_LABEL, DETACHED_SYMBOL } from './detach';
@@ -9,6 +9,7 @@ import { miniCoverSize, usePlayerTransition } from './transition';
 import { createThemedStyles, useColors } from '../theme';
 import { usePlaybackStatus } from './usePlaybackStatus';
 import { usePlayerShown } from './visibility';
+import { skipActions, SwipeTitles, useSkipNeighbours, type SkipSwipe } from './SwipeTitles';
 
 const progressIntervalMs = 1000;
 
@@ -20,12 +21,15 @@ export type MiniPlayerContentProps = Appearance & {
   onOpen?: () => void;
   onDevices?: () => void;
   preview?: boolean;
+  /** Swiping sideways changes the song; the preview Now Playing draws has none. */
+  swipe?: SkipSwipe;
 };
 
-export function MiniPlayerContent({ compact = false, native = false, containerRef, onOpen, onDevices, preview = false }: MiniPlayerContentProps) {
+export function MiniPlayerContent({ compact = false, native = false, containerRef, onOpen, onDevices, preview = false, swipe }: MiniPlayerContentProps) {
   const colors = useColors();
   const styles = useStyles();
-  const { current, track, output, session, actions, remote, detached } = usePlaybackState();
+  const { current, track, output, session, queue, actions, remote, detached } = usePlaybackState();
+  const { previous, next } = useSkipNeighbours(session, queue);
   const loading = useLoading();
   const status = usePlaybackStatus();
   // Until the current song's details load, say nothing rather than claim nothing is playing.
@@ -48,13 +52,14 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
       style={styles.flex}>
       <Animated.View style={[styles.container, compact && styles.compact, visibility]}>
         <Pressable accessibilityRole="button" accessibilityLabel={`Open Now Playing, ${[title, status?.message].filter(Boolean).join(', ')}`}
-          onPress={onOpen} style={styles.info}>
+          {...skipActions(swipe, onOpen, previous !== null, next !== null)} onPress={onOpen} style={styles.info}>
           {preview ? <View style={{ width: size, height: size }} /> : (
             <Cover artwork={track?.album?.artwork} size={size} radius={8} />
           )}
           <View style={styles.copy}>
-            <Text numberOfLines={1} style={styles.title}>{title}</Text>
-            {!compact && <Text numberOfLines={1} style={[styles.subtitle, status && { color: colors.accent }]}>{subtitle}</Text>}
+            <SwipeTitles swipe={swipe} current={{ key: current?.id ?? '', title, subtitle }} previous={previous} next={next}
+              twoLines={!compact} statusShown={status !== null || loading === 'slow'}
+              titleStyle={styles.title} subtitleStyle={[styles.subtitle, status && { color: colors.accent }]} />
           </View>
         </Pressable>
         {!compact && <Pressable accessibilityRole="button" accessibilityLabel={deviceLabel}
@@ -93,7 +98,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   container: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 2 },
   compact: { paddingHorizontal: 10 },
   info: { flex: 1, flexDirection: 'row', alignItems: 'center', minHeight: 44, gap: 10 },
-  copy: { flex: 1, paddingRight: 8, gap: 1 },
+  copy: { flex: 1, alignSelf: 'stretch', paddingRight: 8 },
   title: { color: colors.text, fontSize: 14, fontWeight: '700' },
   subtitle: { color: colors.muted, fontSize: 12, fontWeight: '500' },
   control: { width: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },

@@ -144,6 +144,7 @@ A device is listed only while its socket is connected, so a paused phone that iO
 - **Album pages:** track list with per-track availability.
 - **Wantlist.** Gray items can be wanted; a matching import completes them. Off unless the admin turns it on (`wantlistEnabled`): with a provider that can fetch anything it is noise.
 - **Home:** what you played recently and most, your playlists, recently added, new releases from your own artists (no karaoke or tribute acts), and the wantlist when it is on.
+- **Library:** All is your albums, artists, playlists and Liked Songs in one grid, recently played first: what you last started playback from (its Play, Shuffle or a song on its page, on any device), then the rest by when it was added. Playlists, Albums, Artists and Songs narrow it to one kind.
 
 ## OpenSubsonic
 

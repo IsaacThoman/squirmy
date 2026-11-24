@@ -1,18 +1,24 @@
-import { Button, Capsule, Host, Text, VStack } from '@expo/ui/swift-ui';
+import { Button, Capsule, Host, Image, Menu, Rectangle, Text, VStack } from '@expo/ui/swift-ui';
 import {
-  accessibilityAddTraits, accessibilityHint, accessibilityLabel, dynamicTypeSize, font, foregroundStyle, frame, lineLimit, minimumScaleFactor,
-  padding,
+  accessibilityAddTraits, accessibilityHint, accessibilityLabel, animation, Animation, blur, dynamicTypeSize, font, foregroundStyle, frame,
+  lineLimit, menuIndicator, menuOrder, minimumScaleFactor, opacity, padding,
 } from '@expo/ui/swift-ui/modifiers';
+import type { ComponentProps } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { trackActionKey, trackLinks } from '../library/trackActionList';
+import { useRunTrackAction } from '../library/trackActions';
 import { IconButton, Symbol, TrackMenu, hitShape, plainButton } from '../native/Controls';
-import type { DeviceButtonProps, LyricButtonProps, PlayerButtonProps, TrackMenuButtonProps } from './Controls';
+import type { DeviceButtonProps, LyricButtonProps, PlayerButtonProps, TrackLinksMenuProps, TrackMenuButtonProps } from './Controls';
 import { useColors } from '../theme';
 
-export function PlayerButton({ icon, label, size, color, onPress, style, selected, busy }: PlayerButtonProps) {
+// The heart and menu buttons ignore the safe area: inside the iOS queue's scroll view, where
+// the song playing rides with the page, its insets pushed their symbols out of the 44 pt frame
+// at accessibility text sizes.
+export function PlayerButton({ icon, label, size, color, onPress, style, selected, busy, filled }: PlayerButtonProps) {
   const colors = useColors();
   const { width = 44, height = 44 } = StyleSheet.flatten(style) ?? {};
-  return <Host style={[styles.icon, style]}>
-    <IconButton symbol={icon} label={label} size={size} color={color ?? colors.text} onPress={onPress} selected={selected} busy={busy}
+  return <Host ignoreSafeArea="container" style={[styles.icon, style]}>
+    <IconButton symbol={icon} label={label} size={size} color={color ?? colors.text} onPress={onPress} selected={selected} busy={busy} filled={filled}
       width={Number(width)} height={Number(height)} />
   </Host>;
 }
@@ -30,8 +36,35 @@ export function CollapseButton({ onPress }: { onPress: () => void }) {
 
 export function TrackMenuButton({ track }: TrackMenuButtonProps) {
   const colors = useColors();
-  return <Host style={styles.icon}><TrackMenu track={track} label="Song options" color={colors.text} /></Host>;
+  return <Host ignoreSafeArea="container" style={styles.icon}><TrackMenu track={track} label="Song options" color={colors.text} /></Host>;
 }
+
+/**
+ * The title and artist as drawn by React Native, with a system menu over them, as in Apple
+ * Music: "Go to album" and "Go to artist" (one for each credited artist), each naming where it
+ * goes, and only for pages that exist. Choosing one closes Now Playing and opens the page.
+ */
+export function TrackLinksMenu({ track, accessibilityLabel: label, children }: TrackLinksMenuProps) {
+  const run = useRunTrackAction(false);
+  const links = track ? trackLinks(track) : [];
+  if (!links.length) return <>{children}</>;
+  return <View style={styles.links}>
+    <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">{children}</View>
+    <Host style={StyleSheet.absoluteFill}>
+      <Menu label={<Rectangle modifiers={[foregroundStyle('transparent'), frame({ maxWidth: Infinity, maxHeight: Infinity }), hitShape]} />}
+        // The album first, then the artists, whichever way the menu opens.
+        modifiers={[plainButton, menuIndicator('hidden'), menuOrder('fixed'), accessibilityLabel(label), accessibilityHint('Shows the album and artist')]}>
+        {links.map(link => <Button key={trackActionKey(link)} onPress={() => run(link)}>
+          <Text>{link.id === 'album' ? 'Go to album' : 'Go to artist'}</Text>
+          <Text>{link.subtitle ?? ''}</Text>
+          <Image systemName={link.icon as SymbolName} />
+        </Button>)}
+      </Menu>
+    </Host>
+  </View>;
+}
+
+type SymbolName = ComponentProps<typeof Image>['systemName'];
 
 export function DeviceButton({ icon, name, highlighted, onPress }: DeviceButtonProps) {
   const colors = useColors();
@@ -49,11 +82,18 @@ export function DeviceButton({ icon, name, highlighted, onPress }: DeviceButtonP
   </Host>;
 }
 
-export function LyricButton({ line, active, onPress }: LyricButtonProps) {
+export function LyricButton({ line, active, onPress, opacity: shown, blur: blurred = 0, delay = 0 }: LyricButtonProps) {
   const colors = useColors();
+  // Given a look, the line is drawn in the text color and dimmed by opacity, so a line coming
+  // into song brightens and sharpens in one ease, a moment after the line above it.
+  const look = shown === undefined ? [] : [
+    blur(blurred), opacity(shown),
+    animation(Animation.easeInOut({ duration: 0.42 }).delay(delay / 1000), shown * 100 + blurred),
+  ];
   const text = <Text modifiers={[
-    foregroundStyle(active ? colors.text : colors.quiet), font({ textStyle: 'largeTitle', weight: 'bold' }),
-    frame({ maxWidth: Infinity, alignment: 'leading' }), padding({ bottom: 20 }), hitShape,
+    foregroundStyle(active || shown !== undefined ? colors.text : colors.quiet), font({ textStyle: 'largeTitle', weight: 'bold' }),
+    // Only the words take a tap, so a tap beside or between lines can bring the controls back without seeking.
+    hitShape, frame({ maxWidth: Infinity, alignment: 'leading' }), padding({ bottom: 20 }), ...look,
   ]}>{line}</Text>;
   return <View style={styles.lyricRow}>
     <Host matchContents={{ vertical: true }}>
@@ -65,8 +105,23 @@ export function LyricButton({ line, active, onPress }: LyricButtonProps) {
   </View>;
 }
 
+/** "Written By" after the last line, quieter and smaller than the lyrics. */
+export function LyricCredits({ credits, opacity: shown }: { credits: string; opacity: number }) {
+  const colors = useColors();
+  return <View style={styles.lyricRow}>
+    <Host matchContents={{ vertical: true }}>
+      <Text modifiers={[
+        foregroundStyle(colors.text), font({ textStyle: 'subheadline', weight: 'semibold' }), opacity(shown),
+        frame({ maxWidth: Infinity, alignment: 'leading' }), padding({ top: 8, bottom: 20 }),
+      ]}>{`Written By: ${credits}`}</Text>
+    </Host>
+  </View>;
+}
+
 const styles = StyleSheet.create({
   icon: { width: 44, height: 44 },
   device: { height: 56 },
+  // At least 44 pt to touch, however short the lines.
+  links: { minHeight: 44, justifyContent: 'center' },
   lyricRow: { width: '100%', maxWidth: 530 },
 });

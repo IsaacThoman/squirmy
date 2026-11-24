@@ -1,8 +1,8 @@
-import type { LibrarySort } from '@squirmy/contracts'
+import type { LibraryItemsSort } from '@squirmy/contracts'
 
 /**
- * The Library's filter chips, as the iOS app has them. `all`: Liked Songs, the playlists, then
- * the albums. The filter is in the URL (`/library?filter=albums`), which deep links use.
+ * The Library's filter chips, as the iOS app has them. `all`: Liked Songs, the playlists, the
+ * albums and the artists together, recently played first (`GET /library/items`). The filter is in the URL (`/library?filter=albums`), which deep links use.
  */
 export const LIBRARY_FILTERS = ['all', 'playlists', 'albums', 'artists', 'songs'] as const
 export type LibraryFilterName = (typeof LIBRARY_FILTERS)[number]
@@ -13,27 +13,36 @@ export const isLibraryFilter = (value: string | null): value is LibraryFilterNam
 
 export type LibraryLayout = 'grid' | 'list'
 
-const allSorts: LibrarySort[] = ['recent', 'title', 'artist', 'year']
+const listSorts: LibraryItemsSort[] = ['recent', 'title', 'artist', 'year']
+const allSorts: LibraryItemsSort[] = ['played', ...listSorts]
 
 /**
- * The orders a filter can be shown in, as on iOS. Songs have no year (the server refuses that
- * order), artists are always listed by name, and playlists come in the server's order.
+ * The orders a filter can be shown in, as on iOS. All alone has recently played (what was
+ * played is a collection: an album, artist or playlist). Songs have no year (the server
+ * refuses that order), artists are always listed by name, and playlists come in the server's order.
  */
-export function sortsFor(filter: LibraryFilterName): LibrarySort[] {
+export function sortsFor(filter: LibraryFilterName): LibraryItemsSort[] {
   switch (filter) {
-    case 'songs': return allSorts.filter(sort => sort !== 'year')
+    case 'all': return allSorts
+    case 'songs': return listSorts.filter(sort => sort !== 'year')
     case 'artists':
     case 'playlists': return []
-    default: return allSorts
+    default: return listSorts
   }
 }
 
-/** The chosen order where the filter offers it, else the default; the choice is kept for when it applies again. */
-export function sortFor(filter: LibraryFilterName, chosen: LibrarySort): LibrarySort {
-  return sortsFor(filter).includes(chosen) ? chosen : 'recent'
+/** The order a filter opens in: recently played for All, recently added for the rest. */
+export const defaultSort = (filter: LibraryFilterName): LibraryItemsSort => (filter === 'all' ? 'played' : 'recent')
+
+/**
+ * The chosen order where the filter offers it, else the filter's default; the choice is kept
+ * for when it applies again. Nothing is chosen until the URL says so: the sort is not stored.
+ */
+export function sortFor(filter: LibraryFilterName, chosen: LibraryItemsSort | null): LibraryItemsSort {
+  return chosen && sortsFor(filter).includes(chosen) ? chosen : defaultSort(filter)
 }
 
-export const isLibrarySort = (value: string | null): value is LibrarySort => allSorts.includes(value as LibrarySort)
+export const isLibrarySort = (value: string | null): value is LibraryItemsSort => allSorts.includes(value as LibraryItemsSort)
 
 /** Whether every word typed is somewhere in `values`, ignoring case and accents: the filter of what is loaded. */
 export function matches(query: string, ...values: string[]) {

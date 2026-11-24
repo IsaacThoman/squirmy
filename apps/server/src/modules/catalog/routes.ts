@@ -1,5 +1,5 @@
 import {
-  ArtistReleasesQuery, Id, LibraryQuery, PageQuery, TrackQuery, TrackSummariesRequest,
+  ArtistReleasesQuery, Id, LibraryItemsQuery, LibraryQuery, PageQuery, TrackQuery, TrackSummariesRequest,
   type Lyrics, type TrackSummariesResponse, type TrackSummary,
 } from '@squirmy/contracts'
 import type { FastifyInstance } from 'fastify'
@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { requireUser } from '../../lib/auth.js'
 import { cachedRead, type CacheTag } from '../../lib/read-cache.js'
 import { home } from './home.js'
+import { listLibraryItems } from './library-items.js'
 import { listLibraryAlbums, listLibraryArtists, listLibraryGenres, listLibraryTracks } from './library.js'
 import { albumDetail, artistDetail, artistReleases, trackDetail, trackLyrics } from './pages.js'
 import { alignedTrackSummaries } from './summaries.js'
@@ -17,6 +18,8 @@ const IdParams = z.object({ id: Id })
 // key roots drops it. Track and album summaries carry availability, artwork and likes.
 const everything: CacheTag[] = ['home', 'library', 'album', 'artist', 'track', 'search', 'likes', 'playlists', 'history', 'wants']
 const lists: CacheTag[] = ['library', 'album', 'artist', 'track', 'search', 'likes']
+// All also lists the playlists.
+const items: CacheTag[] = [...lists, 'playlists']
 const albumPage: CacheTag[] = ['album', 'artist', 'track', 'library', 'search', 'likes', 'wants']
 // Top tracks are ranked by plays.
 const artistPage: CacheTag[] = ['artist', 'album', 'track', 'library', 'search', 'likes', 'history']
@@ -26,6 +29,11 @@ export async function catalogRoutes(app: FastifyInstance) {
     requireUser(request)
   })
 
+  app.get('/library/items', async (request, reply) => {
+    const userId = requireUser(request).id
+    const query = LibraryItemsQuery.parse(request.query)
+    return cachedRead(request, reply, { userId, tags: items }, () => listLibraryItems(userId, query))
+  })
   app.get('/library/albums', async (request, reply) => {
     const userId = requireUser(request).id
     const query = LibraryQuery.parse(request.query)

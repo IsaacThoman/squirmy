@@ -2,7 +2,7 @@ import { ApiError, createInitialSession, queueChanged, reduceSession, splitSessi
 import type { SquirmySocket } from '@squirmy/client-core/socket'
 import {
   DEFAULT_ORGANIZE_TEMPLATE, ORGANIZE_TEMPLATE_TOKENS,
-  type AcquisitionPolicy, type AlbumPage, type CommandEnvelope, type DeviceInfo, type Import, type LibraryRoot, type LibraryStats, type OrganizeTemplateInfo, type PlaylistSummary,
+  type AcquisitionPolicy, type AlbumPage, type CommandEnvelope, type DeviceInfo, type Import, type LibraryItemPage, type LibraryRoot, type LibraryStats, type OrganizeTemplateInfo, type PlaylistSummary,
   type ScrobblingStatus, type SearchKind, type SessionHello, type SetupStatus, type TrackSummariesRequest, type User, type WantItem,
 } from '@squirmy/contracts'
 import { vi } from 'vitest'
@@ -236,6 +236,13 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
     },
     catalog: {
       home: vi.fn(async () => home),
+      // All, as the server lists it before anything is played: the newest first, which here is fixture order.
+      items: vi.fn(async (): Promise<LibraryItemPage> => list([
+        { kind: 'liked' as const, playedAt: null },
+        ...playlistSummaries.map(playlist => ({ kind: 'playlist' as const, playlist: { ...playlist, ownerId: currentUser.id }, playedAt: null })),
+        ...libraryAlbums.map(album => ({ kind: 'album' as const, album, playedAt: null })),
+        ...libraryArtists.map(artist => ({ kind: 'artist' as const, artist, playedAt: null })),
+      ])),
       albums: vi.fn(async () => list(libraryAlbums)),
       artists: vi.fn(async () => list(libraryArtists)),
       tracks: vi.fn(async () => list(libraryTracks)),

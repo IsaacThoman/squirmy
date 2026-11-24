@@ -1,6 +1,6 @@
 import { ApiError } from '@squirmy/client-core';
 import {
-  queryKeys, type ArtistSectionKey, type LibrarySort, type Lyrics, type Page, type SearchKind, type SearchResults, type TrackSummary, type UpdateUserSettings,
+  queryKeys, type ArtistSectionKey, type LibraryItemsSort, type LibrarySort, type Lyrics, type Page, type SearchKind, type SearchResults, type TrackSummary, type UpdateUserSettings,
   type UserSettings,
 } from '@squirmy/contracts';
 import { keepPreviousData, useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -48,6 +48,11 @@ export function useHome() {
   const prime = usePrime();
   return useApiQuery(queryKeys.home(), async api => prime(await api.catalog.home(),
     home => home.sections.flatMap(section => section.kind === 'tracks' ? section.tracks : [])));
+}
+
+/** The Library's All: albums, artists, playlists and Liked Songs in one list, in `sort`'s order. */
+export function useLibraryItems(sort: LibraryItemsSort, enabled = true) {
+  return usePagedQuery([...queryKeys.libraryItems(), sort], (api, cursor) => api.catalog.items({ sort, cursor, limit: pageSize }), enabled);
 }
 
 export function useLibraryAlbums(sort: LibrarySort, enabled = true) {

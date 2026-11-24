@@ -26,14 +26,16 @@ const valid: Record<SortKey['type'], (value: string) => boolean> = {
   text: () => true,
   int: (value) => /^-?\d{1,10}$/.test(value),
   uuid: (value) => z.uuid().safeParse(value).success,
-  timestamptz: (value) => /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d{1,6})?([+-]\d{2}(:?\d{2})?|Z)?$/.test(value),
+  // `-infinity` stands for "never" where a time key has no value (the Library's never-played items).
+  timestamptz: (value) => value === '-infinity' || /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d{1,6})?([+-]\d{2}(:?\d{2})?|Z)?$/.test(value),
 }
 
 function invalidCursor() {
   return badRequest('The cursor is not valid for this list', 'invalid_cursor')
 }
 
-function decode(ordering: Ordering, cursor: string): string[] {
+/** The key values a cursor of `ordering` carries; `invalid_cursor` when it is not one. */
+export function decode(ordering: Ordering, cursor: string): string[] {
   let body: z.infer<typeof CursorBody>
   try {
     body = CursorBody.parse(JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')))
@@ -45,7 +47,8 @@ function decode(ordering: Ordering, cursor: string): string[] {
   return body.k
 }
 
-function encode(ordering: Ordering, values: string[]): string {
+/** A cursor of `ordering` at the given key values. */
+export function encode(ordering: Ordering, values: string[]): string {
   return Buffer.from(JSON.stringify({ o: ordering.name, k: values })).toString('base64url')
 }
 

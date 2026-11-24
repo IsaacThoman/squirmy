@@ -58,6 +58,27 @@ export const PlaylistPage = page(PlaylistSummary)
 export type PlaylistPage = z.infer<typeof PlaylistPage>
 
 /**
+ * One item of the Library's All (`GET /library/items`, sorted by `LibraryItemsSort`): an
+ * album or artist in the user's library, a playlist they can see, or Liked Songs, which is
+ * always there. Defined here rather than in catalog.ts because it holds a `PlaylistSummary`.
+ *
+ * `playedAt` is when the user last started playback from it: Play, Shuffle or a song of its
+ * page (or a card's Play), on any device. Songs started from Search, Home, a radio or the
+ * queue, and playback that carries on by itself, do not count. Null when never.
+ */
+const playedAt = IsoDateTime.nullable()
+export const LibraryItem = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('album'), album: AlbumSummary, playedAt }),
+  z.object({ kind: z.literal('artist'), artist: ArtistSummary, playedAt }),
+  z.object({ kind: z.literal('playlist'), playlist: PlaylistSummary, playedAt }),
+  z.object({ kind: z.literal('liked'), playedAt }),
+])
+export type LibraryItem = z.infer<typeof LibraryItem>
+
+export const LibraryItemPage = page(LibraryItem)
+export type LibraryItemPage = z.infer<typeof LibraryItemPage>
+
+/**
  * Most items one playlist holds. Adding past it fails with `playlist_full` (409), and the
  * playlist is left as it was.
  */
