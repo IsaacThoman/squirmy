@@ -49,6 +49,8 @@ import {
   InviteList,
   JobQueueStats,
   LastFmConnectStart,
+  LibraryItemPage,
+  type LibraryItemsQuery,
   type LibraryQuery,
   LibraryRoot,
   LibraryRootList,
@@ -382,6 +384,8 @@ export function createApiClient(options: ApiClientOptions) {
       remove: () => send('DELETE', '/admin/catalog-index', Ok),
     },
     catalog: {
+      /** The Library's All: albums, artists, playlists and Liked Songs in one list, recently played first by default. */
+      items: (query: Partial<LibraryItemsQuery> = {}) => get('/library/items', LibraryItemPage, query),
       albums: (query: Partial<LibraryQuery> = {}) => get('/library/albums', AlbumPage, query),
       artists: (query: Partial<LibraryQuery> = {}) => get('/library/artists', ArtistPage, query),
       tracks: (query: Partial<LibraryQuery> = {}) => get('/library/tracks', TrackPage, query),

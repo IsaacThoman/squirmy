@@ -55,6 +55,7 @@ export const apiRoutes = {
   'catalogIndex.cancelImport': 'DELETE /admin/catalog-index/import',
   'catalogIndex.remove': 'DELETE /admin/catalog-index',
 
+  'catalog.items': 'GET /library/items',
   'catalog.albums': 'GET /library/albums',
   'catalog.artists': 'GET /library/artists',
   'catalog.tracks': 'GET /library/tracks',

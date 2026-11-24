@@ -59,7 +59,7 @@ export function usePrefetchStartPages() {
   const client = useQueryClient()
   useEffect(() => {
     // After the first screen has its data, so these do not compete with it.
-    const timer = setTimeout(() => void client.prefetchInfiniteQuery(libraryListQuery(api, 'albums', { sort: 'recent' })), 1500)
+    const timer = setTimeout(() => void client.prefetchInfiniteQuery(libraryListQuery(api, 'items', { sort: 'played' })), 1500)
     void client.prefetchQuery(homeQuery(api))
     return () => clearTimeout(timer)
   }, [api, client])
