@@ -4,7 +4,7 @@ import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { albumArtists, albums, artistTopTracks, artists, likes, lyrics, mediaFiles, playlistItems, playlists, recordingArtists, recordings, releaseTracks, wants } from '../../database/schema.js'
+import { albumArtists, albums, artistTopTracks, artists, assets, likes, lyrics, mediaFiles, playlistItems, playlists, recordingArtists, recordings, releaseTracks, wants } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { updateServerSettings } from '../../lib/settings.js'
 import { body, errorCode, signIn } from '../../test/api.js'
@@ -12,7 +12,7 @@ import { createAsset, createPlay } from '../../test/catalog.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createArtist } from '../../test/factories.js'
 import { ensureAlbumDetail, ensureArtistDetail } from '../enrichment/detail.js'
-import { standingRows } from './pages.js'
+import { sectionOf, standingRows } from './pages.js'
 
 vi.mock('../enrichment/detail.js', () => ({
   ensureAlbumDetail: vi.fn(async () => {}),
@@ -144,6 +144,9 @@ describe('catalog pages', () => {
     // One soundtrack beside two albums is one of the albums (Help!).
     await createAlbum({ artist, title: 'Rebirth', year: 2010 })
     await createAlbum({ artist, title: 'Help!', year: 1965, type: 'soundtrack' })
+    // A soundtrack shared with another artist is a soundtrack, however many albums the artist has.
+    const shared = await createAlbum({ artist, title: 'Shared Score', year: 1994, type: 'soundtrack' })
+    await db.insert(albumArtists).values({ albumId: shared.albumId, position: 1, artistId: (await createArtist({ name: 'Composer' })).id, creditedName: 'Composer' })
     for (let index = 0; index < ARTIST_SECTION_PREVIEW + 3; index++) await createAlbum({ artist, title: `Single ${index}`, year: 2000 + index, type: 'single' })
     // Featured on a track of someone else's album, with no credit on the album itself.
     const feature = await createAlbum({ title: 'Miami', year: 2023 })
@@ -151,13 +154,14 @@ describe('catalog pages', () => {
 
     const detail = body(await get(`/artists/${artist.id}`), ArtistDetail)
     expect(detail.sections!.map((section) => [section.key, section.title, section.total, section.items.length])).toEqual([
-      ['album', 'Albums', 3, 3], ['mixtape', 'Mixtapes', 1, 1], ['single', 'Singles', ARTIST_SECTION_PREVIEW + 3, ARTIST_SECTION_PREVIEW], ['appears_on', 'Appears on', 1, 1],
+      ['album', 'Albums', 3, 3], ['mixtape', 'Mixtapes', 1, 1], ['single', 'Singles', ARTIST_SECTION_PREVIEW + 3, ARTIST_SECTION_PREVIEW],
+      ['soundtrack', 'Soundtracks', 1, 1], ['appears_on', 'Appears on', 1, 1],
     ])
     expect(detail.sections![0]!.items.map((album) => album.title)).toEqual(['Rebirth', 'Tha Carter', 'Help!'])
     expect(detail.sections![2]!.items[0]!.title).toBe(`Single ${ARTIST_SECTION_PREVIEW + 2}`)
-    expect(detail).toMatchObject({ releaseCount: ARTIST_SECTION_PREVIEW + 3 + 4, ownedReleaseCount: 1 })
+    expect(detail).toMatchObject({ releaseCount: ARTIST_SECTION_PREVIEW + 3 + 5, ownedReleaseCount: 1 })
     // Older clients get the same previews.
-    expect(detail.albums).toHaveLength(3 + 1 + ARTIST_SECTION_PREVIEW)
+    expect(detail.albums).toHaveLength(3 + 1 + ARTIST_SECTION_PREVIEW + 1)
     expect(detail.appearsOn!.map((album) => album.title)).toEqual(['Miami'])
 
     // "See all" pages the rest of a section, in the page's order, and stops.
@@ -191,6 +195,29 @@ describe('catalog pages', () => {
     const detail = body(await get(`/artists/${various.id}`), ArtistDetail)
     expect(detail).toMatchObject({ topTracks: [], radio: false, similar: [] })
     expect(detail.sections!.map((section) => section.key)).toEqual(['album'])
+  })
+
+  it('shows a placeholder artist without a picture from the web, bio, genres or disambiguation', async () => {
+    // [anonymous]: Various Artists is taken by the test above.
+    const various = await createArtist({ name: '[anonymous]', mbid: 'f731ccc4-e22a-43af-a747-64213329e088' })
+    // As older enrichment stored them: a store's stock photo and MusicBrainz's note to its editors.
+    const photo = await createAsset('#abcdef')
+    await db.update(assets).set({ source: 'https://cdn-images.dzcdn.net/images/artist/various/1000x1000.jpg' }).where(eq(assets.id, photo.id))
+    await db.update(artists).set({
+      imageAssetId: photo.id, disambiguation: 'add compilations to this artist', bio: 'A compilation album comprises tracks…',
+      bioUrl: 'https://en.wikipedia.org/wiki/Compilation_album', genres: ['pop rock'],
+    }).where(eq(artists.id, various.id))
+    await createAlbum({ artist: various, title: 'Now 1', owned: true })
+    const detail = body(await get(`/artists/${various.id}`), ArtistDetail)
+    expect(detail).toMatchObject({ image: null, disambiguation: null, bio: null, bioUrl: null, genres: [] })
+
+    // A picture from the user's folders is theirs to show; another artist's picture from the web shows.
+    const local = await createAsset('#123456')
+    await db.update(artists).set({ imageAssetId: local.id }).where(eq(artists.id, various.id))
+    expect(body(await get(`/artists/${various.id}`), ArtistDetail).image?.color).toBe('#123456')
+    const real = await createArtist({ name: 'Real Band', mbid: crypto.randomUUID() })
+    await db.update(artists).set({ imageAssetId: photo.id }).where(eq(artists.id, real.id))
+    expect(body(await get(`/artists/${real.id}`), ArtistDetail).image?.color).toBe('#abcdef')
   })
 
   it('orders a discography by year when an album has no release date', async () => {
@@ -303,7 +330,7 @@ describe('catalog pages', () => {
 
 describe('standingRows', () => {
   const row = (id: string, title: string, type: string, extra: Partial<Parameters<typeof standingRows>[0][number]> = {}) => ({
-    id, title, type, typeGuessed: false, secondaryTypes: [] as string[], hasMbid: true, detailLevel: 1, year: 2025, hasArtwork: true, owned: false, led: true, ...extra,
+    id, title, type, typeGuessed: false, secondaryTypes: [] as string[], hasMbid: true, detailLevel: 1, year: 2025, hasArtwork: true, owned: false, led: true, soleCredit: true, ...extra,
   })
 
   it('lists each release once, in the given order', () => {
@@ -337,5 +364,66 @@ describe('standingRows', () => {
     expect(standingRows([cyberpunk, visions], { fromMusicBrainz: true }).map((one) => one.id)).toEqual(['b'])
     // An artist only Deezer knows has no other discography.
     expect(standingRows([cyberpunk, visions]).map((one) => one.id)).toEqual(['a', 'b'])
+  })
+})
+
+describe('sectionOf', () => {
+  const row = (id: string, type: string, extra: Partial<Parameters<typeof sectionOf>[0][number]> = {}) => ({
+    id, title: id, type, typeGuessed: false, secondaryTypes: [] as string[], hasMbid: true, detailLevel: 1, year: 2000, hasArtwork: true, owned: false, led: true, soleCredit: true, ...extra,
+  })
+  const sections = (rows: ReturnType<typeof row>[], options?: { placeholder?: boolean }) => {
+    const section = sectionOf(rows, options)
+    return Object.fromEntries(rows.map((one) => [one.id, section(one)]))
+  }
+
+  it('lists the studio soundtracks of a band with more albums among its albums', () => {
+    expect(sections([
+      row('Please Please Me', 'album'),
+      row('Rubber Soul', 'album'),
+      row('Revolver', 'album'),
+      row('Abbey Road', 'album'),
+      row('Help!', 'soundtrack', { secondaryTypes: ['Soundtrack'] }),
+      row('Yellow Submarine', 'soundtrack', { secondaryTypes: ['Soundtrack'] }),
+      row('A Hard Day’s Night', 'soundtrack', { secondaryTypes: ['Soundtrack'] }),
+      // Compilations and remixes of film music are not studio albums.
+      row('Yellow Submarine Songtrack', 'soundtrack', { secondaryTypes: ['Compilation', 'Soundtrack'] }),
+      row('Love', 'soundtrack', { secondaryTypes: ['Soundtrack', 'Remix'] }),
+      // A single or EP from a film is typed one (musicbrainz.albumType).
+      row('Extracts From the Film', 'ep', { secondaryTypes: ['Compilation', 'Soundtrack'] }),
+    ])).toEqual({
+      'Please Please Me': 'album', 'Rubber Soul': 'album', 'Revolver': 'album', 'Abbey Road': 'album',
+      'Help!': 'album', 'Yellow Submarine': 'album', 'A Hard Day’s Night': 'album',
+      'Yellow Submarine Songtrack': 'soundtrack', 'Love': 'soundtrack', 'Extracts From the Film': 'ep',
+    })
+  })
+
+  it('keeps Various Artists’ soundtracks under Soundtracks, however many compilations it has', () => {
+    // Its releases credit it alone only because MusicBrainz has no one to name.
+    const page = [
+      row('Now 100', 'album'), row('Pure Disco', 'album'), row('Rock Ballads', 'album'),
+      row('Grand Theft Auto VI', 'soundtrack', { secondaryTypes: ['Soundtrack'] }),
+      row('Cyberpunk 2077', 'soundtrack', { secondaryTypes: ['Soundtrack'] }),
+    ]
+    expect(sections(page, { placeholder: true })).toMatchObject({ 'Grand Theft Auto VI': 'soundtrack', 'Cyberpunk 2077': 'soundtrack', 'Now 100': 'album' })
+    // The same rows for a real artist credited alone would be studio albums.
+    expect(sections(page)['Cyberpunk 2077']).toBe('album')
+  })
+
+  it('keeps a film composer’s scores and soundtracks shared with others under Soundtracks', () => {
+    // Mostly scores: they are the composer's soundtracks, not albums.
+    expect(sections([
+      row('The Wings of a Film', 'album'),
+      row('Rain Man', 'soundtrack', { secondaryTypes: ['Soundtrack'] }),
+      row('Gladiator', 'soundtrack', { secondaryTypes: ['Soundtrack'] }),
+      row('The Dark Knight', 'soundtrack', { secondaryTypes: ['Soundtrack'], soleCredit: false }),
+      // A various-artists soundtrack the composer is on: someone else's release.
+      row('Top Gun', 'soundtrack', { secondaryTypes: ['Soundtrack'], led: false, soleCredit: false }),
+    ])).toEqual({ 'The Wings of a Film': 'album', 'Rain Man': 'soundtrack', 'Gladiator': 'soundtrack', 'The Dark Knight': 'soundtrack', 'Top Gun': 'appears_on' })
+    // A singer with many albums: a film's soundtrack credited with others stays a soundtrack.
+    expect(sections([
+      row('Honky Château', 'album'),
+      row('Goodbye Yellow Brick Road', 'album'),
+      row('The Lion King', 'soundtrack', { secondaryTypes: ['Soundtrack'], soleCredit: false }),
+    ])['The Lion King']).toBe('soundtrack')
   })
 })

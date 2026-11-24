@@ -63,6 +63,17 @@ async function until(read, test, timeoutMs = 5000, everyMs = 100) {
   return value
 }
 
+/** The device the Devices picker says the session is on ("Listening on …" or "Paused on …"), read with the picker opened and closed again. */
+async function listeningOn(page) {
+  await page.getByRole('button', { name: 'Devices' }).first().click()
+  const picker = page.getByRole('dialog', { name: 'Playback devices' })
+  const label = picker.getByText(/^(Listening|Paused) on$/)
+  const name = await label.locator('xpath=following-sibling::p[1]').textContent({ timeout: 3000 }).catch(() => null)
+  await page.keyboard.press('Escape')
+  await picker.waitFor({ state: 'detached', timeout: 2000 }).catch(() => {})
+  return name
+}
+
 /**
  * Records every audio element the page creates and what it does, so the checks can tell
  * whether this page is really making sound, where it is, and how long a track change took.
@@ -198,9 +209,10 @@ await step('transport', async () => {
 await step('queue', async () => {
   await transport(page, 'Queue').click()
   const queue = page.getByRole('complementary', { name: 'Queue' })
-  const order = () => queue.getByRole('button', { name: /^Reorder / }).evaluateAll(handles => handles.map(handle => handle.getAttribute('aria-label').replace(/^Reorder (.*), position.*$/, '$1')))
+  const next = queue.getByRole('region', { name: 'Up next' })
+  const order = () => next.getByRole('button', { name: /^Play / }).evaluateAll(rows => rows.map(row => row.getAttribute('aria-label').slice(5)))
   check('up next lists the rest of the album', (await order()).join(' / ') === 'Soft Signal / Blue in the Dark / Underwater Light / Stay Until Morning', (await order()).join(' / '))
-  await queue.getByRole('button', { name: /^Reorder Underwater Light/ }).press('ArrowUp')
+  await next.getByRole('button', { name: 'Play Underwater Light', exact: true }).press('ArrowUp')
   const moved = await until(order, value => value[1] === 'Underwater Light')
   const server = await until(() => api(a.context, 'GET', '/me/session'), snapshot => snapshot.queue.queue.length === 4 && snapshot.queue.queue[1].trackId !== snapshot.queue.queue[2].trackId)
   check('reordering moves the entry', moved.join(' / ') === 'Soft Signal / Underwater Light / Blue in the Dark / Stay Until Morning', moved.join(' / '))
@@ -231,9 +243,10 @@ await step('search', async () => {
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Search' }).click()
   await page.getByRole('heading', { name: 'Search', level: 1 }).waitFor()
   page.on('request', listen)
-  await page.getByRole('combobox', { name: 'Search' }).pressSequentially('blue hour', { delay: 40 })
-  const results = page.getByRole('listbox', { name: 'Results for blue hour' })
-  await results.getByRole('option').filter({ hasText: 'Blue Hour' }).first().waitFor()
+  await page.getByRole('searchbox', { name: 'Search' }).pressSequentially('blue hour', { delay: 40 })
+  // The ranked list is a plain list: each row's link or button is a control of its own.
+  const results = page.getByRole('list', { name: 'Results for blue hour' })
+  await results.getByRole('listitem').filter({ hasText: 'Blue Hour' }).first().waitFor()
   await sleep(500)
   page.off('request', listen)
   check('library results come from the server', true)
@@ -247,7 +260,7 @@ await step('search', async () => {
       && catalog.length === 1 && catalog[0] === 'catalog:blue hour' && library.length + catalog.length === asked.length,
     asked.join(', '))
   // One ranked list, every kind mixed, each row saying what it is: no sections, none named for the library.
-  const rows = await results.getByRole('option').allTextContents()
+  const rows = await results.getByRole('listitem').allTextContents()
   check('one list, the album named first, each row saying what it is', /^Blue Hour(Album|EP|Single) · Mira Vale/.test(rows[0] ?? '') && rows.every(row => / · |Artist|Playlist/.test(row)), rows.slice(0, 4).join(' / '))
   const headings = await page.getByRole('main').getByRole('heading', { level: 2 }).allTextContents()
   check('no sections', headings.length === 0, headings.join(' / '))
@@ -306,7 +319,7 @@ await step('quick search', async () => {
   await arrowTo(/^See all results for/)
   await field.press('Enter')
   await page.waitForURL(url => url.pathname === '/search' && url.searchParams.get('q') === 'mira')
-  check('the last option opens the search page for the query', await page.getByRole('combobox', { name: 'Search' }).inputValue() === 'mira')
+  check('the last option opens the search page for the query', await page.getByRole('searchbox', { name: 'Search' }).inputValue() === 'mira')
   await transport(page, 'Pause').click()
 })
 
@@ -321,11 +334,13 @@ await step('playlists', async () => {
     await page.getByRole('button', { name: `More options for ${title}` }).click()
     await page.getByRole('menuitem', { name: 'Add to playlist' }).click()
     await page.getByRole('menuitem', { name: 'E2E Mix' }).click()
-    await page.getByText('Added to E2E Mix').first().waitFor()
+    // The menu item says it worked for a moment before its menu closes.
+    await page.getByRole('menuitem', { name: 'Added to E2E Mix' }).waitFor()
   }
   const sidebarLink = sidebarPlaylists(page).getByRole('link', { name: /E2E Mix/ })
   await page.getByRole('list', { name: 'Blue Hour tracks' }).getByRole('listitem').filter({ hasText: 'Stay Until Morning' }).dragTo(sidebarLink)
-  await page.getByText('Added to E2E Mix').first().waitFor()
+  // The playlist the songs were dropped on says Added beside its name.
+  await sidebarLink.getByText('Added', { exact: true }).waitFor()
   await sidebarLink.click()
   const rows = () => page.getByRole('list', { name: 'E2E Mix tracks' }).getByRole('listitem').evaluateAll(items => items.map(item => item.querySelector('span.truncate')?.textContent))
   const added = await until(rows, value => value.length === 3)
@@ -359,8 +374,10 @@ await step('lyrics', async () => {
   if (started !== 'Night Swimming') await tracks.getByText('Night Swimming', { exact: true }).dblclick()
   await page.getByRole('link', { name: 'Night Swimming', exact: true }).waitFor()
   await page.getByRole('button', { name: 'Lyrics', exact: true }).click()
-  await page.getByRole('button', { name: 'Blue on the water' }).click()
-  const active = () => page.getByRole('dialog').locator('button[aria-current="true"]').textContent()
+  // The lines are one list for Tab, each an option; the one sung now is selected.
+  const lines = page.getByRole('listbox', { name: 'Lyrics' })
+  await lines.getByRole('option', { name: 'Blue on the water' }).click()
+  const active = () => lines.locator('[role="option"][aria-selected="true"]').textContent()
   const line = await until(active, text => text === 'Blue on the water')
   check('clicking a line seeks to it', line === 'Blue on the water', line)
   const later = await until(active, text => text === 'No one around us', 6000)
@@ -392,20 +409,21 @@ await step('a second device', async () => {
   await a.page.getByRole('menuitem', { name: 'Settings' }).click()
   await a.page.getByLabel('This browser’s name').fill('E2E Speaker')
   await a.page.getByLabel('This browser’s name').press('Enter')
-  await a.page.getByText('Browser renamed', { exact: true }).first().waitFor({ timeout: 5000 }).catch(() => { throw new Error('no “Browser renamed” notice') })
-  await a.page.keyboard.press('Escape')
   const settings = a.page.getByRole('dialog', { name: 'Settings' })
+  await settings.getByRole('status').filter({ hasText: /^Saved$/ }).waitFor({ timeout: 5000 }).catch(() => { throw new Error('no “Saved” beside the browser’s name') })
+  await a.page.keyboard.press('Escape')
   const closed = await settings.waitFor({ state: 'detached', timeout: 2000 }).then(() => true, () => false)
-  check('Escape closes Settings while the “Browser renamed” notice shows', closed, closed ? '' : 'the first Escape only dismissed the notice')
+  check('Escape closes Settings at once while “Saved” shows', closed, closed ? '' : 'the first Escape did not close it')
   // A user presses it again.
   if (!closed) await a.page.keyboard.press('Escape')
   await settings.waitFor({ state: 'detached', timeout: 5000 }).catch(() => { throw new Error('Escape did not close Settings') })
   await b.page.goto(`${base}/`)
-  await b.page.getByText('Playing on E2E Speaker').filter({ visible: true }).waitFor({ timeout: 8000 }).catch(async () => {
+  const where = await until(() => listeningOn(b.page), name => name === 'E2E Speaker', 8000, 500)
+  if (where !== 'E2E Speaker') {
     const session = await api(a.context, 'GET', '/me/session')
-    throw new Error(`the second device does not say “Playing on E2E Speaker” (session ${session.state.playing ? 'playing' : 'paused'}, first device ${(await sounding(a.page)) ? 'sounding' : 'silent'})`)
-  })
-  check('it shows where the music plays, by the renamed device', true)
+    throw new Error(`the second device's Devices picker does not say “Listening on E2E Speaker” (it says ${where}; session ${session.state.playing ? 'playing' : 'paused'}, first device ${(await sounding(a.page)) ? 'sounding' : 'silent'})`)
+  }
+  check('its Devices picker shows where the music plays, by the renamed device', true)
   const playing = await nowPlayingTitle(a.page)
   const shown = await until(() => nowPlayingTitle(b.page), title => title === playing)
   check('it shows the same track', shown === playing, shown)
@@ -430,12 +448,14 @@ await step('remote control', async () => {
 
 await step('play here', async () => {
   await sleep(1500)
-  // A pointer on the button gets the music ready, as a user's does on the way to pressing it.
-  await b.page.getByRole('button', { name: 'Play here' }).first().hover()
+  // A pointer on the row gets the music ready, as a user's does on the way to pressing it.
+  await b.page.getByRole('button', { name: 'Devices' }).first().click()
+  const playHere = b.page.getByRole('dialog', { name: 'Playback devices' }).getByRole('button', { name: /Play in this tab/ })
+  await playHere.hover()
   await sleep(400)
   const before = (await sounding(a.page))?.ms ?? 0
   const pressed = Date.now()
-  await b.page.getByRole('button', { name: 'Play here' }).first().click()
+  await playHere.click()
   const silent = await until(() => sounding(a.page), value => value === null, 2000)
   check('the first device stops', silent === null)
   const here = await until(() => sounding(b.page), value => value !== null, 4000, 20)
@@ -443,8 +463,8 @@ await step('play here', async () => {
   check('the second starts where the first was', here !== null && Math.abs(here.ms - before) < 2500, `${before} ms there, ${here?.ms} ms here`)
   check('within a second of the press', here !== null && gap < 1000, `${gap} ms`)
   check('and is advancing', await advancing(b.page))
-  await a.page.getByText('Playing on Chrome on macOS').filter({ visible: true }).waitFor({ timeout: 3000 })
-  check('the first now shows the second playing', true)
+  const there = await until(() => listeningOn(a.page), name => name === 'Chrome on macOS', 3000, 300)
+  check('the first now shows the second playing', there === 'Chrome on macOS', there)
 })
 
 await step('the active device goes away', async () => {

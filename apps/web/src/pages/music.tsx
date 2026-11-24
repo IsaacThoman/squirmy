@@ -38,17 +38,18 @@ import { AlbumPreview, ArtistPreview } from '@/components/views/Previews'
 import { SearchView, type SearchList } from '@/components/views/SearchView'
 import { WantlistView } from '@/components/views/WantlistView'
 import { canFetch, isArtistSectionKey, isPlayable } from '@/lib/catalog'
+import { usePageTitle } from '@/lib/document-title'
 import { plural } from '@/lib/format'
 import { useRecentSearches } from '@/lib/recent-searches'
 import { useUrlDraft } from '@/lib/use-url-draft'
-import { toast } from '@/lib/toast'
-import { useLibrary } from '@/player/library-context'
+import { FAILURE_MS, useLibrary } from '@/player/library-context'
 import { useViewer } from '@/player/on-demand-context'
 import { usePlayerControls, type PlayOptions } from '@/player/player-context'
 import { usePlayCollections } from '@/player/use-play-collections'
 import { useServerEvent } from '@/realtime/realtime-context'
 
 export function NotFoundPage() {
+  usePageTitle('Nothing here')
   return (
     <Page>
       <EmptyState icon={<Compass />} title="Nothing here" description="This page does not exist, or the music it pointed to is gone." headingLevel={1} action={<Button asChild variant="primary"><Link to="/">Go home</Link></Button>} />
@@ -57,6 +58,7 @@ export function NotFoundPage() {
 }
 
 function ErrorPage({ error, onRetry, retrying }: { error: unknown; onRetry: () => void; retrying?: boolean }) {
+  usePageTitle('Page did not load')
   return (
     <Page>
       <LoadError variant="page" title="This page did not load" error={error} onRetry={onRetry} retrying={retrying} />
@@ -67,7 +69,13 @@ function ErrorPage({ error, onRetry, retrying }: { error: unknown; onRetry: () =
 /** A page's main query: its skeleton while loading, "Nothing here" for a 404, a retry for other failures. */
 function Loaded<T>({ query, skeleton, children }: { query: UseQueryResult<T>; skeleton: ReactNode; children: (data: T) => ReactNode }) {
   return (
-    <QueryState query={query} loading={skeleton} errorTitle="This page did not load" variant="page" renderError={error => (isNotFound(error) ? <NotFoundPage /> : undefined)}>
+    <QueryState
+      query={query}
+      loading={skeleton}
+      errorTitle="This page did not load"
+      variant="page"
+      renderError={error => (isNotFound(error) ? <NotFoundPage /> : <ErrorPage error={error} retrying={query.isFetching} onRetry={() => void query.refetch()} />)}
+    >
       {children}
     </QueryState>
   )
@@ -91,11 +99,9 @@ export function HomePage() {
   const scan = useScanProgress()
   // A failed refetch keeps the last answer on screen; only a first answer that failed replaces the page.
   if (home.error && !home.data) return <ErrorPage error={home.error} retrying={home.isFetching} onRetry={() => void home.refetch()} />
-  const { featured, sections } = featuring(home.data?.sections)
   return (
     <HomeView
-      featured={featured}
-      sections={sections}
+      sections={home.data?.sections}
       empty={Boolean(home.data) && home.data!.sections.every(isEmptySection)}
       canAddMusic={user.role === 'admin'}
       canFindMusic={canFetch(user)}
@@ -104,21 +110,6 @@ export function HomePage() {
       onPlayPlaylist={playlist => void playPlaylist(playlist)}
     />
   )
-}
-
-/**
- * The album Home leads with: the one played last, else the one added last. It leaves the rail it
- * came from, which would otherwise start with it again, and the sections keep the server's order.
- */
-function featuring(sections: HomeSection[] | undefined) {
-  const source = ['recently-played', 'recently-added']
-    .map(id => sections?.find(section => section.id === id))
-    .find((section): section is Extract<HomeSection, { kind: 'albums' }> => section?.kind === 'albums' && section.albums.length > 0)
-  const album = source?.albums[0]
-  return {
-    featured: album ? { album, label: source!.id === 'recently-played' ? 'Jump back in' : 'Recently added' } as const : null,
-    sections: sections?.map(section => (section === source ? { ...section, albums: section.albums.slice(1) } : section)),
-  }
 }
 
 const isEmptySection = (section: HomeSection) => (
@@ -218,7 +209,6 @@ function EditablePlaylist({ playlist, onDeleting }: { playlist: PlaylistDetail; 
       queryClient.setQueryData<PlaylistDetail>(key, detail => detail && { ...detail, ...summary })
       return queryClient.invalidateQueries({ queryKey: queryKeys.playlists(), exact: true })
     },
-    meta: { inline: true },
   })
   const deleted = useRef(false)
   const remove = useMutation({
@@ -227,7 +217,6 @@ function EditablePlaylist({ playlist, onDeleting }: { playlist: PlaylistDetail; 
     onError: () => onDeleting(false),
     onSuccess: () => {
       deleted.current = true
-      toast({ title: 'Playlist deleted', description: playlist.name })
       void navigate('/library?filter=playlists', { replace: true })
       return queryClient.invalidateQueries({ queryKey: queryKeys.playlists(), exact: true })
     },
@@ -237,15 +226,25 @@ function EditablePlaylist({ playlist, onDeleting }: { playlist: PlaylistDetail; 
     if (deleted.current) queryClient.removeQueries({ queryKey: queryKeys.playlist(playlist.id), exact: true })
   }, [queryClient, playlist.id])
   // Moves and removals show at once; the server's answer, or a refetch after a failure, replaces them.
+  // A failure is said above the songs for a few seconds, as they go back to where they were.
+  const [failure, setFailure] = useState<string>()
+  const failureTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  useEffect(() => () => clearTimeout(failureTimer.current), [])
+  const refused = (message: string) => {
+    clearTimeout(failureTimer.current)
+    setFailure(message)
+    failureTimer.current = setTimeout(() => setFailure(undefined), FAILURE_MS)
+    return refetch()
+  }
   const move = useMutation({
     mutationFn: ({ itemId, toIndex }: { itemId: string; toIndex: number }) => api.userdata.movePlaylistItem(playlist.id, { itemId, toIndex }),
     onSuccess: save,
-    onError: refetch,
+    onError: () => refused('Couldn’t move the song. Try again.'),
   })
   const drop = useMutation({
-    mutationFn: (itemId: string) => api.userdata.removePlaylistItem(playlist.id, itemId),
+    mutationFn: ({ itemId }: { itemId: string; title: string }) => api.userdata.removePlaylistItem(playlist.id, itemId),
     onSuccess: save,
-    onError: refetch,
+    onError: (_error, { title }) => refused(`Couldn’t remove “${title}”. Try again.`),
   })
 
   return (
@@ -254,7 +253,7 @@ function EditablePlaylist({ playlist, onDeleting }: { playlist: PlaylistDetail; 
         playlist={playlist}
         owned={playlist.ownerId === user.id}
         onEdit={() => setDialog('edit')}
-        onTogglePublic={() => update.mutate({ isPublic: !playlist.isPublic })}
+        onTogglePublic={() => update.mutateAsync({ isPublic: !playlist.isPublic })}
         onDelete={() => setDialog('delete')}
         onMove={(from, to) => {
           if (to < 0 || to >= playlist.items.length || from === to) return
@@ -264,9 +263,9 @@ function EditablePlaylist({ playlist, onDeleting }: { playlist: PlaylistDetail; 
         onRemove={index => {
           const { itemId, track } = playlist.items[index]
           change(detail => ({ ...detail, items: detail.items.filter(item => item.itemId !== itemId) }))
-          drop.mutate(itemId)
-          toast({ title: 'Removed from playlist', description: track.title })
+          drop.mutate({ itemId, title: track.title })
         }}
+        failure={failure}
       />
       <PlaylistDialog open={dialog === 'edit'} onOpenChange={open => setDialog(open ? 'edit' : null)} playlist={playlist} onSubmit={request => update.mutateAsync(request)} />
       <ConfirmDialog
@@ -326,7 +325,9 @@ export function SearchPage() {
   const viewer = useViewer()
   const controls = usePlayerControls()
   const [params, setParams] = useSearchParams()
-  const genres = useGenres().data?.items.map(genre => genre.name) ?? []
+  const genreList = useGenres()
+  // Null until known, so the page's guidance does not flash before the genres arrive; none if they did not load.
+  const genres = useMemo(() => genreList.data?.items.map(genre => genre.name) ?? (genreList.isError ? [] : null), [genreList.data, genreList.isError])
   const query = params.get('q') ?? ''
   const filter = filterOf(params.get('type'))
   const [typed, setTyped] = useUrlDraft(query)
@@ -341,7 +342,7 @@ export function SearchPage() {
     if (filter === 'all') {
       return {
         items: allItems, stale: all.stale, pending: Boolean(allItems) && !all.stale && all.catalogPending,
-        failed: all.failed, catalogFailed: all.catalogFailed, unavailable: all.unavailable, retry: all.retry,
+        failed: all.failed, catalogFailed: all.catalogFailed, unavailable: all.unavailable, retry: all.retry, retrying: all.retrying,
       }
     }
     if (filter === 'playlist') {
@@ -351,13 +352,12 @@ export function SearchPage() {
     const standIn = pages.items === null && allItems && !all.stale ? allItems.filter(item => item.type === filter) : null
     return {
       items: pages.items ?? standIn, stale: pages.items !== null && pages.stale, pending: pages.loadingMore || (standIn !== null && pages.loading),
-      failed: pages.failed, catalogFailed: pages.catalogFailed, unavailable: false, retry: pages.retry,
-      hasMore: pages.hasMore, loadMore: pages.loadMore,
+      failed: pages.failed, catalogFailed: pages.catalogFailed, unavailable: false, retry: pages.retry, retrying: pages.loading,
+      hasMore: pages.hasMore, loadMore: pages.loadMore, moreFailed: pages.moreFailed, moreError: pages.error,
     }
   }, [all, pages, filter, term, library.playlists])
 
   const choose = (item: SearchItem, items: readonly SearchItem[]) => {
-    if (term) recents.add({ type: 'query', query: term })
     recents.add(item)
     switch (item.type) {
       case 'artist': return void navigate(`/artist/${item.artist.id}`)
@@ -391,19 +391,24 @@ export function SearchPage() {
       genres={genres}
       onBrowseGenre={genre => void navigate(`/library?${new URLSearchParams({ filter: 'albums', genre })}`)}
       onChoose={choose}
-      onSearchRecent={q => {
-        setTyped(q)
-        show(q, filter)
-      }}
     />
   )
 }
 
-/** Where a filter chip goes: the filter, with the chosen sort kept for when it applies again. */
+/** The filters a genre narrows: the albums (alone or under All) and the songs on them. */
+const GENRE_FILTERS: readonly LibraryFilterName[] = ['all', 'albums', 'songs']
+
+/**
+ * Where a filter chip goes: the filter, with the chosen sort kept for when it applies again, and
+ * the genre kept between the filters it narrows until it is cleared. Playlists and artists take
+ * no genre, so they leave it behind rather than show a chip that changes nothing.
+ */
 function libraryHref(filter: LibraryFilterName, params: URLSearchParams) {
   const next = new URLSearchParams({ filter })
   const sort = params.get('sort')
   if (isLibrarySort(sort) && sort !== 'recent') next.set('sort', sort)
+  const genre = params.get('genre')
+  if (genre && GENRE_FILTERS.includes(filter)) next.set('genre', genre)
   return `/library?${next}`
 }
 
@@ -480,6 +485,9 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
   const searchFailed = searching && !found.pending && found.data === undefined && Boolean(found.error)
   const matched = searching ? found.data : undefined
   const listed = filter === 'artists' ? artists : filter === 'songs' ? songs : showsAlbums ? albums : null
+  // The list's first answer failed. The page stays: the chips, and under All the playlists, are still usable.
+  const listFailed = Boolean(listed?.error && !listed.data)
+  const albumsFailed = showsAlbums && listFailed
 
   const items = useMemo((): LibraryItem[] | undefined => {
     if (filter === 'songs') return undefined
@@ -491,7 +499,7 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
           .filter(item => matches(query, item.kind === 'liked' ? 'Liked Songs' : item.playlist.name, item.kind === 'liked' ? '' : item.playlist.ownerName)),
       )
     }
-    if (showsAlbums) {
+    if (showsAlbums && !(albumsFailed && !searching)) {
       const list = searching ? matched?.albums : albums.data && itemsOf(albums.data).filter(album => matches(query, album.title, album.artistCredit))
       if (!list) return undefined
       collections.push(...list.map(album => ({ kind: 'album', album }) as const))
@@ -502,7 +510,7 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
       collections.push(...list.map(artist => ({ kind: 'artist', artist }) as const))
     }
     return collections
-  }, [filter, showsPlaylists, showsAlbums, playlists, playlistsFailed, query, searching, matched, albums.data, artists.data])
+  }, [filter, showsPlaylists, showsAlbums, albumsFailed, playlists, playlistsFailed, query, searching, matched, albums.data, artists.data])
 
   const tracks = useMemo(() => {
     if (filter !== 'songs') return undefined
@@ -516,8 +524,6 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
   const onEndReached = useCallback(() => {
     if (!searching && hasNextPage && !isFetchingNextPage) void fetchNextPage?.()
   }, [searching, hasNextPage, isFetchingNextPage, fetchNextPage])
-
-  if (listed?.error && !listed.data) return <ErrorPage error={listed.error} onRetry={() => void listed.refetch()} />
 
   const matchedCount = !matched ? 0 : filter === 'songs' ? matched.tracks.length : filter === 'artists' ? matched.artists.length : matched.albums.length
   const count = filter === 'albums' ? listCount(albums, 'album')
@@ -559,7 +565,8 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
       // All lists collections; a search also finds songs, which follow them rather than going unsaid.
       songMatches={filter === 'all' ? matched?.tracks : undefined}
       playlistsFailure={playlistsFailed ? { error: playlistList.error, onRetry: () => void playlistList.refetch() } : undefined}
-      searchFailure={searchFailed ? { error: found.error, onRetry: () => void found.refetch() } : undefined}
+      listFailure={listFailed ? { error: listed!.error, retrying: listed!.isFetching, onRetry: () => void listed!.refetch() } : undefined}
+      searchFailure={searchFailed ?{ error: found.error, onRetry: () => void found.refetch() } : undefined}
       count={count}
       likedCount={liked.data ? listCount(liked, 'song') : undefined}
       libraryEmpty={Boolean(albums.data && !itemsOf(albums.data).length && !genre)}
@@ -570,7 +577,7 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
       canAddMusic={user.role === 'admin'}
       onPlayAlbum={album => void playAlbum(album)}
       onPlayPlaylist={playlist => void playPlaylist(playlist)}
-      onPlayLiked={() => void loadItems(liked, 5000).then(list => controls.playTracks(list, 0, likedContext))}
+      onPlayLiked={() => void loadItems(liked, 5000).then(list => controls.playTracks(list, 0, likedContext, { collection: true }))}
       onPlaySong={index => void playSong(index)}
       onNewPlaylist={() => library.newPlaylist()}
     />

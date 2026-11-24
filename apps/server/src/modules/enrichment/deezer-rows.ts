@@ -1,16 +1,26 @@
 /**
+ * A Deezer-only row Deezer typed an album that Deezer now says is a soundtrack (its genre or
+ * title, `deezer.deezerSoundtrack`). Only Deezer's own album type gives way: a row with a
+ * MusicBrainz id keeps MusicBrainz's type.
+ */
+const becomesSoundtrack = (type: string) => sql`(${albums.mbid} is null and ${albums.type} = 'album' and ${type} = 'soundtrack')`
+
+/** The type a row takes from Deezer: Deezer's for a guessed one, and soundtrack for an album Deezer now says is one. */
+const retyped = (guessed: SQL, type: string) => sql`case when ${guessed} then ${type} when ${becomesSoundtrack(type)} then ${type} else ${albums.type} end`
+
+/**
  * Catalog rows built from Deezer for music MusicBrainz does not know (yet), and the
  * Deezer ids of rows it does. Provider-only rows have no MBID; each carries its Deezer id
  * in `external_ids`, so a later bridge or a search result finds the same row.
  */
-import { and, asc, eq, isNull, notInArray, sql } from 'drizzle-orm'
+import { and, asc, eq, isNull, not, notInArray, sql, type SQL } from 'drizzle-orm'
 import { db, type Transaction } from '../../database/client.js'
 import { albumArtists, albums, artists, externalIds, recordingArtists, recordings, releases, releaseTracks } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { creditKey, matchKey } from '../../lib/text.js'
 import { remoteImage } from '../artwork/index.js'
 import { canonicalRelease } from '../catalog/availability.js'
-import { uuidArray } from '../catalog/sql.js'
+import { placeholderArtist, uuidArray } from '../catalog/sql.js'
 import { lockUpserts } from '../matching/apply.js'
 import { editionFreeKey, guessAlbumType, releaseKey, textArray } from '../search/keys.js'
 import { resolveMerged } from '../matching/merge.js'
@@ -70,7 +80,8 @@ export async function deezerArtistRows(found: readonly DeezerArtist[]): Promise<
     for (const artist of found) {
       const id = await deezerArtistRow(tx, artist)
       const picture = pictures.get(artist.id)
-      if (picture) await tx.update(artists).set({ imageAssetId: picture }).where(and(eq(artists.id, id), isNull(artists.imageAssetId)))
+      // Not on a placeholder: Deezer's Various Artists picture is a stock photo.
+      if (picture) await tx.update(artists).set({ imageAssetId: picture }).where(and(eq(artists.id, id), isNull(artists.imageAssetId), not(placeholderArtist('artists'))))
       rows.set(artist.id, id)
     }
     return rows
@@ -199,7 +210,7 @@ export async function buildFromDeezer(albumId: string, album: DeezerAlbum): Prom
     const guessed = sql`(${albums.typeGuessed} and ${albums.mbid} is null)`
     await tx.update(albums).set({
       canonicalReleaseId: sql`coalesce(${albums.canonicalReleaseId}, ${releaseId}::uuid)`,
-      type: sql`case when ${guessed} then ${album.type} else ${albums.type} end`,
+      type: retyped(guessed, album.type),
       typeGuessed: sql`${albums.typeGuessed} and not ${guessed}`,
       releaseDate: sql`coalesce(${albums.releaseDate}, ${album.releaseDate}::text)`,
       year: sql`coalesce(${albums.year}, ${album.releaseDate ? Number(album.releaseDate.slice(0, 4)) : null}::int)`,
@@ -331,11 +342,11 @@ export async function deezerDiscography(artistId: string, deezerArtistId: string
         await tx.update(albums).set({
           releaseDate: sql`coalesce(${albums.releaseDate}, ${album.releaseDate}::text)`,
           year: sql`coalesce(${albums.year}, ${year}::int)`,
-          type: sql`case when ${guessed} then ${album.type} else ${albums.type} end`,
+          type: retyped(guessed, album.type),
           typeGuessed: sql`${albums.typeGuessed} and not ${guessed}`,
           artworkAssetId: sql`coalesce(${albums.artworkAssetId}, ${artwork?.id ?? null}::uuid)`,
           updatedAt: new Date(),
-        }).where(and(eq(albums.id, existing), sql`(${albums.releaseDate} is null or ${guessed} or ${albums.artworkAssetId} is null)`))
+        }).where(and(eq(albums.id, existing), sql`(${albums.releaseDate} is null or ${guessed} or ${albums.artworkAssetId} is null or ${becomesSoundtrack(album.type)})`))
         return
       }
       const credit = album.artist.name || artist.name
@@ -386,7 +397,8 @@ export async function detachDeezerArtist(artistId: string, deezerArtistId: strin
     const asset = await remoteImage(page.imageUrl, { kind: 'artist' })
     await db.execute(sql`
       update artists a set image_asset_id = ${asset.id} from external_ids e
-      where e.provider = 'deezer' and e.entity_type = 'artist' and e.external_id = ${deezerArtistId} and a.id = e.entity_id and a.image_asset_id is null`)
+      where e.provider = 'deezer' and e.entity_type = 'artist' and e.external_id = ${deezerArtistId} and a.id = e.entity_id and a.image_asset_id is null
+        and not ${placeholderArtist('a')}`)
   }
 }
 

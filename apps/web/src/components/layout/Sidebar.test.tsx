@@ -1,3 +1,4 @@
+import { ApiError } from '@squirmy/client-core'
 import type { PlaybackContext, PlaylistSummary, User } from '@squirmy/contracts'
 import { fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -49,10 +50,10 @@ function renderSidebar({ route = '/', playingFrom, wantlistEnabled = true, toggl
   const library = {
     wantlistEnabled,
     isWanted: () => false,
-    setSaved: vi.fn<LibraryActions['setSaved']>(),
-    setWanted: vi.fn<LibraryActions['setWanted']>(),
+    setSaved: vi.fn<LibraryActions['setSaved']>(async () => {}),
+    setWanted: vi.fn<LibraryActions['setWanted']>(async () => {}),
     playlists: playlistSummaries,
-    addToPlaylist: vi.fn<LibraryActions['addToPlaylist']>(),
+    addToPlaylist: vi.fn<LibraryActions['addToPlaylist']>(async () => true),
     newPlaylist: vi.fn<LibraryActions['newPlaylist']>(),
   } satisfies LibraryActions
   const on = { onToggle: vi.fn(), onNavigate: vi.fn(), onOpenSettings: vi.fn(), onPlayPlaylist: vi.fn(), onPlayLiked: vi.fn(), onLogout: vi.fn() }
@@ -262,7 +263,7 @@ describe('Sidebar', () => {
   })
 
   describe('dragging songs', () => {
-    it('adds the songs dropped on a playlist of your own', () => {
+    it('adds the songs dropped on a playlist of your own, and says on the row that they went in', async () => {
       const { library } = renderSidebar()
       const { transfer, tracks } = dragTracks('amber', 'riverside')
       const link = playlistLink('After Dark')
@@ -273,6 +274,19 @@ describe('Sidebar', () => {
       expect(library.addToPlaylist).toHaveBeenCalledTimes(1)
       expect(library.addToPlaylist).toHaveBeenCalledWith(afterDark, tracks)
       expect(where()).toBe('/')
+      expect(await within(link).findByText('Added')).toBeInTheDocument()
+      expect(screen.getAllByRole('status').map(status => status.textContent)).toContain('Added to After Dark')
+    })
+
+    it('says on the row when the server refused the songs dropped on it', async () => {
+      const { library } = renderSidebar()
+      library.addToPlaylist.mockRejectedValueOnce(new ApiError(503, 'unavailable', 'The server is busy.'))
+      const { transfer } = dragTracks('amber')
+      const link = playlistLink('After Dark')
+      fireEvent.dragOver(link, { dataTransfer: transfer })
+      fireEvent.drop(link, { dataTransfer: transfer })
+      expect(await within(link).findByText('Couldn’t add')).toBeInTheDocument()
+      expect(screen.getAllByRole('status').map(status => status.textContent)).toContain('Couldn’t add to After Dark. The server is busy.')
     })
 
     it('does not take songs on someone else’s playlist', () => {
@@ -284,17 +298,16 @@ describe('Sidebar', () => {
       expect(library.addToPlaylist).not.toHaveBeenCalled()
     })
 
-    it('saves the songs dropped on Liked Songs that are not saved yet, with one toast', async () => {
+    it('saves the songs dropped on Liked Songs that are not saved yet, and says on the row once they are', async () => {
       const { library } = renderSidebar()
       const { transfer } = dragTracks('amber', 'riverside', 'open-window')
       const link = playlistLink('Liked Songs 24 songs')
       expect(fireEvent.dragOver(link, { dataTransfer: transfer })).toBe(false)
       fireEvent.drop(link, { dataTransfer: transfer })
-      const saved = (slug: string) => [{ type: 'track', id: track(slug).id, title: track(slug).title }, true, { quiet: true }]
+      const saved = (slug: string) => [{ type: 'track', id: track(slug).id, title: track(slug).title }, true]
       expect(library.setSaved.mock.calls).toEqual([saved('riverside'), saved('open-window')])
       expect(library.addToPlaylist).not.toHaveBeenCalled()
-      expect(await screen.findByText('Saved to your library')).toBeInTheDocument()
-      expect(screen.getByText('2 songs')).toBeInTheDocument()
+      expect(await within(link).findByText('Saved')).toBeInTheDocument()
     })
 
     it('ignores a drag of anything else', () => {
@@ -328,11 +341,30 @@ describe('Sidebar', () => {
       expect(screen.getByRole('button', { name: 'Account, Alex Rivera' })).toBeInTheDocument()
     })
 
-    it('hides the playlists from assistive technology and from the keyboard', () => {
+    it('keeps Liked Songs and every playlist as a cover, named and in reach of the keyboard', async () => {
       renderSidebar({ collapsed: true })
-      expect(screen.queryByRole('list', { name: 'Playlists' })).not.toBeInTheDocument()
+      const links = playlistLinks()
+      expect(links.map(link => link.textContent)).toEqual(['Liked Songs24 songs', ...playlists.map(playlist => playlist.name)])
+      for (const link of links) expect(link.closest('[inert]')).toBeNull()
+      expect(playlistLink('Road Trip')).not.toHaveAttribute('title')
+      await userEvent.hover(playlistLink('Road Trip'))
+      playlistLink('Road Trip').focus()
+      expect(playlistLink('Road Trip')).toHaveFocus()
+      expect(screen.queryByRole('tooltip')).toBeNull()
+    })
+
+    it('leaves out the playlists’ heading and New playlist', () => {
+      renderSidebar({ collapsed: true })
       expect(screen.queryByRole('button', { name: 'New playlist' })).not.toBeInTheDocument()
-      expect(screen.getByRole('list', { name: 'Playlists', hidden: true }).closest('[inert]')).not.toBeNull()
+      expect(screen.queryByRole('link', { name: 'Playlists' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'New playlist', hidden: true }).closest('[inert]')).not.toBeNull()
+    })
+
+    it('opens a playlist from its cover', async () => {
+      const { onNavigate } = renderSidebar({ collapsed: true })
+      await userEvent.click(playlistLink('Road Trip'))
+      expect(where()).toBe(`/playlist/${roadTrip.id}`)
+      expect(onNavigate).toHaveBeenCalled()
     })
 
     it('opens again from the logo', async () => {
@@ -343,13 +375,29 @@ describe('Sidebar', () => {
       expect(onToggle).toHaveBeenCalledTimes(1)
     })
 
+    it('keeps the navigation links mounted so their labels can fade across a toggle', async () => {
+      renderSidebar({ toggles: true })
+      const search = mainNav().getByRole('link', { name: 'Search' })
+      await userEvent.click(screen.getByRole('button', { name: 'Close sidebar' }))
+      expect(mainNav().getByRole('link', { name: 'Search' })).toBe(search)
+      await userEvent.click(screen.getByRole('button', { name: 'Open sidebar' }))
+      expect(mainNav().getByRole('link', { name: 'Search' })).toBe(search)
+    })
+
     it('keeps the keyboard on the toggle as it folds and opens, though each state has its own button', async () => {
       renderSidebar({ toggles: true })
       screen.getByRole('button', { name: 'Close sidebar' }).focus()
       await userEvent.keyboard('{Enter}')
       expect(screen.getByRole('button', { name: 'Open sidebar' })).toHaveFocus()
-      await userEvent.keyboard('{Enter}')
-      expect(screen.getByRole('button', { name: 'Close sidebar' })).toHaveFocus()
+      const focus = vi.spyOn(HTMLButtonElement.prototype, 'focus')
+      try {
+        await userEvent.keyboard('{Enter}')
+        const close = screen.getByRole('button', { name: 'Close sidebar' })
+        expect(close).toHaveFocus()
+        expect(focus).toHaveBeenCalledWith({ preventScroll: true })
+      } finally {
+        focus.mockRestore()
+      }
     })
 
     it('folds from Close sidebar while open', async () => {

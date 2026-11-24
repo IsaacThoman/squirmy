@@ -365,6 +365,9 @@ export type FetchFailure = { failure: EntryFailure; reason?: string }
  * are only marked failed: the session skips them quietly when it reaches them. What
  * happens to a preparing current entry depends on why:
  *
+ * - Any reason but `outage`, for the song the listener just picked (`SessionRecord.picked`):
+ *   the session pauses on it, failed, without a stop notice, rather than start a song they
+ *   did not pick. Clients tell it as a song that could not play.
  * - `unavailable` (the provider does not have it): skipped, and playback goes on with the
  *   next playable entry. When nothing after it is playable any more, the session stops on
  *   it, and when that ends a run of such songs it says so once (`playback.unavailable`,
@@ -400,6 +403,12 @@ function applyFailure(record: SessionRecord, trackId: string, { failure, reason 
       return
     }
     finish(record, fail(session), now)
+    return
+  }
+  // The song the listener just picked: playback stays on it, paused, rather than start one
+  // they did not ask for. Clients tell it as a song that could not play; Next moves on.
+  if (failure !== 'outage' && record.picked === current.id) {
+    stay(record, current, now)
     return
   }
   if (failure === 'error') record.failedInARow += 1
@@ -439,15 +448,26 @@ function applyFailure(record: SessionRecord, trackId: string, { failure, reason 
  * and tells its sockets why (`playback.unavailable`) before the state that pauses.
  */
 function hold(record: SessionRecord, current: QueueEntry, kind: 'outage' | 'failures' | 'unavailable', reason: string | null, now: number): void {
+  io?.to(sessionRoom(record)).emit('event', { type: 'playback.unavailable', trackId: current.trackId, kind, reason })
+  finish(record, heldOn(record, current, now), now)
+}
+
+/** Pauses on the current entry, which failed, without a stop notice: see `SessionRecord.picked`. */
+function stay(record: SessionRecord, current: QueueEntry, now: number): void {
+  finish(record, heldOn(record, current, now), now)
+}
+
+/** The session paused on its current entry, marked failed, with the rest of the queue kept. */
+function heldOn(record: SessionRecord, current: QueueEntry, now: number): Session {
   record.failedInARow = 0
   record.skippedTracks.clear()
+  record.picked = null
   const paused = reduceSession(record.session, { command: { type: 'pause' }, now, commandId: newId() })
   // The reducer moves past a current entry that fails. Marked here first, the entry stays
   // current, and `setEntryState` only marks its other entries.
   const held: Session = { ...paused, current: { ...current, state: 'failed' }, positionMs: 0, anchorAt: now, stalled: false }
-  io?.to(sessionRoom(record)).emit('event', { type: 'playback.unavailable', trackId: current.trackId, kind, reason })
   const command = { type: 'setEntryState' as const, trackId: current.trackId, state: 'failed' as const }
-  finish(record, reduceSession(held, { command, now, commandId: newId() }), now)
+  return reduceSession(held, { command, now, commandId: newId() })
 }
 
 /** Commits a server-made change and broadcasts it. */
@@ -814,6 +834,15 @@ export function runCommand(userId: string, deviceId: string | null, raw: unknown
     if (command.type === 'playTracks') {
       record.failedInARow = 0
       record.skippedTracks.clear()
+    }
+    // A song started by name (its row, or an entry of the queue) is the one the listener wants. A
+    // whole list started (a header's Play, Shuffle, a radio, or a client that does not say) moves
+    // on past a first song that cannot be had.
+    const byName = command.type === 'playQueueEntry' || (command.type === 'playTracks' && command.startedFrom === 'song' && !command.shuffle)
+    if (byName && next.current?.id !== record.session.current?.id) {
+      record.picked = next.current?.id ?? null
+    } else if (command.type === 'playTracks') {
+      record.picked = null
     }
     // Playing again asks again for what an outage left waiting.
     if (command.type === 'play' || command.type === 'playTracks') record.deferred.clear()

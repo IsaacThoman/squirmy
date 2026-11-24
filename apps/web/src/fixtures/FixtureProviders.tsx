@@ -1,11 +1,11 @@
 import type { QueueEntry, TrackSummary } from '@squirmy/contracts'
-import { useEffect, useMemo, useReducer, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
 import { LibraryContext, type LibraryActions } from '@/player/library-context'
 import { OnDemandContext, type OnDemand } from '@/player/on-demand-context'
-import { PlayerContext, PlayerControlsContext, PositionClock, PositionContext, type Player, type PlayerControls, type PlayerState, type QueueItem } from '@/player/player-context'
+import { PlayerContext, PlayerControlsContext, PositionClock, PositionContext, type Player, type PlayerControls, type PlayerState, type QueueItem, type StatusMessage } from '@/player/player-context'
 import { ArtUrlContext } from '@/lib/artwork'
 import { STILL_LOADING_MS } from '@/player/use-still-loading'
-import { toast } from '@/lib/toast'
+import { STATUS_ERROR_MS, STATUS_EVENT_MS } from '@/player/status'
 import { fixtureArtUrl, lyricsFor, playlistSummaries, track } from './catalog'
 import { devices, thisDeviceId } from './server'
 
@@ -41,6 +41,15 @@ export function FixtureProviders({ children, initial }: { children: ReactNode; i
     return () => clearTimeout(timer)
   }, [preparing])
 
+  // The status line, as the real player has it: a line goes away by itself.
+  const statusTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  useEffect(() => () => clearTimeout(statusTimer.current), [])
+  const tell = useCallback((line: StatusMessage) => {
+    clearTimeout(statusTimer.current)
+    dispatch({ type: 'patch', patch: () => ({ status: { ...line, key: 'action' } }) })
+    statusTimer.current = setTimeout(() => dispatch({ type: 'patch', patch: () => ({ status: null }) }), line.tone === 'error' ? STATUS_ERROR_MS : STATUS_EVENT_MS)
+  }, [])
+
   const controls = useMemo<PlayerControls>(() => {
     const restart = (action: Action) => dispatch({ type: 'restart', action })
     return {
@@ -60,9 +69,12 @@ export function FixtureProviders({ children, initial }: { children: ReactNode; i
       playEntry: entryId => restart({ type: 'playEntry', entryId }),
       removeEntry: entryId => dispatch({ type: 'patch', patch: state => ({ queue: state.queue.filter(item => item.entry.id !== entryId) }) }),
       moveEntry: (entryId, toIndex) => dispatch({ type: 'move', entryId, toIndex }),
-      startRadio: () => toast({ title: 'Radio needs the server' }),
+      startRadio: () => tell({ message: 'Radio needs the server', tone: 'error' }),
       clearQueue: () => dispatch({ type: 'patch', patch: () => ({ queue: [] }) }),
-      clearHistory: () => dispatch({ type: 'patch', patch: () => ({ history: [] }) }),
+      clearHistory: () => {
+        dispatch({ type: 'patch', patch: () => ({ history: [] }) })
+        tell({ message: 'History cleared', tone: 'info' })
+      },
       transfer: deviceId => dispatch({ type: 'patch', patch: state => ({ activeDeviceId: deviceId, devices: state.devices.map(device => ({ ...device, isActive: device.id === deviceId })) }) }),
       detach: async () => {
         dispatch({ type: 'patch', patch: () => ({ detached: true }) })
@@ -74,8 +86,9 @@ export function FixtureProviders({ children, initial }: { children: ReactNode; i
       },
       prepareHere: () => {},
       renameDevice: () => {},
+      tell,
     }
-  }, [])
+  }, [tell])
 
   // No audio here: what waits is what the fake server is still fetching.
   const player = useMemo<Player>(() => ({ state: { ...state, waiting: state.waiting || (state.playing && state.current?.entry.state === 'preparing') }, controls }), [state, controls])
@@ -103,11 +116,13 @@ function useFixtureLibrary(): LibraryActions {
   return useMemo(() => ({
     wantlistEnabled: true,
     isWanted: (id, fromServer = false) => wanted.get(id) ?? fromServer,
-    setSaved: (target, saved, options) => { if (!options?.quiet) toast({ title: saved ? 'Saved to your library' : 'Removed from your library', description: target.title }) },
-    setWanted: (target, value) => setWanted(map => new Map(map).set(target.type === 'album' ? target.album.id : target.track.id, value)),
+    // Nothing is kept: the heart's state comes from the fixture data.
+    setSaved: async () => {},
+    setWanted: async (target, value) => setWanted(map => new Map(map).set(target.type === 'album' ? target.album.id : target.track.id, value)),
     playlists: playlistSummaries,
-    addToPlaylist: playlist => toast({ title: `Added to ${playlist.name}` }),
-    newPlaylist: () => toast({ title: 'New playlists need the server' }),
+    addToPlaylist: async () => true,
+    // New playlists need the server.
+    newPlaylist: () => {},
   }), [wanted])
 }
 

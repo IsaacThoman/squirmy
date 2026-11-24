@@ -4,9 +4,9 @@ import { cn } from '@/lib/utils'
 
 /**
  * A row of sections: links marked `aria-current="page"` or tab triggers. The current one sits on
- * the hover color, like the sections of the admin panel and the settings dialog.
+ * the hover color, like the sections of the admin panel and the settings dialog. A finger's 44 px tall on a touch screen.
  */
-export const pillClass = 'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm text-muted-foreground outline-none transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-accent aria-[current=page]:font-medium aria-[current=page]:text-foreground data-[state=active]:bg-accent data-[state=active]:font-medium data-[state=active]:text-foreground'
+export const pillClass = 'inline-flex h-8 pointer-coarse:h-11 pointer-coarse:min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-md px-2.5 text-sm text-muted-foreground outline-none transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-accent aria-[current=page]:font-medium aria-[current=page]:text-foreground data-[state=active]:bg-accent data-[state=active]:font-medium data-[state=active]:text-foreground'
 
 export const Tabs = TabsPrimitive.Root
 export const TabsContent = TabsPrimitive.Content

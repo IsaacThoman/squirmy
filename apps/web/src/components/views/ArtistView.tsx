@@ -1,6 +1,6 @@
 import { ARTIST_SECTION_KEYS, type AlbumSummary, type AlbumType, type ArtistDetail, type ArtistSection, type ArtistSectionKey, type ArtistSummary } from '@squirmy/contracts'
 import { ChevronLeft, Disc3, ExternalLink, Radio } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { Page, PageHeader } from '@/components/layout/Page'
 import { AlbumCard, ArtistCard, Monogram } from '@/components/music/Cards'
@@ -11,6 +11,7 @@ import { SectionHeader } from '@/components/music/SectionHeader'
 import { GridSkeleton } from '@/components/music/Skeletons'
 import { TrackList } from '@/components/music/TrackList'
 import { VirtualGrid } from '@/components/music/VirtualGrid'
+import { Button } from '@/components/ui/button'
 import { Badge, EmptyState, Spinner } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
 import { albumPresentation, artistReleasesPath, artistSectionTitle, canFetch, isArtistSectionKey, isPlayable } from '@/lib/catalog'
@@ -18,7 +19,7 @@ import { plural } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useLibrary } from '@/player/library-context'
 import { useViewer } from '@/player/on-demand-context'
-import { usePlayerControls } from '@/player/player-context'
+import { usePlayerControls, useRadioStarting } from '@/player/player-context'
 import { useAlbumWants, useTrackActions } from '@/player/use-track-actions'
 
 /**
@@ -48,6 +49,7 @@ export function ArtistView({ artist, onPlayAlbum }: { artist: ArtistDetail; onPl
   const library = useLibrary()
   const viewer = useViewer()
   const controls = usePlayerControls()
+  const radioStarting = useRadioStarting({ type: 'artist', id: artist.id })
   const context = { type: 'artist' as const, id: artist.id, title: artist.name }
   const actions = useTrackActions(artist.topTracks, context)
   const wants = useAlbumWants()
@@ -65,45 +67,28 @@ export function ArtistView({ artist, onPlayAlbum }: { artist: ArtistDetail; onPl
         line={canFetch(viewer) || playing === total ? plural(total, 'release') : `${playing} of ${plural(total, 'release')} available`}
         actions={(
           <PlayActions
+            id={artist.id}
             title={artist.name}
-            onPlay={playable ? () => controls.playTracks(artist.topTracks, 0, context) : undefined}
-            onShuffle={playable ? () => controls.playTracks(artist.topTracks, 0, context, { shuffle: true }) : undefined}
+            onPlay={playable ? () => controls.playTracks(artist.topTracks, 0, context, { collection: true }) : undefined}
+            onShuffle={playable ? () => controls.playTracks(artist.topTracks, 0, context, { shuffle: true, collection: true }) : undefined}
             liked={artist.liked}
             onLike={() => library.setSaved({ type: 'artist', id: artist.id, title: artist.name }, !artist.liked)}
           >
             {/* The server says whether a radio starts for this viewer; an older one does not, and then the library decides. */}
             {(artist.radio ?? (artist.inLibrary || canFetch(viewer))) && (
-              <IconButton label={`Start ${artist.name} radio`} size="lg" onClick={() => controls.startRadio({ type: 'artist', id: artist.id })}><Radio /></IconButton>
+              <IconButton label={`Start ${artist.name} radio`} size="lg" aria-busy={radioStarting || undefined} onClick={() => controls.startRadio({ type: 'artist', id: artist.id })}>{radioStarting ? <Spinner label={null} className="text-current" /> : <Radio />}</IconButton>
             )}
           </PlayActions>
         )}
       />
 
+      {/* As in the iOS app: the songs, then the releases, and what is written about the artist last. */}
       <div className="@container flex flex-col gap-10 px-(--gutter) pb-10">
-        {(hasTop || hasAbout) && (
-          // The songs and the biography sit side by side once the page is wide enough for both.
-          <div className={cn('grid gap-10', hasTop && hasAbout && '@4xl:grid-cols-[minmax(0,1fr)_20rem]')}>
-            {hasTop && (
-              <section>
-                <SectionHeader title="Top songs" />
-                <div className="-mx-2"><TrackList label="Top songs" tracks={artist.topTracks} variant="compact" header={false} {...actions} /></div>
-              </section>
-            )}
-            {hasAbout && (
-              <section className="max-w-2xl">
-                <SectionHeader title="About" />
-                {artist.bio && <p className="text-pretty text-sm leading-relaxed text-muted-foreground">{artist.bio}</p>}
-                {artist.bioUrl && (
-                  <a href={artist.bioUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 rounded-sm text-sm font-medium text-primary underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring">
-                    Read more<ExternalLink className="size-3.5" />
-                  </a>
-                )}
-                {artist.genres.length > 0 && (
-                  <div className="mt-4 flex flex-wrap gap-1.5">{artist.genres.map(genre => <Badge key={genre} tone="outline">{genre}</Badge>)}</div>
-                )}
-              </section>
-            )}
-          </div>
+        {hasTop && (
+          <section>
+            <SectionHeader title="Top songs" />
+            <div className="-mx-2"><TrackList label="Top songs" tracks={artist.topTracks} variant="compact" header={false} {...actions} /></div>
+          </section>
         )}
 
         {/* The rest of a large discography comes in after the page opens; the page refreshes as it does. */}
@@ -139,8 +124,52 @@ export function ArtistView({ artist, onPlayAlbum }: { artist: ArtistDetail; onPl
             {artist.similar.map(similar => <RailItem key={similar.id}><ArtistCard artist={similar} /></RailItem>)}
           </Rail>
         )}
+
+        {hasAbout && <ArtistAbout artist={artist} />}
       </div>
     </div>
+  )
+}
+
+/**
+ * The biography, three lines of it until More shows the rest (as the iOS app does), its source and
+ * the artist's genres.
+ */
+function ArtistAbout({ artist }: { artist: ArtistDetail }) {
+  const bio = useRef<HTMLParagraphElement>(null)
+  const id = useId()
+  const [expanded, setExpanded] = useState(false)
+  // Whether three lines cut the biography short: only then is there more to show.
+  const [cut, setCut] = useState(false)
+  useLayoutEffect(() => {
+    const element = bio.current
+    if (!element || expanded) return
+    const measure = () => setCut(element.scrollHeight > element.clientHeight + 1)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [artist.bio, expanded])
+  return (
+    <section className="max-w-2xl">
+      <SectionHeader title="About" />
+      {artist.bio && <p id={id} ref={bio} className={cn('text-pretty text-sm leading-relaxed text-muted-foreground', !expanded && 'line-clamp-3')}>{artist.bio}</p>}
+      {((artist.bio && (cut || expanded)) || artist.bioUrl) && (
+        <div className="mt-2 flex items-center gap-4">
+          {artist.bio && (cut || expanded) && (
+            <Button variant="link" size="sm" aria-expanded={expanded} aria-controls={id} onClick={() => setExpanded(!expanded)}>{expanded ? 'Less' : 'More'}</Button>
+          )}
+          {artist.bioUrl && (
+            <a href={artist.bioUrl} target="_blank" rel="noreferrer" className="touch-target relative inline-flex items-center gap-1 rounded-sm text-sm font-medium text-primary underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring">
+              Read more<ExternalLink className="size-3.5" />
+            </a>
+          )}
+        </div>
+      )}
+      {artist.genres.length > 0 && (
+        <div className="mt-4 flex flex-wrap gap-1.5">{artist.genres.map(genre => <Badge key={genre} tone="outline">{genre}</Badge>)}</div>
+      )}
+    </section>
   )
 }
 

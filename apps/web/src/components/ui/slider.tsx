@@ -17,7 +17,8 @@ export type SliderProps = {
 
 /**
  * A thin track that shows its thumb on hover or focus, like a transport bar. On a touch screen,
- * where nothing hovers, the thumb always shows and the target is taller.
+ * where nothing hovers, the thumb always shows and the slider is a finger's 44 px tall, the track
+ * still thin in its middle.
  */
 export function Slider({ label, value, max, step = 1, onValueChange, onValueCommit, valueText, disabled, className }: SliderProps) {
   return (
@@ -28,7 +29,7 @@ export function Slider({ label, value, max, step = 1, onValueChange, onValueComm
       disabled={disabled}
       onValueChange={([next]) => onValueChange(next)}
       onValueCommit={([next]) => onValueCommit?.(next)}
-      className={cn('group relative flex h-4 w-full touch-none select-none items-center data-disabled:opacity-40 pointer-coarse:h-6', className)}
+      className={cn('group relative flex h-4 w-full touch-none select-none items-center data-disabled:opacity-40 pointer-coarse:h-11', className)}
     >
       {/* The track is the input color, 3:1 off the page and the player: at rest, with the thumb hidden, it is all that shows where the slider is. */}
       <SliderPrimitive.Track className="relative h-1 grow overflow-hidden rounded-full bg-input">

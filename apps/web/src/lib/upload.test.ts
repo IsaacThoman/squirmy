@@ -1,7 +1,7 @@
 import { ApiError } from '@squirmy/client-core'
 import type { Import, ImportFileResult } from '@squirmy/contracts'
 import { describe, expect, it, vi } from 'vitest'
-import { pickedFiles, Upload, uploadLabel, type PickedFile } from './upload'
+import { localRejection, pickedFiles, Upload, uploadLabel, type PickedFile } from './upload'
 
 const importRow = { id: '00000000-0000-4000-8000-000000000001', status: 'receiving' } as Import
 const file = (path: string, size = 10): PickedFile => ({ file: new File([new Uint8Array(size)], path.split('/').pop()!), path })
@@ -23,6 +23,15 @@ describe('picking files', () => {
       .toEqual(['Blue Hour/01.flac', 'one.mp3'])
   })
 
+  it('refuses before sending what the server would refuse by name or size', () => {
+    expect(localRejection('Album/01 Intro.flac', 10, 1000)).toBeNull()
+    expect(localRejection('Album/Cover.JPG', 10, 1000)).toBeNull()
+    expect(localRejection('Album.zip', 10, 1000)).toBeNull()
+    expect(localRejection('Album/01 Intro.flac.txt', 10, 1000)).toBe('unsupported_type')
+    expect(localRejection('back.jpg', 10, 1000)).toBe('unsupported_type')
+    expect(localRejection('big.flac', 2000, 1000)).toBe('file_too_large')
+  })
+
   it('names the import after the one folder or file, else counts', () => {
     expect(uploadLabel([file('Blue Hour/01.flac'), file('Blue Hour/02.flac')])).toBe('Blue Hour')
     expect(uploadLabel([file('Blue Hour.zip')])).toBe('Blue Hour.zip')
@@ -37,14 +46,13 @@ describe('Upload', () => {
       return { import: importRow, files: parts.map(part => part.relativePath.endsWith('.txt') ? { path: part.relativePath, status: 'rejected', reason: 'unsupported_type', bytes: 0 } : accepted(part.relativePath)) }
     })
     const upload = new Upload(api as never, [file('Album/01.flac'), file('Album/notes.txt'), file('Album/02.flac', 2000)], { maxFileBytes: 1000 })
-    expect(upload.getSnapshot().files.map(state => state.reason)).toEqual([null, null, 'file_too_large'])
+    // What the server would refuse is refused before anything is sent, and never sent.
+    expect(upload.getSnapshot().files.map(state => [state.status, state.reason])).toEqual([['waiting', null], ['rejected', 'unsupported_type'], ['rejected', 'file_too_large']])
+    expect(upload.getSnapshot().totalBytes).toBe(10)
     await upload.start()
     const snapshot = upload.getSnapshot()
     expect(api.create).toHaveBeenCalledWith({ label: 'Album' })
-    expect(api.addFiles.mock.calls[0]![1]).toEqual([
-      expect.objectContaining({ name: '01.flac', relativePath: 'Album/01.flac' }),
-      expect.objectContaining({ name: 'notes.txt', relativePath: 'Album/notes.txt' }),
-    ])
+    expect(api.addFiles.mock.calls[0]![1]).toEqual([expect.objectContaining({ name: '01.flac', relativePath: 'Album/01.flac' })])
     expect(snapshot.files.map(state => [state.status, state.reason])).toEqual([['accepted', null], ['rejected', 'unsupported_type'], ['rejected', 'file_too_large']])
     expect(snapshot).toMatchObject({ phase: 'committed', totalBytes: 10, sentBytes: 10 })
     expect(api.commit).toHaveBeenCalledWith(importRow.id)
@@ -98,7 +106,7 @@ describe('Upload', () => {
 
   it('cancels the import, and gives up when nothing could be taken', async () => {
     const api = fakeImports(async (_id: string, parts: { relativePath: string }[]) => ({ import: importRow, files: parts.map(part => ({ path: part.relativePath, status: 'rejected', reason: 'unsupported_type', bytes: 0 })) }))
-    const upload = new Upload(api as never, [file('notes.txt')], { maxFileBytes: 1000 })
+    const upload = new Upload(api as never, [file('a.flac')], { maxFileBytes: 1000 })
     await upload.start()
     expect(upload.getSnapshot()).toMatchObject({ phase: 'failed', error: 'None of these files can be imported.' })
     expect(api.cancel).toHaveBeenCalledWith(importRow.id)

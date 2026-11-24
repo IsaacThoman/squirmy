@@ -14,7 +14,7 @@ These work on every page once you are signed in, also while you type in a field.
 
 ## Player
 
-These work anywhere in the app, as long as the focused element does not use the key itself: a text field keeps its arrows and Space, a slider keeps its arrows, a focused button or link keeps Space, and an open dialog (Settings, say) keeps them all; Now Playing, the player itself, does not. With Ctrl, Alt or Cmd held, these keys are left to the browser.
+These work anywhere in the app, as long as the focused element does not use the key itself: a text field keeps its arrows and Space, a slider keeps its arrows, anything in a list (the queue and its history, a track list, the lyrics), a menu or a grid keeps its arrows, a focused button or link keeps Space, and an open dialog (Settings, say) keeps them all; Now Playing and the floating queue, parts of the player, do not. With Ctrl, Alt or Cmd held, these keys are left to the browser.
 
 | Key | Action |
 |---|---|

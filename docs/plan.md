@@ -124,7 +124,7 @@ Each library root is read-only or managed. In a managed root the server renames 
 ## Playback sessions
 
 - **One session per user, held by the server:** queue, current track, shuffle and repeat, position anchor, active device.
-- **One active device plays; every other client is a remote.** Opening the web app while the phone plays shows the same Now Playing with a "play here" action.
+- **One active device plays; every other client is a remote.** Opening the web app while the phone plays shows the same Now Playing, with transfer available in the device picker.
 - **Commands go through the server.** It runs the shared reducer, bumps a version and broadcasts. Clients apply commands optimistically and reconcile.
 - **The active device follows the session and reports back:** track ends, stalls, drift. Plays are recorded from those reports.
 - **Position is computed, not streamed.** Clients estimate the server clock offset and derive position from the anchor.

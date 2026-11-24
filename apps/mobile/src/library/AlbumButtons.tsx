@@ -1,6 +1,7 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '../ui';
 import { createThemedStyles, useColors } from '../theme';
+import { useBrowseBackLabel } from './links';
 
 export type AlbumNavProps = {
   icon: string;
@@ -34,6 +35,18 @@ export function AlbumNavButton({ icon, label, onPress, selected, busy, failed }:
   </Pressable>;
 }
 
+export function BrowseBackButton({ onPress }: { onPress: () => void }) {
+  const source = useBrowseBackLabel();
+  const colors = useColors();
+  const styles = useStyles();
+  if (!source) return <AlbumNavButton icon="chevron.left" label="Go back" onPress={onPress} />;
+  return <Pressable accessibilityRole="button" accessibilityLabel={`Back to ${source}`} onPress={onPress}
+    style={({ pressed }) => [styles.nav, styles.back, pressed && styles.pressed]}>
+    <Icon name="chevron.left" size={16} color={colors.text} />
+    <Text numberOfLines={1} maxFontSizeMultiplier={1.3} style={styles.backText}>{source}</Text>
+  </Pressable>;
+}
+
 export function AlbumPlaybackButtons({ title, actions }: AlbumPlaybackProps) {
   const colors = useColors();
   const styles = useStyles();
@@ -52,6 +65,8 @@ export function AlbumPlaybackButtons({ title, actions }: AlbumPlaybackProps) {
 
 const useStyles = createThemedStyles(colors => StyleSheet.create({
   nav: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  back: { width: 'auto', maxWidth: 112, flexDirection: 'row', gap: 4, paddingHorizontal: 10 },
+  backText: { color: colors.text, fontSize: 14, fontWeight: '600', flexShrink: 1 },
   pressed: { opacity: 0.72 },
   disabled: { opacity: 0.45 },
   controls: { flexDirection: 'row', gap: 9, marginTop: 18, alignSelf: 'stretch' },

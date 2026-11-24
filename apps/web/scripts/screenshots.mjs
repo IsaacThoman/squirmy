@@ -269,11 +269,10 @@ const playing = await speaker.newPage()
 await playing.goto(`${base}/settings/playback`)
 await playing.getByLabel('This browser’s name').fill('Living Room')
 await playing.getByLabel('This browser’s name').press('Enter')
-// While the "Browser renamed" notice shows, the first Escape dismisses it rather than the dialog.
-for (let press = 0; press < 3 && await playing.getByRole('dialog', { name: 'Settings' }).count(); press += 1) {
-  await playing.keyboard.press('Escape')
-  await sleep(400)
-}
+// "Saved" beside the name says it reached the device lists.
+await playing.getByRole('dialog', { name: 'Settings' }).getByRole('status').filter({ hasText: /^Saved$/ }).waitFor()
+await playing.keyboard.press('Escape')
+await playing.getByRole('dialog', { name: 'Settings' }).waitFor({ state: 'detached' })
 await playing.locator('main').focus()
 for (let press = 0; press < 16; press += 1) await playing.keyboard.press('ArrowDown')
 await playing.getByRole('button', { name: 'Play', exact: true }).first().click()

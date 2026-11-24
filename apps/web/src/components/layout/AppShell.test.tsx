@@ -94,6 +94,17 @@ describe('AppShell', () => {
       expect(screen.queryByRole('dialog', { name: 'Search' })).not.toBeInTheDocument()
     })
 
+    it('gives focus back to what had it when closed', async () => {
+      await renderShell()
+      const home = screen.getByRole('link', { name: 'Home' })
+      home.focus()
+      await press('k')
+      await userEvent.type(await searchField(), 'blue')
+      await userEvent.keyboard('{Escape}')
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Search' })).not.toBeInTheDocument())
+      await waitFor(() => expect(home).toHaveFocus())
+    })
+
     it('searches everything as you type and opens the best match with Enter', async () => {
       const { api } = await renderShell()
       await press('k')
@@ -229,6 +240,24 @@ describe('AppShell', () => {
       expect(await settings()).toBeInTheDocument()
     })
 
+    it('give focus back to the account button when opened from its menu, and to what had it when opened with the shortcut', async () => {
+      await renderShell()
+      const account = screen.getByRole('button', { name: 'Account, Alex Rivera' })
+      await userEvent.click(account)
+      await userEvent.click(await screen.findByRole('menuitem', { name: 'Settings' }))
+      await userEvent.click(within(await settings()).getByRole('button', { name: 'Close' }))
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Settings' })).not.toBeInTheDocument())
+      await waitFor(() => expect(account).toHaveFocus())
+
+      const home = screen.getByRole('link', { name: 'Home' })
+      home.focus()
+      await press(',')
+      await settings()
+      await userEvent.keyboard('{Escape}')
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Settings' })).not.toBeInTheDocument())
+      await waitFor(() => expect(home).toHaveFocus())
+    })
+
     it('open over the home page at /settings', async () => {
       await renderShell('/settings')
       expect(await settings()).toBeInTheDocument()
@@ -251,22 +280,34 @@ describe('AppShell', () => {
       await waitFor(() => expect(where()).toBe('/'))
     })
 
-    it('open on Scrobbling and say so when Last.fm sends the browser back connected', async () => {
+    it('open on Scrobbling and say there that Last.fm sent the browser back connected', async () => {
       await renderShell('/settings?lastfm=connected')
       expect(await settingsSection()).toBe('Scrobbling')
-      expect(await screen.findByText('Connected to Last.fm')).toBeInTheDocument()
+      const said = await within(await settings()).findByText('Connected to Last.fm.')
+      expect(said.closest('[role="status"]')).not.toBeNull()
       await waitFor(() => expect(where()).toBe('/'))
     })
 
     it.each([
-      ['denied', 'Last.fm was not connected'],
-      ['invalid_state', 'That Last.fm link expired'],
-      ['error', 'Last.fm did not answer'],
-      ['something-new', 'Last.fm did not answer'],
-    ])('say what went wrong when Last.fm sends the browser back with “%s”', async (result, notice) => {
+      ['denied', 'Last.fm was not connected. The connection was not approved.'],
+      ['invalid_state', 'That Last.fm link expired. Start connecting again.'],
+      ['error', 'Last.fm did not answer. Try again in a moment.'],
+      ['something-new', 'Last.fm did not answer. Try again in a moment.'],
+    ])('say in Scrobbling what went wrong when Last.fm sends the browser back with “%s”', async (result, notice) => {
       await renderShell(`/settings?lastfm=${result}`)
       expect(await settingsSection()).toBe('Scrobbling')
-      expect(await screen.findByText(notice)).toBeInTheDocument()
+      expect(await within(await settings()).findByText(notice)).toBeInTheDocument()
+    })
+
+    it('let Last.fm’s answer go once the dialog closes', async () => {
+      await renderShell('/settings?lastfm=connected')
+      const dialog = await settings()
+      expect(await within(dialog).findByText('Connected to Last.fm.')).toBeInTheDocument()
+      await userEvent.keyboard('{Escape}')
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+      await press(',')
+      await userEvent.click(within(await settings()).getByRole('button', { name: 'Scrobbling' }))
+      expect(within(await settings()).queryByText('Connected to Last.fm.')).toBeNull()
     })
 
     it('show the server’s name and version under About', async () => {
@@ -313,14 +354,25 @@ describe('AppShell', () => {
       await press('b', modifier)
       expect(folded()).toBe(true)
       expect(screen.getByRole('button', { name: 'Open sidebar' })).toBeInTheDocument()
-      expect(screen.queryByRole('list', { name: 'Playlists' })).not.toBeInTheDocument()
+      // Folded, the playlists stay as covers; only their heading and New playlist go.
+      expect(screen.getByRole('list', { name: 'Playlists' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'New playlist' })).not.toBeInTheDocument()
       expect(screen.getByRole('link', { name: 'Library' })).toBeInTheDocument()
       expect(localStorage.getItem(COLLAPSED_KEY)).toBe('1')
 
       await press('b', modifier)
       expect(folded()).toBe(false)
-      expect(screen.getByRole('list', { name: 'Playlists' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'New playlist' })).toBeInTheDocument()
       expect(localStorage.getItem(COLLAPSED_KEY)).toBe('0')
+    })
+
+    it('keeps the keyboard on the toggle when the shortcut folds and opens it', async () => {
+      await renderShell()
+      screen.getByRole('button', { name: 'Close sidebar' }).focus()
+      await press('b', 'Meta')
+      expect(screen.getByRole('button', { name: 'Open sidebar' })).toHaveFocus()
+      await press('b', 'Meta')
+      expect(screen.getByRole('button', { name: 'Close sidebar' })).toHaveFocus()
     })
 
     it('folds and opens from its own buttons, and remembers which', async () => {
@@ -489,6 +541,34 @@ describe('AppShell', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Queue' }))
       await userEvent.click(within(screen.getByRole('complementary', { name: 'Queue' })).getByRole('button', { name: 'Close queue' }))
       expect(screen.queryByRole('complementary', { name: 'Queue' })).not.toBeInTheDocument()
+      // Focus goes back to the button that opened it, not to the page's body.
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Queue' })).toHaveFocus())
+    })
+
+    it('floats as a modal below 1280px: the shell is out of reach, Tab stays in it, and Escape gives focus back', async () => {
+      vi.stubGlobal('matchMedia', (media: string) => ({
+        media,
+        matches: media.includes('max-width: 1279.98px'),
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      }))
+      await renderShell()
+      const toggle = screen.getByRole('button', { name: 'Queue' })
+      await userEvent.click(toggle)
+      const queue = screen.getByRole('dialog', { name: 'Queue' })
+      expect(queue).toHaveAttribute('aria-modal', 'true')
+      await waitFor(() => expect(queue).toContainElement(document.activeElement as HTMLElement))
+      expect(screen.getByRole('main', { hidden: true }).closest('[inert]')).not.toBeNull()
+      expect(sidebar().closest('[inert]')).not.toBeNull()
+      expect(toggle.closest('[inert]')).not.toBeNull()
+      for (let i = 0; i < 6; i++) {
+        await userEvent.tab()
+        expect(queue).toContainElement(document.activeElement as HTMLElement)
+      }
+      await userEvent.keyboard('{Escape}')
+      expect(screen.queryByRole('dialog', { name: 'Queue' })).not.toBeInTheDocument()
+      expect(screen.getByRole('main').closest('[inert]')).toBeNull()
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Queue' })).toHaveFocus())
     })
   })
 
@@ -515,6 +595,17 @@ describe('AppShell', () => {
       await userEvent.click(within(dialog).getByRole('button', { name: 'Show queue' }))
       fireEvent.wheel(within(dialog).getByText('Up next'), { deltaY: -100 })
       expect(dialog).toBeInTheDocument()
+      const showLyrics = within(dialog).getByRole('button', { name: 'Show lyrics' })
+      const lyrics = document.getElementById(showLyrics.getAttribute('aria-controls')!)
+      const queue = within(dialog).getByText('Up next').closest('[data-now-playing-scroll]')
+      expect(lyrics).toHaveAttribute('inert')
+      expect(queue).not.toHaveAttribute('inert')
+      await userEvent.click(showLyrics)
+      expect(queue).toHaveAttribute('inert')
+      expect(lyrics).not.toHaveAttribute('inert')
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Hide lyrics' }))
+      expect(queue).toHaveAttribute('inert')
+      expect(lyrics).toHaveAttribute('inert')
       fireEvent.wheel(dialog, { deltaY: -100 })
       await waitFor(() => expect(dialog).not.toBeInTheDocument())
     }, 15_000)
@@ -532,11 +623,64 @@ describe('AppShell', () => {
       await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Now Playing' })).not.toBeInTheDocument())
       expect(document.activeElement).toBe(opener)
     }, 15_000)
+
+    it('reopens with the last pane, and keeps artwork selected after the pane is hidden', async () => {
+      await renderShell()
+      await press('k')
+      await userEvent.type(await searchField(), 'amber')
+      await userEvent.click(await screen.findByRole('option', { name: 'Amber Song · Lune Park' }))
+      const opener = await screen.findByRole('button', { name: 'Now Playing' })
+      await userEvent.click(opener)
+      for (const pane of ['queue', 'lyrics']) {
+        const dialog = await screen.findByRole('dialog', { name: 'Now Playing' })
+        await userEvent.click(within(dialog).getByRole('button', { name: `Show ${pane}` }))
+        await userEvent.click(within(dialog).getByRole('button', { name: 'Close Now Playing' }))
+        await waitFor(() => expect(dialog).not.toBeInTheDocument())
+        await userEvent.click(opener)
+        const reopened = await screen.findByRole('dialog', { name: 'Now Playing' })
+        const toggle = within(reopened).getByRole('button', { name: `Hide ${pane}` })
+        expect(toggle).toHaveAttribute('aria-pressed', 'true')
+        await userEvent.click(toggle)
+      }
+      await userEvent.keyboard('{Escape}')
+      await userEvent.click(opener)
+      const reopened = await screen.findByRole('dialog', { name: 'Now Playing' })
+      expect(within(reopened).getByRole('button', { name: 'Show lyrics' })).toBeInTheDocument()
+      expect(within(reopened).getByRole('button', { name: 'Show queue' })).toBeInTheDocument()
+    }, 15_000)
   })
 
   describe('on a phone', () => {
     const opener = () => screen.getByRole('button', { name: 'Open sidebar' })
     const drawerOpen = () => !sidebar().hasAttribute('inert')
+
+    it('puts a bar with the page\'s title behind the drawer button once a page with no header bar scrolls', async () => {
+      stubViewport(true)
+      const blueHour = album('blue-hour')
+      await renderShell(`/album/${blueHour.id}`)
+      await screen.findByRole('heading', { level: 1, name: 'Blue Hour' })
+      const main = screen.getByRole('main')
+      const bar = () => document.querySelector('[aria-hidden][class*="backdrop-blur"] span')
+      expect(bar()).toBeNull()
+      main.scrollTop = 300
+      fireEvent.scroll(main)
+      await waitFor(() => expect(bar()).toHaveTextContent('Blue Hour'))
+      main.scrollTop = 0
+      fireEvent.scroll(main)
+      await waitFor(() => expect(bar()).toBeNull())
+    })
+
+    it('adds no bar over a page that has its own header bar', async () => {
+      stubViewport(true)
+      // Search keeps its field in the header on a phone; a title-only header leaves no bar.
+      await renderShell('/search')
+      const main = screen.getByRole('main')
+      await waitFor(() => expect(main.querySelector('[data-page-header]')).not.toBeNull())
+      main.scrollTop = 300
+      fireEvent.scroll(main)
+      await new Promise(resolve => requestAnimationFrame(resolve))
+      expect(document.querySelector('[aria-hidden][class*="backdrop-blur"] span')).toBeNull()
+    })
 
     it('keeps the sidebar away as a closed drawer', async () => {
       stubViewport(true)
@@ -578,7 +722,7 @@ describe('AppShell', () => {
       await userEvent.click(opener())
       await userEvent.click(within(sidebar()).getByRole('link', { name: 'Library' }))
       // The Library opens on the filter last chosen in this browser: All the first time.
-      expect(where()).toBe('/library?filter=all')
+      await waitFor(() => expect(where()).toBe('/library?filter=all'))
       expect(drawerOpen()).toBe(false)
     })
 
@@ -701,6 +845,10 @@ describe('AppShell', () => {
           <button type="button" onClick={() => void navigate('/library?filter=albums')}>to library</button>
           <button type="button" onClick={() => void navigate('/search')}>to search</button>
           <button type="button" onClick={() => void navigate('/search?q=soft', { replace: true })}>type a search</button>
+          <button type="button" onClick={() => void navigate('/search?q=soft&type=artist', { replace: true })}>filter search</button>
+          <button type="button" onClick={() => void navigate('/artist/00000000-0000-4000-8100-000000000001')}>to artist</button>
+          <button type="button" onClick={() => void navigate(`/album/${album('blue-hour').id}`)}>to album</button>
+          <button type="button" onClick={() => void navigate(1)}>forward</button>
           <button type="button" onClick={() => void navigate(-1)}>back</button>
         </>
       )
@@ -738,6 +886,27 @@ describe('AppShell', () => {
       go('back')
       await waitFor(() => expect(where()).toBe('/search?q=soft'))
       await waitFor(() => expect(scroll.top).toBe(550))
+    })
+
+    it('takes a breadcrumb back to the artist, then to the filtered search at its scroll position', async () => {
+      renderWithApp(<><AppRoutes /><Where /><Nav /></>, '/search', fakeServices().services)
+      const scroll = stubScroll(await screen.findByRole('main', { hidden: true }))
+      go('filter search')
+      scroll.scrollTo(550)
+      go('to artist')
+      go('to album')
+      go('Back to artist')
+      expect(where()).toBe('/artist/00000000-0000-4000-8100-000000000001')
+      go('Back to Search')
+      expect(where()).toBe('/search?q=soft&type=artist')
+      await waitFor(() => expect(scroll.top).toBe(550))
+      go('forward')
+      expect(screen.getByRole('button', { name: 'Back to Search' })).toBeInTheDocument()
+    })
+
+    it('leaves the breadcrumb out of a directly opened album', async () => {
+      await renderShell(`/album/${album('blue-hour').id}`)
+      expect(screen.queryByRole('navigation', { name: 'Back navigation' })).toBeNull()
     })
 
     it('waits for a page to grow tall enough before giving up on its place', async () => {

@@ -31,6 +31,8 @@ type SearchDialogProps = {
   loading: boolean
   /** Neither search could be made: the dialog says so and offers to try again. */
   failed?: boolean
+  /** The catalog could not be searched: the results are the server's own music alone, and the dialog says so. */
+  catalogFailed?: boolean
   onRetry?: () => void
   destinations: SearchDestination[]
   /** Whether a song plays when chosen (otherwise its album opens); and which artists and albums show dimmed. */
@@ -59,7 +61,7 @@ function choicesOf(results: MergedSearch | null): SearchChoice[] {
  * Quick search from anywhere: type, move with the arrow keys, Enter opens an artist or an album
  * and plays a song. With nothing typed it lists places to go. The search page has everything else.
  */
-export function SearchDialog({ open, onOpenChange, query, onQueryChange, results, stale = false, loading, failed = false, onRetry, destinations, canPlay, isDimmed, onChoose, onIntent }: SearchDialogProps) {
+export function SearchDialog({ open, onOpenChange, query, onQueryChange, results, stale = false, loading, failed = false, catalogFailed = false, onRetry, destinations, canPlay, isDimmed, onChoose, onIntent }: SearchDialogProps) {
   const listboxId = useId()
   // The row the arrow keys or the pointer picked since the last change, by key: rows the catalog
   // adds later must not move the highlight off it. Until one is picked, Enter takes the best match.
@@ -96,6 +98,20 @@ export function SearchDialog({ open, onOpenChange, query, onQueryChange, results
     const choice = choices[index]
     if (choice) onChoose(choice)
   }
+  const option = (choice: SearchChoice, index: number) => (
+    <Option
+      key={choiceKey(choice)}
+      id={optionId(index)}
+      choice={choice}
+      active={index === active}
+      stale={stale && choice.kind !== 'all'}
+      plays={choice.kind === 'result' && choice.item.type === 'track' && canPlay(choice.item.track)}
+      dimmed={choice.kind === 'result' && (choice.item.type === 'track' ? !canPlay(choice.item.track)
+        : choice.item.type === 'artist' || choice.item.type === 'album' ? isDimmed(choice.item) : false)}
+      onHover={() => pick(index)}
+      onChoose={() => choose(index)}
+    />
+  )
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -138,35 +154,39 @@ export function SearchDialog({ open, onOpenChange, query, onQueryChange, results
           {/* Phones have no Escape key. */}
           <Kbd aria-hidden className="max-md:hidden">esc</Kbd>
         </div>
-        <div className="min-h-0 overflow-y-auto p-1.5">
-          {!term && <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Go to</p>}
-          {/* A long unbroken query wraps rather than widening the dialog. */}
-          {settledEmpty && !failed && <p className="px-2.5 pb-1 pt-1.5 text-xs text-muted-foreground [overflow-wrap:anywhere]">{tooShortToSearch(term) ? 'Keep typing to search.' : `No results for “${term}”.`}</p>}
-          {term && failed && (
-            <p role="alert" className="flex items-center gap-2 px-2.5 pb-1 pt-1.5 text-xs text-muted-foreground">
-              Search didn’t work. Check your connection.
-              {onRetry && <button type="button" onClick={onRetry} className="font-medium text-foreground underline-offset-4 outline-none hover:underline focus-visible:underline">Try again</button>}
-            </p>
-          )}
-          <div id={listboxId} role="listbox" aria-label={term ? 'Results' : 'Go to'}>
-            {choices.map((choice, index) => (
-              <Option
-                key={choiceKey(choice)}
-                id={optionId(index)}
-                choice={choice}
-                active={index === active}
-                stale={stale && choice.kind !== 'all'}
-                plays={choice.kind === 'result' && choice.item.type === 'track' && canPlay(choice.item.track)}
-                dimmed={choice.kind === 'result' && (choice.item.type === 'track' ? !canPlay(choice.item.track)
-                  : choice.item.type === 'artist' || choice.item.type === 'album' ? isDimmed(choice.item) : false)}
-                onHover={() => pick(index)}
-                onChoose={() => choose(index)}
-              />
-            ))}
+        {(term ? settledEmpty || failed || catalogFailed : true) && (
+          <div className="shrink-0 px-1.5 pt-1.5">
+            {!term && <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Go to</p>}
+            {term && failed && <Notice text="Search didn’t work. Check your connection." onRetry={onRetry} />}
+            {/* Said whatever the server had: without the catalog, "No results" would say there is nothing to find. */}
+            {term && !failed && catalogFailed && <Notice text="Couldn’t search the catalog. Only music on this server is listed." onRetry={onRetry} />}
+            {/* A long unbroken query wraps rather than widening the dialog. */}
+            {settledEmpty && !failed && (
+              <p className="px-2.5 pb-1 pt-1.5 text-xs text-muted-foreground [overflow-wrap:anywhere]">
+                {tooShortToSearch(term) ? 'Keep typing to search.' : catalogFailed ? `Nothing on this server matches “${term}”.` : `No results for “${term}”.`}
+              </p>
+            )}
           </div>
+        )}
+        {/* The results scroll; the way to all of them stays in sight below them, however many there are. */}
+        <div id={listboxId} role="listbox" aria-label={term ? 'Results' : 'Go to'} className="flex min-h-0 flex-col">
+          <div className="min-h-0 overflow-y-auto p-1.5 empty:hidden">
+            {choices.map((choice, index) => choice.kind !== 'all' && option(choice, index))}
+          </div>
+          {choices.map((choice, index) => choice.kind === 'all' && <div key="all" className="shrink-0 border-t p-1.5">{option(choice, index)}</div>)}
         </div>
       </DialogFrame>
     </Dialog>
+  )
+}
+
+/** A failure above the results, with its retry: a status the field's user hears without leaving it. */
+function Notice({ text, onRetry }: { text: string; onRetry?: () => void }) {
+  return (
+    <p role="alert" className="flex flex-wrap items-center gap-x-2 px-2.5 pb-1 pt-1.5 text-xs text-muted-foreground">
+      {text}
+      {onRetry && <button type="button" onClick={onRetry} className="font-medium text-foreground underline-offset-4 outline-none hover:underline focus-visible:underline">Try again</button>}
+    </p>
   )
 }
 

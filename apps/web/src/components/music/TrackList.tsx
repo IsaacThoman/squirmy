@@ -1,7 +1,7 @@
 import type { AlbumDisc, TrackSummary } from '@squirmy/contracts'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Clock3, Disc3, MoreHorizontal, Pause, Play } from 'lucide-react'
-import { Fragment, useId, useLayoutEffect, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent } from 'react'
+import { Fragment, useId, useLayoutEffect, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent, type RefObject } from 'react'
 import { useNavigate } from 'react-router'
 import { useScrollContainer } from '@/components/layout/scroll-context'
 import { ExplicitBadge, Spinner } from '@/components/ui/feedback'
@@ -49,7 +49,8 @@ type SharedProps = {
   nowPlaying?: NowPlaying | null
   isWanted?: (track: TrackSummary) => boolean
   onPlay: (index: number) => void
-  onAction?: (action: TrackAction, track: TrackSummary, index: number) => void
+  /** Resolves (or rejects) for the actions that answer later: the menu entry waits for those. */
+  onAction?: (action: TrackAction, track: TrackSummary, index: number) => void | Promise<unknown>
   /** Playlists the track menu offers to add to. */
   playlists?: PlaylistChoice[]
   /** Makes the rows reorderable by dragging and from the menu (a playlist the user owns). */
@@ -91,10 +92,39 @@ const actionsColumn = 'flex shrink-0 items-center justify-end gap-1 @xs:min-w-28
  * Controls that appear when their row is hovered, has the keyboard's focus anywhere in it or has
  * its menu open. Phones and touch screens, which cannot hover, always show them.
  */
-const revealed = 'md:pointer-fine:opacity-0 md:pointer-fine:group-hover/row:opacity-100 md:pointer-fine:group-has-[:focus-visible]/row:opacity-100 md:pointer-fine:group-has-[[data-state=open]]/row:opacity-100'
+const revealed = 'md:pointer-fine:opacity-0 md:pointer-fine:group-hover/row:opacity-100 md:pointer-fine:group-data-[state=open]/row:opacity-100 md:pointer-fine:group-has-[:focus-visible]/row:opacity-100 md:pointer-fine:group-has-[[data-state=open]]/row:opacity-100'
 
 /** The heart and the menu button: a finger's 44 px on touch screens, with no gap between them. */
 const rowAction = 'pointer-coarse:size-11'
+
+/**
+ * How many of the links in `box`, a line cut short with an ellipsis, are drawn whole: the rest
+ * leave the Tab order, stops with nothing to see. It follows the line's width (the row's columns
+ * change with the window, the sidebar and the queue) and its words (`text`). The row's menu goes
+ * to the album and each artist whatever is cut.
+ */
+function useWholeLinks(box: RefObject<HTMLElement | null>, text: string): number {
+  const [whole, setWhole] = useState(Number.POSITIVE_INFINITY)
+  useLayoutEffect(() => {
+    const element = box.current
+    if (!element) return
+    const measure = () => {
+      const edge = element.getBoundingClientRect().right
+      let count = 0
+      // A half pixel of slack: a link that ends at the edge is whole, however its width rounds.
+      for (const link of element.querySelectorAll('a')) {
+        if (link.getBoundingClientRect().right > edge + 0.5) break
+        count += 1
+      }
+      setWhole(count)
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [box, text])
+  return whole
+}
 
 /** Where a row dragged within its list would land: before or after the row under the pointer. */
 type DropTarget = { index: number; side: 'before' | 'after' }
@@ -167,10 +197,11 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
   const playButton = (overArt: boolean) => !unavailable && (
     <button
       type="button"
+      data-slot="row-play"
       aria-label={playing ? `Pause ${track.title}` : `Play ${track.title}`}
       onClick={play}
       className={cn(
-        'peer absolute inset-0 flex items-center justify-center opacity-0 outline-none transition-opacity focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring group-hover/row:opacity-100',
+        'peer absolute inset-0 flex items-center justify-center opacity-0 outline-none transition-opacity focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring group-hover/row:opacity-100 group-data-[state=open]/row:opacity-100',
         overArt ? 'rounded-[5px] text-white' : 'rounded-md text-foreground',
       )}
     >
@@ -184,11 +215,15 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
    * What the play button replaces while the row is hovered or the button has focus. Faded out it
    * still paints over the button (its opacity makes it a layer of its own), so it lets clicks through.
    */
-  const resting = cn('pointer-events-none transition-opacity', !unavailable && 'group-hover/row:opacity-0 peer-focus-visible:opacity-0')
+  const resting = cn('pointer-events-none transition-opacity', !unavailable && 'group-hover/row:opacity-0 group-data-[state=open]/row:opacity-0 peer-focus-visible:opacity-0')
 
+  const creditLine = useRef<HTMLDivElement>(null)
+  const wholeCredits = useWholeLinks(creditLine, track.artistCredit)
+  const albumLine = useRef<HTMLDivElement>(null)
+  const albumWhole = useWholeLinks(albumLine, track.album?.title ?? '') > 0
   const title = (
     <div className="flex min-w-0 items-center gap-1.5">
-      <span title={track.title} className={cn('truncate text-sm font-medium', current && 'text-primary', unavailable && 'text-faded-foreground')}>{track.title}</span>
+      <span title={track.title} className={cn('truncate text-sm font-medium', unavailable && 'text-faded-foreground')}>{track.title}</span>
       {track.explicit && <ExplicitBadge />}
       {unavailable && <span className="sr-only">({UNAVAILABLE_LABEL})</span>}
     </div>
@@ -196,17 +231,17 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
   // Under the title. On an album page only where they are not the album's own (a featured artist):
   // a column repeating the album's artist on every row says nothing.
   const showArtists = !album || albumCredit === undefined || track.artistCredit !== albumCredit
-  // The links leave the Tab order: cut short, they would be stops with nothing to see. The row's
-  // menu goes to each artist and the album, and the tooltip has the whole credit.
+  // A link the ellipsis cuts leaves the Tab order (`useWholeLinks`); the tooltip has the whole credit.
   const artists = (
-    <div title={track.artistCredit} className={cn('min-w-0 truncate text-xs', unavailable ? 'text-faded-foreground' : 'text-muted-foreground')}>
-      <ArtistLinks credit={track} plain={unavailable} focusable={false} />
+    <div ref={creditLine} title={track.artistCredit} className={cn('min-w-0 truncate text-xs', unavailable ? 'text-faded-foreground' : 'text-muted-foreground')}>
+      <ArtistLinks credit={track} plain={unavailable} focusable={index => index < wholeCredits} />
     </div>
   )
 
   return (
     <ContextMenu entries={menu}>
       <li
+        data-slot="track-row"
         aria-current={current ? 'true' : undefined}
         // Only playing is unavailable, and the title says so to screen readers; the heart and the
         // menu still work, so the row is not marked disabled (that would disable them too).
@@ -225,7 +260,7 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
         data-drop={dropSide}
         style={style}
         className={cn(
-          'group/row @container select-none rounded-md px-2 transition-colors',
+          'group/row @container select-none rounded-md px-2 transition-colors data-[state=open]:bg-accent/60',
           'data-[drop=after]:shadow-[inset_0_-2px_0_var(--primary)] data-[drop=before]:shadow-[inset_0_2px_0_var(--primary)]',
           // Gray, but at 3:1 or more in every theme (`color-themes.test.ts`), so the song can still be read.
           unavailable ? 'text-faded-foreground' : 'hover:bg-accent/60 has-[:focus-visible]:bg-accent/60 has-[[data-state=open]]:bg-accent/60 pointer-coarse:active:bg-accent/60',
@@ -247,7 +282,7 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
               <div className="relative size-8 shrink-0">
                 <Cover artwork={track.album?.artwork ?? null} size={96} dimmed={unavailable} className="size-8 rounded-[5px]" />
                 {variant === 'compact' && (
-                  <div className={cn('absolute inset-0 flex items-center justify-center rounded-[5px] transition-colors', current ? 'bg-black/50' : !unavailable && 'group-hover/row:bg-black/50 has-[:focus-visible]:bg-black/50')}>
+                  <div className={cn('absolute inset-0 flex items-center justify-center rounded-[5px] transition-colors', current ? 'bg-black/50' : !unavailable && 'group-hover/row:bg-black/50 group-data-[state=open]/row:bg-black/50 has-[:focus-visible]:bg-black/50')}>
                     {playButton(true)}
                     <span className={resting}>{marker(true)}</span>
                   </div>
@@ -261,14 +296,14 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', now
           )}
 
           {albumColumnOf(variant, addedAt !== undefined) && (
-            <div className={cn('min-w-0 truncate text-sm', unavailable ? 'text-faded-foreground' : 'text-muted-foreground', albumColumnOf(variant, addedAt !== undefined))}>
-              {track.album && <PrefetchLink kind="album" id={track.album.id} to={`/album/${track.album.id}`} title={track.album.title} tabIndex={-1} className={cn('hover:underline', !unavailable && 'hover:text-foreground')}>{track.album.title}</PrefetchLink>}
+            <div ref={albumLine} className={cn('min-w-0 truncate text-sm', unavailable ? 'text-faded-foreground' : 'text-muted-foreground', albumColumnOf(variant, addedAt !== undefined))}>
+              {track.album && <PrefetchLink kind="album" id={track.album.id} to={`/album/${track.album.id}`} title={track.album.title} tabIndex={albumWhole ? undefined : -1} className={cn('hover:underline', !unavailable && 'hover:text-foreground')}>{track.album.title}</PrefetchLink>}
             </div>
           )}
           {variant === 'playlist' && addedAt !== undefined && <div className="hidden truncate text-sm text-muted-foreground @2xl:block">{formatRelative(addedAt)}</div>}
 
           <div className={actionsColumn}>
-            {onAction && <SaveHeart liked={liked} onToggle={() => act('like')} title={track.title} tooltip={false} size="sm" className={cn(rowAction, !liked && revealed)} />}
+            {onAction && <SaveHeart id={track.id} liked={liked} onToggle={() => act('like')} title={track.title} tooltip={false} size="sm" className={cn(rowAction, !liked && revealed)} />}
             <span className={cn('hidden min-w-10 shrink-0 whitespace-nowrap text-right text-xs tabular @xs:block', unavailable ? 'text-faded-foreground' : 'text-muted-foreground')}>{track.durationMs ? formatDuration(track.durationMs) : '–'}</span>
             <DropdownMenu
               entries={menu}

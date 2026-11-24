@@ -1,5 +1,5 @@
 import { ApiError, type ApiClient } from '@squirmy/client-core'
-import type { Import, ImportFileRejection, ImportFileResult, ImportOptions } from '@squirmy/contracts'
+import { importFileKind, type Import, type ImportFileRejection, type ImportFileResult, type ImportOptions } from '@squirmy/contracts'
 import { errorMessage } from '@/api/errors'
 
 /** A file chosen for upload, with its path inside the import (`Album/01 Song.flac`). */
@@ -84,6 +84,12 @@ async function walk(entry: FileSystemEntry, found: PickedFile[]) {
   }
 }
 
+/** Why the server would refuse a file before it is sent, or null when it may take it. */
+export function localRejection(path: string, size: number, maxFileBytes: number): UploadRejection | null {
+  if (!importFileKind(path)) return 'unsupported_type'
+  return size > maxFileBytes ? 'file_too_large' : null
+}
+
 /** What to call an import of these files: the one folder or file dropped, else a count. */
 export function uploadLabel(files: readonly PickedFile[]): string {
   const tops = new Set(files.map(picked => picked.path.split('/')[0]))
@@ -120,9 +126,11 @@ export class Upload {
     this.api = api
     this.picked = picked
     this.label = uploadLabel(picked)
-    this.files = picked.map(({ file, path }) => file.size > options.maxFileBytes
-      ? { path, size: file.size, sent: 0, status: 'rejected', reason: 'file_too_large' }
-      : { path, size: file.size, sent: 0, status: 'waiting', reason: null })
+    // What the server would refuse by name or size is refused here, so it shows before anything is sent.
+    this.files = picked.map(({ file, path }) => {
+      const reason = localRejection(path, file.size, options.maxFileBytes)
+      return { path, size: file.size, sent: 0, status: reason ? 'rejected' : 'waiting', reason }
+    })
     this.snapshot = this.build('ready', null, null)
   }
 

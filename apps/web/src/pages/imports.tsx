@@ -11,6 +11,7 @@ import { Link, useParams } from 'react-router'
 import { importsKey, isNotFound } from '@/api/queries'
 import { useApi } from '@/api/services'
 import { useCurrentUser } from '@/auth/session'
+import { useNote } from '@/components/admin/note'
 import { ImportDetail } from '@/components/imports/ImportDetail'
 import { ImportsList } from '@/components/imports/ImportsList'
 import { NotTaken, UploadPanel } from '@/components/imports/UploadPanel'
@@ -19,7 +20,6 @@ import { Button } from '@/components/ui/button'
 import { EmptyState, Skeleton } from '@/components/ui/feedback'
 import { LoadError, QueryState } from '@/components/ui/query-state'
 import { canUploadMusic } from '@/lib/catalog'
-import { toast } from '@/lib/toast'
 import { byPath, droppedFiles, pickedFiles, Upload, type PickedFile } from '@/lib/upload'
 import { useServerEvent } from '@/realtime/realtime-context'
 import { NotFoundPage } from './music'
@@ -60,7 +60,7 @@ function useOwners() {
   const api = useApi()
   const me = useCurrentUser()
   const isAdmin = me.role === 'admin'
-  const users = useQuery({ queryKey: queryKeys.adminUsers(), queryFn: () => api.admin.users(), enabled: isAdmin, meta: { silent: true } })
+  const users = useQuery({ queryKey: queryKeys.adminUsers(), queryFn: () => api.admin.users(), enabled: isAdmin })
   const names = new Map(users.data?.items.map(user => [user.id, user.id === me.id ? 'you' : `@${user.username}`]))
   return (item: Import) => (isAdmin && item.userId ? names.get(item.userId) ?? null : null)
 }
@@ -68,13 +68,12 @@ function useOwners() {
 /** A live import, starting from what is already known of it. */
 function useImport(id: string | undefined, initial?: Import | null) {
   const api = useApi()
-  const item = useQuery({ queryKey: importKey(id ?? ''), queryFn: () => api.imports.get(id!), enabled: !!id, initialData: initial ?? undefined, meta: { silent: true } })
+  const item = useQuery({ queryKey: importKey(id ?? ''), queryFn: () => api.imports.get(id!), enabled: !!id, initialData: initial ?? undefined })
   const albums = useQuery({
     queryKey: albumsKey(id ?? ''),
     queryFn: () => api.imports.albums(id!),
     enabled: item.data?.status === 'completed',
     select: page => page.items,
-    meta: { silent: true },
   })
   return { item, albums: albums.data }
 }
@@ -84,10 +83,8 @@ function useCancelImport() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (item: Import) => api.imports.cancel(item.id),
-    onSuccess: () => {
-      toast({ title: 'Import cancelled', description: 'The files it received are gone.' })
-      return queryClient.invalidateQueries({ queryKey: importsKey })
-    },
+    // The row or the page that cancelled it says so, or why it could not.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: importsKey }),
   })
 }
 
@@ -111,13 +108,15 @@ function AddMusic() {
   const user = useCurrentUser()
   const isAdmin = user.role === 'admin'
   useImportEvents()
-  // Silent: a failure is said in place of the panel it leaves empty, with a retry.
-  const options = useQuery({ queryKey: optionsKey, queryFn: () => api.imports.options(), meta: { silent: true } })
-  const recent = useQuery({ queryKey: listKey, queryFn: () => api.imports.list({ limit: 30 }), select: page => page.items, meta: { silent: true } })
+  // A failure is said in place of the panel it leaves empty, with a retry.
+  const options = useQuery({ queryKey: optionsKey, queryFn: () => api.imports.options() })
+  const recent = useQuery({ queryKey: listKey, queryFn: () => api.imports.list({ limit: 30 }), select: page => page.items })
   const ownerOf = useOwners()
   const cancelImport = useCancelImport()
   const { upload, snapshot } = useActiveUpload()
   const [reading, setReading] = useState(false)
+  // What a choice or a cancel came to when the panel shows nothing of it, said on the panel.
+  const { note, setNote } = useNote()
   const committed = snapshot?.phase === 'committed' ? snapshot.import : null
   const live = useImport(committed?.id, committed)
 
@@ -132,7 +131,8 @@ function AddMusic() {
 
   const choose = (picked: PickedFile[]) => {
     if (!options.data) return
-    if (!picked.length) return toast({ title: 'Nothing to upload', description: 'No files were found in what you chose.' })
+    if (!picked.length) return setNote({ tone: 'error', text: 'Nothing to upload. No files were found in what you chose.' })
+    setNote(null)
     // Files added before the upload starts join it; the same path is not added twice.
     const before = snapshot?.phase === 'ready' ? upload!.picked : []
     const paths = new Set(before.map(file => file.path))
@@ -160,9 +160,10 @@ function AddMusic() {
             isAdmin={isAdmin}
             upload={snapshot}
             reading={reading}
+            note={note}
             onDrop={transfer => {
               setReading(true)
-              droppedFiles(transfer).then(choose, () => toast({ title: 'That could not be read', description: 'Try choosing the folder instead.' })).finally(() => setReading(false))
+              droppedFiles(transfer).then(choose, () => setNote({ tone: 'error', text: 'That could not be read. Try choosing the folder instead.' })).finally(() => setReading(false))
             }}
             onPick={files => choose(pickedFiles(files))}
             onStart={() => void upload?.start()}
@@ -170,16 +171,21 @@ function AddMusic() {
             onCancel={() => {
               void upload?.cancel()
               setActive(null)
-              toast({ title: 'Upload cancelled', description: 'Nothing from it was kept.' })
+              setNote({ tone: 'info', text: 'Upload cancelled. Nothing from it was kept.' })
             }}
             onClear={() => setActive(null)}
+            onRemove={path => {
+              if (!upload || !options.data) return
+              const rest = upload.picked.filter(file => file.path !== path)
+              setActive(rest.length ? new Upload(api.imports, rest, options.data) : null)
+            }}
           />
         )}
 
         <section aria-labelledby="recent-imports">
           <h2 id="recent-imports" className="mb-3 text-base font-semibold">{isAdmin ? 'Recent imports' : 'Your imports'}</h2>
-          <QueryState query={recent} loading={<ImportsList imports={undefined} ownerOf={ownerOf} onCancel={() => {}} />} errorTitle="Your imports did not load">
-            {imports => <ImportsList imports={imports} ownerOf={ownerOf} onCancel={item => cancelImport.mutate(item)} />}
+          <QueryState query={recent} loading={<ImportsList imports={undefined} ownerOf={ownerOf} onCancel={async () => {}} />} errorTitle="Your imports did not load">
+            {imports => <ImportsList imports={imports} ownerOf={ownerOf} onCancel={item => cancelImport.mutateAsync(item)} />}
           </QueryState>
         </section>
       </Page>
@@ -209,7 +215,7 @@ export function ImportPage() {
       <Page className="flex max-w-4xl flex-col gap-4">
         <Link to="/imports" className="-ml-1 inline-flex items-center gap-1 self-start rounded-md pr-1.5 text-sm text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"><ChevronLeft className="size-4" />Add music</Link>
         {item.data
-          ? <ImportDetail item={item.data} owner={ownerOf(item.data)} albums={albums} isAdmin={user.role === 'admin'} onCancel={() => cancelImport.mutate(item.data)} />
+          ? <ImportDetail item={item.data} owner={ownerOf(item.data)} albums={albums} isAdmin={user.role === 'admin'} onCancel={() => cancelImport.mutateAsync(item.data)} />
           : <Skeleton className="h-64 rounded-xl" />}
       </Page>
     </>

@@ -4,7 +4,7 @@ import {
 import { useCallback, useMemo, useSyncExternalStore } from 'react'
 
 /**
- * The search page's recent searches and results, kept in this browser per user
+ * Results opened or played from Search, kept in this browser per user
  * (`localStorage`, `squirmy.search.recent.<user id>`) and shared by its tabs. Storage is
  * optional: where it is refused the list lives for the page's life.
  */

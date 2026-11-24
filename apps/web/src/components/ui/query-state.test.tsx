@@ -10,7 +10,7 @@ import { LoadError, QueryState } from './query-state'
 const refused = () => new ApiError(403, 'forbidden', 'The server said no.')
 
 function Harness({ load }: { load: () => Promise<string> }) {
-  const query = useQuery({ queryKey: ['harness'], queryFn: load, meta: { silent: true } })
+  const query = useQuery({ queryKey: ['harness'], queryFn: load })
   return (
     <QueryState query={query} loading={<p>Loading…</p>} errorTitle="The list did not load">
       {data => <p>Got {data}</p>}

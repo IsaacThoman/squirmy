@@ -15,3 +15,114 @@
 @keyframes now-playing-lower {
   to { transform: translateY(100%); }
 }
+
+.now-playing-stage {
+  --pane-duration: 240ms;
+  --pane-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --pane-gap: 3rem;
+  container-type: inline-size;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+}
+
+.now-playing-art,
+.now-playing-details {
+  grid-area: 1 / 1;
+}
+
+.now-playing-details {
+  width: 100%;
+  max-width: 44rem;
+  margin-inline: auto;
+  /* The inactive layer should leave the artwork's wheel gesture reachable. */
+  pointer-events: none;
+}
+
+.now-playing-pane {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 100%;
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(0.5rem);
+}
+
+.now-playing-stage[data-pane='lyrics'] .now-playing-lyrics,
+.now-playing-stage[data-pane='queue'] .now-playing-queue {
+  visibility: visible;
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.now-playing-small-cover {
+  width: 0;
+  margin-inline-end: -0.75rem;
+  opacity: 0;
+}
+
+.now-playing-small-cover[data-show='true'] {
+  width: 3rem;
+  margin-inline-end: 0;
+  opacity: 1;
+}
+
+@media (width < 64rem) {
+  .now-playing-stage:not([data-pane='art']) .now-playing-art {
+    visibility: hidden;
+    opacity: 0;
+    transform: scale(0.97);
+    pointer-events: none;
+  }
+}
+
+@media (width >= 64rem) {
+  .now-playing-stage {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0fr);
+    column-gap: 0;
+  }
+
+  .now-playing-stage:not([data-pane='art']) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: var(--pane-gap);
+  }
+
+  .now-playing-details {
+    grid-column: 2;
+    max-width: none;
+    overflow: clip;
+  }
+
+  /* Keep the pane laid out at its open width as the column moves into view. */
+  .now-playing-pane {
+    width: calc((100cqw - var(--pane-gap)) / 2);
+  }
+
+  .now-playing-queue > * {
+    max-width: 36rem;
+    margin-inline: auto;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .now-playing-stage {
+    transition: grid-template-columns var(--pane-duration) var(--pane-ease),
+      column-gap var(--pane-duration) var(--pane-ease);
+  }
+
+  .now-playing-pane,
+  .now-playing-art {
+    transition: opacity 180ms ease, transform var(--pane-duration) var(--pane-ease),
+      visibility 0s linear var(--pane-duration);
+  }
+
+  .now-playing-stage[data-pane='art'] .now-playing-art,
+  .now-playing-stage[data-pane='lyrics'] .now-playing-lyrics,
+  .now-playing-stage[data-pane='queue'] .now-playing-queue {
+    transition-delay: 0s;
+  }
+
+  .now-playing-small-cover {
+    transition: width 240ms ease, margin-inline-end 240ms ease, opacity 180ms ease;
+  }
+}

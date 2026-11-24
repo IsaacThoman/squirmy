@@ -1,13 +1,12 @@
 import type { AlbumDetail } from '@squirmy/contracts'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from '@/App'
 import { album, artistDetail, summary } from '@/fixtures/catalog'
 import { users } from '@/fixtures/server'
 import { fakeServices } from '@/test/fake-services'
 import { renderWithApp } from '@/test/render'
-import { dismissToast, toastStore } from '@/lib/toast'
 import { TRACK_LIST_WAIT_MS } from './AlbumView'
 import { AlbumPreview } from './Previews'
 
@@ -17,11 +16,8 @@ const slowMotion = album('slow-motion')
 /** A member who may not have the server fetch music. */
 const robin = users[2]!
 const machinery = /on demand|library yet|get this album|preparing|not on the server|in your library|fetch/i
-const toasts = () => [...document.querySelectorAll('[data-toast]')].map(item => item.textContent)
-
-afterEach(() => {
-  for (const item of toastStore.getSnapshot()) dismissToast(item.id)
-})
+/** What the heart says beside itself when the server refused it. */
+const heartSays = async () => (await screen.findByRole('tooltip')).textContent
 
 describe('album page', () => {
   describe('for someone the server fetches music for', () => {
@@ -51,7 +47,6 @@ describe('album page', () => {
       await userEvent.click(await screen.findByRole('button', { name: 'Save to library' }))
       expect(screen.getByRole('button', { name: 'Remove from library' })).toBeInTheDocument()
       expect(api.userdata.like).toHaveBeenCalledWith('album', lowTide.id)
-      expect(await screen.findByText('Saved to your library')).toBeInTheDocument()
       await userEvent.click(screen.getByRole('button', { name: 'Remove from library' }))
       expect(await screen.findByRole('button', { name: 'Save to library' })).toBeInTheDocument()
       expect(api.userdata.unlike).toHaveBeenCalledWith('album', lowTide.id)
@@ -67,6 +62,9 @@ describe('album page', () => {
       expect(entries.filter(entry => /library|like/i.test(entry ?? ''))).toEqual(['Save to library'])
       await userEvent.click(screen.getByRole('menuitem', { name: 'Save to library' }))
       expect(api.userdata.like).toHaveBeenCalledWith('album', lowTide.id)
+      // The entry waits for the server, says it worked, and the menu closes.
+      expect(await screen.findByRole('menuitem', { name: 'Saved to library' })).toBeInTheDocument()
+      await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
       expect(screen.getByRole('button', { name: 'Remove from library' })).toBeInTheDocument()
       await userEvent.click(screen.getByRole('button', { name: 'More options' }))
       expect(await screen.findByRole('menuitem', { name: 'Remove from library' })).toBeInTheDocument()
@@ -79,7 +77,8 @@ describe('album page', () => {
       await userEvent.click(await screen.findByRole('button', { name: `More options for ${edit.title}` }))
       await userEvent.click(await screen.findByRole('menuitem', { name: 'Save to library' }))
       expect(api.userdata.like).toHaveBeenCalledWith('track', edit.id)
-      expect(await screen.findByText('Saved to your library')).toBeInTheDocument()
+      expect(await screen.findByRole('menuitem', { name: 'Saved to library' })).toBeInTheDocument()
+      await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
       expect(screen.getByRole('button', { name: `Remove ${edit.title} from library` })).toBeInTheDocument()
     })
 
@@ -96,13 +95,14 @@ describe('album page', () => {
       expect(api.search.catalog.mock.calls.length + api.search.library.mock.calls.length).toBe(searches)
     })
 
-    it('undoes a save from its toast', async () => {
+    it('saves without a word: the filled heart says it', async () => {
       const { services, api } = fakeServices()
       renderWithApp(<AppRoutes />, `/album/${lowTide.id}`, services)
       await userEvent.click(await screen.findByRole('button', { name: 'Save to library' }))
-      await userEvent.click(await screen.findByRole('button', { name: 'Undo' }))
-      expect(api.userdata.unlike).toHaveBeenCalledWith('album', lowTide.id)
-      expect(await screen.findByRole('button', { name: 'Save to library' })).toBeInTheDocument()
+      await waitFor(() => expect(api.userdata.like).toHaveBeenCalledWith('album', lowTide.id))
+      expect(screen.getByRole('button', { name: 'Remove from library' })).toBeInTheDocument()
+      expect(screen.queryByText(/Saved to/)).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
     })
 
     // Regression: the optimistic save reached the heart through the query cache a timer later, so
@@ -116,7 +116,6 @@ describe('album page', () => {
       await act(() => Promise.resolve())
       expect(screen.getByRole('button', { name: 'Remove from library' })).toBeInTheDocument()
       // And it stays filled once the cache has the save.
-      expect(await screen.findByText('Saved to your library')).toBeInTheDocument()
       await waitFor(() => expect(api.userdata.like).toHaveBeenCalledWith('album', lowTide.id))
       expect(screen.getByRole('button', { name: 'Remove from library' })).toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: 'Remove from library' }))
@@ -147,52 +146,35 @@ describe('album page', () => {
       renderWithApp(<AppRoutes />, `/album/${lowTide.id}`, services)
       fireEvent.click(await screen.findByRole('button', { name: 'Save to library' }))
       await act(() => Promise.resolve())
-      expect(await screen.findByText('Couldn’t save to your library')).toBeInTheDocument()
+      expect(await heartSays()).toBe('Couldn’t save. Try again.')
       expect(screen.getByRole('button', { name: 'Save to library' })).toBeInTheDocument()
     })
 
-    it('puts the heart back when the server refuses, and replaces the toast with one that says so', async () => {
+    it('says beside the heart that the server refused, names the album to screen readers, and lets it be pressed again', async () => {
       const { services, api } = fakeServices()
       api.userdata.like.mockRejectedValueOnce(new Error('No'))
       renderWithApp(<AppRoutes />, `/album/${lowTide.id}`, services)
-      await userEvent.click(await screen.findByRole('button', { name: 'Save to library' }))
-      expect(await screen.findByText('Couldn’t save to your library')).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Save to library' })).toBeInTheDocument()
-      expect(screen.queryByText('Saved to your library')).toBeNull()
+      const heart = await screen.findByRole('button', { name: 'Save to library' })
+      await userEvent.click(heart)
+      expect(await heartSays()).toBe('Couldn’t save. Try again.')
+      // The tooltip belongs to the heart, which keeps focus.
+      expect(screen.getByRole('button', { name: 'Save to library' })).toBe(heart)
+      expect(heart).toHaveFocus()
+      expect(screen.getAllByRole('status').map(status => status.textContent)).toContain('Couldn’t save “Low Tide” to your library. Try again.')
 
-      await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
-      expect(await screen.findByText('Saved to your library')).toBeInTheDocument()
-      expect(api.userdata.like).toHaveBeenCalledTimes(2)
+      await userEvent.click(heart)
+      await waitFor(() => expect(api.userdata.like).toHaveBeenCalledTimes(2))
       expect(screen.getByRole('button', { name: 'Remove from library' })).toBeInTheDocument()
-      expect(screen.queryByText('Couldn’t save to your library')).toBeNull()
+      await waitFor(() => expect(screen.queryByText('Couldn’t save. Try again.')).toBeNull())
     })
 
-    it('says a refused removal did not happen', async () => {
+    it('says beside the heart that a refused removal did not happen', async () => {
       const { services, api } = fakeServices()
       api.userdata.unlike.mockRejectedValueOnce(new Error('No'))
       renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
       await userEvent.click(await screen.findByRole('button', { name: 'Remove from library' }))
-      expect(await screen.findByText('Couldn’t remove from your library')).toBeInTheDocument()
-      expect(screen.queryByText('Removed from your library')).toBeNull()
+      expect(await heartSays()).toBe('Couldn’t remove. Try again.')
       expect(screen.getByRole('button', { name: 'Remove from library' })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
-    })
-
-    it('says so when the album is saved, naming it', async () => {
-      renderWithApp(<AppRoutes />, `/album/${lowTide.id}`)
-      await userEvent.click(await screen.findByRole('button', { name: 'Save to library' }))
-      await waitFor(() => expect(toasts()).toContain('Saved to your libraryLow TideUndo'))
-    })
-
-    it('puts an album removed and then undone back where it was in Recently added', async () => {
-      const { services, api } = fakeServices()
-      const savedAt = '2026-10-01T12:00:00.000Z'
-      api.userdata.unlike.mockResolvedValueOnce({ ok: true, savedAt })
-      renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
-      await userEvent.click(await screen.findByRole('button', { name: 'Remove from library' }))
-      await userEvent.click(await screen.findByRole('button', { name: 'Undo' }))
-      await waitFor(() => expect(api.userdata.like).toHaveBeenCalledWith('album', blueHour.id, { savedAt }))
-      expect(await screen.findByRole('button', { name: 'Remove from library' })).toBeInTheDocument()
     })
 
     it('saves the song playing from the heart in Now Playing, its only library control', async () => {
@@ -308,6 +290,19 @@ describe('album page', () => {
     expect(screen.queryByText('Artist', { selector: 'span' })).toBeNull()
   })
 
+  it('plays the album as a whole from its header, and a song by name from its row', async () => {
+    const { services, socket } = fakeServices()
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    await screen.findByRole('list', { name: 'Blue Hour tracks' })
+    const startedFrom = () => socket.commands.filter(command => command.type === 'playTracks').map(command => command.type === 'playTracks' && command.startedFrom)
+    // A row: that song, which stays put if it cannot be had.
+    await userEvent.click(screen.getByRole('button', { name: `Play ${blueHour.discs[0].tracks[2]!.title}` }))
+    // The header: past a first song that cannot be had, as streaming apps do.
+    await userEvent.click(screen.getAllByRole('button', { name: 'Play Blue Hour' })[0]!)
+    await userEvent.click(screen.getByRole('button', { name: 'Shuffle Blue Hour' }))
+    await waitFor(() => expect(startedFrom()).toEqual(['song', 'collection', 'collection']))
+  })
+
   it('credits several artists as the credit reads, each a link', async () => {
     const { services, api } = fakeServices()
     const [mira, lune] = [blueHour.artists[0]!, slowMotion.artists[0]!]
@@ -326,6 +321,20 @@ describe('album page', () => {
     const items = (await screen.findAllByRole('menuitem')).map(item => item.textContent)
     expect(items).not.toContain('Go to album')
     expect(items).toContain('Go to artist')
+  })
+
+  it('lists the songs first, then the release date and label, and the description last', async () => {
+    const { services, api } = fakeServices()
+    api.catalog.album.mockResolvedValue({ ...blueHour, releaseDate: '2025-03-14' })
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    const songs = await screen.findByRole('list', { name: 'Blue Hour tracks' })
+    const date = screen.getByText('Mar 14, 2025')
+    const label = screen.getByText(`℗ ${blueHour.year} ${blueHour.label}`)
+    const description = screen.getByText(blueHour.description!)
+    const follows = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(follows(songs, date)).toBe(true)
+    expect(follows(date, label)).toBe(true)
+    expect(follows(label, description)).toBe(true)
   })
 
   it('prints the release date as written, at the precision it has', async () => {
@@ -347,7 +356,8 @@ describe('album page', () => {
     const versions = await screen.findByRole('region', { name: 'Other versions' })
     expect(within(versions).getByRole('link', { name: 'Blue Hour (Deluxe Edition)' })).toHaveAttribute('href', `/album/${deluxe.id}`)
     const more = screen.getByRole('region', { name: `More by ${mira.name}` })
-    const titles = within(more).getAllByRole('link').map(link => link.textContent).filter(title => title && title !== 'See all')
+    // The title attribute is the album's own: an unavailable one's link also says so to screen readers.
+    const titles = within(more).getAllByRole('link').filter(link => link.textContent !== 'See all').map(link => link.getAttribute('title'))
     // Albums and EPs before live albums and singles; never the album itself or a version of it.
     expect(titles).toEqual(['Paper Moons', 'Live at the Glasshouse', 'Low Tide'])
     expect(within(more).getByRole('link', { name: 'See all' })).toHaveAttribute('href', `/artist/${mira.id}`)

@@ -1,0 +1,192 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/search/album?q=gladiator+hans+zimmer&limit=6"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "data": [
+        {
+          "id": 296255,
+          "title": "Gladiator - Music From The Motion Picture",
+          "link": "https://www.deezer.com/album/296255",
+          "cover": "https://api.deezer.com/album/296255/image",
+          "cover_small": "https://cdn-images.dzcdn.net/images/cover/e4a2b155bcfe69895de1eacfffcc9b70/56x56-000000-80-0-0.jpg",
+          "cover_medium": "https://cdn-images.dzcdn.net/images/cover/e4a2b155bcfe69895de1eacfffcc9b70/250x250-000000-80-0-0.jpg",
+          "cover_big": "https://cdn-images.dzcdn.net/images/cover/e4a2b155bcfe69895de1eacfffcc9b70/500x500-000000-80-0-0.jpg",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/e4a2b155bcfe69895de1eacfffcc9b70/1000x1000-000000-80-0-0.jpg",
+          "md5_image": "e4a2b155bcfe69895de1eacfffcc9b70",
+          "genre_id": 173,
+          "nb_tracks": 17,
+          "record_type": "album",
+          "tracklist": "https://api.deezer.com/album/296255/tracks",
+          "explicit_lyrics": false,
+          "artist": {
+            "id": 4415115,
+            "name": "The Lyndhurst Orchestra",
+            "link": "https://www.deezer.com/artist/4415115",
+            "picture": "https://api.deezer.com/artist/4415115/image",
+            "picture_small": "https://cdn-images.dzcdn.net/images/artist/7626eb4fd4aad44acae4986e5852498b/56x56-000000-80-0-0.jpg",
+            "picture_medium": "https://cdn-images.dzcdn.net/images/artist/7626eb4fd4aad44acae4986e5852498b/250x250-000000-80-0-0.jpg",
+            "picture_big": "https://cdn-images.dzcdn.net/images/artist/7626eb4fd4aad44acae4986e5852498b/500x500-000000-80-0-0.jpg",
+            "picture_xl": "https://cdn-images.dzcdn.net/images/artist/7626eb4fd4aad44acae4986e5852498b/1000x1000-000000-80-0-0.jpg",
+            "tracklist": "https://api.deezer.com/artist/4415115/top?limit=50",
+            "type": "artist"
+          },
+          "type": "album"
+        },
+        {
+          "id": 94012042,
+          "title": "Gladiator Orchestra Suite (Live)",
+          "link": "https://www.deezer.com/album/94012042",
+          "cover": "https://api.deezer.com/album/94012042/image",
+          "cover_small": "https://cdn-images.dzcdn.net/images/cover/804378dfbcdcac558fb0e3c815b80b37/56x56-000000-80-0-0.jpg",
+          "cover_medium": "https://cdn-images.dzcdn.net/images/cover/804378dfbcdcac558fb0e3c815b80b37/250x250-000000-80-0-0.jpg",
+          "cover_big": "https://cdn-images.dzcdn.net/images/cover/804378dfbcdcac558fb0e3c815b80b37/500x500-000000-80-0-0.jpg",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/804378dfbcdcac558fb0e3c815b80b37/1000x1000-000000-80-0-0.jpg",
+          "md5_image": "804378dfbcdcac558fb0e3c815b80b37",
+          "genre_id": 98,
+          "nb_tracks": 3,
+          "record_type": "single",
+          "tracklist": "https://api.deezer.com/album/94012042/tracks",
+          "explicit_lyrics": false,
+          "artist": {
+            "id": 1935,
+            "name": "Hans Zimmer",
+            "link": "https://www.deezer.com/artist/1935",
+            "picture": "https://api.deezer.com/artist/1935/image",
+            "picture_small": "https://cdn-images.dzcdn.net/images/artist/1bd0b9f7a3cf12e01bdcc26fa69673f7/56x56-000000-80-0-0.jpg",
+            "picture_medium": "https://cdn-images.dzcdn.net/images/artist/1bd0b9f7a3cf12e01bdcc26fa69673f7/250x250-000000-80-0-0.jpg",
+            "picture_big": "https://cdn-images.dzcdn.net/images/artist/1bd0b9f7a3cf12e01bdcc26fa69673f7/500x500-000000-80-0-0.jpg",
+            "picture_xl": "https://cdn-images.dzcdn.net/images/artist/1bd0b9f7a3cf12e01bdcc26fa69673f7/1000x1000-000000-80-0-0.jpg",
+            "tracklist": "https://api.deezer.com/artist/1935/top?limit=50",
+            "type": "artist"
+          },
+          "type": "album"
+        },
+        {
+          "id": 145932142,
+          "title": "Gladiator: 20th Anniversary Edition",
+          "link": "https://www.deezer.com/album/145932142",
+          "cover": "https://api.deezer.com/album/145932142/image",
+          "cover_small": "https://cdn-images.dzcdn.net/images/cover/a7925032fb8e49095afb0c313dc5faf4/56x56-000000-80-0-0.jpg",
+          "cover_medium": "https://cdn-images.dzcdn.net/images/cover/a7925032fb8e49095afb0c313dc5faf4/250x250-000000-80-0-0.jpg",
+          "cover_big": "https://cdn-images.dzcdn.net/images/cover/a7925032fb8e49095afb0c313dc5faf4/500x500-000000-80-0-0.jpg",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/a7925032fb8e49095afb0c313dc5faf4/1000x1000-000000-80-0-0.jpg",
+          "md5_image": "a7925032fb8e49095afb0c313dc5faf4",
+          "genre_id": 173,
+          "nb_tracks": 35,
+          "record_type": "album",
+          "tracklist": "https://api.deezer.com/album/145932142/tracks",
+          "explicit_lyrics": false,
+          "artist": {
+            "id": 4415115,
+            "name": "The Lyndhurst Orchestra",
+            "link": "https://www.deezer.com/artist/4415115",
+            "picture": "https://api.deezer.com/artist/4415115/image",
+            "picture_small": "https://cdn-images.dzcdn.net/images/artist/7626eb4fd4aad44acae4986e5852498b/56x56-000000-80-0-0.jpg",
+            "picture_medium": "https://cdn-images.dzcdn.net/images/artist/7626eb4fd4aad44acae4986e5852498b/250x250-000000-80-0-0.jpg",
+            "picture_big": "https://cdn-images.dzcdn.net/images/artist/7626eb4fd4aad44acae4986e5852498b/500x500-000000-80-0-0.jpg",
+            "picture_xl": "https://cdn-images.dzcdn.net/images/artist/7626eb4fd4aad44acae4986e5852498b/1000x1000-000000-80-0-0.jpg",
+            "tracklist": "https://api.deezer.com/artist/4415115/top?limit=50",
+            "type": "artist"
+          },
+          "type": "album"
+        },
+        {
+          "id": 671456331,
+          "title": "Now We Are Free - Music from Gladiator",
+          "link": "https://www.deezer.com/album/671456331",
+          "cover": "https://api.deezer.com/album/671456331/image",
+          "cover_small": "https://cdn-images.dzcdn.net/images/cover/423b35f12c40f36e0a72d8bad2271c91/56x56-000000-80-0-0.jpg",
+          "cover_medium": "https://cdn-images.dzcdn.net/images/cover/423b35f12c40f36e0a72d8bad2271c91/250x250-000000-80-0-0.jpg",
+          "cover_big": "https://cdn-images.dzcdn.net/images/cover/423b35f12c40f36e0a72d8bad2271c91/500x500-000000-80-0-0.jpg",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/423b35f12c40f36e0a72d8bad2271c91/1000x1000-000000-80-0-0.jpg",
+          "md5_image": "423b35f12c40f36e0a72d8bad2271c91",
+          "genre_id": 98,
+          "nb_tracks": 17,
+          "record_type": "album",
+          "tracklist": "https://api.deezer.com/album/671456331/tracks",
+          "explicit_lyrics": false,
+          "artist": {
+            "id": 1935,
+            "name": "Hans Zimmer",
+            "link": "https://www.deezer.com/artist/1935",
+            "picture": "https://api.deezer.com/artist/1935/image",
+            "picture_small": "https://cdn-images.dzcdn.net/images/artist/1bd0b9f7a3cf12e01bdcc26fa69673f7/56x56-000000-80-0-0.jpg",
+            "picture_medium": "https://cdn-images.dzcdn.net/images/artist/1bd0b9f7a3cf12e01bdcc26fa69673f7/250x250-000000-80-0-0.jpg",
+            "picture_big": "https://cdn-images.dzcdn.net/images/artist/1bd0b9f7a3cf12e01bdcc26fa69673f7/500x500-000000-80-0-0.jpg",
+            "picture_xl": "https://cdn-images.dzcdn.net/images/artist/1bd0b9f7a3cf12e01bdcc26fa69673f7/1000x1000-000000-80-0-0.jpg",
+            "tracklist": "https://api.deezer.com/artist/1935/top?limit=50",
+            "type": "artist"
+          },
+          "type": "album"
+        },
+        {
+          "id": 12004804,
+          "title": "Gladiator: \"Honor Him\" - Theme from the Motion Picture (Hans Zimmer)",
+          "link": "https://www.deezer.com/album/12004804",
+          "cover": "https://api.deezer.com/album/12004804/image",
+          "cover_small": "https://cdn-images.dzcdn.net/images/cover/b88a94f1691089a74730f2ec4da42694/56x56-000000-80-0-0.jpg",
+          "cover_medium": "https://cdn-images.dzcdn.net/images/cover/b88a94f1691089a74730f2ec4da42694/250x250-000000-80-0-0.jpg",
+          "cover_big": "https://cdn-images.dzcdn.net/images/cover/b88a94f1691089a74730f2ec4da42694/500x500-000000-80-0-0.jpg",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/b88a94f1691089a74730f2ec4da42694/1000x1000-000000-80-0-0.jpg",
+          "md5_image": "b88a94f1691089a74730f2ec4da42694",
+          "genre_id": 173,
+          "nb_tracks": 1,
+          "record_type": "single",
+          "tracklist": "https://api.deezer.com/album/12004804/tracks",
+          "explicit_lyrics": false,
+          "artist": {
+            "id": 1525211,
+            "name": "Dominik Hauser",
+            "link": "https://www.deezer.com/artist/1525211",
+            "picture": "https://api.deezer.com/artist/1525211/image",
+            "picture_small": "https://cdn-images.dzcdn.net/images/artist/64b82da0449d6971003777b0bf7520a2/56x56-000000-80-0-0.jpg",
+            "picture_medium": "https://cdn-images.dzcdn.net/images/artist/64b82da0449d6971003777b0bf7520a2/250x250-000000-80-0-0.jpg",
+            "picture_big": "https://cdn-images.dzcdn.net/images/artist/64b82da0449d6971003777b0bf7520a2/500x500-000000-80-0-0.jpg",
+            "picture_xl": "https://cdn-images.dzcdn.net/images/artist/64b82da0449d6971003777b0bf7520a2/1000x1000-000000-80-0-0.jpg",
+            "tracklist": "https://api.deezer.com/artist/1525211/top?limit=50",
+            "type": "artist"
+          },
+          "type": "album"
+        },
+        {
+          "id": 11890046,
+          "title": "Gladiator: \"The Battle\" - Theme from the Motion Picture (Hans Zimmer)",
+          "link": "https://www.deezer.com/album/11890046",
+          "cover": "https://api.deezer.com/album/11890046/image",
+          "cover_small": "https://cdn-images.dzcdn.net/images/cover/93106bb5a6834e587c13559cf12b1b6d/56x56-000000-80-0-0.jpg",
+          "cover_medium": "https://cdn-images.dzcdn.net/images/cover/93106bb5a6834e587c13559cf12b1b6d/250x250-000000-80-0-0.jpg",
+          "cover_big": "https://cdn-images.dzcdn.net/images/cover/93106bb5a6834e587c13559cf12b1b6d/500x500-000000-80-0-0.jpg",
+          "cover_xl": "https://cdn-images.dzcdn.net/images/cover/93106bb5a6834e587c13559cf12b1b6d/1000x1000-000000-80-0-0.jpg",
+          "md5_image": "93106bb5a6834e587c13559cf12b1b6d",
+          "genre_id": 173,
+          "nb_tracks": 1,
+          "record_type": "single",
+          "tracklist": "https://api.deezer.com/album/11890046/tracks",
+          "explicit_lyrics": false,
+          "artist": {
+            "id": 1525211,
+            "name": "Dominik Hauser",
+            "link": "https://www.deezer.com/artist/1525211",
+            "picture": "https://api.deezer.com/artist/1525211/image",
+            "picture_small": "https://cdn-images.dzcdn.net/images/artist/64b82da0449d6971003777b0bf7520a2/56x56-000000-80-0-0.jpg",
+            "picture_medium": "https://cdn-images.dzcdn.net/images/artist/64b82da0449d6971003777b0bf7520a2/250x250-000000-80-0-0.jpg",
+            "picture_big": "https://cdn-images.dzcdn.net/images/artist/64b82da0449d6971003777b0bf7520a2/500x500-000000-80-0-0.jpg",
+            "picture_xl": "https://cdn-images.dzcdn.net/images/artist/64b82da0449d6971003777b0bf7520a2/1000x1000-000000-80-0-0.jpg",
+            "tracklist": "https://api.deezer.com/artist/1525211/top?limit=50",
+            "type": "artist"
+          },
+          "type": "album"
+        }
+      ],
+      "total": 100,
+      "next": "https://api.deezer.com/search/album?q=gladiator%20hans%20zimmer&limit=6&index=6"
+    }
+  }
+}

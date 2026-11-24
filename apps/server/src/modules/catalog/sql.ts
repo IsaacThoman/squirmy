@@ -3,10 +3,24 @@
  * written as plain SQL over table aliases, so these helpers render text, not columns.
  */
 import { sql, type SQL } from 'drizzle-orm'
+import { specialPurposeArtists } from '../metadata/musicbrainz.js'
 
 /** One `uuid[]` parameter, for `= any(...)` and `unnest(...)`. Null entries stay null. */
 export function uuidArray(ids: readonly (string | null)[]): SQL {
   return sql`${`{${ids.map((id) => id ?? 'NULL').join(',')}}`}::uuid[]`
+}
+
+/**
+ * Whether the artist row (alias given) is one of MusicBrainz's placeholders, Various Artists
+ * and the like (`specialPurposeArtists`). Never null, so `not` of it is safe.
+ */
+export function placeholderArtist(alias: string): SQL {
+  return sql`coalesce(${sql.raw(alias)}.mbid = any(${uuidArray([...specialPurposeArtists])}), false)`
+}
+
+/** Whether the asset row (alias given) is a remote image, a URL rather than a file of the user's. Never null. */
+export function remoteAsset(alias: string): SQL {
+  return sql.raw(`coalesce(${alias}.source ~* '^https?://', false)`)
 }
 
 /** A timestamptz expression as an ISO 8601 UTC string with milliseconds. */

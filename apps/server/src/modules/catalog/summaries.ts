@@ -12,7 +12,7 @@ import { db } from '../../database/client.js'
 import { retryFailedAfterMs } from '../artwork/index.js'
 import { albumAvailability, inLibraryAlbum, recordingLibrary, saved, trackAvailability } from './availability.js'
 import { resolveMerged } from './redirects.js'
-import { uuidArray } from './sql.js'
+import { placeholderArtist, remoteAsset, uuidArray } from './sql.js'
 
 /** A track to summarize, optionally in the context of one album. */
 export type TrackRef = { id: string; albumId?: string | null }
@@ -256,6 +256,9 @@ export async function artistSummaries(artistIds: readonly string[], userId: stri
         select 1 from album_artists aa where aa.artist_id = a.id and ${inLibraryAlbum('aa.album_id', userId)}
       )) as "inLibrary"
     from artists a left join assets art on art.id = a.image_asset_id and ${servable('art')}
+      -- A placeholder (Various Artists) is no one: a picture a store or search gave it
+      -- (Deezer's is a photo of two people) is not shown. One from the user's folders is.
+      and not (${placeholderArtist('a')} and ${remoteAsset('art')})
     where a.id = any(${uuidArray(ids)})`)
   const byId = new Map(rows.map((row) => [row.id, row]))
   return artistIds.flatMap((input) => {

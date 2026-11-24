@@ -426,9 +426,12 @@ function createActions(runtime: Runtime | null, canPlay: (track: TrackSummary) =
       send({
         type: 'playTracks', tracks: seeds, seed: randomSeed(), shuffle, context: context ?? null,
         startIndex: shuffle && start === undefined ? undefined : startIndex,
+        // A row names its song (`start`); a header's Play or Shuffle plays the list, past a first
+        // song that cannot be had.
+        startedFrom: start === undefined || shuffle ? 'collection' : 'song',
       });
     },
-    playRadio: ({ tracks, context }: RadioResponse) => send({ type: 'playTracks', tracks, context, startIndex: 0, seed: randomSeed() }),
+    playRadio: ({ tracks, context }: RadioResponse) => send({ type: 'playTracks', tracks, context, startIndex: 0, seed: randomSeed(), startedFrom: 'collection' }),
     /** Plays one track now and keeps the queue: it goes to the front, then playback moves to it. */
     playNow: (track: TrackSummary) => {
       enqueue([track], 'next');

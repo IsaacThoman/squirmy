@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { writeFile } from 'node:fs/promises'
+import { readdir, stat, truncate, writeFile } from 'node:fs/promises'
 import { createServer, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import path from 'node:path'
@@ -13,15 +13,21 @@ import { catalogIndexImports } from '../../database/schema.js'
 import { useTestDatabase } from '../../test/database.js'
 import { findLatestDump, spawnZstd } from './dump.js'
 import { buildDump, tarEnd, tarFile, testCatalog } from '../../test/catalog-index-dump.js'
-import { cancelImport, ImportCancelledError, importCanonicalDump } from './import.js'
+import { cancelImport, ImportCancelledError, importCanonicalDump, ImportInterruptedError, resumeImport, type Checkpoint } from './import.js'
 import { readTar } from './tar.js'
 
 const servers: { close: () => void }[] = []
+/** The Range header of every dump request served, in order; absent for a whole-file request. */
+const ranges: (string | undefined)[] = []
 afterEach(() => {
   for (const server of servers.splice(0)) server.close()
+  ranges.length = 0
 })
 
-/** Serves `body` on localhost. With `gate`, sends the first `split` bytes and waits for the gate before the rest. */
+/**
+ * Serves `body` on localhost, honouring `Range: bytes=N-`. With `gate`, sends the first
+ * `split` bytes and waits for the gate before the rest.
+ */
 async function serve(body: Buffer, options: { gate?: Promise<void>; split?: number; listing?: string } = {}) {
   const pending: ServerResponse[] = []
   const server = createServer((request, response) => {
@@ -30,6 +36,13 @@ async function serve(body: Buffer, options: { gate?: Promise<void>; split?: numb
       return
     }
     pending.push(response)
+    ranges.push(request.headers.range)
+    const from = Number(/^bytes=(\d+)-$/.exec(request.headers.range ?? '')?.[1] ?? 0)
+    if (from > 0) {
+      response.writeHead(206, { 'content-length': body.length - from, 'content-range': `bytes ${from}-${body.length - 1}/${body.length}` })
+      response.end(body.subarray(from))
+      return
+    }
     response.writeHead(200, { 'content-length': body.length })
     const split = options.split ?? body.length
     response.write(body.subarray(0, split))
@@ -189,18 +202,6 @@ describe('importCanonicalDump', () => {
     expect(await cancelImport()).toBe(false)
   })
 
-  it('stops on an abort signal', async () => {
-    const wait = gate()
-    const url = await serve(buildDump(testCatalog({ prefix: 'Aborted ' })), { gate: wait.promise, split: 4096 })
-    const controller = new AbortController()
-    const running = importCanonicalDump({ source: url, signal: controller.signal })
-    await waitForRunningImport()
-    controller.abort()
-    await expect(running).rejects.toBeInstanceOf(ImportCancelledError)
-    wait.fail(new Error('aborted'))
-    expect(await stagingTables()).toEqual([])
-  })
-
   it('keeps only the best recordings of each artist when asked to', async () => {
     const catalog = testCatalog()
     const file = await writeDump('capped.tar.zst', buildDump(catalog))
@@ -212,6 +213,120 @@ describe('importCanonicalDump', () => {
     expect(await names('recording')).not.toContain('Live Tape Track 1')
     const [row] = await db.select().from(catalogIndexImports).where(eq(catalogIndexImports.id, result.id))
     expect(row?.recordingsPerArtist).toBe(5)
+  })
+})
+
+/** Every indexed row, in a stable order: two imports of one dump must give exactly this. */
+async function snapshot() {
+  return [...await getSql()<{ kind: string; mbid: string; name: string; artist_name: string | null; album_name: string | null; score: number; head: boolean }[]>`
+    select kind, mbid, name, artist_name, album_name, score, head from catalog_index order by kind, mbid`]
+}
+
+async function importRow(id: string) {
+  const [row] = await db.select().from(catalogIndexImports).where(eq(catalogIndexImports.id, id))
+  return row!
+}
+
+/** Runs an import that a shutdown stops at the first checkpoint `stopAt` accepts; returns its id. */
+async function interruptedImport(options: { source: string; chunkRecords?: number; stopAt: (checkpoint: Checkpoint) => boolean }) {
+  const controller = new AbortController()
+  const error = await importCanonicalDump({
+    source: options.source, chunkRecords: options.chunkRecords, signal: controller.signal,
+    onCheckpoint: (checkpoint) => { if (options.stopAt(checkpoint)) controller.abort() },
+  }).then(() => null, (failure: unknown) => failure)
+  expect(error).toBeInstanceOf(ImportInterruptedError)
+  return (error as ImportInterruptedError).id
+}
+
+describe('resuming after a shutdown', () => {
+  useTestDatabase()
+  const catalog = testCatalog({ prefix: 'Resumed ' })
+  const dump = buildDump(catalog)
+  let file = ''
+  let expected: Awaited<ReturnType<typeof snapshot>> = []
+
+  it('imports the dump once without stopping, for comparison', async () => {
+    file = await writeDump('resume.tar.zst', dump)
+    await importCanonicalDump({ source: file, chunkRecords: 7 })
+    expected = await snapshot()
+    expect(expected.filter((row) => row.kind === 'recording')).toHaveLength(catalog.recordings.length)
+  })
+
+  it('keeps loaded chunks across a shutdown and loads only the rest', async () => {
+    const id = await interruptedImport({ source: file, chunkRecords: 7, stopAt: (checkpoint) => (checkpoint.files['canonical_musicbrainz_data.csv']?.records ?? 0) >= 14 })
+    const stopped = await importRow(id)
+    expect(stopped).toMatchObject({ state: 'interrupted', finishedAt: null, resumes: 0 })
+    const saved = stopped.checkpoint as Checkpoint
+    expect(saved.files['canonical_musicbrainz_data.csv']).toEqual({ records: 14, done: false })
+    expect(await stagingTables()).toEqual(expect.arrayContaining(['catalog_index_raw', 'catalog_index_raw_redirects', 'catalog_index_raw_releases']))
+    const [raw] = await getSql()<{ count: number }[]>`select count(*)::int as count from catalog_index_raw`
+    expect(raw!.count).toBe(saved.rows)
+
+    const seen: Checkpoint[] = []
+    const result = await resumeImport(id, { chunkRecords: 7, onCheckpoint: (checkpoint) => seen.push(checkpoint) })
+    expect(result).toMatchObject({ id, recordings: catalog.recordings.length })
+    // It carried on with the third chunk instead of loading the first two again.
+    expect(seen[0]!.files['canonical_musicbrainz_data.csv']).toEqual({ records: 21, done: false })
+    expect(await snapshot()).toEqual(expected)
+    expect(await stagingTables()).toEqual([])
+    expect(await importRow(id)).toMatchObject({ state: 'active', resumes: 1, resumedAt: expect.any(Date), checkpoint: null, rowsRead: catalog.recordings.length })
+  })
+
+  it('carries on building from the statement it stopped at', async () => {
+    const id = await interruptedImport({ source: file, stopAt: (checkpoint) => checkpoint.built === 4 })
+    expect((await importRow(id)).checkpoint).toMatchObject({ built: 4 })
+    const seen: Checkpoint[] = []
+    await resumeImport(id, { onCheckpoint: (checkpoint) => seen.push(checkpoint) })
+    expect(seen.map((checkpoint) => checkpoint.built)).toEqual([5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17])
+    expect(await snapshot()).toEqual(expected)
+    expect(await stagingTables()).toEqual([])
+  })
+
+  it('starts again from the beginning when Postgres restarted since the checkpoint', async () => {
+    const id = await interruptedImport({ source: file, stopAt: (checkpoint) => checkpoint.built === 6 })
+    // A crash of Postgres empties unlogged tables; a new start time is how the import tells.
+    await getSql()`update catalog_index_imports set checkpoint = jsonb_set(checkpoint, '{database}', '"2000-01-01 00:00:00+00"') where id = ${id}`
+    const seen: Checkpoint[] = []
+    await resumeImport(id, { onCheckpoint: (checkpoint) => seen.push(checkpoint) })
+    expect(seen[0]).toMatchObject({ built: 0, files: {} })
+    expect(await snapshot()).toEqual(expected)
+    expect(await stagingTables()).toEqual([])
+  })
+
+  it('downloads only what the stopped run had not, with a range request', async () => {
+    const url = `${await serve(dump)}/dump.tar.zst`
+    const id = await interruptedImport({ source: url, chunkRecords: 7, stopAt: (checkpoint) => (checkpoint.files['canonical_musicbrainz_data.csv']?.records ?? 0) > 0 })
+    const cached = path.join(getConfig().SQUIRMY_DATA_DIR, 'catalog-index', `${id}.tar.zst`)
+    // As if the shutdown had come in the middle of the download.
+    await truncate(cached, 5000)
+    await resumeImport(id, { chunkRecords: 7 })
+    expect(ranges).toEqual([undefined, 'bytes=5000-'])
+    expect(await snapshot()).toEqual(expected)
+    expect(await importRow(id)).toMatchObject({ state: 'active', bytesRead: dump.length, totalBytes: dump.length })
+    await expect(stat(cached)).rejects.toThrow()
+    expect(await readdir(path.dirname(cached))).toEqual([])
+  })
+
+  it('ends an interrupted import when an admin cancels it', async () => {
+    const id = await interruptedImport({ source: file, stopAt: (checkpoint) => checkpoint.built === 2 })
+    expect(await cancelImport()).toBe(true)
+    expect(await importRow(id)).toMatchObject({ state: 'cancelled', error: null, finishedAt: expect.any(Date) })
+    expect(await stagingTables()).toEqual([])
+    expect(await resumeImport(id)).toBeNull()
+    expect(await snapshot()).toEqual(expected)
+  })
+
+  it('gives up on an import that keeps stopping at the same point', async () => {
+    const id = await interruptedImport({ source: file, stopAt: (checkpoint) => checkpoint.built === 3 })
+    const stopped = new AbortController()
+    stopped.abort()
+    for (let attempt = 0; attempt < 5; attempt++) {
+      await expect(resumeImport(id, { signal: stopped.signal })).rejects.toBeInstanceOf(ImportInterruptedError)
+      expect(await importRow(id)).toMatchObject({ state: 'interrupted', resumes: attempt + 1 })
+    }
+    expect(await resumeImport(id, { signal: stopped.signal })).toBeNull()
+    expect(await importRow(id)).toMatchObject({ state: 'failed', error: 'The import stopped 6 times in a row at the same point' })
+    expect(await stagingTables()).toEqual([])
   })
 })
 
