@@ -39,7 +39,6 @@ import {
 import { useCollectionActions } from './collectionActions';
 import { uniqueTracks } from './loadAll';
 import { useStartGuard } from './pending';
-import { underStatusBar, useRefreshControl } from './refresh';
 import { displayFontScale, secondaryFontScale } from '../fontScale';
 import { SongList, useSongListItems, type SongListProps } from './SongList';
 import { chunk, type SongListItems, type SongRowItem } from './rows';
@@ -74,8 +73,6 @@ type DetailProps = {
   description?: string | null;
   onBack: () => void;
   onEndReached?: () => void;
-  /** Reloads what the page shows, for pull to refresh. */
-  onRefresh: () => Promise<unknown>;
   bottomInset: number;
   /** Shown under the header; with `list`, above its rows. */
   children?: ReactNode;
@@ -89,28 +86,24 @@ type DetailProps = {
  * once the title scrolls under the buttons, they get a bar of their own with the title in it.
  */
 function DetailPage({
-  item, tint, title, artist, artistLinks, info, buttons, nav, status, description, onBack, onEndReached, onRefresh, bottomInset, children, list,
+  item, tint, title, artist, artistLinks, info, buttons, nav, status, description, onBack, onEndReached, bottomInset, children, list,
 }: DetailProps) {
   const colors = useColors();
   const styles = useStyles();
   const { top } = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const scrollOffset = useSharedValue(0);
-  const refreshControl = useRefreshControl(onRefresh, top);
-  const statusBar = underStatusBar(top);
-  const inset = statusBar.inset;
   const onScroll = useAnimatedScrollHandler(event => {
-    // Measured from the page's top edge, so it reads the same with or without a content inset.
-    scrollOffset.value = event.contentOffset.y + inset;
+    scrollOffset.value = event.contentOffset.y;
     if (onEndReached && nearEnd(event)) scheduleOnRN(onEndReached);
   });
   // Leave the gradient uninterrupted until the artwork approaches the status bar.
   const blurStyle = useAnimatedStyle(() => ({
     opacity: interpolate(scrollOffset.value, [albumNavSize, albumNavSize + 20], [0, 1], Extrapolation.CLAMP),
   }));
-  // Fill whatever shows above the header (the status bar inset, an overscroll) with its tint.
+  // Fill whatever an overscroll shows above the header with its tint.
   const overscrollStyle = useAnimatedStyle(() => {
-    const visible = inset - scrollOffset.value;
+    const visible = -scrollOffset.value;
     return { transform: [{ translateY: visible > 0 ? visible + 1 : 0 }] };
   });
   const artSize = Math.min(238, Math.floor(width * 0.60));
@@ -124,7 +117,7 @@ function DetailPage({
   const renderRow = list?.renderItem;
   const renderItem = useCallback((info: { item: SongRowItem }) => <View style={styles.trackList}>{renderRow!(info)}</View>, [renderRow, styles]);
   const header = <>
-    <View style={[styles.header, { paddingTop: statusBar.contentTop + albumNavSize + 12 }]}>
+    <View style={[styles.header, { paddingTop: top + albumNavSize + 12 }]}>
       {tint && <LinearGradient pointerEvents="none" colors={[headerColor, colors.background]}
         locations={[0, 1]} style={StyleSheet.absoluteFill} />}
       {/* The shadow needs the cover's shape and an opaque fill to be drawn efficiently. */}
@@ -161,12 +154,10 @@ function DetailPage({
         ListHeaderComponent={header} ListFooterComponent={list.footer || undefined}
         initialNumToRender={listBatch} maxToRenderPerBatch={listBatch} windowSize={listWindow}
         contentInsetAdjustmentBehavior="never" onScroll={onScroll} scrollEventThrottle={16}
-        refreshControl={refreshControl} {...statusBar.props} contentContainerStyle={{ paddingBottom: bottomInset }}
-        showsVerticalScrollIndicator={false} />
+        contentContainerStyle={{ paddingBottom: bottomInset }} showsVerticalScrollIndicator={false} />
     ) : (
       <Animated.ScrollView contentInsetAdjustmentBehavior="never" onScroll={onScroll} scrollEventThrottle={16}
-        refreshControl={refreshControl} {...statusBar.props} contentContainerStyle={{ paddingBottom: bottomInset }}
-        showsVerticalScrollIndicator={false}>
+        contentContainerStyle={{ paddingBottom: bottomInset }} showsVerticalScrollIndicator={false}>
         {header}
       </Animated.ScrollView>
     )}
@@ -330,8 +321,7 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
       control.nav,
       { icon: 'square.and.arrow.up', label: `Share ${data.title}`, onPress: () => share(`${data.title} · ${data.artistCredit}`) },
     ]}
-    // A pull asks again, as Check again does, and keeps asking for another minute.
-    onBack={onBack} onRefresh={checkAgain} bottomInset={bottomInset}>
+    onBack={onBack} bottomInset={bottomInset}>
     {/* The songs first, as on web; then what the record's back says, and any description. */}
     <TrackSection title="Tracklist" detail={tracks.length ? songCount(tracks, data.durationMs) : undefined}>
       {tracks.length ? <AlbumDiscs discs={data.discs} album={data} onPlay={start => play(undefined, start)} onTrackMenu={track => onTrackMenu(track)} />
@@ -342,7 +332,8 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
           : overdue ? <EmptyState icon="music.note" title="Still looking for the songs"
             description="This is taking longer than usual. They will show up here when they arrive."
             action={{ title: 'Check again', onPress: () => void checkNow(), busy: checking }} />
-            : <EmptyState icon="music.note" title="No songs listed" description="The server doesn’t know this album’s songs yet." />}
+            : <EmptyState icon="music.note" title="No songs listed" description="The server doesn’t know this album’s songs yet."
+              action={offline ? undefined : { title: 'Check again', onPress: () => void checkNow(), busy: checking }} />}
     </TrackSection>
     <AlbumFooter album={data} />
     {data.description ? <ExpandableText text={data.description} lines={6} /> : null}
@@ -405,7 +396,7 @@ const historyPage = (api: Api, cursor: string, limit: number) => api.userdata.hi
 /** Each song once, at its latest play: the page lists songs, not every play of them. */
 const historyTracks = (items: readonly HistoryItem[]) => uniqueTracks(items.map(item => item.track));
 
-function TrackListPage({ item, title, info, tracks, playAll, context, empty, loadMore, loadingMore, refresh, download, props }: {
+function TrackListPage({ item, title, info, tracks, playAll, context, empty, loadMore, loadingMore, download, props }: {
   item: Collection;
   title: string;
   info: string;
@@ -416,7 +407,6 @@ function TrackListPage({ item, title, info, tracks, playAll, context, empty, loa
   empty: { title: string; description: string };
   loadMore: () => void;
   loadingMore: boolean;
-  refresh: () => Promise<unknown>;
   download?: ReturnType<typeof useDownloadControl>;
   props: PageProps;
 }) {
@@ -432,7 +422,7 @@ function TrackListPage({ item, title, info, tracks, playAll, context, empty, loa
   // Play or Shuffle could load only part of the list: it says so under them, for a few seconds.
   return <DetailPage item={item} tint={null} title={title} info={info} buttons={playButtons(tracks, canPlay, play, playAll?.busy)}
     nav={download ? [download.nav] : []} status={<>{playAll?.failed && <FailureLine message={playAllFailure} />}{download?.status}</>}
-    onBack={props.onBack} onEndReached={loadMore} onRefresh={refresh} bottomInset={props.bottomInset ?? 155}
+    onBack={props.onBack} onEndReached={loadMore} bottomInset={props.bottomInset ?? 155}
     list={tracks.length ? { ...songs, footer: loadingMore && <ActivityIndicator style={{ marginVertical: 20 }} /> } : undefined}>
     {tracks.length ? <TrackSection title="Songs" detail={songCount(tracks)} />
       : <EmptyState icon={item.special === 'liked' ? 'heart' : 'clock.arrow.circlepath'} {...empty} />}
@@ -448,10 +438,11 @@ function LikedScreen(props: PageProps) {
   const control = useDownloadControl(likedDownloadId, 'Liked Songs',
     liked.items, () => download.liked(liked.items));
   useBackSwipeOnly();
-  if (!tracks) return <PageFallback query={liked} what="your liked songs" onBack={props.onBack} />;
+  // Kept songs stand in when the list can't load; with none, the page says why and offers to try again.
+  if (!tracks || (liked.isError && !liked.data && !tracks.length)) return <PageFallback query={liked} what="your liked songs" onBack={props.onBack} />;
   return <TrackListPage item={likedCollection(props.link)} title="Liked Songs" info="Playlist" tracks={tracks} download={control}
     playAll={liked.data ? playAll : undefined}
-    context={{ type: 'liked', id: null, title: 'Liked Songs' }} loadMore={liked.loadMore} loadingMore={liked.isFetchingNextPage} refresh={liked.refetch}
+    context={{ type: 'liked', id: null, title: 'Liked Songs' }} loadMore={liked.loadMore} loadingMore={liked.isFetchingNextPage}
     empty={{ title: 'No liked songs yet', description: 'Tap the heart on any song to add it to Liked Songs.' }} props={props} />;
 }
 
@@ -463,7 +454,7 @@ function HistoryScreen(props: PageProps) {
   if (!history.data) return <PageFallback query={history} what="your history" onBack={props.onBack} />;
   return <TrackListPage item={recentCollection(props.link)} title="Recently Played" info="Listening history"
     tracks={tracks} playAll={playAll} context={{ type: 'history', id: null, title: 'Recently Played' }}
-    loadMore={history.loadMore} loadingMore={history.isFetchingNextPage} refresh={history.refetch}
+    loadMore={history.loadMore} loadingMore={history.isFetchingNextPage}
     empty={{ title: 'Nothing played yet', description: 'Play a song and it will appear in your history.' }} props={props} />;
 }
 
@@ -546,7 +537,7 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
       { icon: 'square.and.arrow.up', label: `Share ${data.name}`, onPress: () => share(data.name) },
     ]}
     // Reordering drags rows within one native list, so while editing every row is drawn.
-    onBack={onBack} onRefresh={playlist.refetch} bottomInset={bottomInset} list={tracks.length && !editing ? songs : undefined}>
+    onBack={onBack} bottomInset={bottomInset} list={tracks.length && !editing ? songs : undefined}>
     {tracks.length ? <TrackSection title="Songs" detail={songCount(tracks, data.durationMs)}>
       {editing && <SongList {...songListProps} />}
     </TrackSection> : <EmptyState icon="music.note.list" title="No songs yet"
@@ -603,7 +594,7 @@ export function ArtistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInse
         label: startingRadio ? `Starting a radio for ${data.name}` : radioFailed ? `${radioFailure}, ${data.name}` : `Start a radio for ${data.name}` },
       { icon: 'square.and.arrow.up', label: `Share ${data.name}`, onPress: () => share(data.name) },
     ]}
-    onBack={onBack} onRefresh={artist.refetch} bottomInset={bottomInset}>
+    onBack={onBack} bottomInset={bottomInset}>
     {placeholder ? <ActivityIndicator style={styles.more} accessibilityLabel="Loading" /> : <ArtistBody artist={data} link={link} onOpen={onOpen}
       onPlay={start => play(undefined, start)} onTrackMenu={onTrackMenu} />}
   </DetailPage>;
@@ -675,9 +666,8 @@ export function ReleasesScreen({ id, onBack, link, bottomInset = 155 }: PageProp
   const albums = paged ? releases.items : group?.albums ?? [];
   const items = useMemo(() => albums.map(album => releaseCollection(album, key, link)), [albums, key, link]);
   const loading = !artist.data || artist.isPlaceholderData;
-  const refresh = () => Promise.all([artist.refetch(), paged && releases.refetch()]);
   return <CollectionGridPage title={group?.title ?? 'Releases'} detail={artist.data?.name} items={items} onBack={onBack}
-    onRefresh={refresh} bottomInset={bottomInset}
+    bottomInset={bottomInset}
     onEndReached={paged ? releases.loadMore : undefined} loadingMore={paged && releases.isFetchingNextPage}
     header={loading ? <QueryState query={{ ...artist, isPending: artist.isPending || artist.isPlaceholderData }} what="these releases" />
       : paged && !releases.data ? <QueryState query={releases} what="these releases" />
@@ -695,7 +685,7 @@ function TopSongsScreen({ artistId, props }: { artistId: string; props: PageProp
   if (!artist.data || artist.isPlaceholderData) return <PageFallback query={artist} what="these songs" onBack={props.onBack} />;
   const data = artist.data;
   return <TrackListPage item={artistCollection(data, props.link)} title="Top Songs" info={data.name} tracks={data.topTracks}
-    context={{ type: 'artist', id: data.id, title: data.name }} loadMore={noop} loadingMore={false} refresh={artist.refetch}
+    context={{ type: 'artist', id: data.id, title: data.name }} loadMore={noop} loadingMore={false}
     empty={{ title: 'No top songs', description: 'The server has no top songs for this artist yet.' }} props={props} />;
 }
 
@@ -705,7 +695,7 @@ function HomeSongsScreen({ sectionId, props }: { sectionId: string; props: PageP
   if (!section) return <PageFallback query={home} what="these songs" onBack={props.onBack} />;
   const item: Collection = { key: section.id, kind: 'playlist', special: 'playlist', title: section.title, subtitle: 'Home', href: props.link('songs', props.id) };
   return <TrackListPage item={item} title={section.title} info="From Home" tracks={section.tracks}
-    context={{ type: 'other', id: section.id, title: section.title }} loadMore={noop} loadingMore={false} refresh={home.refetch}
+    context={{ type: 'other', id: section.id, title: section.title }} loadMore={noop} loadingMore={false}
     empty={{ title: 'Nothing here yet', description: 'Play some music and it shows up here.' }} props={props} />;
 }
 
@@ -715,14 +705,14 @@ const noop = () => undefined;
 export function GenreScreen({ id, onBack, link, bottomInset = 155 }: PageProps) {
   const albums = useGenreAlbums(id);
   const items = useMemo(() => albums.items.map(album => albumCollection(album, link)), [albums.items, link]);
-  return <CollectionGridPage title={id} items={items} onBack={onBack} onRefresh={albums.refetch} bottomInset={bottomInset}
+  return <CollectionGridPage title={id} items={items} onBack={onBack} bottomInset={bottomInset}
     onEndReached={albums.loadMore} loadingMore={albums.isFetchingNextPage}
     header={!albums.data ? <QueryState query={albums} what={id} />
       : !albums.items.length && <EmptyState icon="square.stack" title="No albums yet" description={`Albums tagged ${id} show up here.`} />} />;
 }
 
 /** A titled grid of tiles, drawn as it scrolls into view: a genre's albums, or all of one discography heading. */
-function CollectionGridPage({ title, detail, items, header, onBack, onRefresh, onEndReached, loadingMore = false, bottomInset }: {
+function CollectionGridPage({ title, detail, items, header, onBack, onEndReached, loadingMore = false, bottomInset }: {
   title: string;
   /** A line over the title, such as the artist whose releases these are. */
   detail?: string;
@@ -730,7 +720,6 @@ function CollectionGridPage({ title, detail, items, header, onBack, onRefresh, o
   /** Under the title: the loading state, or what to say when there is nothing. */
   header?: ReactNode;
   onBack: () => void;
-  onRefresh: () => Promise<unknown>;
   onEndReached?: () => void;
   loadingMore?: boolean;
   bottomInset: number;
@@ -740,7 +729,6 @@ function CollectionGridPage({ title, detail, items, header, onBack, onRefresh, o
   const { width, fontScale } = useWindowDimensions();
   const collectionDim = useCollectionDim();
   const actionsFor = useCollectionActions();
-  const refreshControl = useRefreshControl(onRefresh);
   const columns = gridColumns(width, fontScale);
   const size = Math.floor((width - gutter * 2 - (columns - 1) * 12) / columns);
   const rows = useMemo(() => chunk(items.map(collectionDim), columns), [items, columns, collectionDim]);
@@ -750,7 +738,7 @@ function CollectionGridPage({ title, detail, items, header, onBack, onRefresh, o
   }))} />, [actionsFor, size]);
   return <View style={[styles.page, { paddingTop: top + 8 }]}>
     <View style={styles.fallbackNav}><BrowseBackButton onPress={onBack} /></View>
-    <FlatList data={rows} renderItem={renderRow} keyExtractor={gridRowKey} refreshControl={refreshControl}
+    <FlatList data={rows} renderItem={renderRow} keyExtractor={gridRowKey}
       initialNumToRender={listBatch} maxToRenderPerBatch={listBatch} windowSize={listWindow}
       contentContainerStyle={[styles.genreBody, { paddingBottom: bottomInset }]} showsVerticalScrollIndicator={false}
       onEndReached={onEndReached} onEndReachedThreshold={1.5}
