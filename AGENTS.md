@@ -31,4 +31,4 @@ Generate fixtures with `apps/server/src/test/audio.ts`. They are short, very qui
 
 ## Mobile
 
-The Expo app is in `apps/mobile`. `ios/` and `android/` are generated and not committed. A patch for `react-native-screens` lives in the root `patches/` folder and is applied by the root `postinstall`.
+The Expo app is in `apps/mobile`. `ios/` and `android/` are generated and not committed. Patches for `react-native-screens` and `expo-blur` live in the root `patches/` folder and are applied by the root `postinstall`.
