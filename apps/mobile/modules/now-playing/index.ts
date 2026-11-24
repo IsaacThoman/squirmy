@@ -34,6 +34,11 @@ type NowPlayingModule = {
   setFavorite(available: boolean, active: boolean, label: string): Promise<void>;
   clear(): Promise<void>;
   /**
+   * Opens the system's AirPlay and Bluetooth picker, which chooses where this phone's own sound
+   * goes. Missing in an app built before it was added.
+   */
+  showRoutePicker?: () => Promise<void>;
+  /**
    * Asks iOS for background running time (about 30 s) while `hold`, or gives it back.
    * Missing in an app built before it was added.
    */
@@ -48,20 +53,28 @@ type NowPlayingModule = {
 /** iOS only; `null` where there is no lock screen integration. */
 export default requireOptionalNativeModule<NowPlayingModule>('SquirmyNowPlaying');
 
-export type RoutePickerProps = ViewProps & {
-  /** The AirPlay symbol's colour, and its colour while sound goes to another output. */
-  tint?: string;
-  activeTint?: string;
-};
-
 type ExpoGlobal = { expo?: { getViewConfig?: (moduleName: string, viewName?: string) => unknown } };
 
+export type SliderBarProps = ViewProps & {
+  /** From 0 to 1. */
+  value: number;
+  /** While a finger drags: the track thickens. */
+  active?: boolean;
+  /** How far the track is pulled past an end, in points on screen, negative to the left. Back to 0, it springs back. */
+  stretch?: number;
+  /** The filled part of the track. */
+  tint?: string;
+  /** The rest of the track. */
+  trackTint?: string;
+};
+
 /**
- * The system AirPlay and Bluetooth picker, iOS only. `null` where the native view is missing,
- * such as Android or an app built before it was added.
+ * A thumbless `UISlider`, as Apple Music's scrubber, that only draws: it takes no touches and
+ * is not an accessibility element, so the view around it owns both. iOS only; `null`
+ * elsewhere, and in an app built before it was added.
  */
-export const RoutePicker: ComponentType<RoutePickerProps> | null = (globalThis as ExpoGlobal).expo?.getViewConfig?.('SquirmyNowPlaying')
-  ? requireNativeView<RoutePickerProps>('SquirmyNowPlaying')
+export const SliderBar: ComponentType<SliderBarProps> | null = (globalThis as ExpoGlobal).expo?.getViewConfig?.('SquirmyNowPlaying')
+  ? requireNativeView<SliderBarProps>('SquirmyNowPlaying')
   : null;
 
 type SystemVolumeModule = {

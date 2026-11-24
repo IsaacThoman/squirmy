@@ -25,7 +25,6 @@ import { announce, useBriefFailures } from '../inlineFeedback';
 import { usePlaybackActions } from '../playback';
 import { createThemedStyles, useColors } from '../theme';
 import { AlbumNavButton, AlbumPlaybackButtons, BrowseBackButton, type AlbumNavProps, type AlbumPlaybackProps } from './AlbumButtons';
-import { AlbumStatusBlur } from './AlbumStatusBlur';
 import { AlbumMetadata, type AlbumMetadataProps } from './AlbumMetadata';
 import { CollectionGridRow } from './BrowseControls';
 import { useDownloadControl } from './DownloadControl';
@@ -40,6 +39,8 @@ import { useCollectionActions } from './collectionActions';
 import { uniqueTracks } from './loadAll';
 import { useStartGuard } from './pending';
 import { displayFontScale, secondaryFontScale } from '../fontScale';
+import { scrollEdgeFade } from '../edgeFade';
+import { ScrollEdge } from '../ScrollEdge';
 import { SongList, useSongListItems, type SongListProps } from './SongList';
 import { chunk, type SongListItems, type SongRowItem } from './rows';
 import { usePlayAll } from './usePlayAll';
@@ -83,7 +84,7 @@ type DetailProps = {
 /**
  * The page a collection zooms open into: its cover over the collection's tint, the title,
  * the play buttons, and the content below. Scrolling past the cover blurs the status bar;
- * once the title scrolls under the buttons, they get a bar of their own with the title in it.
+ * the content scrolls on under the floating buttons, with no bar behind them.
  */
 function DetailPage({
   item, tint, title, artist, artistLinks, info, buttons, nav, status, description, onBack, onEndReached, bottomInset, children, list,
@@ -97,8 +98,9 @@ function DetailPage({
     scrollOffset.value = event.contentOffset.y;
     if (onEndReached && nearEnd(event)) scheduleOnRN(onEndReached);
   });
-  // Leave the gradient uninterrupted until the artwork approaches the status bar.
-  const blurStyle = useAnimatedStyle(() => ({
+  // Leave the gradient uninterrupted until the artwork approaches the status bar. Only the
+  // opacity changes as the page scrolls, on the UI thread; the edge itself is static.
+  const edgeStyle = useAnimatedStyle(() => ({
     opacity: interpolate(scrollOffset.value, [albumNavSize, albumNavSize + 20], [0, 1], Extrapolation.CLAMP),
   }));
   // Fill whatever an overscroll shows above the header with its tint.
@@ -108,11 +110,6 @@ function DetailPage({
   });
   const artSize = Math.min(238, Math.floor(width * 0.60));
   const artRadius = item.round ? artSize / 2 : 17;
-  // How far the page scrolls before the header's title (below the cover's margins) reaches the bar.
-  const titleUnderBar = styles.art.marginTop + artSize + styles.art.marginBottom;
-  const barStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(scrollOffset.value, [titleUnderBar, titleUnderBar + 24], [0, 1], Extrapolation.CLAMP),
-  }));
   const headerColor = tint ? interpolateColor(colors.albumTint, [0, 1], [colors.background, tint], 'RGB', { gamma: 1 }) : colors.background;
   const renderRow = list?.renderItem;
   const renderItem = useCallback((info: { item: SongRowItem }) => <View style={styles.trackList}>{renderRow!(info)}</View>, [renderRow, styles]);
@@ -132,19 +129,12 @@ function DetailPage({
 
   return <View style={styles.page}>
     <Animated.View pointerEvents="none" style={[styles.overscrollFill, { backgroundColor: headerColor }, overscrollStyle]} />
-    <Animated.View pointerEvents="none" style={[styles.status, { height: top }, blurStyle]}>
-      <AlbumStatusBlur />
+    <Animated.View pointerEvents="none" style={[styles.status, { height: top + scrollEdgeFade }, edgeStyle]}>
+      <ScrollEdge solid={top} fade={scrollEdgeFade} />
     </Animated.View>
-    {/* Its softened bottom edge falls below the buttons, so rows scrolling up are hidden before they reach them. */}
-    <Animated.View pointerEvents="none" style={[styles.status, styles.bar, { height: top + albumNavSize + 22 }, barStyle]}>
-      <AlbumStatusBlur solid />
-    </Animated.View>
+    {/* No title here: the header's own, an accessibility header, names the page for VoiceOver. */}
     <View pointerEvents="box-none" style={[styles.nav, { top: top + 6 }]}>
       <BrowseBackButton onPress={onBack} />
-      {/* Hidden from VoiceOver: the header's own title already names the page. */}
-      {/* Cut in the middle: an edition's name ends its title ("… The Anthology"), and the bar is narrow. */}
-      <Animated.Text numberOfLines={1} ellipsizeMode="middle" maxFontSizeMultiplier={displayFontScale} accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants" style={[styles.barTitle, barStyle]}>{title}</Animated.Text>
       <View style={styles.navActions}>
         {nav.filter((button): button is AlbumNavProps => Boolean(button)).map(button => <AlbumNavButton key={button.label} {...button} />)}
       </View>
@@ -736,11 +726,15 @@ function CollectionGridPage({ title, detail, items, header, onBack, onEndReached
     id: item.key, title: item.title, subtitle: item.subtitle, size, cover: <CollectionCover item={item} size={size} />, href: item.href, dim: item.dim,
     actions: actionsFor(item),
   }))} />, [actionsFor, size]);
-  return <View style={[styles.page, { paddingTop: top + 8 }]}>
-    <View style={styles.fallbackNav}><BrowseBackButton onPress={onBack} /></View>
+  // The tiles scroll on under the status bar and the floating back button, as on the other pages.
+  return <View style={styles.page}>
+    <ScrollEdge solid={top} fade={scrollEdgeFade} />
+    <View pointerEvents="box-none" style={[styles.nav, { top: top + 8 }]}><BrowseBackButton onPress={onBack} /></View>
     <FlatList data={rows} renderItem={renderRow} keyExtractor={gridRowKey}
       initialNumToRender={listBatch} maxToRenderPerBatch={listBatch} windowSize={listWindow}
-      contentContainerStyle={[styles.genreBody, { paddingBottom: bottomInset }]} showsVerticalScrollIndicator={false}
+      contentInsetAdjustmentBehavior="never"
+      contentContainerStyle={[styles.genreBody, { paddingTop: top + 8 + albumNavSize, paddingBottom: bottomInset }]}
+      showsVerticalScrollIndicator={false}
       onEndReached={onEndReached} onEndReachedThreshold={1.5}
       ListHeaderComponent={<>
         {detail && <Text style={styles.gridDetail} numberOfLines={1}>{detail}</Text>}
@@ -753,10 +747,10 @@ function CollectionGridPage({ title, detail, items, header, onBack, onEndReached
 
 const useStyles = createThemedStyles(colors => StyleSheet.create({
   page: { flex: 1, overflow: 'hidden', backgroundColor: colors.background },
-  nav: { position: 'absolute', left: 0, right: 0, zIndex: 2, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: gutter },
-  barTitle: { flex: 1, color: colors.text, fontSize: 17, fontWeight: '600', textAlign: 'center' },
-  // Android has no blur here, so its bar is the page colour.
-  bar: Platform.OS === 'android' ? { backgroundColor: colors.background } : {},
+  nav: {
+    position: 'absolute', left: 0, right: 0, zIndex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    gap: 8, paddingHorizontal: gutter,
+  },
   navActions: { flexDirection: 'row', gap: 10 },
   fallbackNav: { paddingHorizontal: gutter, alignItems: 'flex-start' },
   overscrollFill: { position: 'absolute', bottom: '100%', height: '100%', left: 0, right: 0 },
