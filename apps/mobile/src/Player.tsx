@@ -56,8 +56,6 @@ const handover = 50;
 const sheetRoutes = ['/devices', '/track-actions', '/add-to-playlist'];
 const modeMotion = { duration: 360, easing: Easing.inOut(Easing.cubic) };
 const panelMotion = { duration: 210 };
-/** How long Now Playing rests open before it lays out the lyrics or the queue, unasked. */
-const detailsDelay = 350;
 const clamp = Extrapolation.CLAMP;
 
 const Glass = Animated.createAnimatedComponent(BlurView);
@@ -139,23 +137,6 @@ export default function Player() {
       if (before && !now) trackDrag.set(0);
     },
   );
-
-  // The lyrics and the queue take a while to lay out. Each is laid out a moment after the player
-  // comes to rest open, one at a time, rather than on its first tap, inside the page's own motion.
-  const [restingOpen, setRestingOpen] = useState(false);
-  const detailsLaidOut = useSharedValue(false);
-  useAnimatedReaction(
-    () => !detailsLaidOut.value && motion.active.value && motion.expanding.value && !motion.dragging.value && motion.follow.value > 0.985,
-    (now, before) => {
-      if (now !== (before ?? false)) scheduleOnRN(setRestingOpen, now);
-    },
-  );
-  useEffect(() => {
-    detailsLaidOut.set(seenLyrics && seenQueue);
-    if (!restingOpen || (seenLyrics && seenQueue)) return;
-    const timer = setTimeout(() => (seenLyrics ? setSeenQueue : setSeenLyrics)(true), detailsDelay);
-    return () => clearTimeout(timer);
-  }, [detailsLaidOut, restingOpen, seenLyrics, seenQueue]);
 
   const dismissPan = {
     activeOffsetY: 8,
