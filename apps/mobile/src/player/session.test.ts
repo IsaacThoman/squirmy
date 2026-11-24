@@ -2,7 +2,7 @@ import type { DeviceInfo, QueueEntry, TrackSummary } from '@squirmy/contracts';
 import { describe, expect, it } from 'vitest';
 import {
   codecsFor, deviceRows, isPlayable, pendingQueueRow, queuedEntryActions, queuedEntryCommand, queueRow, isRemote, nextDownloaded, nextRepeat, outputDevice, playableSeeds, qualityFor,
-  seedOf, upNextDetail, whereItPlays,
+  seedOf, upNextDetail, upNextTitle, whereItPlays,
 } from './session';
 
 const phone: DeviceInfo = { id: 'phone', name: 'Isa’s iPhone', kind: 'ios', canPlay: true, isActive: false };
@@ -231,5 +231,19 @@ describe('upNextDetail', () => {
     expect(upNextDetail(null, songs(1))).toBe('1 song');
     expect(upNextDetail(null, songs(25))).toBe('25 songs');
     expect(upNextDetail({ title: 'Dummy' }, [])).toBeNull();
+  });
+});
+
+describe('upNextTitle', () => {
+  const songs = (count: number, queued?: boolean) => Array.from({ length: count }, () => ({ queued }));
+
+  it('continues playing what is playing, as Apple Music says', () => {
+    expect(upNextTitle({ title: 'Dummy' }, songs(3))).toBe('Continue Playing');
+  });
+
+  it('is plain Up Next once songs were queued by hand, without a context, or with nothing left', () => {
+    expect(upNextTitle({ title: 'Dummy' }, [...songs(1, true), ...songs(2)])).toBe('Up Next');
+    expect(upNextTitle(null, songs(3))).toBe('Up Next');
+    expect(upNextTitle({ title: 'Dummy' }, [])).toBe('Up Next');
   });
 });
