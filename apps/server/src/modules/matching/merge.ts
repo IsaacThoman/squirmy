@@ -57,6 +57,19 @@ async function moveUserRows(tx: Transaction, table: 'likes' | 'ratings' | 'wants
   await tx.execute(sql`update ${name} set entity_id = ${into} where entity_type = ${type} and entity_id = ${from}`)
 }
 
+/** Re-points plays of the collection (`collection_plays`); where the user played both, the later play is kept. */
+async function moveCollectionPlays(tx: Transaction, type: 'album' | 'artist', from: string, into: string) {
+  await tx.execute(sql`
+    update collection_plays t set played_at = f.played_at from collection_plays f
+    where f.entity_type = ${type} and f.entity_id = ${from}
+      and t.user_id = f.user_id and t.entity_type = ${type} and t.entity_id = ${into}
+      and f.played_at > t.played_at`)
+  await tx.execute(sql`
+    delete from collection_plays f where f.entity_type = ${type} and f.entity_id = ${from}
+      and exists (select 1 from collection_plays t where t.user_id = f.user_id and t.entity_type = ${type} and t.entity_id = ${into})`)
+  await tx.execute(sql`update collection_plays set entity_id = ${into} where entity_type = ${type} and entity_id = ${from}`)
+}
+
 async function moveExternalIds(tx: Transaction, type: EntityType, from: string, into: string) {
   await tx.update(externalIds).set({ entityId: into }).where(sql`${externalIds.entityType} = ${type} and ${externalIds.entityId} = ${from}`)
 }
@@ -117,7 +130,7 @@ export async function mergeRecording(fromId: string, intoId: string, executor: E
 
 /**
  * Merges album `fromId` into `intoId`: files, editions (releases), external ids, likes,
- * ratings, wants, library saves, playlist items, plays and album hints. The winner keeps its own credits, and takes
+ * ratings, wants, library saves, playlist items, plays, collection plays and album hints. The winner keeps its own credits, and takes
  * the loser's artwork, canonical release, year and date only when it has none.
  */
 export async function mergeAlbum(fromId: string, intoId: string, executor: Executor = db): Promise<void> {
@@ -136,6 +149,7 @@ export async function mergeAlbum(fromId: string, intoId: string, executor: Execu
         and not exists (select 1 from ${albumArtists} a where a.album_id = ${into})`)
     await moveExternalIds(tx, 'album', fromId, into)
     for (const table of ['likes', 'ratings', 'wants'] as const) await moveUserRows(tx, table, 'album', fromId, into)
+    await moveCollectionPlays(tx, 'album', fromId, into)
     await tx.execute(sql`
       update ${albums} a set
         artwork_asset_id = coalesce(a.artwork_asset_id, f.artwork_asset_id),
@@ -149,7 +163,7 @@ export async function mergeAlbum(fromId: string, intoId: string, executor: Execu
 
 /**
  * Merges artist `fromId` into `intoId`: album and recording credits, primary artists,
- * external ids, likes and ratings. The winner takes the loser's image and disambiguation
+ * external ids, likes, ratings and collection plays. The winner takes the loser's image and disambiguation
  * only when it has none.
  */
 export async function mergeArtist(fromId: string, intoId: string, executor: Executor = db): Promise<void> {
@@ -162,6 +176,7 @@ export async function mergeArtist(fromId: string, intoId: string, executor: Exec
     await tx.update(recordings).set({ primaryArtistId: into }).where(eq(recordings.primaryArtistId, fromId))
     await moveExternalIds(tx, 'artist', fromId, into)
     for (const table of ['likes', 'ratings'] as const) await moveUserRows(tx, table, 'artist', fromId, into)
+    await moveCollectionPlays(tx, 'artist', fromId, into)
     await tx.execute(sql`
       update ${artists} a set image_asset_id = coalesce(a.image_asset_id, f.image_asset_id),
         disambiguation = coalesce(a.disambiguation, f.disambiguation),

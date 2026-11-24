@@ -1,5 +1,5 @@
 import { ApiError } from '@squirmy/client-core'
-import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { renderWithApp } from '@/test/render'
@@ -88,5 +88,83 @@ describe('menu items', () => {
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Play next' }))
     expect(screen.getByRole('menuitem', { name: 'Playing next' })).toBeInTheDocument()
     await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+  })
+})
+
+/**
+ * A pointer event of `pointerType` at a point. jsdom's carry no `pointerType`, so it is set by
+ * hand; `cancelable`, so a handler can prevent what follows, as a browser's can.
+ */
+function pointer(type: string, pointerType: 'mouse' | 'touch' | 'pen', x = 20, y = 20) {
+  const event = new MouseEvent(type, { bubbles: true, cancelable: true, button: 0, clientX: x, clientY: y })
+  Object.defineProperty(event, 'pointerType', { value: pointerType })
+  return event
+}
+
+describe('a dropdown menu’s button', () => {
+  const entries: MenuEntry[] = [{ label: 'Go to album', onSelect: () => {} }, { label: 'Add to queue', onSelect: () => {} }]
+  const button = () => screen.getByRole('button', { name: 'Song' })
+
+  it('does not open for a finger that goes down on it to scroll the page or a rail', () => {
+    menu(entries)
+    // The browser takes the gesture to scroll: it cancels the pointer and sends no click.
+    fireEvent(button(), pointer('pointerdown', 'touch'))
+    expect(screen.queryByRole('menu')).toBeNull()
+    fireEvent(button(), pointer('pointercancel', 'touch', 20, 140))
+    expect(screen.queryByRole('menu')).toBeNull()
+    // A later keyboard click (which a press of Enter on a button also sends) is not that tap.
+    fireEvent.click(button())
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+
+  it('does not open for a finger that moved further than a tap before lifting', () => {
+    menu(entries)
+    fireEvent(button(), pointer('pointerdown', 'touch', 20, 20))
+    fireEvent(button(), pointer('click', 'touch', 20, 60))
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+
+  it('opens on a tap, a finger or a pen that lifts where it went down', async () => {
+    menu(entries)
+    fireEvent(button(), pointer('pointerdown', 'touch', 20, 20))
+    expect(screen.queryByRole('menu')).toBeNull()
+    fireEvent(button(), pointer('click', 'touch', 23, 22))
+    expect(await screen.findByRole('menu')).toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+    fireEvent(button(), pointer('pointerdown', 'pen'))
+    fireEvent(button(), pointer('click', 'pen'))
+    expect(await screen.findByRole('menu')).toBeInTheDocument()
+  })
+
+  it('opens as a mouse button goes down, as before', async () => {
+    menu(entries)
+    fireEvent(button(), pointer('pointerdown', 'mouse'))
+    expect(await screen.findByRole('menu')).toBeInTheDocument()
+  })
+
+  it('opens from the keyboard with focus on its first item', async () => {
+    menu(entries)
+    button().focus()
+    await userEvent.keyboard('{Enter}')
+    const opened = await screen.findByRole('menu')
+    await waitFor(() => expect(within(opened).getByRole('menuitem', { name: 'Go to album' })).toHaveFocus())
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(button()).toHaveFocus())
+    await userEvent.keyboard(' ')
+    expect(await screen.findByRole('menu')).toBeInTheDocument()
+  })
+
+  it('leaves a row’s right-click and long-press menu as it was', async () => {
+    vi.useFakeTimers()
+    try {
+      renderWithApp(<ContextMenu entries={entries}><div>Row</div></ContextMenu>)
+      fireEvent(screen.getByText('Row'), pointer('pointerdown', 'touch'))
+      // Radix opens a context menu after 700 ms of a finger held still.
+      act(() => { vi.advanceTimersByTime(800) })
+      expect(screen.getByRole('menu')).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

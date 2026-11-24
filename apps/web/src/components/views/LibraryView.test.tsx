@@ -74,11 +74,25 @@ describe('Library', () => {
     }
   })
 
-  it('lists Liked Songs first, then the playlists, then the albums under All', async () => {
-    await renderLibrary('/library?filter=all')
+  it('lists Liked Songs, the playlists, the albums and the artists in one grid under All, in the server’s order', async () => {
+    const fake = fakeServices()
+    const [first, second] = libraryAlbums
+    const artist = libraryArtists[0]!
+    // Recently played: an artist and an album before Liked Songs.
+    fake.api.catalog.items.mockResolvedValue({ nextCursor: null, items: [
+      { kind: 'artist', artist, playedAt: '2026-11-20T10:00:00.000Z' },
+      { kind: 'album', album: second!, playedAt: '2026-11-19T10:00:00.000Z' },
+      { kind: 'liked', playedAt: null },
+      { kind: 'playlist', playlist: ownPlaylists.items[0]!, playedAt: null },
+      { kind: 'album', album: first!, playedAt: null },
+    ] })
+    await renderLibrary('/library?filter=all', fake)
     const list = await main().findByRole('list', { name: 'Library' })
-    await waitFor(() => expect(titles(list)).toHaveLength(1 + playlistSummaries.length + libraryAlbums.length))
-    expect(titles(list)).toEqual(['Liked Songs', ...playlistSummaries.map(playlist => playlist.name), ...libraryAlbums.map(album => album.title)])
+    await waitFor(() => expect(titles(list)).toEqual([artist.name, second!.title, 'Liked Songs', ownPlaylists.items[0]!.name, first!.title]))
+    // No Artists section: the artist is a tile among the rest.
+    expect(main().queryByRole('heading', { name: 'Artists' })).toBeNull()
+    expect(fake.api.catalog.items).toHaveBeenLastCalledWith(expect.objectContaining({ sort: 'played' }))
+    expect(fake.api.catalog.albums).not.toHaveBeenCalled()
   })
 
   describe('old addresses', () => {
@@ -218,11 +232,29 @@ describe('Library', () => {
       expect(screen.getByRole('combobox', { name: 'Sort by' })).toHaveTextContent('Title')
     })
 
-    it('says under All that the order is the albums’, which follow Liked Songs and the playlists', async () => {
-      await renderLibrary('/library?filter=all&sort=title')
+    it('opens All in recently played, and offers every other order too', async () => {
+      await renderLibrary('/library?filter=all')
       await main().findByRole('list', { name: 'Library' })
-      expect(screen.queryByRole('combobox', { name: 'Sort by' })).toBeNull()
-      expect(screen.getByRole('combobox', { name: 'Sort albums by' })).toHaveTextContent('Sort albums:Title')
+      expect(screen.getByRole('combobox', { name: 'Sort by' })).toHaveTextContent('Sort:Recently played')
+      expect(await sortOptions()).toEqual(['Recently played', 'Recently added', 'Title', 'Artist', 'Year'])
+      expect(where().searchParams.get('sort')).toBeNull()
+    })
+
+    it('keeps recently added in the address under All, where it is not the default', async () => {
+      await renderLibrary('/library?filter=all')
+      await main().findByRole('list', { name: 'Library' })
+      await userEvent.click(screen.getByRole('combobox', { name: 'Sort by' }))
+      await userEvent.click(await screen.findByRole('option', { name: 'Recently added' }))
+      await waitFor(() => expect(where().searchParams.get('sort')).toBe('recent'))
+      // Albums open in recently added anyway, so the chip carries no sort.
+      expect(filters().getByRole('link', { name: 'Albums' })).toHaveAttribute('href', '/library?filter=albums')
+    })
+
+    it('asks the server for All in the order in the address', async () => {
+      const { api } = await renderLibrary('/library?filter=all&sort=title')
+      await main().findByRole('list', { name: 'Library' })
+      expect(api.catalog.items).toHaveBeenLastCalledWith(expect.objectContaining({ sort: 'title' }))
+      expect(screen.getByRole('combobox', { name: 'Sort by' })).toHaveTextContent('Title')
     })
 
     it('falls back to Recently added where the order chosen does not apply', async () => {
@@ -398,22 +430,20 @@ describe('Library', () => {
       expect(screen.queryByText('Your playlists didn’t load.')).toBeNull()
     })
 
-    it('keeps the chips, Liked Songs and the playlists under All when the albums fail, and asks again', async () => {
+    it('keeps the chips and the toolbar under All when it fails, and asks again', async () => {
       const fake = fakeServices()
-      fake.api.userdata.playlists.mockResolvedValue(ownPlaylists)
-      fake.api.catalog.albums.mockRejectedValue(refused('Albums are resting'))
+      fake.api.catalog.items.mockRejectedValue(refused('The library is resting'))
       await renderLibrary('/library?filter=all', fake)
       const failed = await screen.findByRole('alert')
-      expect(failed).toHaveTextContent('Your albums didn’t load')
-      expect(failed).toHaveTextContent('Albums are resting')
+      expect(failed).toHaveTextContent('Your library didn’t load')
+      expect(failed).toHaveTextContent('The library is resting')
       expect(filters().getAllByRole('link')).toHaveLength(5)
-      await waitFor(() => expect(titles(main().getByRole('list', { name: 'Library' }))).toEqual(['Liked Songs', ...playlistSummaries.map(playlist => playlist.name)]))
       expect(screen.queryByRole('heading', { name: 'This page did not load' })).toBeNull()
 
-      fake.api.catalog.albums.mockResolvedValue({ items: libraryAlbums, nextCursor: null })
+      fake.api.catalog.items.mockResolvedValue({ items: [{ kind: 'liked', playedAt: null }, ...libraryAlbums.map(album => ({ kind: 'album' as const, album, playedAt: null }))], nextCursor: null })
       await userEvent.click(within(failed).getByRole('button', { name: 'Try again' }))
-      await waitFor(() => expect(titles(main().getByRole('list', { name: 'Library' }))).toEqual(['Liked Songs', ...playlistSummaries.map(playlist => playlist.name), ...libraryAlbums.map(album => album.title)]))
-      expect(screen.queryByText('Your albums didn’t load')).toBeNull()
+      await waitFor(() => expect(titles(main().getByRole('list', { name: 'Library' }))).toEqual(['Liked Songs', ...libraryAlbums.map(album => album.title)]))
+      expect(screen.queryByText('Your library didn’t load')).toBeNull()
     })
 
     it.each([
@@ -430,12 +460,12 @@ describe('Library', () => {
       expect(search()).toBeInTheDocument()
     })
 
-    it('still lists Liked Songs and the albums under All without the playlists', async () => {
+    it('lists All whole when only the playlists’ own list fails, the server listing them there', async () => {
       const fake = fakeServices()
       fake.api.userdata.playlists.mockRejectedValue(refused('Playlists are resting'))
       await renderLibrary('/library?filter=all', fake)
-      expect(await screen.findByText('Your playlists didn’t load.')).toBeInTheDocument()
-      await waitFor(() => expect(titles(main().getByRole('list', { name: 'Library' }))).toEqual(['Liked Songs', ...libraryAlbums.map(album => album.title)]))
+      await waitFor(() => expect(titles(main().getByRole('list', { name: 'Library' }))).toContain(playlistSummaries[0]!.name))
+      expect(screen.queryByText('Your playlists didn’t load.')).toBeNull()
     })
 
     it('says a failed search failed, even with the list loaded, and asks again', async () => {
@@ -474,9 +504,9 @@ describe('Library', () => {
       expect(document.body.textContent).not.toMatch(/Add to library/)
     })
 
-    it('still shows Liked Songs and the playlists under All', async () => {
+    it('still shows Liked Songs under All', async () => {
       const fake = fakeServices()
-      fake.api.catalog.albums.mockResolvedValue({ items: [], nextCursor: null })
+      fake.api.catalog.items.mockResolvedValue({ items: [{ kind: 'liked', playedAt: null }], nextCursor: null })
       await renderLibrary('/library?filter=all', fake)
       const list = await main().findByRole('list', { name: 'Library' })
       expect(titles(list)[0]).toBe('Liked Songs')

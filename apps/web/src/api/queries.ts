@@ -1,5 +1,5 @@
 import { ApiError, type ApiClient } from '@squirmy/client-core'
-import { Id, queryKeys, type AlbumSummary, type ArtistSectionKey, type ArtistSummary, type LibrarySort, type Page, type SearchResults, type TrackSummary } from '@squirmy/contracts'
+import { Id, queryKeys, type AlbumSummary, type ArtistSectionKey, type ArtistSummary, type LibraryItem, type LibraryItemsSort, type LibraryQuery, type Page, type SearchResults, type TrackSummary } from '@squirmy/contracts'
 import { infiniteQueryOptions, keepPreviousData, useInfiniteQuery, useQuery, type InfiniteData, type InfiniteQueryObserverResult } from '@tanstack/react-query'
 import { awaitsTrackList } from '@/lib/catalog'
 import { useCallback, useRef } from 'react'
@@ -136,16 +136,20 @@ export function useGenres() {
   })
 }
 
-export type LibraryKind = 'albums' | 'artists' | 'tracks'
-export type LibraryFilter = { sort: LibrarySort; genre?: string }
-type LibraryItems = { albums: AlbumSummary; artists: ArtistSummary; tracks: TrackSummary }
+/** `items` is the Library's All: albums, artists, playlists and Liked Songs in one list. */
+export type LibraryKind = 'items' | 'albums' | 'artists' | 'tracks'
+/** `played` is All's alone; the other lists are never asked for it. */
+export type LibraryFilter = { sort: LibraryItemsSort; genre?: string }
+type LibraryItems = { items: LibraryItem; albums: AlbumSummary; artists: ArtistSummary; tracks: TrackSummary }
 
-const libraryKeys = { albums: queryKeys.libraryAlbums, artists: queryKeys.libraryArtists, tracks: queryKeys.libraryTracks }
-const pageSizes: Record<LibraryKind, number> = { albums: 60, artists: 60, tracks: 100 }
+const libraryKeys = { items: queryKeys.libraryItems, albums: queryKeys.libraryAlbums, artists: queryKeys.libraryArtists, tracks: queryKeys.libraryTracks }
+const pageSizes: Record<LibraryKind, number> = { items: 60, albums: 60, artists: 60, tracks: 100 }
 
 /** One of the library's lists, a page at a time as it scrolls. */
 export const libraryListQuery = <K extends LibraryKind>(api: ApiClient, kind: K, filter: LibraryFilter) => {
-  const fetchers = { albums: api.catalog.albums, artists: api.catalog.artists, tracks: api.catalog.tracks }
+  const list = (fetch: (query: Partial<LibraryQuery>) => Promise<Page<unknown>>) => ({ sort, ...query }: Omit<Partial<LibraryQuery>, 'sort'> & { sort: LibraryItemsSort }) =>
+    fetch({ ...query, sort: sort === 'played' ? 'recent' : sort })
+  const fetchers = { items: api.catalog.items, albums: list(api.catalog.albums), artists: list(api.catalog.artists), tracks: list(api.catalog.tracks) }
   return infiniteQueryOptions({
     queryKey: [...libraryKeys[kind](), filter],
     queryFn: ({ pageParam }) => fetchers[kind]({ ...filter, cursor: pageParam, limit: pageSizes[kind] }) as Promise<Page<LibraryItems[K]>>,

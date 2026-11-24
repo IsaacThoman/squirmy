@@ -1,11 +1,9 @@
-import { readsUnavailable } from '@squirmy/client-core'
 import type { AlbumSummary, PlaybackContext, TrackSummary } from '@squirmy/contracts'
-import { useMemo } from 'react'
-import type { NowPlaying, TrackAction } from '@/components/music/TrackList'
+import type { TrackAction } from '@/components/music/TrackList'
 import { albumPresentation } from '@/lib/catalog'
 import { useLibrary } from './library-context'
 import { useViewer } from './on-demand-context'
-import { usePlayer } from './player-context'
+import { usePlayerControls } from './player-context'
 
 type TrackActionOptions = {
   /** Plays from a row; defaults to playing `tracks` from that row on. */
@@ -15,20 +13,14 @@ type TrackActionOptions = {
   onRemove?: (index: number) => void
 }
 
-/** What a track list needs from the session and the library: the playing row and its actions. */
+/**
+ * What a track list needs from the player and the library: its rows' actions. It reads only the
+ * player's commands, so the list does not render again as the session changes; each row follows
+ * whether it is the current track itself (`useTrackPlayback`).
+ */
 export function useTrackActions(tracks: TrackSummary[], context?: PlaybackContext, options: TrackActionOptions = {}) {
-  const { state, controls } = usePlayer()
+  const controls = usePlayerControls()
   const library = useLibrary()
-  const current = state.current
-  const loading = state.waiting
-
-  const nowPlaying = useMemo<NowPlaying | null>(() => current && {
-    trackId: current.track.id,
-    playing: state.playing,
-    loading,
-    failed: readsUnavailable(current.entry, state.outage),
-    onTogglePlay: controls.togglePlay,
-  }, [current, state.playing, state.outage, loading, controls])
 
   // The menu entries say what worked, and wait for what the server answers (a save, a playlist) to say why it did not.
   const onAction = (action: TrackAction, track: TrackSummary, index: number): void | Promise<unknown> => {
@@ -53,7 +45,6 @@ export function useTrackActions(tracks: TrackSummary[], context?: PlaybackContex
   }
 
   return {
-    nowPlaying,
     isWanted: library.wantlistEnabled ? (track: TrackSummary) => library.isWanted(track.id) : undefined,
     playlists: library.playlists,
     onPlay: options.onPlay ?? ((index: number) => controls.playTracks(tracks, index, context)),

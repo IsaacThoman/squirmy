@@ -180,7 +180,7 @@ export default function Player() {
   const skipTrack = (direction: number) => {
     selectionFeedback();
     if (direction < 0) actions.next();
-    else actions.previous();
+    else actions.previousTrack();
   };
   const skipSwipe = usePanGesture({
     activeOffsetX: [-14, 14],

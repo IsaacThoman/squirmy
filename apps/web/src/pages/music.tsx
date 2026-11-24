@@ -30,7 +30,7 @@ import { ArtistReleasesView, ArtistView } from '@/components/views/ArtistView'
 import { HomeView, type ScanProgress } from '@/components/views/HomeView'
 import { LibraryView, type LibraryItem } from '@/components/views/LibraryView'
 import {
-  isLibraryFilter, isLibrarySort, matches, readLibraryFilter, readLibraryLayout, sortFor, sortsFor, writeLibraryFilter, writeLibraryLayout,
+  defaultSort, isLibraryFilter, isLibrarySort, matches, readLibraryFilter, readLibraryLayout, sortFor, sortsFor, writeLibraryFilter, writeLibraryLayout,
   type LibraryFilterName,
 } from '@/components/views/library-state'
 import { LikedView, PlaylistView } from '@/components/views/PlaylistView'
@@ -406,7 +406,8 @@ const GENRE_FILTERS: readonly LibraryFilterName[] = ['all', 'albums', 'songs']
 function libraryHref(filter: LibraryFilterName, params: URLSearchParams) {
   const next = new URLSearchParams({ filter })
   const sort = params.get('sort')
-  if (isLibrarySort(sort) && sort !== 'recent') next.set('sort', sort)
+  // Each filter opens in its own default, so a sort is carried only when it is not that.
+  if (isLibrarySort(sort) && sort !== defaultSort(filter)) next.set('sort', sort)
   const genre = params.get('genre')
   if (genre && GENRE_FILTERS.includes(filter)) next.set('genre', genre)
   return `/library?${next}`
@@ -446,6 +447,16 @@ const listCount = <T,>(list: { data?: InfiniteData<ListPage<T>>; hasNextPage: bo
   return list.hasNextPage ? `${count.toLocaleString()}+ ${one}s` : plural(count, one)
 }
 
+/** What a one-letter filter of All matches an item by: the title and the line under it. */
+function itemText(item: LibraryItem): string[] {
+  switch (item.kind) {
+    case 'liked': return ['Liked Songs']
+    case 'playlist': return [item.playlist.name, item.playlist.ownerName]
+    case 'album': return [item.album.title, item.album.artistCredit]
+    case 'artist': return [item.artist.name]
+  }
+}
+
 /**
  * The combined Library. Only the lists the filter shows are loaded. Two characters or more
  * search the whole library on the server (playlists are only ever filtered here); one
@@ -460,21 +471,24 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
   const [layout, setLayout] = useState(readLibraryLayout)
   const [query, setQuery] = useState('')
   const chosen = params.get('sort')
-  const sort = sortFor(filter, isLibrarySort(chosen) ? chosen : 'recent')
+  const sort = sortFor(filter, isLibrarySort(chosen) ? chosen : null)
   const genre = params.get('genre') ?? undefined
 
   useEffect(() => writeLibraryFilter(filter), [filter])
 
   const showsPlaylists = filter === 'all' || filter === 'playlists'
   const showsAlbums = filter === 'all' || filter === 'albums'
-  const albums = useLibraryList('albums', { sort, genre }, showsAlbums)
+  // All is one list from the server, in the sort's order; a search of it adds the albums and artists found.
+  const all = useLibraryList('items', { sort, genre }, filter === 'all')
+  const albums = useLibraryList('albums', { sort, genre }, filter === 'albums')
   // The server lists artists by name whatever the order asked for.
   const artists = useLibraryList('artists', { sort: 'recent' }, filter === 'artists')
   const songs = useLibraryList('tracks', { sort, genre }, filter === 'songs')
   const playlistList = usePlaylists()
   const playlists = playlistList.data?.items
   // Without the playlists, Liked Songs and the albums still show; the page says the rest failed.
-  const playlistsFailed = showsPlaylists && !playlists && Boolean(playlistList.error)
+  // Under All the server lists them, so only a search of All (which lists them here) needs them.
+  const playlistsFailed = showsPlaylists && (filter === 'playlists' || searchesServer(query)) && !playlists && Boolean(playlistList.error)
   const liked = useLikedTracks()
 
   const searchText = filter === 'playlists' ? '' : query
@@ -484,13 +498,17 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
   // The search's own failure, once it is done retrying: the list behind it may well have loaded.
   const searchFailed = searching && !found.pending && found.data === undefined && Boolean(found.error)
   const matched = searching ? found.data : undefined
-  const listed = filter === 'artists' ? artists : filter === 'songs' ? songs : showsAlbums ? albums : null
+  const listed = filter === 'all' ? all : filter === 'artists' ? artists : filter === 'songs' ? songs : filter === 'albums' ? albums : null
   // The list's first answer failed. The page stays: the chips, and under All the playlists, are still usable.
   const listFailed = Boolean(listed?.error && !listed.data)
   const albumsFailed = showsAlbums && listFailed
 
   const items = useMemo((): LibraryItem[] | undefined => {
     if (filter === 'songs') return undefined
+    if (filter === 'all' && !searching) {
+      if (listFailed) return []
+      return all.data && itemsOf(all.data).filter(item => matches(query, ...itemText(item)))
+    }
     const collections: LibraryItem[] = []
     if (showsPlaylists) {
       if (!playlists && !playlistsFailed) return undefined
@@ -504,13 +522,14 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
       if (!list) return undefined
       collections.push(...list.map(album => ({ kind: 'album', album }) as const))
     }
-    if (filter === 'artists') {
+    // All shows artists beside the rest, so a search of it finds them there too.
+    if (filter === 'artists' || filter === 'all') {
       const list = searching ? matched?.artists : artists.data && itemsOf(artists.data).filter(artist => matches(query, artist.name))
       if (!list) return undefined
       collections.push(...list.map(artist => ({ kind: 'artist', artist }) as const))
     }
     return collections
-  }, [filter, showsPlaylists, showsAlbums, albumsFailed, playlists, playlistsFailed, query, searching, matched, albums.data, artists.data])
+  }, [filter, showsPlaylists, showsAlbums, albumsFailed, listFailed, playlists, playlistsFailed, query, searching, matched, all.data, albums.data, artists.data])
 
   const tracks = useMemo(() => {
     if (filter !== 'songs') return undefined
@@ -550,7 +569,7 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
       filterHref={name => libraryHref(name, params)}
       sort={sort}
       sorts={sortsFor(filter)}
-      onSortChange={next => setParam('sort', next === 'recent' ? undefined : next)}
+      onSortChange={next => setParam('sort', next === defaultSort(filter) ? undefined : next)}
       layout={layout}
       onLayoutChange={next => {
         setLayout(next)
@@ -569,7 +588,10 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
       searchFailure={searchFailed ?{ error: found.error, onRetry: () => void found.refetch() } : undefined}
       count={count}
       likedCount={liked.data ? listCount(liked, 'song') : undefined}
-      libraryEmpty={Boolean(albums.data && !itemsOf(albums.data).length && !genre)}
+      // Liked Songs is always listed under All, so the library is empty when nothing else is.
+      libraryEmpty={!genre && Boolean(filter === 'all'
+        ? all.data && !all.hasNextPage && itemsOf(all.data).every(item => item.kind === 'liked')
+        : albums.data && !itemsOf(albums.data).length)}
       pending={searching && found.pending}
       capped={searching && matchedCount >= LIBRARY_MATCH_LIMIT}
       loadingMore={!searching && Boolean(listed?.isFetchingNextPage)}
