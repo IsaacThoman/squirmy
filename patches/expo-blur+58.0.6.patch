@@ -69,3 +69,60 @@ index 185f69a..367fab0 100644
  }
  
  private func isDetoxPresent() -> Bool {
+diff --git a/node_modules/expo-blur/ios/BlurViewModule.swift b/node_modules/expo-blur/ios/BlurViewModule.swift
+index de5924d..35e8b70 100644
+--- a/node_modules/expo-blur/ios/BlurViewModule.swift
++++ b/node_modules/expo-blur/ios/BlurViewModule.swift
+@@ -14,6 +14,10 @@ public final class BlurViewModule: Module {
+       Prop("intensity") { (view, intensity: Double) in
+         view.setIntensity(intensity / 100)
+       }
++
++      Prop("gradientMask") { (view, colors: [UIColor]?) in
++        view.setGradientMask(colors)
++      }
+     }
+   }
+ }
+diff --git a/node_modules/expo-blur/ios/ExpoBlurView.swift b/node_modules/expo-blur/ios/ExpoBlurView.swift
+index e0dd06b..b33dc7e 100644
+--- a/node_modules/expo-blur/ios/ExpoBlurView.swift
++++ b/node_modules/expo-blur/ios/ExpoBlurView.swift
+@@ -4,6 +4,7 @@ import ExpoModulesCore
+
+ public final class ExpoBlurView: ExpoView {
+   private let blurEffectView = BlurEffectView()
++  private var gradientMask: BlurGradientMaskView?
+
+   public required init(appContext: AppContext? = nil) {
+     super.init(appContext: appContext)
+@@ -21,4 +22,29 @@ public final class ExpoBlurView: ExpoView {
+   public func setIntensity(_ intensity: Double) {
+     blurEffectView.intensity = intensity
+   }
++
++  func setGradientMask(_ colors: [UIColor]?) {
++    guard let colors, colors.count > 1 else {
++      gradientMask = nil
++      blurEffectView.mask = nil
++      return
++    }
++    let mask = gradientMask ?? BlurGradientMaskView(frame: blurEffectView.bounds)
++    let gradient = mask.layer as! CAGradientLayer
++    gradient.colors = colors.map(\.cgColor)
++    gradientMask = mask
++    blurEffectView.mask = mask
++  }
++
++  public override func layoutSubviews() {
++    super.layoutSubviews()
++    guard let mask = gradientMask, mask.frame != blurEffectView.bounds else { return }
++    mask.frame = blurEffectView.bounds
++    // UIKit copies the mask onto the effect's internal views, so assign it again after resizing.
++    blurEffectView.mask = mask
++  }
++}
++
++private final class BlurGradientMaskView: UIView {
++  override class var layerClass: AnyClass { CAGradientLayer.self }
+ }

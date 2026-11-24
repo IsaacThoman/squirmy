@@ -144,7 +144,7 @@ A device is listed only while its socket is connected, so a paused phone that iO
 - **Album pages:** track list with per-track availability.
 - **Wantlist.** Gray items can be wanted; a matching import completes them. Off unless the admin turns it on (`wantlistEnabled`): with a provider that can fetch anything it is noise.
 - **Home:** what you played recently and most, your playlists, recently added, new releases from your own artists (no karaoke or tribute acts), and the wantlist when it is on.
-- **Library:** All is your albums, artists, playlists and Liked Songs in one grid, recently played first: what you last started playback from (its Play, Shuffle or a song on its page, on any device), then the rest by when it was added. Playlists, Albums, Artists and Songs narrow it to one kind.
+- **Library:** Your albums, artists, playlists and Liked Songs appear together, recently played first: what you last started playback from (its Play, Shuffle or a song on its page, on any device), then the rest by when it was added. On the web, Playlists, Albums, Artists and Songs narrow it to one kind.
 
 ## OpenSubsonic
 
@@ -182,7 +182,7 @@ Purchasing (priced offers, caps, budgets) is deferred. The protocol reserves an 
 **Web**
 
 - Layout: a sidebar that folds to icons and is a drawer on phones, the main view, a player bar along the bottom, a queue panel beside the page.
-- Library: one combined view as on the phone (Liked Songs, playlists, albums, artists, songs behind filter chips), with sorting, a grid or list, and search within it.
+- Library: a combined view with sorting, a grid or list, and search within it. Filter chips narrow the view to playlists, albums, artists or songs.
 - Search: a search page, and a quick search dialog from any page.
 - Settings in a dialog. Appearance is light, dark or the system's, with a choice of color themes, kept per browser.
 - Audio: `HTMLAudioElement`, the Media Session API, and Web Audio gain.

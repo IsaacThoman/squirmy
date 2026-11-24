@@ -1,6 +1,6 @@
 import { ApiError } from '@squirmy/client-core';
 import {
-  queryKeys, type ArtistSectionKey, type LibraryItemsSort, type LibrarySort, type Lyrics, type Page, type SearchKind, type SearchResults, type TrackSummary, type UpdateUserSettings,
+  queryKeys, type ArtistSectionKey, type LibraryItemsSort, type Lyrics, type Page, type SearchKind, type SearchResults, type TrackSummary, type UpdateUserSettings,
   type UserSettings,
 } from '@squirmy/contracts';
 import { keepPreviousData, useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -50,13 +50,9 @@ export function useHome() {
     home => home.sections.flatMap(section => section.kind === 'tracks' ? section.tracks : [])));
 }
 
-/** The Library's All: albums, artists, playlists and Liked Songs in one list, in `sort`'s order. */
-export function useLibraryItems(sort: LibraryItemsSort, enabled = true) {
-  return usePagedQuery([...queryKeys.libraryItems(), sort], (api, cursor) => api.catalog.items({ sort, cursor, limit: pageSize }), enabled);
-}
-
-export function useLibraryAlbums(sort: LibrarySort, enabled = true) {
-  return usePagedQuery([...queryKeys.libraryAlbums(), sort], (api, cursor) => api.catalog.albums({ sort, cursor, limit: pageSize }), enabled);
+/** Albums, artists, playlists and Liked Songs in one list, in `sort`'s order. */
+export function useLibraryItems(sort: LibraryItemsSort) {
+  return usePagedQuery([...queryKeys.libraryItems(), sort], (api, cursor) => api.catalog.items({ sort, cursor, limit: pageSize }));
 }
 
 /** Library albums read in pages of the server's largest size, up to this many, for `useLibraryAlbumIds`. */
@@ -79,16 +75,6 @@ export function useLibraryAlbumIds(enabled: boolean) {
     } while (cursor && ids.length < membershipLimit);
     return { ids, complete: !cursor };
   }, { enabled });
-}
-
-export function useLibraryArtists(sort: LibrarySort, enabled = true) {
-  return usePagedQuery([...queryKeys.libraryArtists(), sort], (api, cursor) => api.catalog.artists({ sort, cursor, limit: pageSize }), enabled);
-}
-
-export function useLibraryTracks(sort: LibrarySort, enabled = true) {
-  const prime = usePrime();
-  return usePagedQuery([...queryKeys.libraryTracks(), sort],
-    async (api, cursor) => prime(await api.catalog.tracks({ sort, cursor, limit: pageSize }), page => page.items), enabled);
 }
 
 export function useLikedTracks() {
