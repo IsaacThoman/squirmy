@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { GestureDetector, useNativeGesture, usePanGesture, type NativeGesture } from 'react-native-gesture-handler';
 import Animated, { useAnimatedReaction, useAnimatedStyle, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
@@ -23,7 +23,16 @@ const actionWidth = 102;
 
 export type QueueProps = {
   onTrackMenu: (trackId: string, albumId: string | null) => void;
+  /** Whether the page is the one shown; opened again, the iOS page goes back to the song playing. */
+  selected?: boolean;
+  /** The song playing, laid out by the player, for a page that shows it in its own scrolling (`queueShowsNowPlaying`). */
+  nowPlaying?: ReactNode;
+  /** Set by such a page to how far the song playing is from where it rests, as it scrolls; see `QueuePage.ios`. */
+  nowPlayingShift?: SharedValue<number>;
 };
+
+/** This page leaves the song playing to the player, above it. */
+export const queueShowsNowPlaying = false;
 
 export default function QueuePage({ onTrackMenu }: QueueProps) {
   const colors = useColors();
