@@ -17,6 +17,8 @@ export type PlayerButtonProps = {
 
 export type DeviceButtonProps = { icon: string; name: string; highlighted: boolean; onPress: () => void };
 export type TrackMenuButtonProps = { track: TrackSummary; onPress: () => void };
+/** The title and artist, which open a menu of the pages they lead to. */
+export type TrackLinksMenuProps = { track: TrackSummary | undefined; accessibilityLabel: string; children: React.ReactNode };
 /** Without `onPress` (plain lyrics) the line is only text. */
 export type LyricButtonProps = { line: string; active: boolean; onPress?: () => void };
 
@@ -40,6 +42,11 @@ export function CollapseButton({ onPress }: { onPress: () => void }) {
 
 export function TrackMenuButton({ onPress }: TrackMenuButtonProps) {
   return <PlayerButton icon="ellipsis" label="Song options" onPress={onPress} />;
+}
+
+/** Only iOS has the menu; elsewhere the "…" menu's sheet leads to the album and artists. */
+export function TrackLinksMenu({ children }: TrackLinksMenuProps) {
+  return <>{children}</>;
 }
 
 export function DeviceButton({ icon, name, highlighted, onPress }: DeviceButtonProps) {

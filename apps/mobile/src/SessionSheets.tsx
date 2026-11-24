@@ -17,7 +17,7 @@ import { trackActionKey, useRunTrackAction, useTrackActions } from './library/tr
 import { usePlaybackState } from './playback';
 import { whereItPlays } from './player/session';
 import { useVolumeSlider } from './player/volume';
-import { SystemVolumeSlider } from '../modules/now-playing';
+import NowPlaying, { SystemVolumeSlider } from '../modules/now-playing';
 import {
   SheetAction, SheetField, SheetFrame, SheetInfo, SheetNote, SheetRows, SheetRow, SheetScroll, SheetSlider, SheetSystemVolume, TrackSummary,
 } from './SheetUI';
@@ -74,6 +74,7 @@ export function DeviceSheet() {
         </SheetRows>
         {failure && <SheetNote error>{failure}</SheetNote>}
         {output.isThisDevice && SystemVolumeSlider && <SheetSystemVolume label="Volume on this iPhone" />}
+        {output.isThisDevice && <RouteRow />}
         <SeparateDevices devices={separate} />
       </Sheet>
     );
@@ -98,6 +99,7 @@ export function DeviceSheet() {
       {session.activeDeviceId && !output.reconnecting && (output.isThisDevice && SystemVolumeSlider
         ? <SheetSystemVolume label={`Volume on ${output.name}`} />
         : <SheetSlider label={`Volume on ${output.name}`} value={shownVolume} onChange={setVolume} />)}
+      {output.isThisDevice && !output.reconnecting && <RouteRow />}
       {canDetach && <SheetRows>
         <SheetRow title="Play separately on this iPhone" icon={DETACHED_SYMBOL} subtitle="Your other devices keep their own queue."
           busy={moving === 'detach'} onPress={() => move(() => actions.detach(), 'detach')} />
@@ -106,6 +108,18 @@ export function DeviceSheet() {
       <SeparateDevices devices={separate} />
     </Sheet>
   );
+}
+
+/**
+ * Where this phone's own sound goes: AirPlay, Bluetooth or the speaker, in the system's picker.
+ * Only while this phone plays; another device's sound is its own business. iOS only.
+ */
+function RouteRow() {
+  if (!NowPlaying?.showRoutePicker) return null;
+  return <SheetRows>
+    <SheetRow title="AirPlay and Bluetooth" icon="airplay.audio" subtitle="Choose where this iPhone’s sound plays"
+      onPress={() => { void Haptics.selectionAsync(); void NowPlaying?.showRoutePicker?.(); }} />
+  </SheetRows>;
 }
 
 /** Devices playing their own queue: not transfer targets, listed so "why didn't the kitchen change?" has an answer. */

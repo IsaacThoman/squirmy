@@ -8,6 +8,8 @@ import type { Page } from './links';
 export type TrackAction = {
   id: TrackActionId;
   title: string;
+  /** What a page action leads to, such as the album's title, for a menu that shows it under the title. */
+  subtitle?: string;
   icon: string;
   destructive?: boolean;
   run?: () => void;
@@ -98,12 +100,27 @@ export function trackActions(track: TrackSummary, state: TrackActionState, { pla
     wantlist && !playable && track.availability !== 'server' && online && (wanted
       ? { id: 'unwant', ...wantFailure === undefined ? { title: 'Remove from wantlist', icon: 'star.slash' } : failed('Couldn’t remove from wantlist') }
       : { id: 'want', ...wantFailure === undefined ? { title: 'Add to wantlist', icon: 'star' } : failed('Couldn’t add to wantlist') }),
-    Boolean(track.album) && track.album!.id !== album && { id: 'album', title: 'Go to album', icon: 'square.stack', page: { page: 'album', id: track.album!.id } },
-    // Each credited artist leads to its own page: on an artist's page a featured artist is often not the first.
-    ...track.artists.map((artist): TrackAction => ({
-      id: 'artist', title: track.artists.length > 1 ? `Go to ${artist.name}` : 'Go to artist', icon: 'music.mic', page: { page: 'artist', id: artist.id },
-    })),
+    ...trackLinks(track, album),
     playlist !== undefined && online && { id: 'remove', title: 'Remove from playlist', icon: 'minus.circle', destructive: true },
   ];
   return items.filter((item): item is TrackAction => Boolean(item));
+}
+
+/**
+ * The pages a track leads to: its album, unless that is the page it is shown on, then each
+ * credited artist's, as on an artist's page a featured artist is often not the first. Only
+ * what exists: a track with no album has no "Go to album".
+ */
+export function trackLinks(track: TrackSummary, album?: string): TrackAction[] {
+  const links: TrackAction[] = [];
+  if (track.album && track.album.id !== album) {
+    links.push({ id: 'album', title: 'Go to album', subtitle: track.album.title, icon: 'square.stack', page: { page: 'album', id: track.album.id } });
+  }
+  for (const artist of track.artists) {
+    links.push({
+      id: 'artist', title: track.artists.length > 1 ? `Go to ${artist.name}` : 'Go to artist', subtitle: artist.name, icon: 'music.mic',
+      page: { page: 'artist', id: artist.id },
+    });
+  }
+  return links;
 }
