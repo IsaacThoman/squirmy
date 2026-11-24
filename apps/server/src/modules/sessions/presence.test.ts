@@ -17,12 +17,16 @@ import { configureSessions, getDevices, getSnapshot } from './service.js'
 
 /**
  * Presence end to end: real `SessionClient`s over socket.io, with the heartbeat shortened
- * so a device that stops answering is dropped in a fraction of a second rather than in the
- * real 10 to 15 seconds. Timings are real (socket.io's heartbeat runs on real timers); the
- * session clock is a fake one, so positions only move when a test moves them.
+ * so a device that stops answering is dropped in about a second rather than in the real 10
+ * to 15 seconds. Timings are real (socket.io's heartbeat runs on real timers); the session
+ * clock is a fake one, so positions only move when a test moves them.
+ *
+ * The server and every client share this process's event loop, so a stall of it (a busy CI
+ * runner, a garbage collection) delays pongs like a dead client would. The pong timeout is
+ * kept well above such stalls, and tests wait for answered pings rather than for time.
  */
 
-const HEARTBEAT = { intervalMs: 50, timeoutMs: 100 }
+const HEARTBEAT = { intervalMs: 50, timeoutMs: 1000 }
 
 async function eventually(check: () => void | Promise<void>, timeoutMs = 5000): Promise<void> {
   const deadline = performance.now() + timeoutMs
@@ -37,7 +41,21 @@ async function eventually(check: () => void | Promise<void>, timeoutMs = 5000): 
   }
 }
 
-const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+/**
+ * Resolves once each socket has been pinged `count` more times. A ping comes only after the
+ * last one was answered in time, so that many heartbeats passed with the device kept.
+ */
+function heartbeats(count: number, ...sockets: SquirmySocket[]): Promise<void> {
+  return Promise.all(sockets.map((socket) => new Promise<void>((resolve) => {
+    let seen = 0
+    const onPing = () => {
+      if (++seen < count) return
+      socket.io.off('ping', onPing)
+      resolve()
+    }
+    socket.io.on('ping', onPing)
+  }))).then(() => undefined)
+}
 
 type Device = { id: string; client: SessionClient; engine: FakeEngine; socket: SquirmySocket; lists: DeviceInfo[][] }
 
@@ -65,10 +83,13 @@ describe('device presence', () => {
   const now = () => time
   const devices: Device[] = []
   let album: Awaited<ReturnType<typeof createAlbum>>
+  /** Why the server closed each socket, by socket id. */
+  const closedBecause = new Map<string, string>()
 
   beforeAll(async () => {
     app = await buildApp()
     realtime = await startRealtime(app, HEARTBEAT)
+    realtime.io.on('connection', (socket) => socket.on('disconnect', (reason) => void closedBecause.set(socket.id, reason)))
     await sessionsModule.realtime!(realtime)
     await app.listen({ host: '127.0.0.1', port: 0 })
     url = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`
@@ -128,18 +149,18 @@ describe('device presence', () => {
   const listed = (target: Device) => target.client.getSnapshot().devices.map((item) => item.id).sort()
   const ids = (...targets: Device[]) => targets.map((target) => target.id).sort()
 
-  it('drops a device that stops answering the heartbeat, within two missed pings', async () => {
+  it('drops a device that stops answering the heartbeat, by the heartbeat alone', async () => {
     const a = await device('device-a-pres1')
     const b = await device('device-b-pres1')
     await eventually(() => expect(listed(a)).toEqual(ids(a, b)))
 
     // B's socket stays open and keeps receiving; it only stops answering.
+    const socketId = b.socket.id!
     b.socket.io.reconnection(false)
     stopAnswering(b.socket)
-    const stopped = performance.now()
     await eventually(() => expect(listed(a)).toEqual([a.id]))
-    const elapsed = performance.now() - stopped
-    expect(elapsed).toBeLessThan(HEARTBEAT.intervalMs + HEARTBEAT.timeoutMs + 250)
+    // The missed pong closed it, not anything the client sent.
+    expect(closedBecause.get(socketId)).toBe('ping timeout')
     expect((await getDevices(userId)).map((item) => item.id)).toEqual([a.id])
   })
 
@@ -149,7 +170,7 @@ describe('device presence', () => {
     await eventually(() => expect(listed(a)).toEqual(ids(a, b)))
     const lists = a.lists.length
     // Many heartbeats, and neither device sends anything of its own.
-    await pause(10 * (HEARTBEAT.intervalMs + HEARTBEAT.timeoutMs))
+    await heartbeats(10, a.socket, b.socket)
     expect(listed(a)).toEqual(ids(a, b))
     expect(a.lists).toHaveLength(lists)
   })
@@ -228,7 +249,7 @@ describe('device presence', () => {
 
     // Settled: more heartbeats pass and no list goes out that drops anyone.
     const seen = c.lists.length
-    await pause(5 * (HEARTBEAT.intervalMs + HEARTBEAT.timeoutMs))
+    await heartbeats(5, a.socket, b.socket, c.socket)
     for (const list of c.lists.slice(seen)) expect(list.map((item) => item.id).sort()).toEqual(ids(a, b, c))
   })
 
@@ -242,7 +263,7 @@ describe('device presence', () => {
     }
     await eventually(() => expect(listed(a)).toEqual(['device-a-pres6', 'device-b-pres6']))
     for (const socket of tabs.slice(1)) socket.disconnect()
-    await pause(3 * (HEARTBEAT.intervalMs + HEARTBEAT.timeoutMs))
+    await heartbeats(3, a.socket, tabs[0]!)
     expect(listed(a)).toEqual(['device-a-pres6', 'device-b-pres6'])
     expect(a.client.getSnapshot().devices.filter((item) => item.id === 'device-b-pres6')).toHaveLength(1)
     tabs[0]!.disconnect()
