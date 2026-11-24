@@ -1,5 +1,5 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { memo, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { useScrollContainer } from '@/components/layout/scroll-context'
 import { useEndReached } from './use-end-reached'
 
@@ -64,18 +64,63 @@ export function VirtualGrid<T>({ items, getKey, renderItem, label, onEndReached,
   return (
     <div ref={container} role="list" aria-label={label} className="relative" style={{ height: virtualizer.getTotalSize() }}>
       {virtualizer.getVirtualItems().map(row => (
-        <div
+        <GridRow
           key={row.key}
-          ref={virtualizer.measureElement}
-          data-index={row.index}
-          className="absolute inset-x-0 top-0 grid"
-          style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, columnGap: gap, paddingBottom: list ? 0 : rowGap, transform: `translateY(${row.start - layout.margin}px)` }}
-        >
-          {items.slice(row.index * columns, row.index * columns + columns).map(item => (
-            <div key={getKey(item)} role="listitem">{renderItem(item)}</div>
-          ))}
-        </div>
+          measure={virtualizer.measureElement}
+          index={row.index}
+          y={row.start - layout.margin}
+          items={items}
+          columns={columns}
+          list={list}
+          getKey={getKey as (item: unknown) => string}
+          renderItem={renderItem as (item: unknown) => ReactNode}
+        />
       ))}
     </div>
   )
 }
+
+type GridRowProps = {
+  measure: (element: Element | null) => void
+  index: number
+  y: number
+  items: unknown[]
+  columns: number
+  list: boolean
+  getKey: (item: unknown) => string
+  renderItem: (item: unknown) => ReactNode
+}
+
+/**
+ * One row. The virtualizer renders the grid on every scroll event; rows that only stay where
+ * they are, and cards that stay in their row, are not rendered again, so a scroll frame costs
+ * the rows coming into view rather than every card on screen.
+ */
+const GridRow = memo(function GridRow({ measure, index, y, items, columns, list, getKey, renderItem }: GridRowProps) {
+  return (
+    <div
+      ref={measure}
+      data-index={index}
+      className="absolute inset-x-0 top-0 grid"
+      style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, columnGap: gap, paddingBottom: list ? 0 : rowGap, transform: `translateY(${y}px)` }}
+    >
+      {items.slice(index * columns, index * columns + columns).map(item => (
+        <GridCell key={getKey(item)} item={item} renderItem={renderItem} />
+      ))}
+    </div>
+  )
+}, (before, after) => before.measure === after.measure && before.index === after.index && before.y === after.y && before.columns === after.columns
+  && before.list === after.list && before.getKey === after.getKey && before.renderItem === after.renderItem
+  && sameRow(before.items, after.items, before.index * before.columns, before.columns))
+
+/** Whether a row shows the same items, by identity, so a page loaded further down leaves the rows above alone. */
+function sameRow(before: unknown[], after: unknown[], start: number, count: number): boolean {
+  if (before === after) return true
+  for (let index = start; index < start + count; index += 1) if (before[index] !== after[index]) return false
+  return true
+}
+
+/** A card, rendered again only when its item or the way items render changes (a resize moves it, not re-renders it). */
+const GridCell = memo(function GridCell({ item, renderItem }: { item: unknown; renderItem: (item: unknown) => ReactNode }) {
+  return <div role="listitem">{renderItem(item)}</div>
+})
