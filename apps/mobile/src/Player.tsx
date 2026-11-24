@@ -29,7 +29,7 @@ import { useVolumeSlider } from './player/volume';
 import { Icon } from './ui';
 import { SystemVolumeSlider } from '../modules/now-playing';
 import LyricsPage, { type LyricsHandle } from './player/LyricsPage';
-import QueuePage from './player/QueuePage';
+import QueuePage, { queueShowsNowPlaying } from './player/QueuePage';
 import TransportSlider from './player/TransportSlider';
 import { CollapseButton, DeviceButton, PlayerButton, TrackLinksMenu, TrackMenuButton } from './player/Controls';
 import { selectionFeedback } from './player/design';
@@ -110,6 +110,8 @@ export default function Player() {
   const artworkImage = useArtworkImage(artwork, 440);
   const backdropImage = useArtworkImage(artwork, 300);
   const detail = useSharedValue(0);
+  const queueShown = useSharedValue(0);
+  const nowPlayingShift = useSharedValue(0);
   const trackDrag = useSharedValue(0);
   const dragStart = useSharedValue(0);
   const startLead = useSharedValue(1);
@@ -133,7 +135,8 @@ export default function Player() {
 
   useEffect(() => {
     detail.set(withTiming(artworkPage ? 0 : 1, modeMotion));
-  }, [artworkPage, detail]);
+    queueShown.set(withTiming(page === 'queue' ? 1 : 0, modeMotion));
+  }, [artworkPage, detail, page, queueShown]);
 
   useAnimatedReaction(
     () => motion.active.value,
@@ -194,11 +197,26 @@ export default function Player() {
   });
   const artworkGesture = useCompetingGestures(artworkDismiss, skipSwipe);
 
-  const placedArtwork = (d: number, drag: number): Artwork => {
+  // On the iOS queue the song playing scrolls with the page, which draws its artwork and lines
+  // once the player has carried them there (`onQueue`); taking them back, the player's start
+  // from where the page has them (`queueShift`), no further than just off its edges. Each
+  // style reads the shared values itself and passes them in, so it runs again when they change.
+  const onQueue = (d: number, shown: number, follow: number) => {
+    'worklet';
+    return queueShowsNowPlaying && d >= 1 && shown >= 1 && follow >= 1;
+  };
+  const queueShift = (shown: number, shift: number) => {
+    'worklet';
+    if (!queueShowsNowPlaying) return 0;
+    const reach = compactArtworkTop + compactArtworkSize;
+    return Math.max(-reach, Math.min(Math.max(0, availableHeight - reach), shift)) * shown;
+  };
+
+  const placedArtwork = (d: number, drag: number, shift = 0): Artwork => {
     'worklet';
     return {
       x: insets.left + artX + (artworkInset - artX) * d + drag * (1 - d),
-      y: top + headerHeight + artY + (compactArtworkTop - artY) * d,
+      y: top + headerHeight + artY + (compactArtworkTop - artY) * d + shift,
       size: artSize + (compactArtworkSize - artSize) * d,
       radius: artworkRadius + (compactArtworkRadius - artworkRadius) * d,
     };
@@ -209,7 +227,7 @@ export default function Player() {
     const { lead, follow } = progress(motion);
     if (!bubble) return { left: 0, top: 0, width, height, borderRadius: 0, opacity: lead };
     const { left, right } = sideInsets(bubble, follow, width);
-    const art = artworkInFlight(bubble, follow, placedArtwork(detail.value, trackDrag.value));
+    const art = artworkInFlight(bubble, follow, placedArtwork(detail.value, trackDrag.value, queueShift(queueShown.value, nowPlayingShift.value)));
     const edge = bubble.y * (1 - lead);
     const floor = bubble.y + bubble.height + (height - bubble.y - bubble.height) * follow;
     return {
@@ -247,9 +265,10 @@ export default function Player() {
   }));
 
   const artworkStyle = useAnimatedStyle(() => {
-    const placed = placedArtwork(detail.value, trackDrag.value);
+    const placed = placedArtwork(detail.value, trackDrag.value, queueShift(queueShown.value, nowPlayingShift.value));
     const bubble = motion.bubble.value;
-    if (!bubble) return { left: placed.x, top: placed.y, width: placed.size, height: placed.size, borderRadius: placed.radius };
+    const hidden = onQueue(detail.value, queueShown.value, bubble ? progress(motion).follow : 1) ? 0 : 1;
+    if (!bubble) return { left: placed.x, top: placed.y, width: placed.size, height: placed.size, borderRadius: placed.radius, opacity: hidden };
     const { follow } = progress(motion);
     const art = artworkInFlight(bubble, follow, placed);
     return {
@@ -258,6 +277,7 @@ export default function Player() {
       width: art.size,
       height: art.size,
       borderRadius: art.radius,
+      opacity: hidden,
     };
   });
   const artworkDetailsStyle = useAnimatedStyle(() => ({
@@ -267,6 +287,13 @@ export default function Player() {
   const compactDetailsStyle = useAnimatedStyle(() => ({
     opacity: interpolate(detail.value, [0.38, 0.92], [0, 1], clamp) *
       (motion.bubble.value ? interpolate(progress(motion).lead, [0.72, 0.95], [0, 1], clamp) : 1),
+  }));
+  const compactNowPlayingStyle = useAnimatedStyle(() => ({
+    opacity: onQueue(detail.value, queueShown.value, motion.bubble.value ? progress(motion).follow : 1) ? 0 : 1,
+    transform: [{ translateY: queueShift(queueShown.value, nowPlayingShift.value) }],
+  }));
+  const queueArtworkStyle = useAnimatedStyle(() => ({
+    opacity: onQueue(detail.value, queueShown.value, motion.bubble.value ? progress(motion).follow : 1) ? 1 : 0,
   }));
   const controlsHidden = page === 'lyrics' && lyricsHideControls;
   const lyricsStyle = useAnimatedStyle(() => ({
@@ -313,6 +340,21 @@ export default function Player() {
       {track && <TrackMenuButton track={track} onPress={() => openTrackMenu(track.id, track.album?.id)} />}
     </>
   );
+  const queuePanel = seenQueue && <Animated.View pointerEvents={page === 'queue' ? 'auto' : 'none'}
+    accessibilityElementsHidden={page !== 'queue'}
+    importantForAccessibility={page === 'queue' ? 'auto' : 'no-hide-descendants'}
+    style={[StyleSheet.absoluteFill, queueStyle]}>
+    <QueuePage onTrackMenu={openTrackMenu} selected={page === 'queue'} nowPlayingShift={nowPlayingShift}
+      nowPlaying={queueShowsNowPlaying && <View style={styles.queueNowPlaying}>
+        <Animated.View style={[styles.queueArtwork, queueArtworkStyle]}>
+          {artworkImage
+            ? <Image source={artworkImage.source} placeholder={artworkImage.placeholder} placeholderContentFit="cover"
+              contentFit="cover" style={StyleSheet.absoluteFill} />
+            : <View style={styles.noArtwork}><Icon name="music.note" size={22} color={colors.quiet} /></View>}
+        </Animated.View>
+        <View style={[styles.metadata, styles.queueMetadata]}>{trackDetails(true)}</View>
+      </View>} />
+  </Animated.View>;
 
   return (
     <Overlay>
@@ -350,7 +392,7 @@ export default function Player() {
               </GestureDetector>
               {(seenLyrics || seenQueue) && <Animated.View style={[styles.details, compactDetailsStyle]} pointerEvents={artworkPage ? 'none' : 'auto'}
                 accessibilityElementsHidden={artworkPage} importantForAccessibility={artworkPage ? 'no-hide-descendants' : 'auto'}>
-                <View style={[styles.metadata, styles.compactMetadata]}>{trackDetails(true)}</View>
+                <Animated.View style={[styles.metadata, styles.compactMetadata, compactNowPlayingStyle]}>{trackDetails(true)}</Animated.View>
                 <View style={styles.detailPanel}>
                   {seenLyrics && <Animated.View pointerEvents={page === 'lyrics' ? 'auto' : 'none'}
                     accessibilityElementsHidden={page !== 'lyrics'}
@@ -358,13 +400,10 @@ export default function Player() {
                     style={[StyleSheet.absoluteFill, lyricsStyle]}>
                     <LyricsPage key={current?.id ?? 'none'} ref={lyricsPage} selected={page === 'lyrics'} onControlsHidden={setLyricsHideControls} />
                   </Animated.View>}
-                  {seenQueue && <Animated.View pointerEvents={page === 'queue' ? 'auto' : 'none'}
-                    accessibilityElementsHidden={page !== 'queue'}
-                    importantForAccessibility={page === 'queue' ? 'auto' : 'no-hide-descendants'}
-                    style={[StyleSheet.absoluteFill, queueStyle]}>
-                    <QueuePage onTrackMenu={openTrackMenu} />
-                  </Animated.View>}
+                  {!queueShowsNowPlaying && queuePanel}
                 </View>
+                {/* Over the song playing too, which scrolls with it. */}
+                {queueShowsNowPlaying && queuePanel}
               </Animated.View>}
             </View>
             <GestureDetector gesture={transportDismiss}>
@@ -602,6 +641,10 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   detailPanel: { flex: 1 },
   compactMetadata: { alignSelf: 'stretch', width: 'auto', maxWidth: undefined, minHeight: compactArtworkSize,
     marginLeft: artworkInset + compactArtworkSize + 12, marginRight: artworkInset, marginBottom: 9 },
+  queueNowPlaying: { flexDirection: 'row', paddingTop: compactArtworkTop, paddingHorizontal: artworkInset, paddingBottom: 9 },
+  queueArtwork: { width: compactArtworkSize, height: compactArtworkSize, borderRadius: compactArtworkRadius,
+    overflow: 'hidden', backgroundColor: colors.surface },
+  queueMetadata: { flex: 1, width: 'auto', maxWidth: undefined, minHeight: compactArtworkSize, marginLeft: 12 },
   compactTrackTitle: { color: colors.text, fontWeight: '700', fontSize: 18 },
   compactTrackArtist: { color: colors.muted, marginTop: 2, fontSize: 14 },
   metadataSlot: { width: '100%', maxWidth: 440, justifyContent: 'center' },
