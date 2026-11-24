@@ -1,6 +1,6 @@
 import { readsUnavailable, type SessionOutage } from '@squirmy/client-core'
 import { Infinity as InfinityIcon, Repeat, Repeat1, Shuffle, X } from 'lucide-react'
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ComponentPropsWithRef, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import { memo, useEffect, useId, useLayoutEffect, useRef, useState, type ComponentPropsWithRef, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
 import { Equalizer } from '@/components/music/Equalizer'
 import { Cover } from '@/components/music/Cover'
 import { SaveHeart } from '@/components/music/LibrarySave'
@@ -337,6 +337,21 @@ export function SortableQueue({ items, onMove, onRemove, onPlay }: SortableQueue
     }
   }
 
+  // The rows' handlers, the same functions on every render, so a row the drag does not move is not rendered again.
+  const latest = useRef({ onKeyDown, onPointerDown, onPlay, onRemove })
+  useLayoutEffect(() => { latest.current = { onKeyDown, onPointerDown, onPlay, onRemove } })
+  const [actions] = useState<SortableRowActions>(() => ({
+    register: (entryId, element) => {
+      if (element) buttons.current.set(entryId, element)
+      else buttons.current.delete(entryId)
+    },
+    onKeyDown: (event, index) => latest.current.onKeyDown(event, index),
+    onPointerDown: (event, entryId) => latest.current.onPointerDown(event, entryId),
+    onContextMenu: event => { if (pointer.current?.touch) event.preventDefault() },
+    onPlay: entryId => latest.current.onPlay(entryId),
+    onRemove: entryId => latest.current.onRemove(entryId),
+  }))
+
   // Held near the top or bottom of the queue, the list scrolls, so a row can go anywhere.
   useEffect(() => {
     if (!dragging) return
@@ -381,34 +396,7 @@ export function SortableQueue({ items, onMove, onRemove, onPlay }: SortableQueue
             if (index > origin && index <= target) shift = -rowHeight
             if (index < origin && index >= target) shift = rowHeight
           }
-          return (
-            <li
-              key={item.entry.id}
-              style={{ transform: `translateY(${held ? drag.offset : shift}px)` }}
-              className={cn(
-                'relative rounded-lg',
-                held ? 'z-10 bg-accent shadow-md' : drag && 'motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out',
-              )}
-            >
-              <QueueRow item={item} onPlay={() => onPlay(item.entry.id)} rowButton={{
-                ref: element => {
-                  if (element) buttons.current.set(item.entry.id, element)
-                  else buttons.current.delete(item.entry.id)
-                },
-                'aria-describedby': helpId,
-                'aria-description': `Position ${index + 1} of ${items.length}`,
-                onKeyDown: event => onKeyDown(event, index),
-                onPointerDown: event => onPointerDown(event, item.entry.id),
-                onContextMenu: event => { if (pointer.current?.touch) event.preventDefault() },
-                className: cn('select-none [-webkit-touch-callout:none]', items.length > 1 && (held ? 'cursor-grabbing' : 'cursor-grab')),
-              }}>
-                {/* Without a pointer that hovers, the button is always there to tap. */}
-                <IconButton label={`Remove ${item.track.title} from queue`} tooltip={false} size="sm" onClick={() => onRemove(item.entry.id)} className="opacity-0 focus-visible:opacity-100 group-hover/queue:opacity-100 pointer-coarse:size-11 pointer-coarse:opacity-100">
-                  <X />
-                </IconButton>
-              </QueueRow>
-            </li>
-          )
+          return <SortableQueueRow key={item.entry.id} item={item} index={index} count={items.length} y={held ? drag.offset : shift} held={held} dragging={dragging} helpId={helpId} actions={actions} />
         })}
       </ul>
       <p id={helpId} className="sr-only">Use the up and down arrow keys to move this song.</p>
@@ -416,6 +404,56 @@ export function SortableQueue({ items, onMove, onRemove, onPlay }: SortableQueue
     </>
   )
 }
+
+type SortableRowActions = {
+  register: (entryId: string, element: HTMLButtonElement | null) => void
+  onKeyDown: (event: KeyboardEvent, index: number) => void
+  onPointerDown: (event: PointerEvent<HTMLButtonElement>, entryId: string) => void
+  onContextMenu: (event: MouseEvent) => void
+  onPlay: (entryId: string) => void
+  onRemove: (entryId: string) => void
+}
+
+type SortableQueueRowProps = {
+  item: QueueItem
+  index: number
+  count: number
+  /** How far the row is drawn from its place: the held row follows the pointer, the others make room. */
+  y: number
+  held: boolean
+  dragging: boolean
+  helpId: string
+  actions: SortableRowActions
+}
+
+/** A song of `SortableQueue`. A drag renders only the rows it moves, not the whole queue on every pointer move. */
+const SortableQueueRow = memo(function SortableQueueRow({ item, index, count, y, held, dragging, helpId, actions }: SortableQueueRowProps) {
+  const entryId = item.entry.id
+  return (
+    <li
+      style={{ transform: `translateY(${y}px)` }}
+      className={cn(
+        'relative rounded-lg',
+        held ? 'z-10 bg-accent shadow-md' : dragging && 'motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out',
+      )}
+    >
+      <QueueRow item={item} onPlay={() => actions.onPlay(entryId)} rowButton={{
+        ref: element => actions.register(entryId, element),
+        'aria-describedby': helpId,
+        'aria-description': `Position ${index + 1} of ${count}`,
+        onKeyDown: event => actions.onKeyDown(event, index),
+        onPointerDown: event => actions.onPointerDown(event, entryId),
+        onContextMenu: actions.onContextMenu,
+        className: cn('select-none [-webkit-touch-callout:none]', count > 1 && (held ? 'cursor-grabbing' : 'cursor-grab')),
+      }}>
+        {/* Without a pointer that hovers, the button is always there to tap. */}
+        <IconButton label={`Remove ${item.track.title} from queue`} tooltip={false} size="sm" onClick={() => actions.onRemove(entryId)} className="opacity-0 focus-visible:opacity-100 group-hover/queue:opacity-100 pointer-coarse:size-11 pointer-coarse:opacity-100">
+          <X />
+        </IconButton>
+      </QueueRow>
+    </li>
+  )
+})
 
 /** The queue under its title bar. The shell docks it beside the page or floats it over the page. */
 export function QueuePanel({ player, onClose }: { player: Player; onClose: () => void }) {
