@@ -7,9 +7,9 @@ import { usePlaybackState } from '../playback';
 import { upcomingArtworkEntries } from './artwork';
 
 /**
- * Loads the artwork of the songs either side of this one, at the size Now Playing draws it, into
- * the image cache's memory, so a skip shows it sharp at once. The images are laid out at `size`
- * (an image is decoded at its view's size) but never drawn.
+ * Loads the artwork of the songs either side of this one into the image cache's memory, decoded,
+ * so a skip shows it sharp at once. The images are laid out as large as Now Playing's but never
+ * drawn.
  */
 export function ArtworkPrefetch({ size }: { size: number }) {
   const { queue } = usePlaybackState();
@@ -22,7 +22,8 @@ export function ArtworkPrefetch({ size }: { size: number }) {
 function Upcoming({ entry, size }: { entry: QueueEntry; size: number }) {
   const track = useTrack(entry.trackId, entry.albumId);
   const image = useArtworkImage(track?.album?.artwork, 440);
-  return image ? <Image source={image.source} cachePolicy="memory-disk" style={[styles.image, { width: size, height: size }]} /> : null;
+  return image ? <Image source={image.source} cachePolicy="memory-disk" allowDownscaling={false}
+    style={[styles.image, { width: size, height: size }]} /> : null;
 }
 
 const styles = StyleSheet.create({

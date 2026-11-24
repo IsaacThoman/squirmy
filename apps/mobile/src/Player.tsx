@@ -56,6 +56,8 @@ const handover = 50;
 const sheetRoutes = ['/devices', '/track-actions', '/add-to-playlist'];
 const modeMotion = { duration: 360, easing: Easing.inOut(Easing.cubic) };
 const panelMotion = { duration: 210 };
+/** How long Now Playing rests open before it lays out the lyrics or the queue, unasked. */
+const detailsDelay = 350;
 const clamp = Extrapolation.CLAMP;
 
 const Glass = Animated.createAnimatedComponent(BlurView);
@@ -137,6 +139,23 @@ export default function Player() {
       if (before && !now) trackDrag.set(0);
     },
   );
+
+  // The lyrics and the queue take a while to lay out. Each is laid out a moment after the player
+  // comes to rest open, one at a time, rather than on its first tap, inside the page's own motion.
+  const [restingOpen, setRestingOpen] = useState(false);
+  const detailsLaidOut = useSharedValue(false);
+  useAnimatedReaction(
+    () => !detailsLaidOut.value && motion.active.value && motion.expanding.value && !motion.dragging.value && motion.follow.value > 0.985,
+    (now, before) => {
+      if (now !== (before ?? false)) scheduleOnRN(setRestingOpen, now);
+    },
+  );
+  useEffect(() => {
+    detailsLaidOut.set(seenLyrics && seenQueue);
+    if (!restingOpen || (seenLyrics && seenQueue)) return;
+    const timer = setTimeout(() => (seenLyrics ? setSeenQueue : setSeenLyrics)(true), detailsDelay);
+    return () => clearTimeout(timer);
+  }, [detailsLaidOut, restingOpen, seenLyrics, seenQueue]);
 
   const dismissPan = {
     activeOffsetY: 8,
@@ -245,8 +264,10 @@ export default function Player() {
   }));
 
   // Laid out once at its size in the player and moved there by transforms, so the image is
-  // decoded once, at full size, and nothing is laid out while it flies. The styles read the shared
-  // values themselves: Reanimated reruns a style only for those its own closure holds.
+  // decoded once, at full size, and nothing is laid out while it flies. It is drawn from the decoded
+  // cover itself: a copy resized to the view (`allowDownscaling`) is made on the main thread, which
+  // a skip would wait on mid-swipe. The styles read the shared values themselves: Reanimated reruns a
+  // style only for those its own closure holds.
   const artworkFrame = (bubble: Bubble | null, follow: number, d: number, drag: number): ArtworkFrame => {
     'worklet';
     const placed = placedArtwork(d, drag);
@@ -369,7 +390,7 @@ export default function Player() {
         <Animated.View pointerEvents="none" style={[styles.artwork, { width: artSize, height: artSize }, artworkStyle]}>
           {artworkImage
             ? <Image source={artworkImage.source} placeholder={artworkImage.placeholder} placeholderContentFit="cover"
-              contentFit="cover" cachePolicy="memory-disk" transition={160} style={StyleSheet.absoluteFill} />
+              contentFit="cover" cachePolicy="memory-disk" allowDownscaling={false} transition={160} style={StyleSheet.absoluteFill} />
             : <NoArtwork base={artSize} frame={artworkFrame} motion={motion} detail={detail} trackDrag={trackDrag} />}
         </Animated.View>
       </Animated.View>
