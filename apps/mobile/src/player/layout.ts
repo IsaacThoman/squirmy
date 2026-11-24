@@ -12,12 +12,28 @@ export function metadataHeight(fontScale: number) {
   return Math.ceil(title + artist);
 }
 
+/** The screen heights Now Playing's spacing is drawn for: an iPhone SE's, and a 6.1-inch iPhone's (as Apple Music's). */
+const shortScreen = 667;
+const tallScreen = 852;
+
+export type Rhythm = {
+  /** Between the artwork and the title's room. */
+  artworkGap: number;
+  /** Above the play button's row, below the time labels. */
+  buttonsTop: number;
+  /** Below the play button's row, above the volume. */
+  buttonsBottom: number;
+  /** Above the lyrics, device and queue buttons. */
+  footerTop: number;
+};
+
 /**
- * The height of the line under Now Playing's grabber that says what is playing from
- * ("Playing from album · Dummy"), as on web: an 11 pt heading over a 13 pt title, growing up
- * to the secondary cap. Its room is kept when there is nothing to say, so the artwork does
- * not move from one song to the next.
+ * Now Playing's vertical spacing for a screen this tall, in points: close to Apple Music's
+ * on a 6.1-inch iPhone and taller ones, tighter in step with the height on shorter ones, down
+ * to an iPhone SE's. The artwork takes whatever height is left, so it grows on a Pro Max.
  */
-export function contextHeight(fontScale: number) {
-  return Math.max(34, Math.ceil(31 * Math.min(fontScale, secondaryFontScale)));
+export function rhythm(screenHeight: number): Rhythm {
+  const t = Math.min(1, Math.max(0, (screenHeight - shortScreen) / (tallScreen - shortScreen)));
+  const step = (short: number, tall: number) => Math.round(short + (tall - short) * t);
+  return { artworkGap: step(8, 16), buttonsTop: step(8, 22), buttonsBottom: step(8, 32), footerTop: step(4, 12) };
 }
