@@ -42,8 +42,9 @@ const upNextPage = 100;
 /**
  * Only the rows near the part of the page in view are laid out (`rowWindow`): every row is a
  * SwiftUI row with a React Native cover, and every Fabric commit, one per frame of any animation,
- * walks each mounted view of a scroll view. The window takes in a screen above and below the view
- * and moves on whole chunks of rows, at most once every `windowStep` points scrolled.
+ * walks each mounted view of a scroll view. The window takes in half a screen above and below the
+ * view, more than the page scrolls between two moves of the window, which moves on whole chunks of
+ * rows at most once every `windowStep` points scrolled.
  */
 const windowStep = 240;
 const windowChunk = 8;
@@ -159,7 +160,7 @@ export default function QueuePage({ selected = true, nowPlaying, nowPlayingShift
   const view = viewport || screenHeight;
   const viewTop = viewChunk * windowStep;
   const windowOf = (key: ListKey, heights: number[], expectedTop: number) =>
-    rowWindow(heights, listTops[key] ?? expectedTop, viewTop, viewTop + view + windowStep, view, windowChunk);
+    rowWindow(heights, listTops[key] ?? expectedTop, viewTop, viewTop + view + windowStep, view / 2, windowChunk);
   const historyWindow = windowOf('historyRows', historyRows.heightsOf(history), headingHeight);
   const upNextWindow = windowOf('upNextRows', upNextRows.heightsOf(upNext), home + 160);
   const autoplayWindow = windowOf('autoplayRows', autoplayRows.heightsOf(queue.autoplayQueue), home + 220 + upNextRows.total(upNext));
