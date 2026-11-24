@@ -8,7 +8,7 @@ import { zstdCompressSync } from 'node:zlib'
 import { desc, eq } from 'drizzle-orm'
 import { afterEach, describe, expect, it } from 'vitest'
 import { getConfig } from '../../config.js'
-import { db, getSql } from '../../database/client.js'
+import { closeDb, db, getSql } from '../../database/client.js'
 import { catalogIndexImports } from '../../database/schema.js'
 import { useTestDatabase } from '../../test/database.js'
 import { findLatestDump, spawnZstd } from './dump.js'
@@ -282,15 +282,65 @@ describe('resuming after a shutdown', () => {
     expect(await stagingTables()).toEqual([])
   })
 
-  it('starts again from the beginning when Postgres restarted since the checkpoint', async () => {
-    const id = await interruptedImport({ source: file, stopAt: (checkpoint) => checkpoint.built === 6 })
-    // A crash of Postgres empties unlogged tables; a new start time is how the import tells.
-    await getSql()`update catalog_index_imports set checkpoint = jsonb_set(checkpoint, '{database}', '"2000-01-01 00:00:00+00"') where id = ${id}`
+  it('records the rows of every staging table in the checkpoint', async () => {
+    const id = await interruptedImport({ source: file, chunkRecords: 7, stopAt: (checkpoint) => checkpoint.built === 6 })
+    const saved = (await importRow(id)).checkpoint as Checkpoint
+    for (const [table, rows] of Object.entries(saved.tables)) {
+      const [counted] = await getSql().unsafe<{ rows: number }[]>(`select count(*)::int as rows from ${table}`)
+      expect({ table, rows: counted!.rows }).toEqual({ table, rows })
+    }
+    expect(Object.keys(saved.tables).sort()).toEqual([
+      'catalog_index_raw', 'catalog_index_raw_redirects', 'catalog_index_raw_releases',
+      'catalog_index_tmp_artists', 'catalog_index_tmp_credits', 'catalog_index_tmp_editions', 'catalog_index_tmp_versions',
+    ])
+    await resumeImport(id)
+    expect(await snapshot()).toEqual(expected)
+  })
+
+  it('resumes when every connection was dropped and the tables are intact, as after a clean restart', async () => {
+    const id = await interruptedImport({ source: file, chunkRecords: 7, stopAt: (checkpoint) => checkpoint.built === 9 })
+    // What a clean restart of Postgres does to Squirmy: every connection goes.
+    await getSql()`select pg_terminate_backend(pid) from pg_stat_activity where datname = current_database() and pid <> pg_backend_pid()`
+    await closeDb()
+    const seen: Checkpoint[] = []
+    await resumeImport(id, { onCheckpoint: (checkpoint) => seen.push(checkpoint) })
+    expect(seen[0]).toMatchObject({ built: 10 })
+    expect(await snapshot()).toEqual(expected)
+    expect(await stagingTables()).toEqual([])
+  })
+
+  it('starts again from the beginning when a crash emptied the unlogged staging tables', async () => {
+    const id = await interruptedImport({ source: file, chunkRecords: 7, stopAt: (checkpoint) => (checkpoint.files['canonical_musicbrainz_data.csv']?.records ?? 0) >= 21 })
+    // Crash recovery resets every unlogged table to empty; the checkpoint, in a logged table, stays.
+    const unlogged = await getSql()<{ name: string }[]>`
+      select relname as name from pg_class where relpersistence = 'u' and relname like 'catalog\\_index\\_%'`
+    expect(unlogged.map((row) => row.name).sort()).toEqual(['catalog_index_raw', 'catalog_index_raw_redirects', 'catalog_index_raw_releases'])
+    await getSql().unsafe(`truncate ${unlogged.map((row) => row.name).join(', ')}`)
+    const seen: Checkpoint[] = []
+    await resumeImport(id, { chunkRecords: 7, onCheckpoint: (checkpoint) => seen.push(checkpoint) })
+    expect(seen[0]).toMatchObject({ built: 0, files: {}, rows: 0 })
+    expect(await snapshot()).toEqual(expected)
+    expect(await stagingTables()).toEqual([])
+    expect(await importRow(id)).toMatchObject({ state: 'active', resumes: 1 })
+  })
+
+  it('starts again from the beginning when a staging table does not hold what the checkpoint says', async () => {
+    const id = await interruptedImport({ source: file, stopAt: (checkpoint) => checkpoint.built === 5 })
+    await getSql()`delete from catalog_index_tmp_artists where mbid = (select mbid from catalog_index_tmp_artists limit 1)`
     const seen: Checkpoint[] = []
     await resumeImport(id, { onCheckpoint: (checkpoint) => seen.push(checkpoint) })
     expect(seen[0]).toMatchObject({ built: 0, files: {} })
     expect(await snapshot()).toEqual(expected)
     expect(await stagingTables()).toEqual([])
+  })
+
+  it('starts again from the beginning when a checkpoint predates row counts', async () => {
+    const id = await interruptedImport({ source: file, stopAt: (checkpoint) => checkpoint.built === 3 })
+    await getSql()`update catalog_index_imports set checkpoint = checkpoint - 'tables' where id = ${id}`
+    const seen: Checkpoint[] = []
+    await resumeImport(id, { onCheckpoint: (checkpoint) => seen.push(checkpoint) })
+    expect(seen[0]).toMatchObject({ built: 0, files: {} })
+    expect(await snapshot()).toEqual(expected)
   })
 
   it('downloads only what the stopped run had not, with a range request', async () => {

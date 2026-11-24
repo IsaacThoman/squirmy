@@ -3,6 +3,13 @@ import type {
 } from '@squirmy/client-core';
 import { engineState, playbackErrorMessage, stillClockMs } from './state';
 
+/**
+ * How long after `play()` a player whose playhead has not moved is paused and played
+ * again, each wait counted from the last try. Over AirPlay a first `play()` sometimes does
+ * not take, and the owner found that pausing and playing starts the song at once.
+ */
+const restartDelaysMs = [2000, 4000, 8000];
+
 /** The part of an `expo-audio` `AudioPlayer` the engine uses. Times are seconds. */
 export type NativePlayer = {
   readonly playing: boolean;
@@ -21,7 +28,14 @@ export type NativePlayer = {
   addListener(event: 'playbackStatusUpdate', listener: (status: NativeStatus) => void): { remove(): void };
 };
 
-export type NativeStatus = { didJustFinish: boolean; error?: string | null };
+export type NativeStatus = {
+  didJustFinish: boolean;
+  error?: string | null;
+  /** AVPlayer's `timeControlStatus`: `playing`, `paused` or `waitingToPlayAtSpecifiedRate`. */
+  timeControlStatus?: string;
+  /** Why it waits, while it does: `evaluatingBufferingRate`, `toMinimizeStalls`, `noItemToPlay`. */
+  reasonForWaitingToPlay?: string;
+};
 
 /** A player that starts over at its end. */
 export type LoopingPlayer = Pick<NativePlayer, 'play' | 'pause' | 'remove' | 'release'> & { loop: boolean };
@@ -44,6 +58,17 @@ export type ExpoAudioEngineOptions = {
   now?: () => number;
   /** How often to look for stalls while playing, which no native event reports. */
   pollIntervalMs?: number;
+  /**
+   * Called with true while the engine should be making sound and is not yet (loading, or
+   * buffering mid-song), and false once it is or no longer should: the app asks iOS for
+   * background running time meanwhile, so a song that is slow to start in the background
+   * can still be started.
+   */
+  holdRunning?: (hold: boolean) => void;
+  /** Starts, state changes and what the native player says, for the app's console. */
+  log?: (message: string) => void;
+  /** Where the sound goes now (`AirPlay “Kitchen”`), for the log. */
+  describeOutput?: () => string | null;
 };
 
 type Slot = {
@@ -58,6 +83,13 @@ type Slot = {
   seeking: boolean;
   ready: boolean;
   started: boolean;
+  /** When `play()` was last called on it; null before. */
+  askedAt: number | null;
+  /** Pause-and-play retries since then, and when the last one was. */
+  restarts: number;
+  restartedAt: number;
+  /** AVPlayer's `timeControlStatus` (with the reason, while waiting) as last reported. */
+  control: string;
   finished: boolean;
   failed: boolean;
   /** The player's position when last read, and when it was last seen to change. */
@@ -89,6 +121,7 @@ export class ExpoAudioEngine implements PlayerEngine {
   /** The entry an interruption paused, to resume when it ends. */
   private interruptedEntryId: string | null = null;
   private holding = false;
+  private running = false;
   private silence: LoopingPlayer | null = null;
   private readonly listeners = new Set<(event: EngineEvent) => void>();
   private readonly now: () => number;
@@ -225,6 +258,11 @@ export class ExpoAudioEngine implements PlayerEngine {
     this.syncSilence();
   }
 
+  /** It was told to play an entry that makes no sound yet: loading, or buffering mid-song. */
+  isTryingToPlay(): boolean {
+    return this.running;
+  }
+
   getStatus(): EngineStatus {
     return { entryId: this.current?.entryId ?? null, state: this.state, positionMs: this.position() };
   }
@@ -246,7 +284,7 @@ export class ExpoAudioEngine implements PlayerEngine {
   private createSlot(entryId: string, url: string, gain: number): Slot {
     const player = this.options.createPlayer(url);
     const slot: Slot = {
-      entryId, url, gain, player, startMs: 0, seeking: false, ready: false, started: false, finished: false, failed: false, lastTime: 0, movedAt: -Infinity,
+      entryId, url, gain, player, startMs: 0, seeking: false, ready: false, started: false, askedAt: null, restarts: 0, restartedAt: 0, control: 'new', finished: false, failed: false, lastTime: 0, movedAt: -Infinity,
       subscription: { remove: () => undefined },
     };
     slot.subscription = player.addListener('playbackStatusUpdate', status => this.onNativeStatus(slot, status));
@@ -271,6 +309,13 @@ export class ExpoAudioEngine implements PlayerEngine {
       return;
     }
     if (slot !== this.current || slot.failed) return;
+    if (status.timeControlStatus) {
+      const control = status.timeControlStatus === 'waitingToPlayAtSpecifiedRate' ? `waiting (${status.reasonForWaitingToPlay ?? 'unknown'})` : status.timeControlStatus;
+      if (control !== slot.control) {
+        this.log(`${slot.entryId} player ${slot.control} → ${control}`);
+        slot.control = control;
+      }
+    }
     if (status.error) return this.fail(slot, status.error);
     if (status.didJustFinish && slot.ready && !slot.finished) return this.finish(slot);
     this.update();
@@ -296,6 +341,7 @@ export class ExpoAudioEngine implements PlayerEngine {
       slot.lastTime = player.currentTime;
       slot.movedAt = now;
     }
+    this.restartIfStuck(slot, now);
     // A player that says it plays while its clock has stood still since play() is waiting for
     // data, not playing: reported as playing, its position would pin the session at 0:00 with
     // the pause button up and no sign of loading.
@@ -334,18 +380,29 @@ export class ExpoAudioEngine implements PlayerEngine {
    * player is released, so the session never goes idle.
    */
   private syncSilence(): void {
-    const loading = this.current !== null && this.wantsPlay && this.state === 'loading';
+    const slot = this.current;
+    const loading = slot !== null && slot.askedAt === null && this.wantsPlay && this.state === 'loading';
     const wanted = loading || (this.holding && !this.current);
     if (wanted && !this.silence && this.options.createSilence) {
+      this.log('silence on');
       this.silence = this.options.createSilence();
       this.silence.loop = true;
       this.silence.play();
     } else if (!wanted && this.silence) {
+      this.log('silence off');
       this.silence.pause();
       this.silence.remove();
       this.silence.release();
       this.silence = null;
     }
+  }
+
+  private syncRunning(): void {
+    const waiting = this.current !== null && this.wantsPlay && (this.state === 'loading' || this.state === 'buffering');
+    if (waiting === this.running) return;
+    this.running = waiting;
+    this.log(waiting ? 'holding background time' : 'background time given back');
+    this.options.holdRunning?.(waiting);
   }
 
   private becomeReady(slot: Slot): void {
@@ -357,8 +414,39 @@ export class ExpoAudioEngine implements PlayerEngine {
 
   private start(slot: Slot): void {
     slot.player.muted = false;
+    slot.askedAt = this.now();
+    slot.restarts = 0;
+    slot.restartedAt = slot.askedAt;
+    // The silence goes before the player is asked to play: over AirPlay the song did not
+    // start while the silence still played, and pausing (which stopped the silence) then
+    // playing started it at once. The player's own play() keeps the audio session from here:
+    // expo-audio looks for a player keeping it 100 ms after the silence is removed.
+    this.syncSilence();
+    this.log(`${slot.entryId} play() at ${Math.round(slot.startMs)} ms, player ${slot.control}, on ${this.options.describeOutput?.() ?? 'an unknown output'}`);
     slot.player.play();
     this.playCalledAt = this.now();
+  }
+
+  /**
+   * A player asked to play whose playhead has not moved since is paused and played again,
+   * a few times with longer waits, as pausing and playing by hand does over AirPlay. The
+   * clock is read on the poll, so a song that waits for data is retried too; a play() it
+   * repeats is harmless to a player that is about to start.
+   */
+  private restartIfStuck(slot: Slot, now: number): void {
+    if (!this.wantsPlay || slot.askedAt === null || slot.finished || slot.failed || slot.movedAt > slot.askedAt) return;
+    const wait = restartDelaysMs[slot.restarts];
+    if (wait === undefined || now - slot.restartedAt < wait) return;
+    slot.restarts += 1;
+    slot.restartedAt = now;
+    this.log(`${slot.entryId} has not started ${Math.round(now - slot.askedAt)} ms after play(), player ${slot.control}, on ${this.options.describeOutput?.() ?? 'an unknown output'}: pausing and playing again (${slot.restarts})`);
+    slot.player.pause();
+    slot.player.muted = false;
+    slot.player.play();
+  }
+
+  private log(message: string): void {
+    this.options.log?.(message);
   }
 
   private seekTo(slot: Slot, positionMs: number, landed?: () => void): void {
@@ -395,6 +483,7 @@ export class ExpoAudioEngine implements PlayerEngine {
       this.state = 'ended';
     }
     this.syncSilence();
+    this.syncRunning();
     this.emit({ type: 'ended', entryId: slot.entryId });
     this.emit({ type: 'status', status: this.getStatus() });
     this.schedulePoll();
@@ -406,16 +495,19 @@ export class ExpoAudioEngine implements PlayerEngine {
     slot.player.pause();
     this.state = 'error';
     this.syncSilence();
+    this.syncRunning();
     this.emit({ type: 'error', entryId: slot.entryId, message: playbackErrorMessage(message) });
     this.emit({ type: 'status', status: this.getStatus() });
     this.schedulePoll();
   }
 
   private setState(state: EngineState, always = false): void {
+    if (state !== this.state) this.log(`${this.current?.entryId ?? 'nothing'} ${this.state} → ${state} at ${Math.round(this.position())} ms`);
     const changed = state !== this.state || always;
     this.state = state;
     // Also when the state stays: a pause while loading keeps `loading` but needs no silence.
     this.syncSilence();
+    this.syncRunning();
     if (changed) this.emit({ type: 'status', status: this.getStatus() });
     this.schedulePoll();
   }

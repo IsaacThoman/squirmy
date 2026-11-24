@@ -140,5 +140,6 @@ Your music folder is never deleted. Files in a managed folder stay where the las
 ## Next steps
 
 - Put Squirmy behind HTTPS: [Reverse proxies and HTTPS](./reverse-proxy.md).
+- Deploying with Coolify: run the database separately, as [Deploying on Coolify](./coolify.md) explains.
 - See every option: [Configuration](./configuration.md).
 - Connect your phone: [The iOS app](../use/ios.md), or a [Subsonic client](./subsonic.md).
