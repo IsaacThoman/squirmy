@@ -1,7 +1,7 @@
 import type { AlbumDisc, TrackSummary } from '@squirmy/contracts'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Clock3, Disc3, MoreHorizontal, Pause, Play } from 'lucide-react'
-import { Fragment, useId, useLayoutEffect, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent, type RefObject } from 'react'
+import { Fragment, memo, useId, useLayoutEffect, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent, type RefObject } from 'react'
 import { useNavigate } from 'react-router'
 import { useScrollContainer } from '@/components/layout/scroll-context'
 import { ExplicitBadge, Spinner } from '@/components/ui/feedback'
@@ -441,14 +441,14 @@ export function VirtualTrackList({ tracks, label, variant = 'compact', isWanted,
         {virtualizer.getVirtualItems().map(item => {
           const track = tracks[item.index]
           return (
-            <TrackRow
+            <VirtualTrackRow
               key={item.key}
               track={track}
               index={item.index}
+              y={item.start - margin}
               variant={variant}
               wanted={isWanted?.(track)}
-              onPlay={() => onPlay(item.index)}
-              style={{ position: 'absolute', insetInline: 0, top: 0, transform: `translateY(${item.start - margin}px)` }}
+              onPlayAt={onPlay}
               {...rest}
             />
           )
@@ -457,3 +457,21 @@ export function VirtualTrackList({ tracks, label, variant = 'compact', isWanted,
     </div>
   )
 }
+
+type VirtualTrackRowProps = Omit<TrackRowProps, 'onPlay' | 'style'> & { y: number; onPlayAt: (index: number) => void }
+
+/**
+ * A row of `VirtualTrackList`. The virtualizer renders the list on every scroll event; a row
+ * whose song and place are the same is not rendered again, so a scroll frame costs only the
+ * rows coming into view.
+ */
+const VirtualTrackRow = memo(function VirtualTrackRow({ y, onPlayAt, index, ...props }: VirtualTrackRowProps) {
+  return (
+    <TrackRow
+      {...props}
+      index={index}
+      onPlay={() => onPlayAt(index)}
+      style={{ position: 'absolute', insetInline: 0, top: 0, transform: `translateY(${y}px)` }}
+    />
+  )
+})
