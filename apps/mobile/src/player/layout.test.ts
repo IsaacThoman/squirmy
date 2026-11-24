@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { metadataHeight, rhythm } from './layout';
+import { metadataHeight, rhythm, tabletArtworkSize, tabletPaneWidth } from './layout';
 
 describe('metadataHeight', () => {
   it('leaves room for a two-line title and a two-line credit at the default text size', () => {
@@ -34,5 +34,30 @@ describe('rhythm', () => {
       expect(mini[key]).toBeGreaterThan(se[key]);
       expect(mini[key]).toBeLessThanOrEqual(rhythm(852)[key]);
     }
+  });
+});
+
+describe('tablet Now Playing', () => {
+  it.each([[744, 1133], [834, 1194], [1024, 768], [1366, 1024]])('fits the pane and playback controls at %i × %i', (width, height) => {
+    const pane = tabletPaneWidth(width, height, 1);
+    expect(pane).toBeGreaterThanOrEqual(320);
+    expect(pane).toBeLessThanOrEqual(680);
+    expect(width - pane).toBeGreaterThanOrEqual(400);
+  });
+
+  it('uses the compact layout in narrow, short and larger-text windows that cannot fit both columns', () => {
+    expect(tabletPaneWidth(600, 820, 1)).toBe(0);
+    expect(tabletPaneWidth(1024, 420, 1)).toBe(0);
+    expect(tabletPaneWidth(744, 1133, 2)).toBe(0);
+    expect(tabletPaneWidth(834, 1194, 2)).toBeGreaterThanOrEqual(390);
+  });
+
+  it('leaves room for metadata and fits larger artwork to either column', () => {
+    expect(tabletArtworkSize(1024, 530, 60)).toBe(470);
+    expect(tabletArtworkSize(410, 530, 60)).toBe(362);
+    expect(tabletArtworkSize(1366, 820, 60)).toBe(760);
+    expect(tabletArtworkSize(1032, 1200, 60)).toBe(984);
+    expect(tabletArtworkSize(1400, 1300, 60)).toBe(1000);
+    expect(tabletArtworkSize(400, 120, 140)).toBe(1);
   });
 });

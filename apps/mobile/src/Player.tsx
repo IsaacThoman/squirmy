@@ -35,7 +35,7 @@ import TransportSlider from './player/TransportSlider';
 import { CollapseButton, DeviceButton, PlayerButton, TrackLinksMenu, TrackMenuButton } from './player/Controls';
 import { selectionFeedback } from './player/design';
 import { useCurrentTrackHeart } from './player/useCurrentTrackHeart';
-import { metadataHeight as metadataHeightFor, rhythm as rhythmFor, type Rhythm } from './player/layout';
+import { metadataHeight as metadataHeightFor, rhythm as rhythmFor, tabletArtworkLimit, tabletArtworkSize, tabletPaneWidth, type Rhythm } from './player/layout';
 import { seekLanded } from './player/scrub';
 import { skipCommits } from './player/skipSwipe';
 import { displayFontScale, secondaryFontScale } from './fontScale';
@@ -91,23 +91,30 @@ export default function Player() {
   const [page, setPage] = useState<PlayerPage>('player');
   const [seenLyrics, setSeenLyrics] = useState(false);
   const [seenQueue, setSeenQueue] = useState(false);
+  const lastPane = useRef<DetailPage>('lyrics');
   // Lyrics left to play untouched hide the transport and take the screen down to its bottom edge.
   const [lyricsHideControls, setLyricsHideControls] = useState(false);
   const lyricsPage = useRef<LyricsHandle>(null);
   const [transportHeight, setTransportHeight] = useState(0);
   const [availableHeight, setAvailableHeight] = useState(0);
+  const [tabletMetadataHeight, setTabletMetadataHeight] = useState(0);
   const { width, height, fontScale } = useWindowDimensions();
-  const metadataHeight = metadataHeightFor(fontScale);
-  const rhythm = rhythmFor(height);
   // The artwork sits right under the grabber, as in Apple Music.
   const headerHeight = grabberHeight;
   const insets = useSafeAreaInsets();
   const top = insets.top || initialWindowMetrics?.insets.top || 0;
   const bottom = insets.bottom || initialWindowMetrics?.insets.bottom || 0;
+  const contentWidth = width - insets.left - insets.right;
+  const tablet = Platform.OS === 'ios' && Platform.isPad;
+  const tabletTransport = tablet && contentWidth >= 540;
+  const paneWidth = tablet ? tabletPaneWidth(contentWidth, height, fontScale) : 0;
+  const docked = paneWidth > 0;
+  const metadataHeight = tablet ? tabletMetadataHeight || Math.ceil(56 * Math.min(fontScale, displayFontScale)) : metadataHeightFor(fontScale);
+  const rhythm = rhythmFor(tablet ? Math.min(height, 667) : height);
   const { current, track, actions } = usePlaybackState();
   const loading = useLoading();
   const artwork = track?.album?.artwork;
-  const artworkImage = useArtworkImage(artwork, 440);
+  const artworkImage = useArtworkImage(artwork, tablet ? tabletArtworkLimit : 440);
   const backdropImage = useArtworkImage(artwork, 300);
   const detail = useSharedValue(0);
   const queueShown = useSharedValue(0);
@@ -116,12 +123,16 @@ export default function Player() {
   const dragStart = useSharedValue(0);
   const startLead = useSharedValue(1);
   const startFollow = useSharedValue(1);
+  const paneProgress = useSharedValue(0);
+  const paneDragStart = useSharedValue(0);
+  const paneOpen = docked && page !== 'player';
   const smallScreen = height < 750;
-  const artSize = Math.min(width - insets.left - insets.right - 48, 440,
-    Math.max(96, (availableHeight || height - 360) - rhythm.artworkGap - metadataHeight));
-  const artX = (width - insets.left - insets.right - artSize) / 2;
-  const artY = 0;
-  const artworkPage = page === 'player';
+  const deckHeight = availableHeight || height - (tablet ? 245 : 360);
+  const artworkRoom = metadataHeight + rhythm.artworkGap;
+  const artSize = tablet ? tabletArtworkSize(contentWidth, deckHeight, artworkRoom) :
+    Math.max(1, Math.min(contentWidth - 48, 440, Math.max(96, deckHeight - artworkRoom)));
+  const artSizeBesidePane = docked ? tabletArtworkSize(contentWidth - paneWidth, deckHeight, artworkRoom) : artSize;
+  const artworkPage = docked || page === 'player';
   const { heart, toggle: toggleLiked } = useCurrentTrackHeart();
   const title = track?.title ?? (current ? '' : 'Not Playing');
   const subtitle = loading === 'slow' ? STILL_LOADING_LABEL : track?.artistCredit ?? '';
@@ -134,8 +145,12 @@ export default function Player() {
 
   useEffect(() => {
     detail.set(withTiming(artworkPage ? 0 : 1, modeMotion));
-    queueShown.set(withTiming(page === 'queue' ? 1 : 0, modeMotion));
-  }, [artworkPage, detail, page, queueShown]);
+    queueShown.set(withTiming(!docked && page === 'queue' ? 1 : 0, modeMotion));
+  }, [artworkPage, detail, docked, page, queueShown]);
+
+  useEffect(() => {
+    paneProgress.set(docked ? withTiming(paneOpen ? 1 : 0, modeMotion) : 0);
+  }, [docked, paneOpen, paneProgress]);
 
   useAnimatedReaction(
     () => motion.active.value,
@@ -195,6 +210,31 @@ export default function Player() {
     },
   });
   const artworkGesture = useCompetingGestures(artworkDismiss, skipSwipe);
+  const closePane = () => {
+    selectionFeedback();
+    setPage('player');
+  };
+  const paneDismiss = usePanGesture({
+    enabled: paneOpen,
+    activeOffsetX: 14,
+    failOffsetX: -14,
+    failOffsetY: [-12, 12],
+    onActivate: event => { paneDragStart.value = event.translationX; },
+    onUpdate: event => {
+      paneProgress.value = Math.max(0, Math.min(1, 1 - (event.translationX - paneDragStart.value) / paneWidth));
+    },
+    onDeactivate: event => {
+      if (!event.canceled && (paneProgress.value < 0.66 || event.velocityX > 650)) {
+        scheduleOnRN(closePane);
+      } else {
+        paneProgress.value = withTiming(1, modeMotion);
+      }
+    },
+  });
+
+  const deckWidthStyle = useAnimatedStyle(() => ({ width: contentWidth - paneWidth * paneProgress.value }));
+  const paneStyle = useAnimatedStyle(() => ({ transform: [{ translateX: paneWidth * (1 - paneProgress.value) }] }));
+  const artworkSlotStyle = useAnimatedStyle(() => ({ height: artSize + (artSizeBesidePane - artSize) * paneProgress.value }));
 
   // On the iOS queue the song playing scrolls with the page, which draws its artwork and lines
   // once the player has carried them there (`onQueue`); taking them back, the player's start
@@ -211,12 +251,18 @@ export default function Player() {
     return Math.max(-reach, Math.min(Math.max(0, availableHeight - reach), shift)) * shown;
   };
 
-  const placedArtwork = (d: number, drag: number, shift = 0): ArtworkFrame => {
+  // `pane` is the side pane's progress, passed in so each style that places the artwork reads it itself:
+  // a style reruns only for the shared values its own closure reads.
+  const placedArtwork = (d: number, drag: number, shift = 0, pane = 0): ArtworkFrame => {
     'worklet';
+    const fraction = docked ? pane : 0;
+    const size = artSize + (artSizeBesidePane - artSize) * fraction;
+    const artX = (contentWidth - paneWidth * fraction - size) / 2;
+    const artY = tablet ? Math.max(0, (deckHeight - size - artworkRoom) / 2) : 0;
     return {
       x: insets.left + artX + (artworkInset - artX) * d + drag * (1 - d),
       y: top + headerHeight + artY + (compactArtworkTop - artY) * d + shift,
-      size: artSize + (compactArtworkSize - artSize) * d,
+      size: size + (compactArtworkSize - size) * d,
       radius: artworkRadius + (compactArtworkRadius - artworkRadius) * d,
     };
   };
@@ -226,7 +272,7 @@ export default function Player() {
     const { lead, follow } = progress(motion);
     if (!bubble) return { left: 0, top: 0, width, height, borderRadius: 0, opacity: lead };
     const { left, right } = sideInsets(bubble, follow, width);
-    const art = artworkInFlight(bubble, follow, placedArtwork(detail.value, trackDrag.value, queueShift(queueShown.value, nowPlayingShift.value)));
+    const art = artworkInFlight(bubble, follow, placedArtwork(detail.value, trackDrag.value, queueShift(queueShown.value, nowPlayingShift.value), paneProgress.value));
     const edge = bubble.y * (1 - lead);
     const floor = bubble.y + bubble.height + (height - bubble.y - bubble.height) * follow;
     return {
@@ -267,9 +313,9 @@ export default function Player() {
   // decoded once, at full size, and nothing is laid out while it flies. It is drawn from the decoded
   // cover itself: a copy resized to the view (`allowDownscaling`) is made on the main thread, which
   // a skip would wait on mid-swipe.
-  const artworkFrame = (bubble: Bubble | null, follow: number, d: number, drag: number, shift = 0): ArtworkFrame => {
+  const artworkFrame = (bubble: Bubble | null, follow: number, d: number, drag: number, shift = 0, pane = 0): ArtworkFrame => {
     'worklet';
-    const placed = placedArtwork(d, drag, shift);
+    const placed = placedArtwork(d, drag, shift, pane);
     if (!bubble) return placed;
     const art = artworkInFlight(bubble, follow, placed);
     return { ...art, x: art.x - sideInsets(bubble, follow, width).left };
@@ -277,7 +323,7 @@ export default function Player() {
   const artworkStyle = useAnimatedStyle(() => {
     const bubble = motion.bubble.value;
     const follow = progress(motion).follow;
-    const frame = artworkFrame(bubble, follow, detail.value, trackDrag.value, queueShift(queueShown.value, nowPlayingShift.value));
+    const frame = artworkFrame(bubble, follow, detail.value, trackDrag.value, queueShift(queueShown.value, nowPlayingShift.value), paneProgress.value);
     const hidden = onQueue(detail.value, queueShown.value, bubble ? follow : 1) ? 0 : 1;
     return { ...artworkTransform(frame, artSize), opacity: hidden };
   });
@@ -296,7 +342,7 @@ export default function Player() {
   const queueArtworkStyle = useAnimatedStyle(() => ({
     opacity: onQueue(detail.value, queueShown.value, motion.bubble.value ? progress(motion).follow : 1) ? 1 : 0,
   }));
-  const controlsHidden = page === 'lyrics' && lyricsHideControls;
+  const controlsHidden = !docked && page === 'lyrics' && lyricsHideControls;
   const lyricsStyle = useAnimatedStyle(() => ({
     opacity: withTiming(page === 'lyrics' ? 1 : 0, panelMotion),
     bottom: withTiming(controlsHidden ? -(transportHeight + bottom) : 0, chromeMotion),
@@ -305,10 +351,17 @@ export default function Player() {
     opacity: withTiming(controlsHidden ? 0 : 1, chromeMotion),
     transform: [{ translateY: withTiming(controlsHidden ? 18 : 0, chromeMotion) }],
   }));
+  // On iPad the artwork, the title and the transport stay together, centred as one block: the transport
+  // rises by half the room the artwork leaves, as the artwork and title sit that far down from the top.
+  const transportLiftStyle = useAnimatedStyle(() => {
+    const size = artSize + (artSizeBesidePane - artSize) * (docked ? paneProgress.value : 0);
+    return { transform: [{ translateY: tablet ? -Math.max(0, deckHeight - size - artworkRoom) / 2 : 0 }] };
+  });
   const queueStyle = useAnimatedStyle(() => ({ opacity: withTiming(page === 'queue' ? 1 : 0, panelMotion) }));
 
   const togglePage = (next: DetailPage) => {
     selectionFeedback();
+    lastPane.current = next;
     if (next === 'lyrics') setSeenLyrics(true);
     else setSeenQueue(true);
     setPage(current => current === next ? 'player' : next);
@@ -345,8 +398,8 @@ export default function Player() {
     accessibilityElementsHidden={page !== 'queue'}
     importantForAccessibility={page === 'queue' ? 'auto' : 'no-hide-descendants'}
     style={[StyleSheet.absoluteFill, queueStyle]}>
-    <QueuePage onTrackMenu={openTrackMenu} selected={page === 'queue'} nowPlayingShift={nowPlayingShift}
-      nowPlaying={queueShowsNowPlaying && <View style={styles.queueNowPlaying}>
+    <QueuePage onTrackMenu={openTrackMenu} selected={page === 'queue'} nowPlayingShift={docked ? undefined : nowPlayingShift}
+      nowPlaying={!docked && queueShowsNowPlaying && <View style={styles.queueNowPlaying}>
         <Animated.View style={[styles.queueArtwork, queueArtworkStyle]}>
           {artworkImage
             ? <Image source={artworkImage.source} placeholder={artworkImage.placeholder} placeholderContentFit="cover"
@@ -355,6 +408,13 @@ export default function Player() {
         </Animated.View>
         <View style={[styles.metadata, styles.queueMetadata]}>{trackDetails(true)}</View>
       </View>} />
+  </Animated.View>;
+  const lyricsPanel = seenLyrics && <Animated.View pointerEvents={page === 'lyrics' ? 'auto' : 'none'}
+    accessibilityElementsHidden={page !== 'lyrics'}
+    importantForAccessibility={page === 'lyrics' ? 'auto' : 'no-hide-descendants'}
+    style={[StyleSheet.absoluteFill, lyricsStyle]}>
+    <LyricsPage key={current?.id ?? 'none'} ref={lyricsPage} selected={page === 'lyrics'} keepControls={docked}
+      onControlsHidden={setLyricsHideControls} />
   </Animated.View>;
 
   return (
@@ -381,44 +441,63 @@ export default function Player() {
                 <View style={styles.collapse} pointerEvents="box-none"><CollapseButton onPress={close} /></View>
               </Animated.View>
             </GestureDetector>
-            <View style={styles.deckFrame} onLayout={(event) => setAvailableHeight(event.nativeEvent.layout.height)}>
-              <GestureDetector gesture={artworkGesture} touchAction="none">
-                <View collapsable={false} style={[styles.nowPlaying, { gap: rhythm.artworkGap }]}
-                  pointerEvents={artworkPage ? 'auto' : 'none'} accessibilityElementsHidden={!artworkPage}
-                  importantForAccessibility={artworkPage ? 'auto' : 'no-hide-descendants'}>
-                  <View style={{ height: artSize }} />
-                  {/* A fixed height, with the lines in its middle: a one-line title and artist sit as Apple Music's do, and longer ones take the room around them. */}
-                  <Animated.View style={[styles.metadataSlot, { height: metadataHeight }, artworkDetailsStyle]}>
-                    <View style={styles.metadata}>{trackDetails(false)}</View>
-                  </Animated.View>
-                </View>
-              </GestureDetector>
-              {(seenLyrics || seenQueue) && <Animated.View style={[styles.details, compactDetailsStyle]} pointerEvents={artworkPage ? 'none' : 'auto'}
-                accessibilityElementsHidden={artworkPage} importantForAccessibility={artworkPage ? 'no-hide-descendants' : 'auto'}>
-                <Animated.View style={[styles.metadata, styles.compactMetadata, compactNowPlayingStyle]}>{trackDetails(true)}</Animated.View>
-                <View style={styles.detailPanel}>
-                  {seenLyrics && <Animated.View pointerEvents={page === 'lyrics' ? 'auto' : 'none'}
-                    accessibilityElementsHidden={page !== 'lyrics'}
-                    importantForAccessibility={page === 'lyrics' ? 'auto' : 'no-hide-descendants'}
-                    style={[StyleSheet.absoluteFill, lyricsStyle]}>
-                    <LyricsPage key={current?.id ?? 'none'} ref={lyricsPage} selected={page === 'lyrics'} onControlsHidden={setLyricsHideControls} />
+            <View style={styles.playerStage}>
+              <Animated.View style={[styles.deckFrame, docked && deckWidthStyle]}>
+                <View style={styles.deckFrame} onLayout={(event) => setAvailableHeight(event.nativeEvent.layout.height)}>
+                  <GestureDetector gesture={artworkGesture} touchAction="none">
+                    <View collapsable={false} style={[styles.nowPlaying, tablet && styles.tabletNowPlaying, { gap: rhythm.artworkGap }]}
+                      pointerEvents={artworkPage ? 'auto' : 'none'} accessibilityElementsHidden={!artworkPage}
+                      importantForAccessibility={artworkPage ? 'auto' : 'no-hide-descendants'}>
+                      <Animated.View style={artworkSlotStyle} />
+                      <Animated.View style={[styles.metadataSlot, tablet ? { maxWidth: Math.max(360, artSize) } : { height: metadataHeight }, artworkDetailsStyle]}>
+                        <View style={[styles.metadata, tablet && styles.tabletMetadata]}
+                          onLayout={tablet ? event => setTabletMetadataHeight(event.nativeEvent.layout.height) : undefined}>
+                          {trackDetails(false)}
+                        </View>
+                      </Animated.View>
+                    </View>
+                  </GestureDetector>
+                  {!docked && (seenLyrics || seenQueue) && <Animated.View style={[styles.details, compactDetailsStyle]} pointerEvents={artworkPage ? 'none' : 'auto'}
+                    accessibilityElementsHidden={artworkPage} importantForAccessibility={artworkPage ? 'no-hide-descendants' : 'auto'}>
+                    <Animated.View style={[styles.metadata, styles.compactMetadata, compactNowPlayingStyle]}>{trackDetails(true)}</Animated.View>
+                    <View style={styles.detailPanel}>
+                      {lyricsPanel}
+                      {!queueShowsNowPlaying && queuePanel}
+                    </View>
+                    {/* Over the song playing too, which scrolls with it. */}
+                    {queueShowsNowPlaying && queuePanel}
                   </Animated.View>}
-                  {!queueShowsNowPlaying && queuePanel}
                 </View>
-                {/* Over the song playing too, which scrolls with it. */}
-                {queueShowsNowPlaying && queuePanel}
-              </Animated.View>}
-            </View>
-            <GestureDetector gesture={transportDismiss}>
-              {/* Lyrics left to play hide the transport; a touch on it keeps it up. */}
-              <Animated.View style={transportStyle} pointerEvents={controlsHidden ? 'none' : 'auto'}
-                accessibilityElementsHidden={controlsHidden} importantForAccessibility={controlsHidden ? 'no-hide-descendants' : 'auto'}
-                onLayout={(event) => setTransportHeight(event.nativeEvent.layout.height)}
-                onTouchStart={() => lyricsPage.current?.touchControls()}>
-                <Transport key={current?.id ?? 'none'} compact={smallScreen} rhythm={rhythm} page={page} onToggle={togglePage}
-                  onDevices={() => router.push('/devices')} />
+                <Animated.View style={transportLiftStyle}>
+                  <GestureDetector gesture={transportDismiss}>
+                    {/* Lyrics left to play hide the transport; a touch on it keeps it up. */}
+                    <Animated.View style={transportStyle} pointerEvents={controlsHidden ? 'none' : 'auto'}
+                      accessibilityElementsHidden={controlsHidden} importantForAccessibility={controlsHidden ? 'no-hide-descendants' : 'auto'}
+                      onLayout={(event) => setTransportHeight(event.nativeEvent.layout.height)}
+                      onTouchStart={() => lyricsPage.current?.touchControls()}>
+                      <Transport key={current?.id ?? 'none'} compact={smallScreen || tablet}
+                        tabletWidth={tabletTransport ? Math.max(408, artSize + 48) : undefined}
+                        rhythm={rhythm} page={page} onToggle={togglePage}
+                        onDevices={() => router.push('/devices')} />
+                    </Animated.View>
+                  </GestureDetector>
+                </Animated.View>
               </Animated.View>
-            </GestureDetector>
+              {docked && (seenLyrics || seenQueue) && <GestureDetector gesture={paneDismiss}>
+                <Animated.View style={[styles.tabletPane, { width: paneWidth - 12 }, paneStyle]}
+                  pointerEvents={paneOpen ? 'auto' : 'none'} accessibilityElementsHidden={!paneOpen}
+                  importantForAccessibility={paneOpen ? 'auto' : 'no-hide-descendants'}>
+                  <View style={styles.paneHeader}>
+                    <Text accessibilityRole="header" maxFontSizeMultiplier={displayFontScale} style={styles.paneTitle}>
+                      {lastPane.current === 'lyrics' ? 'Lyrics' : 'Queue'}
+                    </Text>
+                    <PlayerButton icon="xmark" label={lastPane.current === 'lyrics' ? 'Close lyrics pane' : 'Close queue pane'}
+                      color={colors.muted} size={17} onPress={closePane} />
+                  </View>
+                  <View style={styles.detailPanel}>{lyricsPanel}{queuePanel}</View>
+                </Animated.View>
+              </GestureDetector>}
+            </View>
           </Animated.View>
         </Animated.View>
         {variants.map(variant => (
@@ -428,7 +507,7 @@ export default function Player() {
           {artworkImage
             ? <Image source={artworkImage.source} placeholder={artworkImage.placeholder} placeholderContentFit="cover"
               contentFit="cover" cachePolicy="memory-disk" allowDownscaling={false} transition={160} style={StyleSheet.absoluteFill} />
-            : <NoArtwork base={artSize} frame={artworkFrame} motion={motion} detail={detail} trackDrag={trackDrag} />}
+            : <NoArtwork base={artSize} frame={artworkFrame} motion={motion} detail={detail} trackDrag={trackDrag} pane={paneProgress} />}
         </Animated.View>
       </Animated.View>
     </Overlay>
@@ -436,17 +515,18 @@ export default function Player() {
 }
 
 /** The note shown without artwork, kept at its size as the frame around it grows. */
-function NoArtwork({ base, frame, motion, detail, trackDrag }: {
+function NoArtwork({ base, frame, motion, detail, trackDrag, pane }: {
   base: number;
-  frame: (bubble: Bubble | null, follow: number, d: number, drag: number) => ArtworkFrame;
+  frame: (bubble: Bubble | null, follow: number, d: number, drag: number, shift: number, pane: number) => ArtworkFrame;
   motion: Motion;
   detail: SharedValue<number>;
   trackDrag: SharedValue<number>;
+  pane: SharedValue<number>;
 }) {
   const colors = useColors();
   const styles = useStyles();
   const style = useAnimatedStyle(() => ({
-    transform: [{ scale: base / frame(motion.bubble.value, progress(motion).follow, detail.value, trackDrag.value).size }],
+    transform: [{ scale: base / frame(motion.bubble.value, progress(motion).follow, detail.value, trackDrag.value, 0, pane.value).size }],
   }));
   return <View style={styles.noArtwork}>
     <Animated.View style={style}><Icon name="music.note" size={48} color={colors.quiet} /></Animated.View>
@@ -576,8 +656,9 @@ function Scrubber() {
   );
 }
 
-function Transport({ compact, rhythm, page, onToggle, onDevices }: {
+function Transport({ compact, tabletWidth, rhythm, page, onToggle, onDevices }: {
   compact: boolean;
+  tabletWidth?: number;
   rhythm: Rhythm;
   page: PlayerPage;
   onToggle: (page: DetailPage) => void;
@@ -590,7 +671,7 @@ function Transport({ compact, rhythm, page, onToggle, onDevices }: {
   const [shownVolume, setVolume] = useVolumeSlider(volume, value => actions.setVolume(output.id, value));
 
   return (
-    <View style={[styles.transport, compact && styles.transportCompact]}>
+    <View style={[styles.transport, compact && styles.transportCompact, tabletWidth ? [styles.tabletTransport, { maxWidth: tabletWidth }] : undefined]}>
       <Scrubber />
       <View style={[styles.transportButtons, { marginTop: rhythm.buttonsTop, marginBottom: rhythm.buttonsBottom }]}>
         <PlayerButton icon="backward.fill" label="Previous track" size={27} onPress={() => { selectionFeedback(); actions.previous(); }} />
@@ -605,8 +686,7 @@ function Transport({ compact, rhythm, page, onToggle, onDevices }: {
         />
         <PlayerButton icon="forward.fill" label="Next track" size={27} onPress={() => { selectionFeedback(); actions.next(); }} />
       </View>
-      {/* The speakers sit at the scrubber's ends, the track centred between them. Where this phone's
-          sound goes (AirPlay, Bluetooth) is chosen in the device sheet. */}
+      {/* Choose the sound output in the device sheet. */}
       <View style={styles.volumeRow}>
         <Icon name="speaker.fill" size={13} color={colors.muted} style={styles.volumeLow} />
         <View style={styles.volumeSlider}>
@@ -653,9 +733,14 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   backdropArt: { width: '110%', height: '86%', opacity: 0.62 },
   grabberTouch: { alignItems: 'center' },
   collapse: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center' },
+  playerStage: { flex: 1 },
   deckFrame: { flex: 1 },
   // The artwork at the top, the title's room under it; a tall screen's spare height goes below them.
   nowPlaying: { flex: 1, justifyContent: 'flex-start', alignItems: 'center', paddingHorizontal: edgeInset },
+  tabletNowPlaying: { justifyContent: 'center', paddingHorizontal: artworkInset },
+  tabletPane: { position: 'absolute', right: 12, top: 0, bottom: 12, overflow: 'hidden' },
+  paneHeader: { minHeight: 54, paddingLeft: 22, paddingRight: 10, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  paneTitle: { flex: 1, color: colors.text, fontSize: 23, fontWeight: '700' },
   artwork: { position: 'absolute', top: 0, left: 0, overflow: 'hidden', backgroundColor: colors.surface },
   noArtwork: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   details: { ...StyleSheet.absoluteFill, paddingTop: compactArtworkTop },
@@ -670,6 +755,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   compactTrackArtist: { color: colors.muted, marginTop: 2, fontSize: 14 },
   metadataSlot: { width: '100%', maxWidth: 440, justifyContent: 'center' },
   metadata: { width: '100%', maxWidth: 440, flexDirection: 'row', alignItems: 'center', gap: 5 },
+  tabletMetadata: { maxWidth: undefined },
   trackCopy: { minWidth: 0, flex: 1 },
   trackTitle: { fontSize: 30, fontWeight: '700', letterSpacing: -1, color: colors.text },
   compactTitle: { fontSize: 25 },
@@ -678,6 +764,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   statusDetail: { color: colors.muted, fontWeight: '500' },
   transport: { width: '100%', maxWidth: 500, alignSelf: 'center', paddingHorizontal: edgeInset, paddingTop: 8, paddingBottom: 6 },
   transportCompact: { paddingTop: 2, paddingBottom: 2 },
+  tabletTransport: { paddingHorizontal: artworkInset },
   timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: -1, paddingHorizontal: 1 },
   time: { color: colors.quiet, fontVariant: ['tabular-nums'], fontSize: 12, fontWeight: '600' },
   // Each time grows from the end it sits at.
