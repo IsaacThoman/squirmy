@@ -1,5 +1,5 @@
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
-import NowPlaying from '../../../modules/now-playing';
+import NowPlaying, { type AudioOutput } from '../../../modules/now-playing';
 import { ExpoAudioEngine, type ExpoAudioEngineOptions } from './ExpoAudioEngine';
 
 export { ExpoAudioEngine } from './ExpoAudioEngine';
@@ -38,13 +38,19 @@ export function createPlayerEngine(options: Pick<ExpoAudioEngineOptions, 'onInte
   ensureAudioMode();
   return new ExpoAudioEngine({
     ...options,
-    createSilence: () => createAudioPlayer(silence, { keepAudioSessionActive: true }),
+    log: message => console.info(`[engine] ${message}`),
+    describeOutput: currentOutput,
+    holdRunning: hold => void NowPlaying?.holdBackgroundTime?.(hold).catch(() => undefined),
+    // Never AirPlay's external playback mode, in which iOS hands a player's URL to the
+    // receiver to fetch and play itself: it cannot fetch the silence's local file. Decoded
+    // here, the sound still goes to AirPlay through the audio route.
+    createSilence: () => createAudioPlayer(silence, { keepAudioSessionActive: true, allowsExternalPlayback: false }),
     // A player keeps the session active from its first play() until it is removed, so the
     // next entry can start without a gap. Before that first play() it keeps nothing; the
     // engine covers that time with silence.
     createPlayer: url => {
       ensureAudioMode();
-      return createAudioPlayer({ uri: url }, { updateInterval: updateIntervalMs, keepAudioSessionActive: true });
+      return createAudioPlayer({ uri: url }, { updateInterval: updateIntervalMs, keepAudioSessionActive: true, allowsExternalPlayback: false });
     },
   });
 }
@@ -62,10 +68,21 @@ export function connectAudioSession(engine: ExpoAudioEngine): () => void {
     else engine.endInterruption(event.shouldResume);
   });
   const routes = native.addListener('onRouteChange', ({ reason }) => {
+    console.info(`[audio] route changed (${reason}): ${currentOutput() ?? 'unknown'}`);
     if (reason === 'oldDeviceUnavailable') engine.routeLost();
   });
   return () => {
     interruptions.remove();
     routes.remove();
   };
+}
+
+/** Where the sound goes now, such as `AirPlay “Kitchen”`, for the log; null where it cannot be told. */
+export function currentOutput(): string | null {
+  const outputs = NowPlaying?.currentOutputs?.();
+  return outputs ? describeOutputs(outputs) : null;
+}
+
+function describeOutputs(outputs: readonly AudioOutput[]): string {
+  return outputs.length ? outputs.map(output => `${output.type} “${output.name}”`).join(', ') : 'no output';
 }
