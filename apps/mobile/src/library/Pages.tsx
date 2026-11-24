@@ -33,7 +33,7 @@ import { heartButton } from './heart';
 import {
   albumCollection, albumTypeLabels, artistCollection, CollectionCover, CollectionRail, EmptyState, FailureLine, gridColumns, gutter, likedCollection, nearEnd,
   playlistCollection,
-  QueryState, recentCollection, SectionTitle, tapFeedback, useBackSwipeOnly, useCollectionDim, type Collection,
+  QueryState, recentCollection, SectionTitle, tapFeedback, useCollectionDim, type Collection,
 } from './shared';
 import { useCollectionActions } from './collectionActions';
 import { uniqueTracks } from './loadAll';
@@ -256,7 +256,6 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
     if (list.length) actions.playTracks(list, { shuffle: waitingPlay.shuffle, context: { type: 'album', id: data.id, title: data.title } });
     if (list.length || !awaiting) setWaitingPlay(null);
   }, [actions, data, discs, awaiting, waitingPlay]);
-  useBackSwipeOnly();
   if (!data) return <PageFallback query={album} what="this album" onBack={onBack} />;
   const tracks = data.discs.flatMap(disc => disc.tracks);
   const context: PlaybackContext = { type: 'album', id: data.id, title: data.title };
@@ -428,7 +427,6 @@ function LikedScreen(props: PageProps) {
   const tracks = liked.data ? liked.items : kept;
   const control = useDownloadControl(likedDownloadId, 'Liked Songs',
     liked.items, () => download.liked(liked.items));
-  useBackSwipeOnly();
   // Kept songs stand in when the list can't load; with none, the page says why and offers to try again.
   if (!tracks || (liked.isError && !liked.data && !tracks.length)) return <PageFallback query={liked} what="your liked songs" onBack={props.onBack} />;
   return <TrackListPage item={likedCollection(props.link)} title="Liked Songs" info="Playlist" tracks={tracks} download={control}
@@ -441,7 +439,6 @@ function HistoryScreen(props: PageProps) {
   const history = useHistory();
   const playAll = usePlayAll({ list: history, fetchPage: historyPage, tracksOf: historyTracks });
   const tracks = useMemo(() => historyTracks(history.items), [history.items]);
-  useBackSwipeOnly();
   if (!history.data) return <PageFallback query={history} what="your history" onBack={props.onBack} />;
   return <TrackListPage item={recentCollection(props.link)} title="Recently Played" info="Listening history"
     tracks={tracks} playAll={playAll} context={{ type: 'history', id: null, title: 'Recently Played' }}
@@ -488,7 +485,6 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
     } : undefined,
   };
   const songs = useSongListItems(songListProps);
-  useBackSwipeOnly();
   if (!data) return <PageFallback query={playlist} what="this playlist" onBack={onBack} />;
   const rename = () => onOpen({ pathname: '/name-playlist', params: { mode: 'rename', id: data.id, name: data.name } });
   const remove = () => Alert.alert(`Delete “${data.name}”?`, 'This can’t be undone.', [
@@ -548,7 +544,6 @@ export function ArtistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInse
   const starts = useStartGuard();
   // A radio that didn't start says so on its button for a few seconds; a tap tries again.
   const radioFailures = useBriefFailures<true>();
-  useBackSwipeOnly();
   if (!artist.data) return <PageFallback query={artist} what="this artist" onBack={onBack} />;
   const data = artist.data;
   const top = data.topTracks;
