@@ -72,7 +72,10 @@ export function LyricsPane({ lyrics, onSeek, status: given, onRetry: givenRetry 
   }
 
   return (
-    <div ref={container} className="scrollbar-none h-full overflow-y-auto px-1 py-[30vh] [mask-image:linear-gradient(transparent,black_18%,black_82%,transparent)]">
+    // The room above the first line and below the last is a share of the pane's own height, never of
+    // the screen's: as padding, more than the pane could hold made it taller than its place, and the
+    // lines ran on over the song's title and the controls under it on a phone.
+    <div ref={container} className="scrollbar-none h-full overflow-y-auto px-1 before:block before:h-2/5 after:block after:h-2/5 [mask-image:linear-gradient(transparent,black_18%,black_82%,transparent)]">
       {lines.length
         ? (
           <div
