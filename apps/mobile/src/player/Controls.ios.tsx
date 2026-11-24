@@ -59,7 +59,8 @@ export function LyricButton({ line, active, onPress, opacity: shown, blur: blurr
   ];
   const text = <Text modifiers={[
     foregroundStyle(active || shown !== undefined ? colors.text : colors.quiet), font({ textStyle: 'largeTitle', weight: 'bold' }),
-    frame({ maxWidth: Infinity, alignment: 'leading' }), padding({ bottom: 20 }), hitShape, ...look,
+    // Only the words take a tap, so a tap beside or between lines can bring the controls back without seeking.
+    hitShape, frame({ maxWidth: Infinity, alignment: 'leading' }), padding({ bottom: 20 }), ...look,
   ]}>{line}</Text>;
   return <View style={styles.lyricRow}>
     <Host matchContents={{ vertical: true }}>

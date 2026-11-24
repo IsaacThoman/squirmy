@@ -192,9 +192,8 @@ export default function LyricsPage({ selected, ref, onControlsHidden }: LyricsPr
         }}
       >
         {lines.map((line, index) => {
-          const distance = timed ? index - Math.max(0, sung) : null;
-          // Before the first line is sung, it waits dim at the top like the rest.
-          const look = lineLook(timed && sung < 0 ? 1 : distance, { browsing, blur: blurs });
+          // Before the first line is sung (`sung` is -1), it waits dim at the top like the rest.
+          const look = lineLook(timed ? index - sung : null, { browsing, blur: blurs });
           return <LyricRow key={index} index={index} text={line.text} startMs={line.startMs} active={timed && index === sung}
             opacity={look.opacity} blur={look.blur} delay={following && timed && !reduceMotion ? lineDelay(index, Math.max(0, sung - 2)) : 0}
             wave={wave} onSeek={seek} onLayout={lineLaidOut} watched={index === watched} />;
