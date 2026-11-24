@@ -118,7 +118,9 @@ function useWholeLinks(box: RefObject<HTMLElement | null>, text: string): number
       }
       setWhole(count)
     }
-    measure()
+    // Measured when the observer first reports, after the frame's own layout, rather than here,
+    // which would lay the page out again for each row a scrolling list mounts. Until then every
+    // link stays in the Tab order.
     const observer = new ResizeObserver(measure)
     observer.observe(element)
     return () => observer.disconnect()
