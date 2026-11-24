@@ -149,7 +149,7 @@ function apply(s: Session, command: AnySessionCommand, context: Context): Sessio
     case 'next':
       return advance(s, context, 'manual')
     case 'previous':
-      return previous(s, now)
+      return previous(s, now, command.restart ?? true)
     case 'seek':
       if (!s.current || s.current.state === 'preparing') return s
       return { ...s, positionMs: capPosition(s.current, command.positionMs), anchorAt: now }
@@ -315,10 +315,10 @@ function advance(s: Session, context: Context, reason: AdvanceReason): Session {
  * further, into whatever played before the collection started, which is not where back
  * should go; it is only the record of what was heard.
  */
-function previous(s: Session, now: number): Session {
+function previous(s: Session, now: number, restart: boolean): Session {
   const index = s.playedInCycle.findLastIndex(isPlayable)
-  if (!s.current && index < 0) return s
-  if (s.current && (index < 0 || positionAt(s, now) >= PREVIOUS_RESTART_MS)) {
+  if (index < 0 && (!s.current || !restart)) return s
+  if (s.current && restart && (index < 0 || positionAt(s, now) >= PREVIOUS_RESTART_MS)) {
     return s.current.state === 'preparing' ? s : { ...s, positionMs: 0, anchorAt: now }
   }
   const entry = s.playedInCycle[index]!

@@ -313,6 +313,19 @@ describe('reduceSession', () => {
       const session = createInitialSession()
       expect(run(session, { type: 'previous' })).toBe(session)
     })
+
+    it('with restart: false steps back however far into the track', () => {
+      let session = run(playing(3), { type: 'next' }, 1000)
+      session = run(session, { type: 'previous', restart: false }, 60_000)
+      expect(currentTrack(session)).toBe(1)
+      expect(session).toMatchObject({ positionMs: 0, anchorAt: 60_000 })
+      expect(trackNumbers(session.queue)).toEqual([2, 3])
+    })
+
+    it('with restart: false and nothing to step back to is a no-op', () => {
+      const session = playing(3)
+      expect(run(session, { type: 'previous', restart: false }, 60_000)).toBe(session)
+    })
   })
 
   describe('a collection started from one of its tracks', () => {

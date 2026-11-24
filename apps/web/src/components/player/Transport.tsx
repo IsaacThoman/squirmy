@@ -7,6 +7,7 @@ import { Slider } from '@/components/ui/slider'
 import { formatDuration, formatRemaining } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { usePosition, type Player } from '@/player/player-context'
+import { seekBarPosition } from './progress'
 
 /** Desktop-sized buttons grow to a 44px target where the pointer is a finger (a tablet). */
 export const touchTarget = 'pointer-coarse:size-11'
@@ -83,7 +84,7 @@ type SeekBarProps = {
 
 /** Elapsed time, the seek slider and the time left. Reads the clock itself so only it re-renders. */
 export function SeekBar({ durationMs, onSeek, disabled, stacked, className }: SeekBarProps) {
-  const position = usePosition()
+  const position = usePosition(positionMs => seekBarPosition(positionMs, durationMs))
   const [draft, setDraft] = useState<number | null>(null)
   const shown = Math.min(draft ?? position, durationMs)
   const elapsed = formatDuration(shown)
