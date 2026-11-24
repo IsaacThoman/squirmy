@@ -400,6 +400,8 @@ function createActions(runtime: Runtime | null, canPlay: (track: TrackSummary) =
     seek: (positionMs: number) => send({ type: 'seek', positionMs: Math.max(0, positionMs) }),
     next: () => send({ type: 'next' }),
     previous: () => send({ type: 'previous' }),
+    /** Back to the song before, however far into this one; nothing when there is none. */
+    previousTrack: () => send({ type: 'previous', restart: false }),
     setVolume: (deviceId: string, value: number) => send({ type: 'setVolume', deviceId, value: Math.min(1, Math.max(0, value)) }),
     /** Moves playback to `deviceId`, which carries on from the current position. */
     transfer: (deviceId: string) => send({ type: 'transfer', deviceId }),

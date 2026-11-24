@@ -35,6 +35,7 @@ import QueuePage from './player/QueuePage';
 import TransportSlider from './player/TransportSlider';
 import { CollapseButton, DeviceButton, LyricButton, PlayerButton, TrackMenuButton } from './player/Controls';
 import { selectionFeedback } from './player/design';
+import { skipCommits } from './player/skipSwipe';
 import { contextHeight as contextHeightFor, metadataHeight as metadataHeightFor } from './player/layout';
 import { displayFontScale, secondaryFontScale } from './fontScale';
 import { createThemedStyles, useColors } from './theme';
@@ -176,9 +177,7 @@ export default function Player() {
       if (motion.expanding.value) trackDrag.value = Math.max(-48, Math.min(48, event.translationX * 0.32));
     },
     onDeactivate: (event) => {
-      const distance = Math.abs(event.translationX);
-      if (motion.expanding.value && !event.canceled &&
-        (distance > 60 || (distance > 20 && Math.abs(event.velocityX) > 720))) {
+      if (motion.expanding.value && !event.canceled && skipCommits(event.translationX, event.velocityX)) {
         scheduleOnRN(skipTrack, event.translationX);
       }
       trackDrag.value = withSpring(0, { damping: 25, stiffness: 280 });
