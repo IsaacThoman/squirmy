@@ -116,12 +116,12 @@ async function touch(tx: Transaction, id: string) {
 /** Refreshes the owner's devices, and everyone's playlist lists when the playlist is or was public. */
 async function invalidatePlaylist(ownerId: string, isPublic: boolean) {
   if (!isPublic) {
-    await invalidate({ user: ownerId }, [queryKeys.playlists(), queryKeys.home()])
+    await invalidate({ user: ownerId }, [queryKeys.playlists(), queryKeys.libraryItems(), queryKeys.home()])
     return
   }
   // One target list reaches each socket once; the owner is in 'all' as well and would
   // otherwise refetch the playlists twice.
-  await invalidate([{ user: ownerId }, 'all'], [queryKeys.playlists()])
+  await invalidate([{ user: ownerId }, 'all'], [queryKeys.playlists(), queryKeys.libraryItems()])
   await invalidate({ user: ownerId }, [queryKeys.home()])
 }
 

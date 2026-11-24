@@ -282,6 +282,24 @@ export const LibraryQuery = PageQuery.extend({
 })
 export type LibraryQuery = z.infer<typeof LibraryQuery>
 
+/**
+ * Orders of `GET /library/items`, the Library's All: `played` (the default) puts what the
+ * user last started playback from first (see `LibraryItem.playedAt`), then what they never
+ * played, most recently added first; the rest are the album list's orders. Under `title`
+ * an artist goes by its name and a playlist by its own; under `artist` (the creator) an
+ * artist goes by its name ahead of its albums, a playlist by its owner, Liked Songs by the
+ * user; under `year` only albums have one, so the rest follow the albums without a year.
+ */
+export const LibraryItemsSort = z.enum(['played', 'recent', 'title', 'artist', 'year'])
+export type LibraryItemsSort = z.infer<typeof LibraryItemsSort>
+
+/** Query of `GET /library/items`. A genre keeps the list to the albums that carry it. */
+export const LibraryItemsQuery = PageQuery.extend({
+  sort: LibraryItemsSort.default('played'),
+  genre: z.string().min(1).optional(),
+})
+export type LibraryItemsQuery = z.infer<typeof LibraryItemsQuery>
+
 /** An item of `GET /library/genres`, sorted by name. */
 export const GenreSummary = z.object({ name: z.string(), albumCount: z.number().int() })
 export type GenreSummary = z.infer<typeof GenreSummary>
