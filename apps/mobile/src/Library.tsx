@@ -1,5 +1,5 @@
 import { albumPresentation, librarySave, searchContext, searchFilters, searchItemKey, searchQueue, type SearchFilter, type SearchItem } from '@squirmy/client-core';
-import { queryKeys, type AlbumSummary, type HomeSection, type TrackSummary } from '@squirmy/contracts';
+import { queryKeys, type AlbumSummary, type HomeSection, type LibraryItem, type TrackSummary } from '@squirmy/contracts';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRouter, type Href } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -10,7 +10,7 @@ import { useAccount, useSignedInApi, useWantlistEnabled } from './account/Accoun
 import { shade } from './data/color';
 import {
   libraryMatchLimit, libraryMatchMinLength, useGenreCovers, useGenres, useHome, useLibraryAlbumIds, useLibraryAlbums, useLibraryArtists,
-  useLibraryMatches, useLibraryTracks, usePlaylists,
+  useLibraryItems, useLibraryMatches, useLibraryTracks, usePlaylists,
 } from './data/queries';
 import { useLibraryActions, useLikeFailures } from './data/library';
 import { useAvailability, useViewer } from './downloads/DownloadsProvider';
@@ -25,7 +25,7 @@ import { useRecentSearches, useSearchList } from './library/useSearchList';
 import { useBriefFailures } from './inlineFeedback';
 import { playAllFailure, radioFailure } from './library/failures';
 import { playbackStatus } from './player/usePlaybackStatus';
-import { sortFor, sortOptions, sortsFor, type SortChoices } from './library/sorting';
+import { listSort, sortFor, sortOptions, sortsFor, type SortChoices } from './library/sorting';
 import type { Page } from './library/links';
 import { useAlbumPlayer, useCollectionActions } from './library/collectionActions';
 import { underStatusBar, useRefreshControl } from './library/refresh';
@@ -178,21 +178,21 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
   const size = Math.floor((width - gutter * 2 - (columns - 1) * 12) / columns);
   const showsPlaylists = filter === 'All' || filter === 'Playlists';
   const showsAlbums = filter === 'All' || filter === 'Albums';
-  // Only the lists the filter shows are loaded.
-  const albums = useLibraryAlbums(sort, showsAlbums);
-  // All lists the artists after the albums, so they load once the albums have all loaded.
-  const albumsDone = Boolean(albums.data) && !albums.hasNextPage;
-  const artistsAfterAlbums = filter === 'All' && albumsDone;
+  // Only the lists the filter shows are loaded. All is one list from the server: the albums,
+  // artists, playlists and Liked Songs together, recently played first unless another order is chosen.
+  const all = useLibraryItems(sort, filter === 'All');
+  const albums = useLibraryAlbums(listSort(sort), filter === 'Albums');
   // The server lists artists by name whatever the order asked for.
-  const artists = useLibraryArtists('title', filter === 'Artists' || artistsAfterAlbums);
-  const songSort = sortOptions[sortFor('Songs', sortChoices)];
+  const artists = useLibraryArtists('title', filter === 'Artists');
+  const songSort = listSort(sortOptions[sortFor('Songs', sortChoices)]);
   const songs = useLibraryTracks(songSort, filter === 'Songs');
   // A tap plays the song and the next few hundred, as on the web, not just the rows scrolled past.
   const playSongs = usePlayAll({
     list: songs, tracksOf: items => [...items], limit: start => start + songsAfter,
     fetchPage: (api, cursor, limit) => api.catalog.tracks({ sort: songSort, cursor, limit }),
   });
-  const playlists = usePlaylists(showsPlaylists);
+  // All's own list holds the playlists; it needs them here only while searching.
+  const playlists = usePlaylists(filter === 'Playlists' || (filter === 'All' && [...query.trim()].length >= libraryMatchMinLength));
   // A filter of two characters or more searches the whole library on the server; a single
   // character only narrows what is already loaded.
   const searchText = filter === 'Playlists' ? '' : query;
@@ -206,33 +206,39 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
   const found = { ...libraryFound, pending: libraryFound.pending || (showsAlbums && albumIds.isPending && !albumIds.isError) };
   const matched = useMemo(() => libraryFound.data && { ...libraryFound.data, albums: libraryAlbumMatches(libraryFound.data.albums, membership) },
     [libraryFound.data, membership]);
-  const listed = filter === 'Artists' ? artists : filter === 'Songs' ? songs : filter === 'Playlists' ? playlists : albums;
+  const listed = filter === 'All' ? all : filter === 'Artists' ? artists : filter === 'Songs' ? songs : filter === 'Playlists' ? playlists : albums;
   const active = searching ? found : listed;
-  // Under All, the artists page on once the albums have all been listed.
-  const pagesArtists = artistsAfterAlbums && listed === albums;
-  const loadMore = searching ? undefined : pagesArtists ? artists.loadMore : listed.loadMore;
+  const loadMore = searching ? undefined : listed.loadMore;
 
   const artistItems = useMemo(() => (searching ? (matched?.artists ?? []).map(artist => artistCollection(artist, link))
     : artists.items.map(artist => artistCollection(artist, link)).filter(item => matches(query, item.title, item.subtitle))),
   [artists.items, link, matched, query, searching]);
+  // Sorted by year, the year says why an album is where it is.
+  const albumSubtitle = useCallback((album: AlbumSummary) => sort === 'year' && album.year ? `${album.artistCredit} · ${album.year}` : album.artistCredit, [sort]);
+  const allItems = useMemo(() => all.items.map((item: LibraryItem) => {
+    switch (item.kind) {
+      case 'liked': return likedCollection(link);
+      case 'playlist': return playlistCollection(item.playlist, link);
+      case 'album': return albumCollection(item.album, link, albumSubtitle(item.album));
+      case 'artist': return artistCollection(item.artist, link);
+    }
+  }), [albumSubtitle, all.items, link]);
   const items = useMemo(() => {
+    // All, unsearched, is the server's list; one letter only narrows what is loaded.
+    if (filter === 'All' && !searching) return allItems.filter(item => matches(query, item.title, item.subtitle)).map(collectionDim);
     const collections: Collection[] = [];
     if (showsPlaylists) {
       collections.push(...[likedCollection(link), ...playlists.items.map(playlist => playlistCollection(playlist, link))]
         .filter(item => matches(query, item.title, item.subtitle)));
     }
-    // Sorted by year, the year says why an album is where it is.
-    const subtitle = (album: AlbumSummary) => sort === 'year' && album.year ? `${album.artistCredit} · ${album.year}` : album.artistCredit;
     if (showsAlbums) {
       collections.push(...searching ? (matched?.albums ?? []).map(album => albumCollection(album, link))
-        : albums.items.map(album => albumCollection(album, link, subtitle(album))).filter(item => matches(query, item.title, item.subtitle)));
+        : albums.items.map(album => albumCollection(album, link, albumSubtitle(album))).filter(item => matches(query, item.title, item.subtitle)));
     }
-    if (filter === 'Artists') collections.push(...artistItems);
+    // A search of All finds artists among the rest, as All lists them.
+    if (filter === 'Artists' || filter === 'All') collections.push(...artistItems);
     return collections.map(collectionDim);
-  }, [albums.items, artistItems, filter, link, matched, collectionDim, playlists.items, query, searching, showsAlbums, showsPlaylists, sort]);
-  // All lists the artists too, after the albums under their own heading: a saved artist is in the library.
-  const allArtists = useMemo(() => (filter === 'All' && (searching || artistsAfterAlbums) ? artistItems.map(collectionDim) : []),
-    [artistItems, artistsAfterAlbums, collectionDim, filter, searching]);
+  }, [albumSubtitle, albums.items, allItems, artistItems, filter, link, matched, collectionDim, playlists.items, query, searching, showsAlbums, showsPlaylists]);
   const tracks = useMemo(() => searching ? matched?.tracks ?? []
     : songs.items.filter(track => matches(query, track.title, track.artistCredit, track.album?.title ?? '')), [matched, query, searching, songs.items]);
   const songItems = useSongListItems({
@@ -246,19 +252,21 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
   });
   // All, while searching, lists the songs found after the collections.
   const showsSongs = filter === 'Songs' || (filter === 'All' && searching);
-  const empty = !items.length && !allArtists.length && !(showsSongs && tracks.length);
+  const empty = !items.length && !(showsSongs && tracks.length);
   // The invitation is for a library with nothing in it, on the views that list albums: under
-  // Songs or Artists, saved songs or artists can be there without a single album.
-  const libraryEmpty = (filter === 'Albums' || (filter === 'All' && playlists.data && !playlists.items.length))
-    && albums.data && !albums.items.length && !allArtists.length && !query;
+  // Songs or Artists, saved songs or artists can be there without a single album. All always
+  // lists Liked Songs, so it is empty when nothing else is.
+  const libraryEmpty = !query && (filter === 'All'
+    ? all.data && !all.hasNextPage && all.items.every(item => item.kind === 'liked')
+    : filter === 'Albums' && albums.data && !albums.items.length);
   // Counted before albums outside the library are left out: the server stopped at the limit either way.
   const answered = libraryFound.data;
   const capped = searching && answered && (filter === 'Songs' ? answered.tracks.length : filter === 'Artists' ? answered.artists.length
     : Math.max(answered.albums.length, filter === 'All' ? Math.max(answered.tracks.length, answered.artists.length) : 0)) >= libraryMatchLimit;
 
   const mode = filter === 'Songs' ? 'songs' : grid ? 'grid' : 'list';
-  const rows = useMemo(() => libraryRows({ mode, items, artists: allArtists, songs: showsSongs ? songItems.data : [], columns }),
-    [allArtists, columns, items, mode, showsSongs, songItems.data]);
+  const rows = useMemo(() => libraryRows({ mode, items, songs: showsSongs ? songItems.data : [], columns }),
+    [columns, items, mode, showsSongs, songItems.data]);
   const renderSong = songItems.renderItem;
   const renderRow = useCallback(({ item: row }: { item: LibraryRow }) => {
     switch (row.kind) {
@@ -273,9 +281,9 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
         cover={<CollectionCover item={row.item} size={50} radius={9} />} href={row.item.href} />;
     }
   }, [collectionActions, renderSong, size, styles]);
-  // Searching, a pull reloads the matches; otherwise the list, and the playlists and artists shown with it.
+  // Searching, a pull reloads the matches and the playlists shown with them; otherwise the list.
   const refreshControl = useRefreshControl(() => Promise.all([
-    active.refetch(), showsPlaylists && active !== playlists && playlists.refetch(), allArtists.length > 0 && !searching && artists.refetch(),
+    active.refetch(), searching && showsPlaylists && playlists.refetch(),
   ]));
 
   // An empty library is an invitation: Search is where music is found and added.
@@ -328,7 +336,7 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
             : <EmptyState {...emptyLibrary[filter === 'Songs' ? 'Songs' : filter === 'Artists' ? 'Artists' : 'Albums']} action={findMusic} />)}
       </>}
       ListFooterComponent={<>
-        {(searching ? found.pending && !empty : listed.isFetchingNextPage || (pagesArtists && artists.isFetchingNextPage)) && <ActivityIndicator style={styles.more} />}
+        {(searching ? found.pending && !empty : listed.isFetchingNextPage) && <ActivityIndicator style={styles.more} />}
         {capped && <Text style={styles.matchNote}>Showing the best {libraryMatchLimit} matches. Type more to narrow them down.</Text>}
       </>} />
   </View>;

@@ -18,12 +18,10 @@ describe('libraryRows', () => {
     expect(libraryRows({ mode: 'list', items: [], songs, columns: 3 }).map(row => row.kind)).toEqual(['heading', 'song']);
   });
 
-  it('lists artists after the other collections, under an Artists heading, and before the songs', () => {
-    const rows = libraryRows({ mode: 'grid', items: [item('a')], artists: [item('r1'), item('r2'), item('r3')], songs, columns: 2 });
-    expect(rows.map(row => row.kind)).toEqual(['tiles', 'heading', 'tiles', 'tiles', 'heading', 'song']);
-    expect(rows[1]).toMatchObject({ title: 'Artists' });
-    expect(rows[4]).toMatchObject({ title: 'Songs' });
-    expect(libraryRows({ mode: 'list', items: [], artists: [item('r1')], songs: [], columns: 2 }).map(row => row.kind)).toEqual(['heading', 'row']);
+  it('keeps artists among the other collections, with no heading of their own, before the songs', () => {
+    const rows = libraryRows({ mode: 'grid', items: [item('r1'), item('a'), item('r2')], songs, columns: 2 });
+    expect(rows.map(row => row.kind)).toEqual(['tiles', 'tiles', 'heading', 'song']);
+    expect(rows.filter(row => row.kind === 'heading')).toEqual([expect.objectContaining({ title: 'Songs' })]);
   });
 
   it('has no heading without songs, or under Songs', () => {
