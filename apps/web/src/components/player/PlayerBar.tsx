@@ -44,7 +44,11 @@ function useBarSize(element: HTMLElement | null) {
   useLayoutEffect(() => {
     if (!element || typeof ResizeObserver === 'undefined') return
     const short = window.matchMedia('(orientation: landscape) and (max-height: 32rem)')
-    const measure = () => setSize({ width: element.clientWidth || Infinity, short: short.matches })
+    // The bar resizes on every frame of the sidebar's fold; it renders again only when that changes what fits.
+    const measure = () => {
+      const next = { width: element.clientWidth || Infinity, short: short.matches }
+      setSize(size => (sameFit(size.width, next.width) && size.short === next.short ? size : next))
+    }
     measure()
     const observer = new ResizeObserver(measure)
     observer.observe(element)
@@ -55,6 +59,11 @@ function useBarSize(element: HTMLElement | null) {
     }
   }, [element])
   return size
+}
+
+/** Whether two bar widths fit the same controls: on the same side of every width the bar lays itself out by. */
+function sameFit(a: number, b: number) {
+  return [ONE_ROW_FITS, NOW_PLAYING_FITS, VOLUME_FITS].every(fits => (a >= fits) === (b >= fits))
 }
 
 /**
