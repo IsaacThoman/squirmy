@@ -15,7 +15,7 @@ The technical conventions that implement this plan live in [architecture.md](./a
 - **MusicBrainz IDs identify everything.** Every other service is optional, cached and replaceable.
 - **Music plays even when identification fails.**
 - **User data points at catalog entries, not files.** Saves, playlists and history survive re-rips and retagging.
-- **One heart.** Hearting a song, album or artist saves it to your library, and nothing else does: no separate "Add to library", and playing, fetching or downloading never adds. Liked Songs is the hearted songs.
+- **One heart.** Hearting a song, album or artist saves it to your library, and nothing else does: no separate "Add to library", and playing, fetching or downloading never adds. Finishing an upload hearts its albums for the uploader, so your uploads are in your library. Liked Songs is the hearted songs.
 - **The repository bundles no content sources.** Acquisition providers are a generic interface and the repo names none.
 
 ## Stack and repo
@@ -183,16 +183,18 @@ Purchasing (priced offers, caps, budgets) is deferred. The protocol reserves an 
 
 - Layout: a sidebar that folds to icons and is a drawer on phones, the main view, a player bar along the bottom, a queue panel beside the page.
 - Library: a combined view with sorting, a grid or list, and search within it. Filter chips narrow the view to playlists, albums, artists or songs.
+- On this server: all of the server's music in the Library's view (albums, artists, songs), from Home's Recently added.
 - Search: a search page, and a quick search dialog from any page.
 - Settings in a dialog. Appearance is light, dark or the system's, with a choice of color themes, kept per browser.
 - Audio: `HTMLAudioElement`, the Media Session API, and Web Audio gain.
-- Admin: setup wizard, library roots, job status, review queue, organize preview, users and invites, providers.
-- Upload by dragging in a folder or zip.
+- Admin: setup wizard, library roots, job status, review queue, organize preview, users and invites, providers, everyone's uploads.
+- Upload by dragging in a folder or zip; Your uploads lists and deletes what you uploaded.
 
 ## Accounts and security
 
 - First run creates the admin; others join by invite. Roles are admin and member, with flags for uploading and for triggering acquisition.
-- The server's collection is shared. Each user's library is that collection plus what they hearted; saves, playlists, history and the session are per user.
+- The server's collection is shared: everyone can find and play all of it, and Home lists it. Each user's library is what they hearted (their uploads included) and their playlists, plus the whole collection for a user who turns that on in their settings. Saves, playlists, history and the session are per user.
+- Uploaders manage what they uploaded (**Your uploads**) and admins manage everyone's (**Admin → Uploads**): deleting an upload removes its files from the server for everyone.
 - argon2 passwords and opaque session tokens stored hashed. Cookie on web, bearer token on mobile, the same token on the socket.
 - Login rate limiting and CSRF protection.
 - Provider secrets and app passwords are encrypted at rest.

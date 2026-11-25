@@ -68,9 +68,9 @@ describe('library', () => {
     expect(screen.queryByRole('combobox', { name: 'Genre' })).toBeNull()
   })
 
-  it('links Recently added to the Library’s albums', async () => {
+  it('links Recently added to all of the server’s albums', async () => {
     renderHome(home)
     await screen.findByRole('heading', { level: 2, name: 'Recently added' })
-    expect(screen.getAllByRole('link').filter(link => link.getAttribute('href') === '/library?filter=albums')).toHaveLength(1)
+    expect(screen.getAllByRole('link').filter(link => link.getAttribute('href') === '/collection?filter=albums')).toHaveLength(1)
   })
 })

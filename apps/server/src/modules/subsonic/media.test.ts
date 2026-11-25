@@ -45,7 +45,7 @@ describe('subsonic media', () => {
   beforeAll(async () => {
     await startJobs({ work: false })
     app = await buildApp()
-    const user = await createUser({ username: 'mira' })
+    const user = await createUser({ username: 'mira', settings: { libraryIncludesServerMusic: true } })
     userId = user.id
     secret = (await createAppPassword(user.id, 'test')).secret!
     client = subsonicClient(app, { username: 'mira', secret })

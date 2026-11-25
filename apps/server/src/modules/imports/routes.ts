@@ -1,10 +1,11 @@
 import {
-  CreateImportRequest, Id, ImportListQuery,
-  type Import, type ImportAlbumList, type ImportFileResult, type ImportFilesResponse, type ImportList, type ImportOptions,
+  AdminUploadAlbumQuery, AdminUploadsQuery, CreateImportRequest, Id, ImportListQuery, PageQuery,
+  type DeleteUploadsResponse, type Import, type ImportAlbumList, type ImportFileResult, type ImportFilesResponse, type ImportList,
+  type ImportOptions, type UploadAlbumPage, type UploadFileList,
 } from '@squirmy/contracts'
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { z } from 'zod'
-import { requireUser, type AuthUser } from '../../lib/auth.js'
+import { requireAdmin, requireUser, type AuthUser } from '../../lib/auth.js'
 import { AppError, badRequest, conflict, forbidden } from '../../lib/errors.js'
 import { getServerSettings } from '../../lib/settings.js'
 import { requireRoomFor } from './space.js'
@@ -12,8 +13,11 @@ import { stagingRoot } from './staging.js'
 import {
   addImportFile, canImport, commitImport, createImport, failImport, getImport, importAlbums, importFor, importOptions, listImports,
 } from './service.js'
+import { deleteUploadAlbum, deleteUploadFile, listUploadFiles, listUploads } from './uploads.js'
 
 const IdParams = z.object({ id: Id })
+const AlbumParams = z.object({ albumId: Id })
+const FileParams = z.object({ fileId: Id })
 /** Parts per upload request, counting the `relativePath` fields. */
 const maxParts = 20_000
 
@@ -91,5 +95,38 @@ export async function importsRoutes(app: FastifyInstance) {
     const user = requireUploader(request)
     const row = await importFor(user, IdParams.parse(request.params).id)
     return failImport(row.id, 'Cancelled')
+  })
+
+  // Your own uploads, for anyone signed in: someone whose uploading was switched off can
+  // still remove what they brought.
+  app.get('/me/uploads', async (request): Promise<UploadAlbumPage> =>
+    listUploads({ own: requireUser(request).id }, PageQuery.parse(request.query)))
+  app.get('/me/uploads/albums/:albumId', async (request): Promise<UploadFileList> => {
+    const user = requireUser(request)
+    const { albumId } = AlbumParams.parse(request.params)
+    return { items: await listUploadFiles(user.id, { own: user.id }, albumId), nextCursor: null }
+  })
+  app.delete('/me/uploads/albums/:albumId', async (request): Promise<DeleteUploadsResponse> =>
+    deleteUploadAlbum({ own: requireUser(request).id }, AlbumParams.parse(request.params).albumId))
+  app.delete('/me/uploads/files/:fileId', async (request): Promise<DeleteUploadsResponse> =>
+    deleteUploadFile({ own: requireUser(request).id }, FileParams.parse(request.params).fileId))
+
+  app.get('/admin/uploads', async (request): Promise<UploadAlbumPage> => {
+    requireAdmin(request)
+    const { uploader, ...page } = AdminUploadsQuery.parse(request.query)
+    return listUploads({ uploader }, page)
+  })
+  app.get('/admin/uploads/albums/:albumId', async (request): Promise<UploadFileList> => {
+    const admin = requireAdmin(request)
+    const { albumId } = AlbumParams.parse(request.params)
+    return { items: await listUploadFiles(admin.id, AdminUploadAlbumQuery.parse(request.query), albumId), nextCursor: null }
+  })
+  app.delete('/admin/uploads/albums/:albumId', async (request): Promise<DeleteUploadsResponse> => {
+    requireAdmin(request)
+    return deleteUploadAlbum(AdminUploadAlbumQuery.parse(request.query), AlbumParams.parse(request.params).albumId)
+  })
+  app.delete('/admin/uploads/files/:fileId', async (request): Promise<DeleteUploadsResponse> => {
+    requireAdmin(request)
+    return deleteUploadFile({}, FileParams.parse(request.params).fileId)
   })
 }

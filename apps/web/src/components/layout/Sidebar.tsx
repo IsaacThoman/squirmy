@@ -1,5 +1,5 @@
 import type { PlaylistSummary, TrackSummary, User } from '@squirmy/contracts'
-import { Bookmark, Check, CircleAlert, House, Library, LogOut, PanelLeftClose, PanelLeftOpen, Play, Plus, Search, Settings, ShieldCheck, Upload, type LucideIcon } from 'lucide-react'
+import { Bookmark, Check, CircleAlert, FolderUp, House, Library, LogOut, PanelLeftClose, PanelLeftOpen, Play, Plus, Search, Settings, ShieldCheck, Upload, type LucideIcon } from 'lucide-react'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router'
 import { errorMessage } from '@/api/errors'
@@ -128,6 +128,7 @@ const SidebarView = memo(function SidebarView({
   const accountEntries: MenuEntry[] = [
     { kind: 'label', label: `${name} · ${user.role === 'admin' ? 'Admin' : 'Member'}` },
     { label: 'Settings', icon: <Settings />, onSelect: onOpenSettings, shortcut: `${modKey},` },
+    ...(canUploadMusic(user) ? [{ label: 'Your uploads', icon: <FolderUp />, onSelect: () => { onNavigate(); void navigate('/uploads') } }] : []),
     ...(user.role === 'admin' ? [{ label: 'Admin panel', icon: <ShieldCheck />, onSelect: () => { onNavigate(); void navigate('/admin') } }] : []),
     { kind: 'separator' },
     { label: 'Log out', icon: <LogOut />, onSelect: onLogout, danger: true },

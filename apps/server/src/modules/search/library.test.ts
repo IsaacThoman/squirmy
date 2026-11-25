@@ -24,8 +24,8 @@ describe('GET /search/library', () => {
 
   beforeAll(async () => {
     app = await buildApp()
-    user = await signIn()
-    other = await signIn()
+    user = await signIn({ settings: { libraryIncludesServerMusic: true } })
+    other = await signIn({ settings: { libraryIncludesServerMusic: true } })
     const radiohead = await createArtist({ name: 'Radiohead' })
     await createAlbum({
       title: 'OK Computer', artist: radiohead, owned: true,

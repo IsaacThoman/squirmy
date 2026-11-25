@@ -1,13 +1,14 @@
 /**
  * Shared SQL for what Subsonic shows. Subsonic apps sync "the library" and play from it
  * without waiting, so their lists are the user's library (the catalog's rule, decision 41
- * in docs/server/subsonic.md) narrowed to music with a present file: a file fetched only
+ * in docs/server/subsonic.md: what they saved, plus the server's collection when they
+ * turned on `libraryIncludesServerMusic`) narrowed to music with a present file: a file fetched only
  * because someone played it is cache and stays out, or every sampled song would bring its
  * album into these apps. Lookups by id (a song, a stream, a starred or playlist song) only
  * need a present file. A music folder (library root) narrows everything to its files.
  */
 import { sql, type SQL } from 'drizzle-orm'
-import { collectionFile, inLibraryAlbum } from '../catalog/availability.js'
+import { collectionCounts, collectionFile, inLibraryAlbum } from '../catalog/availability.js'
 import { servable } from '../catalog/summaries.js'
 
 /** Condition on `media_files` alias: present, and in `rootId` when given. */
@@ -23,15 +24,24 @@ export function hasPresentFile(column: 'album_id' | 'recording_id', owner: strin
 }
 
 /**
+ * Whether the server's collection counts as well as the user's library: `library` follows
+ * the user's `libraryIncludesServerMusic`; `server` always counts it, for searches with a
+ * query, which find all of the server's music as Squirmy's own search does.
+ */
+export type Reach = 'library' | 'server'
+
+/**
  * Condition on `media_files` alias: a present file (of `rootId`, when given) that puts its
- * track in the user's library: a collection file, or a cached one whose recording or album
- * the user saved. A recording has such a file exactly when the catalog's
+ * track in the user's library: any file whose recording or album the user saved, or a
+ * collection file when the collection counts for the user (`collectionCounts`, or always
+ * with the `server` reach). A recording has such a file exactly when the catalog's
  * `inLibraryRecording` holds and it has a present file, and asking it of the file lets a
  * collection file pass without a lookup.
  */
-export function libraryFile(alias: string, userId: string, rootId?: string | null): SQL {
+export function libraryFile(alias: string, userId: string, rootId?: string | null, reach: Reach = 'library'): SQL {
   const file = sql.raw(alias)
-  return sql`(${presentFiles(alias, rootId)} and (${collectionFile(alias)} or exists (
+  const counts = reach === 'server' ? sql`true` : collectionCounts(userId)
+  return sql`(${presentFiles(alias, rootId)} and ((${counts} and ${collectionFile(alias)}) or exists (
     select 1 from likes kept where kept.user_id = ${userId}
       and ((kept.entity_type = 'recording' and kept.entity_id = ${file}.recording_id)
         or (kept.entity_type = 'album' and kept.entity_id = ${file}.album_id))
@@ -39,9 +49,9 @@ export function libraryFile(alias: string, userId: string, rootId?: string | nul
 }
 
 /** Condition: a library file (see `libraryFile`) has `column` equal to the expression `owner`. */
-export function hasLibraryFile(column: 'album_id' | 'recording_id', owner: string, userId: string, rootId?: string | null): SQL {
+export function hasLibraryFile(column: 'album_id' | 'recording_id', owner: string, userId: string, rootId?: string | null, reach: Reach = 'library'): SQL {
   return sql`exists (
-    select 1 from media_files lib where lib.${sql.raw(column)} = ${sql.raw(owner)} and ${libraryFile('lib', userId, rootId)}
+    select 1 from media_files lib where lib.${sql.raw(column)} = ${sql.raw(owner)} and ${libraryFile('lib', userId, rootId, reach)}
   )`
 }
 
@@ -49,8 +59,9 @@ export function hasLibraryFile(column: 'album_id' | 'recording_id', owner: strin
  * Condition: the album (expression) is in the user's library by the catalog's rule and has
  * a library file to play. An album the user saved shows once its first file arrives.
  */
-export function libraryAlbum(album: string, userId: string, rootId?: string | null): SQL {
-  return sql`(${inLibraryAlbum(album, userId)} and ${hasLibraryFile('album_id', album, userId, rootId)})`
+export function libraryAlbum(album: string, userId: string, rootId?: string | null, reach: Reach = 'library'): SQL {
+  const member = reach === 'server' ? sql`(${inLibraryAlbum(album, userId)} or ${inLibraryAlbum(album, null)})` : inLibraryAlbum(album, userId)
+  return sql`(${member} and ${hasLibraryFile('album_id', album, userId, rootId, reach)})`
 }
 
 /**
@@ -65,8 +76,8 @@ export function libraryAlbumIds(userId: string, rootId?: string | null): SQL {
 }
 
 /** Condition: the recording (expression) is a library track with a present file. */
-export function libraryRecording(recording: string, userId: string, rootId?: string | null): SQL {
-  return hasLibraryFile('recording_id', recording, userId, rootId)
+export function libraryRecording(recording: string, userId: string, rootId?: string | null, reach: Reach = 'library'): SQL {
+  return hasLibraryFile('recording_id', recording, userId, rootId, reach)
 }
 
 /** Condition: the album (alias) carries the genre, ignoring case. */

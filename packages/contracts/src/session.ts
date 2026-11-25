@@ -571,6 +571,17 @@ export const queryKeys = {
   /** The Library's All (`GET /library/items`), which also moves when a collection is played or a playlist changes. */
   libraryItems: () => ['library', 'items'] as const,
   library: () => ['library'] as const,
+  /**
+   * The server's music (`GET /collection/albums`, `/collection/artists`, `/collection/tracks`).
+   * Under `library()`, so whatever changes the collection, which every library may include,
+   * reaches these lists too.
+   */
+  collectionAlbums: () => ['library', 'collection', 'albums'] as const,
+  collectionArtists: () => ['library', 'collection', 'artists'] as const,
+  collectionTracks: () => ['library', 'collection', 'tracks'] as const,
+  collection: () => ['library', 'collection'] as const,
+  /** The user's uploads (`GET /me/uploads` and an album's songs under it). */
+  uploads: () => ['uploads'] as const,
   album: (id: string) => ['album', id] as const,
   artist: (id: string) => ['artist', id] as const,
   /** One section of an artist page, paged (`GET /artists/:id/releases`). Under `artist(id)`, so its invalidation covers it. */
@@ -591,4 +602,6 @@ export const queryKeys = {
   adminReviews: () => ['admin', 'reviews'] as const,
   adminUsers: () => ['admin', 'users'] as const,
   adminOrganize: () => ['admin', 'organize'] as const,
+  /** Everyone's uploads (`GET /admin/uploads`). */
+  adminUploads: () => ['admin', 'uploads'] as const,
 } as const

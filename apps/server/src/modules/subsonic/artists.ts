@@ -9,7 +9,7 @@ import { sortKeys, isoTime, uuidArray } from '../catalog/sql.js'
 import { sortKey } from '../../lib/text.js'
 import { artistId, coverArtId } from './ids.js'
 import type { Payload } from './protocol.js'
-import { libraryAlbum, libraryAlbumIds, libraryRecording, servableArt } from './sql.js'
+import { libraryAlbum, libraryAlbumIds, libraryRecording, servableArt, type Reach } from './sql.js'
 
 export type ArtistRow = {
   id: string
@@ -55,15 +55,15 @@ const userJoins = (userId: string) => sql`
   left join likes lk on lk.user_id = ${userId} and lk.entity_type = 'artist' and lk.entity_id = ar.id
   left join ratings rating on rating.user_id = ${userId} and rating.entity_type = 'artist' and rating.entity_id = ar.id`
 
-/** Library artists among `ids`, in their order. */
-export async function artistRows(userId: string, ids: readonly string[], rootId?: string | null): Promise<ArtistRow[]> {
+/** Library artists among `ids`, in their order (with the `server` reach, also the server's own). */
+export async function artistRows(userId: string, ids: readonly string[], rootId?: string | null, reach: Reach = 'library'): Promise<ArtistRow[]> {
   const unique = [...new Set(ids)]
   if (unique.length === 0) return []
   const rows = await db.execute<ArtistRow & { owned: boolean }>(sql`
     select ar.id, ar.mbid, ar.name, ar.sort_name as "sortName", ${servableArt('ar.image_asset_id')} as "imageId",
       (select count(distinct aa.album_id)::int from album_artists aa
-        where aa.artist_id = ar.id and ${libraryAlbum('aa.album_id', userId, rootId)}) as "albumCount",
-      exists (select 1 from recording_artists ra where ra.artist_id = ar.id and ${libraryRecording('ra.recording_id', userId, rootId)}) as owned,
+        where aa.artist_id = ar.id and ${libraryAlbum('aa.album_id', userId, rootId, reach)}) as "albumCount",
+      exists (select 1 from recording_artists ra where ra.artist_id = ar.id and ${libraryRecording('ra.recording_id', userId, rootId, reach)}) as owned,
       ${userColumns}
     from artists ar ${userJoins(userId)}
     where ar.id = any(${uuidArray(unique)})`)

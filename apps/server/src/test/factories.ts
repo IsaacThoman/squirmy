@@ -14,7 +14,11 @@ import { creditKey, matchKey } from '../lib/text.js'
 let counter = 0
 const next = () => ++counter
 
-export async function createUser(input: Partial<{ username: string; role: UserRole; canUpload: boolean; canAcquire: boolean; passwordHash: string }> = {}) {
+export async function createUser(input: Partial<{
+  username: string; role: UserRole; canUpload: boolean; canAcquire: boolean; passwordHash: string
+  /** Stored `UserSettings`, such as `{ libraryIncludesServerMusic: true }` for a library that holds the collection. */
+  settings: Record<string, unknown>
+}> = {}) {
   const username = input.username ?? `user${next()}`
   const [row] = await db.insert(users).values({
     id: newId(),
@@ -24,6 +28,7 @@ export async function createUser(input: Partial<{ username: string; role: UserRo
     role: input.role ?? 'member',
     canUpload: input.canUpload ?? false,
     canAcquire: input.canAcquire ?? false,
+    ...input.settings ? { settings: input.settings } : {},
   }).returning()
   return row!
 }

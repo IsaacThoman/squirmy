@@ -30,17 +30,20 @@ export async function resolve(kind: 'artist' | 'album' | 'track', id: string): P
   return resolved
 }
 
-/** Library albums the artist is an album artist of, oldest first. */
+/**
+ * Albums the artist is an album artist of, oldest first: in the user's library or the
+ * server's collection, as a lookup by id reaches (`server`).
+ */
 async function artistAlbumIds(userId: string, artist: string, rootId?: string): Promise<string[]> {
   const rows = await db.execute<{ id: string }>(sql`
     select a.id from albums a
-    where a.id in (select aa.album_id from album_artists aa where aa.artist_id = ${artist}) and ${libraryAlbum('a.id', userId, rootId)}
+    where a.id in (select aa.album_id from album_artists aa where aa.artist_id = ${artist}) and ${libraryAlbum('a.id', userId, rootId, 'server')}
     order by a.year nulls last, a.release_date nulls last, a.title_key, a.id`)
   return rows.map((row) => row.id)
 }
 
 /**
- * Library songs filed under an album, in the order of the catalog's track list. Songs the release does
+ * Library and collection songs filed under an album, in the order of the catalog's track list. Songs the release does
  * not number (bonus tracks) are numbered after the last track of their disc, so clients that
  * sort by number put them last and no two songs share one.
  */
@@ -49,7 +52,7 @@ async function albumSongs(userId: string, album: string): Promise<Payload[]> {
     albumTrackList(album),
     db.execute<{ id: string }>(sql`
       select distinct f.recording_id as id from media_files f
-      where f.album_id = ${album} and f.recording_id is not null and ${libraryFile('f', userId)}`),
+      where f.album_id = ${album} and f.recording_id is not null and ${libraryFile('f', userId, undefined, 'server')}`),
   ])
   // The songs whose files are filed under this album.
   const own = new Set(filed.map((row) => row.id))
@@ -69,14 +72,14 @@ async function albumSongs(userId: string, album: string): Promise<Payload[]> {
 
 async function getArtistPayload({ user, params, baseUrl }: Context) {
   const artist = await resolve('artist', expectId(params.required('id'), 'artist').id)
-  const [row] = await artistRows(user.id, [artist])
+  const [row] = await artistRows(user.id, [artist], undefined, 'server')
   if (!row) throw notFound('Artist')
-  return { row, albums: await albums(user.id, await artistAlbumIds(user.id, artist)), baseUrl }
+  return { row, albums: await albums(user.id, await artistAlbumIds(user.id, artist), { reach: 'server' }), baseUrl }
 }
 
 async function getAlbum({ user, params }: Context): Promise<Payload> {
   const album = await resolve('album', expectId(params.required('id'), 'album').id)
-  const [summary] = await albums(user.id, [album])
+  const [summary] = await albums(user.id, [album], { reach: 'server' })
   if (!summary) throw notFound('Album')
   return { album: { ...summary, song: await albumSongs(user.id, album) } }
 }
@@ -89,7 +92,7 @@ async function getMusicDirectory(context: Context): Promise<Payload> {
     return { directory: { id: artistId(row.id), name: row.name, starred: row.starred ?? undefined, userRating: row.rating ?? undefined, child: list.map(albumAsChild) } }
   }
   const album = await resolve('album', parsed.id)
-  const [summary] = await albums(user.id, [album])
+  const [summary] = await albums(user.id, [album], { reach: 'server' })
   if (!summary) throw notFound('Album')
   return {
     directory: {

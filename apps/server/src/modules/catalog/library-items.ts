@@ -10,7 +10,7 @@
  * `played` (the default) lists what the user started playback from, newest first
  * (`collection_plays`, written by the sessions module), then everything else in the
  * `recent` order. An item's `recent` time is when it entered the library: an album's is
- * its newest collection file or its save (library.ts), an artist's the latest of its own
+ * its save or, when the collection counts for the user, its newest collection file (library.ts), an artist's the latest of its own
  * save and its library albums' times, a playlist's its creation, Liked Songs' the latest
  * liked song. Under `played` a played item's second key is `-infinity` and a never-played
  * item's first, so the cursor says which part of the list it is in.
@@ -24,7 +24,7 @@ import { sql, type SQL } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { sortKey } from '../../lib/text.js'
 import { playlistSummaries } from '../userdata/playlists.js'
-import { collectionFile } from './availability.js'
+import { collectionCounts, collectionFile } from './availability.js'
 import { albumIsMember, hasGenre, libraryAlbumIds, libraryAlbumsQuery, libraryShape, neverPlayed, type LibraryShape } from './library.js'
 import { after, cursorKeys, decode, encode, leadingBound, orderBy, toPage, type Ordering, type SortKey } from './pagination.js'
 import { isoTime, sortKeys, uuidArray } from './sql.js'
@@ -112,7 +112,7 @@ function artistsByName(userId: string, sort: 'title' | 'artist' | 'year', cursor
 
 /**
  * Artists by when they entered the library, newest first: the latest of the newest
- * collection file on an album crediting them, the latest save of such an album, and their
+ * collection file on an album crediting them (when the collection counts for the user), the latest save of such an album, and their
  * own save. One walk per way in, each keeping the artists whose time it holds (on a tie the
  * collection, then the album save), so every artist appears once. `unplayed` leaves out
  * the artists the user played from.
@@ -123,10 +123,11 @@ function artistsByRecency(userId: string, cursor: string | undefined, limit: num
   const albumSaves = ordering('recent', ['s.created_at', 'credit.artist_id'])
   const ownSaves = ordering('recent', ['s.created_at', 's.entity_id'])
   /** Condition: a collection file on an album crediting the artist, added at or after (`>=`) or after (`>`) `than`. */
-  const fileSince = (artist: string, comparison: '>' | '>=', than: string) => sql`exists (
+  const counts = collectionCounts(userId)
+  const fileSince = (artist: string, comparison: '>' | '>=', than: string) => sql`(${counts} and exists (
     select 1 from album_artists other join media_files newer on newer.album_id = other.album_id
     where other.artist_id = ${sql.raw(artist)} and ${collectionFile('newer')} and newer.added_at ${sql.raw(comparison)} ${sql.raw(than)}
-  )`
+  ))`
   /** Condition: the user saved an album crediting the artist at or after (`>=`) or after (`>`) `than`. */
   const albumSavedSince = (artist: string, comparison: '>' | '>=', than: string) => sql`exists (
     select 1 from album_artists other join likes later
@@ -139,7 +140,7 @@ function artistsByRecency(userId: string, cursor: string | undefined, limit: num
   const branch = sql`
     (select credit.artist_id as id, ${cursorKeys(files)}
     from media_files f join album_artists credit on credit.album_id = f.album_id
-    where ${collectionFile('f')} and ${leadingBound(files, cursor)}
+    where ${collectionFile('f')} and ${counts} and ${leadingBound(files, cursor)}
       -- The artist's newest collection file, by the same tie-break as the album list.
       and not exists (
         select 1 from album_artists other join media_files newer on newer.album_id = other.album_id

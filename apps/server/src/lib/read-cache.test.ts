@@ -1,4 +1,4 @@
-import { AlbumDetail, HomeResponse, PlaylistDetail, PlaylistPage, queryKeys } from '@squirmy/contracts'
+import { AlbumDetail, AlbumPage, PlaylistDetail, PlaylistPage, queryKeys } from '@squirmy/contracts'
 import { eq } from 'drizzle-orm'
 import Fastify, { type FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
@@ -26,7 +26,7 @@ describe('read cache', () => {
     resetConfig()
     app = await buildApp()
     await startRealtime(app)
-    user = await signIn()
+    user = await signIn({ settings: { libraryIncludesServerMusic: true } })
   })
   afterAll(async () => {
     await app.close()
@@ -58,14 +58,11 @@ describe('read cache', () => {
     expect(after.title).toBe('Renamed quietly')
     expect(after.discs[0]!.tracks[0]!.liked).toBe(true)
     const elsewhere = await createAlbum({ title: 'Not here yet' })
-    const home = body(await get('/home'), HomeResponse)
+    const library = async () => body(await get('/library/albums'), AlbumPage).items.map((item) => item.id)
+    expect(await library()).not.toContain(elsewhere.albumId)
     expect((await call('PUT', `/me/likes/album/${elsewhere.albumId}`)).statusCode).toBe(200)
-    const liked = body(await get('/home'), HomeResponse)
-    // The heart saves the album, so Home's Recently added shows it at once.
-    const added = (response: HomeResponse) => response.sections.flatMap((section) =>
-      section.id === 'recently-added' && section.kind === 'albums' ? section.albums.map((item) => item.id) : [])
-    expect(added(home)).not.toContain(elsewhere.albumId)
-    expect(added(liked)).toContain(elsewhere.albumId)
+    // The heart saves the album, so the library lists it at once.
+    expect(await library()).toContain(elsewhere.albumId)
   })
 
   it('keeps users apart: one user’s like leaves the other’s cache alone', async () => {

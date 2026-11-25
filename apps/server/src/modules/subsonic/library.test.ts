@@ -1,5 +1,6 @@
 /**
- * Decision 41: Subsonic lists the user's library, restricted to tracks with a present file.
+ * Decision 41: Subsonic lists the user's library, restricted to tracks with a present file:
+ * what they saved, and the server's collection when they include it.
  * Files a provider delivered for playing are cache and stay out of every list; a saved album
  * or track brings its cached files in for the user who saved it.
  */
@@ -15,6 +16,7 @@ import { subsonicClient, type SubsonicClient } from '../../test/subsonic-client.
 import { createAppPassword } from '../auth/service.js'
 import { likeEntity, unlikeEntity } from '../userdata/likes.js'
 import { addPlaylistItems, createPlaylist } from '../userdata/playlists.js'
+import { updateUserSettings } from '../userdata/settings.js'
 
 describe('subsonic library', () => {
   useTestDatabase()
@@ -132,10 +134,21 @@ describe('subsonic library', () => {
     expect(await albumIds(lune)).toEqual([])
   })
 
-  it('lists the collection for everyone', async () => {
+  it("lists the server's collection for users who include it, and finds it by search and id for everyone", async () => {
     const scanned = await createAlbum({ title: 'On Disk', artist: await createArtist({ name: 'Scanned Band' }), owned: true, rootId, tracks: [{ title: 'From The Scan' }] })
+    expect(await albumIds(lune)).toEqual([])
+    expect(await artistNames(lune)).toEqual([])
+    expect(await syncedSongs(lune)).toEqual([songId(single, 0)])
+    // A search with a query, and a lookup by id, reach all of the server's music.
+    const found = (await lune.client.json('search3', { query: 'from the scan' })).searchResult3
+    expect((found.song ?? []).map((one: { id: string }) => one.id)).toEqual([songId(scanned, 0)])
+    const album = (await lune.client.json('search3', { query: 'on disk' })).searchResult3
+    expect((album.album ?? []).map((one: { id: string }) => one.id)).toEqual([albumId(scanned)])
+    expect((await lune.client.json('getAlbum', { id: albumId(scanned) })).album.songCount).toBe(1)
+
+    await updateUserSettings(lune.id, { libraryIncludesServerMusic: true })
     expect(await albumIds(lune)).toEqual([albumId(scanned)])
-    expect(await albumIds(mira)).toEqual([albumId(kept), albumId(scanned)])
+    expect(await albumIds(mira)).toEqual([albumId(kept)])
     expect(await artistNames(lune)).toEqual(['Scanned Band'])
     expect(await syncedSongs(lune)).toEqual([songId(scanned, 0), songId(single, 0)].sort())
   })

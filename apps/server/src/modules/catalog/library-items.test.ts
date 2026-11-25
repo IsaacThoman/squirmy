@@ -60,7 +60,7 @@ describe('the Library\'s All', () => {
 
   beforeAll(async () => {
     app = await buildApp()
-    user = await signIn({ username: 'listener' })
+    user = await signIn({ username: 'listener', settings: { libraryIncludesServerMusic: true } })
     const other = await createUser({ username: 'other' })
     const moss = await createArtist({ name: 'Moss' })
     zed = await createArtist({ name: 'Zed' })

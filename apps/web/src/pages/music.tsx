@@ -12,7 +12,7 @@ import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-r
 import { moveItem } from '@/lib/reorder'
 import { useCachedSummary } from '@/api/prefetch'
 import {
-  isNotFound, itemsOf, LIBRARY_MATCH_LIMIT, searchesServer, useNextPage, useAlbum, useArtist, useArtistReleases, useGenres, useHome, useLibraryList, useLibraryMatches,
+  isNotFound, itemsOf, LIBRARY_MATCH_LIMIT, searchesServer, useNextPage, useAlbum, useArtist, useArtistReleases, useCollectionList, useGenres, useHome, useLibraryList, useLibraryMatches,
   useLikedTracks, usePlaylist, usePlaylists, useWants,
 } from '@/api/queries'
 import { useApi } from '@/api/services'
@@ -406,14 +406,14 @@ const GENRE_FILTERS: readonly LibraryFilterName[] = ['all', 'albums', 'songs']
  * the genre kept between the filters it narrows until it is cleared. Playlists and artists take
  * no genre, so they leave it behind rather than show a chip that changes nothing.
  */
-function libraryHref(filter: LibraryFilterName, params: URLSearchParams) {
+function libraryHref(filter: LibraryFilterName, params: URLSearchParams, base = '/library') {
   const next = new URLSearchParams({ filter })
   const sort = params.get('sort')
   // Each filter opens in its own default, so a sort is carried only when it is not that.
   if (isLibrarySort(sort) && sort !== defaultSort(filter)) next.set('sort', sort)
   const genre = params.get('genre')
   if (genre && GENRE_FILTERS.includes(filter)) next.set('genre', genre)
-  return `/library?${next}`
+  return `${base}?${next}`
 }
 
 /**
@@ -611,6 +611,120 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
       onPlaySong={index => void playSong(index)}
       onNewPlaylist={() => library.newPlaylist()}
       onPin={pinItem}
+    />
+  )
+}
+
+type ServerFilter = 'albums' | 'artists' | 'songs'
+const isServerFilter = (value: string | null): value is ServerFilter => value === 'albums' || value === 'artists' || value === 'songs'
+
+/** `/collection`: the server's music, Home's See all. Opens on its albums. */
+export function CollectionPage() {
+  const [params] = useSearchParams()
+  const filter = params.get('filter')
+  if (!isServerFilter(filter)) {
+    const next = new URLSearchParams(params)
+    next.set('filter', 'albums')
+    return <Navigate to={`/collection?${next}`} replace />
+  }
+  return <ServerMusic filter={filter} />
+}
+
+/**
+ * All of the server's music, whatever is in the user's library: the Library's view over the
+ * server's lists, with its sorts, genre and search, and no pins or playlists. Two characters
+ * or more search on the server, as the Library does; one filters what is loaded.
+ */
+function ServerMusic({ filter }: { filter: ServerFilter }) {
+  usePageTitle('On this server')
+  const user = useCurrentUser()
+  const controls = usePlayerControls()
+  const { playAlbum, playLoaded } = usePlayCollections()
+  const [params, setParams] = useSearchParams()
+  const [layout, setLayout] = useState(readLibraryLayout)
+  const [query, setQuery] = useState('')
+  const chosen = params.get('sort')
+  const sort = sortFor(filter, isLibrarySort(chosen) ? chosen : null)
+  const genre = params.get('genre') ?? undefined
+
+  const albums = useCollectionList('albums', { sort, genre }, filter === 'albums')
+  // Artists come by name whatever the order asked for.
+  const artists = useCollectionList('artists', { sort: 'recent' }, filter === 'artists')
+  const songs = useCollectionList('tracks', { sort, genre }, filter === 'songs')
+  const found = useLibraryMatches(query, filter === 'artists' ? undefined : genre)
+  const searching = searchesServer(query)
+  const searchFailed = searching && !found.pending && found.data === undefined && Boolean(found.error)
+  const matched = searching ? found.data : undefined
+  const listed = filter === 'artists' ? artists : filter === 'songs' ? songs : albums
+  const listFailed = Boolean(listed.error && !listed.data)
+
+  const items = useMemo((): LibraryItem[] | undefined => {
+    if (filter === 'songs') return undefined
+    if (filter === 'albums') {
+      if (listFailed && !searching) return []
+      const list = searching ? matched?.albums : albums.data && itemsOf(albums.data).filter(album => matches(query, album.title, album.artistCredit))
+      return list?.map(album => ({ kind: 'album', album }) as const)
+    }
+    const list = searching ? matched?.artists : artists.data && itemsOf(artists.data).filter(artist => matches(query, artist.name))
+    return list?.map(artist => ({ kind: 'artist', artist }) as const)
+  }, [filter, listFailed, searching, matched, albums.data, artists.data, query])
+
+  const tracks = useMemo(() => {
+    if (filter !== 'songs') return undefined
+    if (searching) return matched?.tracks
+    return songs.data && itemsOf(songs.data).filter(track => matches(query, track.title, track.artistCredit, track.album?.title ?? ''))
+  }, [filter, searching, matched, songs.data, query])
+
+  const { onEndReached, loadingMore, moreFailure } = useNextPage(listed, searching)
+
+  const matchedCount = !matched ? 0 : filter === 'songs' ? matched.tracks.length : filter === 'artists' ? matched.artists.length : matched.albums.length
+  const count = filter === 'albums' ? listCount(albums, 'album') : filter === 'artists' ? listCount(artists, 'artist') : listCount(songs, 'song')
+  const setParam = (key: string, value: string | undefined) => setParams(current => {
+    const next = new URLSearchParams(current)
+    if (value) next.set(key, value)
+    else next.delete(key)
+    return next
+  }, { replace: true })
+
+  const playSong = async (index: number) => {
+    if (query.trim()) controls.playTracks(tracks ?? [], index, songsContext)
+    else await playLoaded(songs, index + SONGS_AFTER, list => controls.playTracks(list, index, songsContext))
+  }
+
+  return (
+    <LibraryView
+      server
+      filter={filter}
+      filterHref={name => libraryHref(name, params, '/collection')}
+      sort={sort}
+      sorts={sortsFor(filter)}
+      onSortChange={next => setParam('sort', next === defaultSort(filter) ? undefined : next)}
+      layout={layout}
+      onLayoutChange={next => {
+        setLayout(next)
+        writeLibraryLayout(next)
+      }}
+      query={query}
+      onQueryChange={setQuery}
+      genre={genre}
+      onClearGenre={() => setParam('genre', undefined)}
+      items={items}
+      tracks={tracks}
+      listFailure={listFailed ? { error: listed.error, retrying: listed.isFetching, onRetry: () => void listed.refetch() } : undefined}
+      searchFailure={searchFailed ? { error: found.error, onRetry: () => void found.refetch() } : undefined}
+      count={count}
+      libraryEmpty={false}
+      pending={searching && found.pending}
+      capped={searching && matchedCount >= LIBRARY_MATCH_LIMIT}
+      loadingMore={loadingMore}
+      onEndReached={onEndReached}
+      moreFailure={moreFailure}
+      canAddMusic={user.role === 'admin'}
+      onPlayAlbum={album => void playAlbum(album)}
+      onPlayPlaylist={() => {}}
+      onPlayLiked={() => {}}
+      onPlaySong={index => void playSong(index)}
+      onNewPlaylist={() => {}}
     />
   )
 }

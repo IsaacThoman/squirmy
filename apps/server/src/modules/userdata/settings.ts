@@ -5,6 +5,8 @@ import { users } from '../../database/schema.js'
 import { notFound } from '../../lib/errors.js'
 import { invalidate } from '../../realtime/index.js'
 
+const libraryRoots = [['library'], ['home'], ['album'], ['artist'], ['track'], ['search'], ['likes'], ['playlists']] as const
+
 /** The user's settings with defaults filled in for keys never set. */
 export async function getUserSettings(userId: string): Promise<UserSettings> {
   const [row] = await db.select({ settings: users.settings }).from(users).where(eq(users.id, userId))
@@ -24,6 +26,12 @@ export async function updateUserSettings(userId: string, patch: UpdateUserSettin
   if (!row) throw notFound('No such user')
   // The scrobbling status reports each service's switch.
   const scrobbling = patch.scrobbleListenBrainz !== undefined || patch.scrobbleLastFm !== undefined
-  await invalidate({ user: userId }, [queryKeys.settings(), ...scrobbling ? [queryKeys.scrobbling()] : []])
+  await invalidate({ user: userId }, [
+    queryKeys.settings(),
+    ...scrobbling ? [queryKeys.scrobbling()] : [],
+    // Whether the collection is in the library changes membership on every list and page
+    // that shows it (`inLibrary`, an album's `library`), so all of them are read again.
+    ...patch.libraryIncludesServerMusic !== undefined ? libraryRoots : [],
+  ])
   return UserSettings.parse(row.settings)
 }

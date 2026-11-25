@@ -9,6 +9,7 @@ import { fitSections } from './admin-sections'
 
 const sections = [
   { to: '/admin/library', label: 'Library' },
+  { to: '/admin/uploads', label: 'Uploads' },
   { to: '/admin/reviews', label: 'Review queue' },
   { to: '/admin/organize', label: 'Organize' },
   { to: '/admin/search-index', label: 'Search index' },

@@ -24,7 +24,7 @@ describe.skipIf(!process.env.SQUIRMY_PERF)('subsonic performance', () => {
 
   beforeAll(async () => {
     app = await buildApp()
-    const user = await createUser({ username: 'mira' })
+    const user = await createUser({ username: 'mira', settings: { libraryIncludesServerMusic: true } })
     client = subsonicClient(app, { username: 'mira', secret: (await createAppPassword(user.id, 'perf')).secret! })
     await seedLargeLibrary({ albums: 10_000, tracksPerAlbum: 15, artists: 2_000, unownedEvery: 10, userId: user.id, plays: 50_000, likes: 2_000 })
   }, 300_000)
