@@ -2,8 +2,8 @@ import { ApiError } from '@squirmy/client-core';
 import type { TrackSummary } from '@squirmy/contracts';
 import { describe, expect, it } from 'vitest';
 import {
-  acquireOutcome, afterAcquire, canPlay, collectionDownload, downloadStatus, downloadSymbol, extensionFor, fetchRecheckDelay, formatBytes,
-  maxFetchAsks, retryDelay, sizeMatches, songPage, unavailableReason, waitReason, withTrack, type CollectionRow, type DownloadRow,
+  acquireOutcome, afterAcquire, canPlay, collectionDownload, downloadStatus, downloadSymbol, extensionFor, fetchRecheckDelay,
+  maxFetchAsks, retryDelay, savedLimit, sizeMatches, songPage, unavailableReason, waitReason, withTrack, type CollectionRow, type DownloadRow,
   type DownloadState,
 } from './model';
 
@@ -79,7 +79,7 @@ describe('songs the server does not have yet', () => {
     expect(downloadStatus(summed([done('a'), done('b')], ['a', 'b', 'c'])).text).toBe('2 of 3 downloaded · 1 not available');
     expect(downloadStatus(summed([done('a'), row('b', 'failed')], ['a', 'b', 'c'])))
       .toMatchObject({ text: '1 song couldn’t be downloaded · 1 not available', retry: true });
-    expect(downloadStatus(summed([done('a'), done('b')])).text).toBe('Downloaded · 2 KB');
+    expect(downloadStatus(summed([done('a'), done('b')])).text).toBe('Downloaded · 2.0 KB');
   });
 });
 
@@ -153,9 +153,13 @@ describe('download rules', () => {
     expect(downloadSymbol({ state: 'queued', wait: null })).toBe('arrow.down.circle.dotted');
   });
 
-  it('formats sizes', () => {
-    expect([2_500, 4_200_000, 123_000_000, 1_250_000_000, 64_000_000_000].map(formatBytes))
-      .toEqual(['3 KB', '4.2 MB', '123 MB', '1.3 GB', '64 GB']);
+  it('reads a limit saved in 1000s as the same choice in 1024s', () => {
+    expect(savedLimit(5 * 1000 ** 3)).toBe(5 * 1024 ** 3);
+    expect(savedLimit(5 * 1024 ** 3)).toBe(5 * 1024 ** 3);
+    expect(savedLimit(null)).toBeNull();
+    expect(savedLimit(undefined)).toBeUndefined();
+    expect(savedLimit(0)).toBe(0);
+    expect(savedLimit(123_456)).toBe(123_456);
   });
 });
 

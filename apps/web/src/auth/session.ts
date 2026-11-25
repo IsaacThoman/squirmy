@@ -1,4 +1,4 @@
-import { ApiError } from '@squirmy/client-core'
+import { ApiError, type ApiClient } from '@squirmy/client-core'
 import { queryKeys, type SetupStatus, type User } from '@squirmy/contracts'
 import { useQuery, type QueryClient } from '@tanstack/react-query'
 import { createContext, useContext } from 'react'
@@ -17,24 +17,70 @@ export function useWantlistEnabled() {
   return useSetupStatus().data?.wantlistEnabled ?? false
 }
 
+// Set while this browser has signed out but the server has not heard: it was out of reach. The
+// session cookie is the server's to end, so until it does this browser counts itself signed out,
+// and asks it again each time it would have asked who is signed in.
+const signOutPendingKey = 'squirmy.signOutPending'
+const storage = () => { try { return window.localStorage } catch { return null } }
+export function signOutPending(): boolean {
+  try { return storage()?.getItem(signOutPendingKey) === '1' } catch { return false }
+}
+export function setSignOutPending(pending: boolean) {
+  try {
+    if (pending) storage()?.setItem(signOutPendingKey, '1')
+    else storage()?.removeItem(signOutPendingKey)
+  } catch { /* Without storage the sign-out lasts until the page reloads. */ }
+}
+
+/** Ends a sign-out the server missed. It is done once the server answers: a 401 too means the session is gone. */
+async function finishSignOut(api: ApiClient) {
+  await api.auth.logout().then(
+    () => setSignOutPending(false),
+    (error: unknown) => { if (error instanceof ApiError && error.status === 401) setSignOutPending(false) },
+  )
+}
+
 /** The signed-in user, or null when signed out. */
 export function useMe() {
   const api = useApi()
   return useQuery({
     queryKey: queryKeys.me(),
-    queryFn: () => api.auth.me().catch((error: unknown) => {
-      if (error instanceof ApiError && error.status === 401) return null
-      throw error
-    }),
+    queryFn: async () => {
+      if (signOutPending()) {
+        await finishSignOut(api)
+        return null
+      }
+      return api.auth.me().catch((error: unknown) => {
+        if (error instanceof ApiError && error.status === 401) return null
+        throw error
+      })
+    },
   })
+}
+
+/** Why sign-in is showing, when it is not the visitor's own doing. */
+export type SignInNotice = 'expired' | 'unreachable'
+const signInNoticeKey = ['signInNotice'] as const
+export const signInNotices: Record<SignInNotice, string> = {
+  expired: 'Your session ended. Sign in again to keep listening.',
+  unreachable: 'You’re signed out on this browser. The server couldn’t be reached, so it ends the session once it can.',
+}
+
+/** What sign-in says about how the visitor got there, if anything. */
+export function useSignInNotice(): string | null {
+  const { data } = useQuery<SignInNotice | null>({ queryKey: signInNoticeKey, queryFn: () => null, enabled: false, staleTime: Infinity })
+  return data ? signInNotices[data] : null
 }
 
 /**
  * Switches the cached session to `user`. Everything cached for the previous user is
- * dropped first so nothing of theirs shows for the next one.
+ * dropped first so nothing of theirs shows for the next one. Signed out, sign-in says
+ * `notice` when given.
  */
-export function setSignedInUser(client: QueryClient, user: User | null) {
+export function setSignedInUser(client: QueryClient, user: User | null, notice?: SignInNotice) {
   client.removeQueries({ predicate: query => !isAuthKey(query.queryKey) })
+  if (user) setSignOutPending(false)
+  else if (notice) client.setQueryData(signInNoticeKey, notice)
   client.setQueryData(queryKeys.me(), user)
 }
 
@@ -43,9 +89,9 @@ export function setSetupDone(client: QueryClient) {
   client.setQueryData<SetupStatus>(setupStatusKey, status => status && { ...status, needsSetup: false })
 }
 
-/** The server no longer accepts this browser's session. */
+/** The server no longer accepts this browser's session: sign-in says so, as the iOS app does. */
 export function signedOut(client: QueryClient) {
-  if (client.getQueryData(queryKeys.me())) setSignedInUser(client, null)
+  if (client.getQueryData(queryKeys.me())) setSignedInUser(client, null, 'expired')
 }
 
 export const CurrentUserContext = createContext<User | null>(null)

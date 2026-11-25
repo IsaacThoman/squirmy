@@ -3,9 +3,9 @@ import { queryKeys } from '@squirmy/contracts'
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useLocation } from 'react-router'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { AppRoutes } from '@/App'
-import { album, playlistDetail } from '@/fixtures/catalog'
+import { album, likedTracks, playlistDetail } from '@/fixtures/catalog'
 import { fakeServices } from '@/test/fake-services'
 import { renderWithApp } from '@/test/render'
 
@@ -255,8 +255,97 @@ describe('adding to a playlist', () => {
     }))
   })
 
+  it('adds nothing when it cannot check what the playlist has, and says so on the entry', async () => {
+    const { services, api } = fakeServices()
+    const addPlaylistItems = vi.fn(async () => afterDark)
+    Object.assign(api.userdata, { addPlaylistItems })
+    api.userdata.playlist.mockRejectedValue(new ApiError(0, 'network_error', 'Network error'))
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    await userEvent.click(await screen.findByRole('button', { name: `More options for ${inAfterDark.title}` }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Add to playlist' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: afterDark.name }))
+    const item = await screen.findByRole('menuitem', { name: /After Dark/ })
+    await waitFor(() => expect(item).toHaveTextContent('Couldn’t check for songs it has already. Try again.'))
+    expect(addPlaylistItems).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog', { name: 'Already in playlist' })).toBeNull()
+  })
+
+  it('adds to the playlist it made when New playlist is tried again, rather than making a second', async () => {
+    const { services, api } = fakeServices()
+    const addPlaylistItems = vi.fn()
+      .mockRejectedValueOnce(new ApiError(0, 'network_error', 'Network error'))
+      .mockResolvedValue(afterDark)
+    Object.assign(api.userdata, { addPlaylistItems })
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    await userEvent.click(await screen.findByRole('button', { name: `More options for ${notInAfterDark.title}` }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Add to playlist' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'New playlist…' }))
+    const dialog = await screen.findByRole('dialog', { name: 'New playlist' })
+    await userEvent.type(within(dialog).getByLabelText('Name'), 'Porch songs')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Create' }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(`Made “Porch songs”, but couldn’t add “${notInAfterDark.title}”. Try again.`)
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Create' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New playlist' })).toBeNull())
+    expect(api.userdata.createPlaylist).toHaveBeenCalledOnce()
+    const made = '00000000-0000-4000-8400-0000000000ff'
+    expect(addPlaylistItems).toHaveBeenCalledTimes(2)
+    // The retry leaves out the song if the first try did put it in.
+    expect(addPlaylistItems).toHaveBeenLastCalledWith(made, { tracks: [{ trackId: notInAfterDark.id, albumId: blueHour.id }], skipDuplicates: true })
+  })
+
+  it('renames the playlist it made when the retry has another name', async () => {
+    const { services, api } = fakeServices()
+    const addPlaylistItems = vi.fn()
+      .mockRejectedValueOnce(new ApiError(0, 'network_error', 'Network error'))
+      .mockResolvedValue(afterDark)
+    const updatePlaylist = vi.fn(async (id: string, request: { name: string }) => ({ ...afterDark, id, name: request.name }))
+    Object.assign(api.userdata, { addPlaylistItems, updatePlaylist })
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    await userEvent.click(await screen.findByRole('button', { name: `More options for ${notInAfterDark.title}` }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Add to playlist' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'New playlist…' }))
+    const dialog = await screen.findByRole('dialog', { name: 'New playlist' })
+    await userEvent.type(within(dialog).getByLabelText('Name'), 'Porch songs')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Create' }))
+    await within(dialog).findByRole('alert')
+    await userEvent.type(within(dialog).getByLabelText('Name'), ' at dusk')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Create' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New playlist' })).toBeNull())
+    expect(api.userdata.createPlaylist).toHaveBeenCalledOnce()
+    expect(updatePlaylist).toHaveBeenCalledWith('00000000-0000-4000-8400-0000000000ff', expect.objectContaining({ name: 'Porch songs at dusk' }))
+  })
+
   it('has the fixtures it needs: a Blue Hour song in After Dark and one not in it', () => {
     expect(inAfterDark).toBeDefined()
     expect(notInAfterDark).toBeDefined()
+  })
+})
+
+describe('Liked Songs', () => {
+  it('asks for a page that failed once, then offers to try again', async () => {
+    // jsdom lays nothing out, so the virtual list would show no rows: every box is a screen's size.
+    const height = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(900)
+    const offset = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(220)
+    onTestFinished(() => { height.mockRestore(); offset.mockRestore() })
+    const { services, api } = fakeServices()
+    const [first, ...rest] = likedTracks
+    api.userdata.likes.mockImplementation((async (_kind: string, { cursor }: { cursor?: string }) => {
+      if (!cursor) return { items: [first!], nextCursor: 'more' }
+      // Asked again and again, the list ends, so the test fails on the count rather than hanging.
+      if (api.userdata.likes.mock.calls.length > 5) return { items: [], nextCursor: null }
+      throw new ApiError(400, 'bad_cursor', 'That page is gone.')
+    }) as never)
+    renderWithApp(<AppRoutes />, '/liked', services)
+    const failure = await screen.findByRole('alert')
+    expect(failure).toHaveTextContent('More songs didn’t load')
+    await new Promise(resolve => setTimeout(resolve, 300))
+    expect(api.userdata.likes).toHaveBeenCalledTimes(2)
+
+    api.userdata.likes.mockImplementation((async (_kind: string, { cursor }: { cursor?: string }) => (cursor ? { items: rest, nextCursor: null } : { items: [first!], nextCursor: 'more' })) as never)
+    await userEvent.click(within(failure).getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByText(rest[0]!.title)).toBeInTheDocument()
+    expect(screen.queryByText('More songs didn’t load')).toBeNull()
+    expect(api.userdata.likes).toHaveBeenCalledTimes(3)
   })
 })

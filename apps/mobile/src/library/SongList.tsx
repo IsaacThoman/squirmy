@@ -9,10 +9,10 @@ import { heartButton, heartColor } from './heart';
 import { useRealtime } from '../data/realtime';
 import { useCanPlay, useTrackDownload, useViewer } from '../downloads/DownloadsProvider';
 import { downloadSymbol, unavailableReason } from '../downloads/model';
-import { useCurrentTrackState, useTrackLoading } from '../playback';
+import { useCurrentTrackState, usePlaybackActions, useTrackLoading } from '../playback';
 import { STILL_LOADING_LABEL } from '../player/loading';
 import {
-  sameRow, songRowKey, songRows, useSongRowHandlers, type SongListItems, type SongRowHandlers, type SongRowItem,
+  pressVerb, sameRow, songRowKey, songRows, useSongRowHandlers, type SongListItems, type SongRowHandlers, type SongRowItem,
 } from './rows';
 import { useTrackActionRunner, type TrackAction } from './trackActions';
 import { spokenDuration, trackDuration } from './duration';
@@ -27,8 +27,13 @@ export type SongListProps = {
   numbered?: boolean;
   /** Said before each artist, where songs are listed among other kinds of result ("Song"). */
   kind?: string;
-  /** Called with the index of the track in `tracks`. */
+  /** Called with the index of the track in `tracks`. Pressing the current song pauses or resumes it instead. */
   onPlay: (index: number) => void;
+  /**
+   * Called with the index of a song that can't play and has an album, when it is pressed, as
+   * search results open its album on the web. Without it such a row's press does nothing.
+   */
+  onUnavailable?: (index: number) => void;
   onTrackMenu: (track: TrackSummary, index: number) => void;
   /** The rows are a playlist's items, in the same order as `tracks`, which can be removed and (on iOS, while editing) moved. */
   playlist?: {
@@ -45,17 +50,18 @@ export type SongListProps = {
 const rowHeight = 58;
 
 export function SongList(props: SongListProps) {
-  const handlers = useSongRowHandlers(props);
+  const handlers = useSongRowHandlers(props, usePlaybackActions().toggleIfCurrent);
   const { run } = useTrackActionRunner();
-  return songRows(props).map(item => <SongRow key={item.key} item={item} handlers={handlers} run={run} />);
+  return songRows({ ...props, opens: Boolean(props.onUnavailable) }).map(item => <SongRow key={item.key} item={item} handlers={handlers} run={run} />);
 }
 
 /** The rows of a long list, for a virtualized list to render. */
 export function useSongListItems(props: SongListProps): SongListItems {
-  const { tracks, numbered, playlist, album, kind } = props;
-  const handlers = useSongRowHandlers(props);
+  const { tracks, numbered, playlist, album, kind, onUnavailable } = props;
+  const handlers = useSongRowHandlers(props, usePlaybackActions().toggleIfCurrent);
   const { run } = useTrackActionRunner();
-  const data = useMemo(() => songRows({ tracks, numbered, playlist, album, kind }), [album, numbered, playlist, tracks, kind]);
+  const opens = Boolean(onUnavailable);
+  const data = useMemo(() => songRows({ tracks, numbered, playlist, album, kind, opens }), [album, numbered, playlist, tracks, kind, opens]);
   const renderItem = useCallback(({ item }: { item: SongRowItem }) => <SongRow item={item} handlers={handlers} run={run} />, [handlers, run]);
   return { data, renderItem, keyExtractor: songRowKey, rowHeight };
 }
@@ -122,10 +128,10 @@ const SongRow = memo(function SongRow({ item, handlers, run }: {
   >
     <View style={[styles.songRow, current && styles.songCurrent]}>
       <Pressable accessibilityRole="button"
-        accessibilityLabel={`${playable ? 'Play ' : ''}${track.title} by ${track.artistCredit}${track.explicit ? ', Explicit' : ''}${
+        accessibilityLabel={`${playable ? `${pressVerb(playing)} ` : ''}${track.title} by ${track.artistCredit}${track.explicit ? ', Explicit' : ''}${
           spoken ? `, ${spoken}` : ''}${playable ? '' : `, ${unavailableReason(track, offline, viewer)}`}`}
         style={({ pressed }) => [styles.songInfo, pressed && styles.pressed]}
-        onPress={playable ? onPlay : onMenu} onLongPress={onMenu}
+        onPress={playable ? onPlay : item.opens ? () => handlers.unavailable(index) : onMenu} onLongPress={onMenu}
         accessibilityActions={playable ? [{ name: 'playNext', label: 'Play next' }] : undefined}
         onAccessibilityAction={event => { if (event.nativeEvent.actionName === 'playNext') playNext(); }}>
         {/* A gray song fades its artwork, and its text takes colors that stay readable (3:1). */}

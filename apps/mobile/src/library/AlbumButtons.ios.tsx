@@ -1,7 +1,7 @@
-import { Button, Host, HStack, Image, ProgressView, Text } from '@expo/ui/swift-ui';
+import { Button, Host, HStack, Image, Menu, ProgressView, Text } from '@expo/ui/swift-ui';
 import {
   accessibilityHidden, accessibilityLabel, background, buttonBorderShape, buttonStyle, clipShape, contentShape, controlSize, disabled as disabledModifier,
-  dynamicTypeSize, font, foregroundStyle, frame, lineLimit, opacity, padding, progressViewStyle, shapes, tint,
+  dynamicTypeSize, font, foregroundStyle, frame, lineLimit, menuIndicator, opacity, padding, progressViewStyle, shapes, tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import type { ComponentProps } from 'react';
@@ -12,7 +12,7 @@ import { useBrowseBackLabel } from './links';
 type SymbolName = ComponentProps<typeof Image>['systemName'];
 const hitShape = contentShape(shapes.rectangle());
 
-export function AlbumNavButton({ icon, label, onPress, selected, busy, failed }: AlbumNavProps) {
+export function AlbumNavButton({ icon, label, onPress, menu, selected, busy, failed }: AlbumNavProps) {
   const colors = useColors();
   const glass = isLiquidGlassAvailable();
   // The glass adds its own padding around the content: 30 inside makes the button 44 across,
@@ -21,16 +21,21 @@ export function AlbumNavButton({ icon, label, onPress, selected, busy, failed }:
   // The host is 44 square whatever the text size. Left to grow with it, the spinner and the
   // glass around it drew 57 across at the largest size, over the buttons beside it.
   const fixedSize = dynamicTypeSize({ max: 'large' });
+  const look = glass
+    ? [buttonStyle('glass'), buttonBorderShape('circle'), fixedSize, accessibilityLabel(label)]
+    : [buttonStyle('plain'), background(colors.surface), clipShape('circle'), fixedSize, accessibilityLabel(label)];
+  const content = busy
+    ? <ProgressView modifiers={[progressViewStyle('circular'), controlSize('regular'), tint(colors.text), size, hitShape]} />
+    // The button carries the label; left alone, the image would announce its symbol's name.
+    : <Image systemName={icon as SymbolName} size={20} color={failed ? colors.danger : selected ? colors.accent : colors.text} modifiers={[size, hitShape, accessibilityHidden(true)]} />;
   return (
     <Host style={{ width: 44, height: 44 }}>
-      <Button onPress={onPress} modifiers={glass
-        ? [buttonStyle('glass'), buttonBorderShape('circle'), fixedSize, accessibilityLabel(label)]
-        : [buttonStyle('plain'), background(colors.surface), clipShape('circle'), fixedSize, accessibilityLabel(label)]}>
-        {busy
-          ? <ProgressView modifiers={[progressViewStyle('circular'), controlSize('regular'), tint(colors.text), size, hitShape]} />
-          // The button carries the label; left alone, the image would announce its symbol's name.
-          : <Image systemName={icon as SymbolName} size={20} color={failed ? colors.danger : selected ? colors.accent : colors.text} modifiers={[size, hitShape, accessibilityHidden(true)]} />}
-      </Button>
+      {/* A menu, such as an album's ⋯, is the system's own, as on a song row. */}
+      {menu
+        ? <Menu label={content} modifiers={[...look, menuIndicator('hidden')]}>
+          {menu.map(action => <Button key={action.title} label={action.title} systemImage={action.icon as SymbolName} onPress={action.onPress} />)}
+        </Menu>
+        : <Button onPress={onPress} modifiers={look}>{content}</Button>}
     </Host>
   );
 }

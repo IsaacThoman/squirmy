@@ -32,6 +32,45 @@ export function formatTotalDuration(ms: number): string {
   return rest ? `${hours} hr ${rest} min` : `${hours} hr`
 }
 
+/**
+ * A count and its noun, with the digits grouped as the device's language groups them:
+ * `1 song`, `1,234 songs`. One rule for web and iOS.
+ */
+export function plural(count: number, one: string, many = `${one}s`): string {
+  return `${count.toLocaleString()} ${count === 1 ? one : many}`
+}
+
+/**
+ * How many songs a list has and how long they last, for a list that loads a page at a time:
+ * `1,234 songs · 3 hr` once every page is in, `60+ songs` until then (a total from the pages
+ * loaded so far would undercount both). `separator` joins the two (`, ` on web).
+ */
+export function songCountLabel(count: number, { complete = true, durationMs, separator = ' · ' }: {
+  complete?: boolean; durationMs: number; separator?: string
+}): string {
+  if (!complete) return `${count.toLocaleString()}+ songs`
+  return `${plural(count, 'song')}${separator}${formatTotalDuration(durationMs)}`
+}
+
+const byteUnits = ['B', 'KB', 'MB', 'GB', 'TB']
+
+/**
+ * A size in 1024s, one decimal under ten: `512 B`, `2.4 KB`, `118 MB`, `1.2 GB`. A gigabyte
+ * here is 1024³ bytes, as the size limits are.
+ */
+export function formatBytes(bytes: number): string {
+  let value = Number.isFinite(bytes) ? Math.max(0, bytes) : 0
+  let unit = 0
+  while (value >= 1024 && unit < byteUnits.length - 1) {
+    value /= 1024
+    unit++
+  }
+  return `${value.toFixed(value < 10 && unit > 0 ? 1 : 0)} ${byteUnits[unit]}`
+}
+
+/** A gigabyte as sizes are shown and limits are set: 1024³ bytes. */
+export const GIGABYTE = 1024 ** 3
+
 const albumTypes: Record<AlbumType, string> = {
   album: 'Album', ep: 'EP', single: 'Single', compilation: 'Compilation', live: 'Live', soundtrack: 'Soundtrack', other: 'Release',
 }

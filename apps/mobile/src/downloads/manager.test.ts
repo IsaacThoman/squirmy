@@ -421,7 +421,7 @@ describe('DownloadManager songs the server does not have yet', () => {
     files.transfers[2]!.complete();
     await settle();
     expect(manager.collection(mix)).toMatchObject({ state: 'done', done: 3, total: 3 });
-    expect(status(manager)).toBe('Downloaded · 3 KB');
+    expect(status(manager)).toBe('Downloaded · 2.9 KB');
     expect(source.acquires).toHaveLength(1);
   });
 

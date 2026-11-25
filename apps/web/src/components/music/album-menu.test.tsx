@@ -15,7 +15,7 @@ const member = users[1]!
 const entries = () => screen.getAllByRole('menuitem').map(item => item.textContent)
 
 describe('album menu', () => {
-  it('is the album page’s on its cards, with Play, which the page has as a button', async () => {
+  it('is the album page’s on its cards, with Play and Shuffle, which the page has as buttons', async () => {
     const { services } = fakeServices({ user: member })
     const page = renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
     await userEvent.click(await screen.findByRole('button', { name: 'More options' }))
@@ -25,7 +25,19 @@ describe('album menu', () => {
     renderWithApp(<AlbumCard album={summary(blueHour)} onPlay={() => {}} />, '/', services)
     await userEvent.click(screen.getByRole('button', { name: 'More options for Blue Hour' }))
     await screen.findByRole('menuitem', { name: 'Remove from library' })
-    expect(entries()).toEqual(['Play', ...onPage])
+    expect(entries()).toEqual(['Play', 'Shuffle', ...onPage])
+  })
+
+  it('shuffles the album from a card’s Shuffle', async () => {
+    const { services, socket } = fakeServices()
+    renderWithApp(<AppRoutes />, '/', services)
+    const added = home.sections.find(section => section.id === 'recently-added')!
+    const rail = await screen.findByRole('region', { name: added.title })
+    await userEvent.click(within(rail).getByRole('button', { name: 'More options for Endless Room' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Shuffle' }))
+    await waitFor(() => expect(socket.session.current).not.toBeNull())
+    expect(socket.session.shuffle).toBe(true)
+    expect(socket.session.context).toEqual(expect.objectContaining({ type: 'album', id: album('endless-room').id }))
   })
 
   it('is on Home’s album rails', async () => {

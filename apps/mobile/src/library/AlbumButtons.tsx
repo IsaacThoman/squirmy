@@ -1,4 +1,5 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import type { RowAction } from './BrowseControls';
 import { Icon } from '../ui';
 import { createThemedStyles, useColors } from '../theme';
 import { useBrowseBackLabel } from './links';
@@ -6,7 +7,9 @@ import { useBrowseBackLabel } from './links';
 export type AlbumNavProps = {
   icon: string;
   label: string;
-  onPress: () => void;
+  onPress?: () => void;
+  /** The button opens these as a menu, such as an album's ⋯, instead of running `onPress`. */
+  menu?: readonly RowAction[];
   selected?: boolean;
   /** Shows activity in place of the icon, such as a download running. */
   busy?: boolean;
@@ -26,11 +29,15 @@ export type AlbumPlaybackProps = {
   actions: readonly { label: string; symbol: string; onPress: () => void; busy?: boolean; disabled?: boolean; failed?: boolean; spoken?: string }[];
 };
 
-export function AlbumNavButton({ icon, label, onPress, selected, busy, failed }: AlbumNavProps) {
+export function AlbumNavButton({ icon, label, onPress, menu, selected, busy, failed }: AlbumNavProps) {
   const colors = useColors();
   const styles = useStyles();
+  const open = menu ? () => Alert.alert(label, undefined, [
+    ...menu.map(action => ({ text: action.title, onPress: action.onPress })),
+    { text: 'Cancel', style: 'cancel' as const },
+  ], { cancelable: true }) : onPress;
   return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={selected === undefined ? { busy } : { selected, busy }}
-    style={({ pressed }) => [styles.nav, pressed && styles.pressed]} onPress={onPress}>
+    style={({ pressed }) => [styles.nav, pressed && styles.pressed]} onPress={open}>
     {busy ? <ActivityIndicator color={colors.text} /> : <Icon name={icon} size={20} color={failed ? colors.danger : selected ? colors.accent : colors.text} />}
   </Pressable>;
 }

@@ -18,11 +18,14 @@ export type SongRowItem = {
   album?: string;
   /** Said before the artist, where songs are listed among other kinds ("Song · MGMT"). */
   kind?: string;
+  /** Pressed while it can't play, the row opens the song's album (`SongListProps.onUnavailable`). */
+  opens?: boolean;
 };
 
 /** What a row does when pressed. One object per list, which never changes, so no row redraws for it. */
 export type SongRowHandlers = {
   play: (index: number) => void;
+  unavailable: (index: number) => void;
   menu: (track: TrackSummary, index: number) => void;
   remove: (itemId: string) => void;
 };
@@ -35,7 +38,10 @@ export type SongListItems = {
   rowHeight: number;
 };
 
-export function songRows({ tracks, numbered, playlist, album, kind }: Pick<SongListProps, 'tracks' | 'numbered' | 'playlist' | 'album' | 'kind'>): SongRowItem[] {
+export function songRows({ tracks, numbered, playlist, album, kind, opens = false }: Pick<SongListProps, 'tracks' | 'numbered' | 'playlist' | 'album' | 'kind'> & {
+  /** The list has `onUnavailable`. */
+  opens?: boolean;
+}): SongRowItem[] {
   return tracks.map((track, index) => {
     const itemId = playlist?.itemIds[index];
     return {
@@ -48,18 +54,31 @@ export function songRows({ tracks, numbered, playlist, album, kind }: Pick<SongL
       showArtist: !album || track.artistCredit !== album.artistCredit,
       album: album?.id,
       kind,
+      opens: opens && Boolean(track.album),
     };
   });
 }
 
 export const songRowKey = (row: SongRowItem) => row.key;
 
-/** Stable handlers that always reach the latest props. */
-export function useSongRowHandlers({ onPlay, onTrackMenu, playlist }: Pick<SongListProps, 'onPlay' | 'onTrackMenu' | 'playlist'>): SongRowHandlers {
-  const latest = useRef({ onPlay, onTrackMenu, playlist });
-  latest.current = { onPlay, onTrackMenu, playlist };
+/**
+ * Stable handlers that always reach the latest props. Pressing the song that is playing (or
+ * paused) pauses or resumes it, as on the web, rather than starting it over: `toggleIfCurrent`
+ * is the playback action of that name, which says whether it did.
+ */
+export function useSongRowHandlers(
+  { tracks, onPlay, onUnavailable, onTrackMenu, playlist }: Pick<SongListProps, 'tracks' | 'onPlay' | 'onUnavailable' | 'onTrackMenu' | 'playlist'>,
+  toggleIfCurrent: (trackId: string) => boolean,
+): SongRowHandlers {
+  const latest = useRef({ tracks, onPlay, onUnavailable, onTrackMenu, playlist, toggleIfCurrent });
+  latest.current = { tracks, onPlay, onUnavailable, onTrackMenu, playlist, toggleIfCurrent };
   return useMemo(() => ({
-    play: index => latest.current.onPlay(index),
+    play: index => {
+      const track = latest.current.tracks[index];
+      if (track && latest.current.toggleIfCurrent(track.id)) return;
+      latest.current.onPlay(index);
+    },
+    unavailable: index => latest.current.onUnavailable?.(index),
     menu: (track, index) => latest.current.onTrackMenu(track, index),
     remove: itemId => latest.current.playlist?.onRemove(itemId),
   }), []);
@@ -72,8 +91,14 @@ export function chunk<T>(items: readonly T[], size: number): T[][] {
   return groups;
 }
 
+/** What pressing a playable row does, for VoiceOver: the current song pauses or resumes. */
+export function pressVerb(current: 'playing' | 'paused' | null): string {
+  return current === 'playing' ? 'Pause' : current === 'paused' ? 'Resume' : 'Play';
+}
+
 /** Whether two rows show the same thing. */
 export function sameRow(a: SongRowItem, b: SongRowItem) {
   return a === b || (a.key === b.key && a.track === b.track && a.index === b.index && a.number === b.number
-    && a.playlist?.itemId === b.playlist?.itemId && a.playlist?.id === b.playlist?.id && a.showArtist === b.showArtist && a.album === b.album && a.kind === b.kind);
+    && a.playlist?.itemId === b.playlist?.itemId && a.playlist?.id === b.playlist?.id && a.showArtist === b.showArtist && a.album === b.album && a.kind === b.kind
+    && a.opens === b.opens);
 }
