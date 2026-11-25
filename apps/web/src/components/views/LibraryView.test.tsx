@@ -50,7 +50,7 @@ const search = () => screen.getByRole('searchbox', { name: 'Find in your library
 const ownPlaylists = { items: playlistSummaries.map(playlist => ({ ...playlist, ownerId: currentUser.id })), nextCursor: null }
 
 describe('Library', () => {
-  it('has one set of filter chips, as on iOS, and no genre menu', async () => {
+  it('has one set of filter chips and no genre menu', async () => {
     await renderLibrary('/library?filter=all')
     await main().findByRole('list', { name: 'Library' })
     expect(filters().getAllByRole('link').map(link => link.textContent)).toEqual(['All', 'Playlists', 'Albums', 'Artists', 'Songs'])
@@ -430,13 +430,13 @@ describe('Library', () => {
       await userEvent.click(within(grid).getByRole('button', { name: 'More options for Blue Hour' }))
       // The one library entry waits for the album, which says it is saved.
       expect(await screen.findByRole('menuitem', { name: 'Remove from library' })).toBeEnabled()
-      expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Play', 'Play next', 'Add to queue', 'Add to playlist', 'Remove from library', 'Go to Mira Vale'])
+      expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Play', 'Shuffle', 'Play next', 'Add to queue', 'Add to playlist', 'Remove from library', 'Go to Mira Vale'])
       await userEvent.keyboard('{Escape}')
       await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
 
       fireEvent.contextMenu(within(grid).getByRole('link', { name: 'Glass City' }))
       expect(await screen.findByRole('menuitem', { name: 'Save to library' })).toBeEnabled()
-      expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Play', 'Play next', 'Add to queue', 'Add to playlist', 'Save to library', 'Go to North Index'])
+      expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Play', 'Shuffle', 'Play next', 'Add to queue', 'Add to playlist', 'Save to library', 'Go to North Index'])
     })
 
     it('queue an album and save it from the menu', async () => {
@@ -563,5 +563,32 @@ describe('Library', () => {
       await userEvent.click(screen.getAllByRole('button', { name: 'Show every genre' })[0]!)
       await waitFor(() => expect(where().searchParams.get('genre')).toBeNull())
     })
+  })
+})
+
+describe('loading more', () => {
+  it('stops at a page that failed and offers to try again, rather than asking for it without end', async () => {
+    const fake = fakeServices()
+    const [first, ...rest] = libraryTracks
+    fake.api.catalog.tracks.mockImplementation((async ({ cursor }: { cursor?: string }) => {
+      if (!cursor) return { items: [first!], nextCursor: 'more' }
+      // Asked again and again, the list ends, so the test fails on the count rather than hanging.
+      if (fake.api.catalog.tracks.mock.calls.length > 5) return { items: [], nextCursor: null }
+      throw refused('That page is gone.')
+    }) as never)
+    await renderLibrary('/library?filter=songs', fake)
+    const failure = await main().findByRole('alert')
+    expect(failure).toHaveTextContent('More songs didn’t load')
+    expect(failure).toHaveTextContent('That page is gone.')
+    // Re-rendering with the end still in view does not ask again.
+    await new Promise(resolve => setTimeout(resolve, 300))
+    expect(fake.api.catalog.tracks).toHaveBeenCalledTimes(2)
+
+    fake.api.catalog.tracks.mockImplementation((async ({ cursor }: { cursor?: string }) => (cursor ? { items: rest, nextCursor: null } : { items: [first!], nextCursor: 'more' })) as never)
+    await userEvent.click(within(failure).getByRole('button', { name: 'Try again' }))
+    const list = main().getByRole('list', { name: 'Songs' })
+    expect(await within(list).findByText(rest[0]!.title)).toBeInTheDocument()
+    expect(main().queryByText('More songs didn’t load')).toBeNull()
+    expect(fake.api.catalog.tracks).toHaveBeenCalledTimes(3)
   })
 })

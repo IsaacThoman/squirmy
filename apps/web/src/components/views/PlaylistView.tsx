@@ -2,6 +2,7 @@ import type { PlaybackContext, PlaylistDetail, TrackSummary } from '@squirmy/con
 import { Globe, Heart, ListMusic, Lock, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
+import type { MoreFailure } from '@/api/queries'
 import { LikedCover, likedTint, PlaylistCover } from '@/components/music/CollectionArt'
 import { CollectionHeader, PlayActions } from '@/components/music/CollectionHeader'
 import { TrackList, VirtualTrackList } from '@/components/music/TrackList'
@@ -10,6 +11,7 @@ import { EmptyState } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
 import { FormError } from '@/components/ui/input'
 import { DropdownMenu } from '@/components/ui/menu'
+import { LoadError } from '@/components/ui/query-state'
 import { isPlayable } from '@/lib/catalog'
 import { formatTotalDuration, plural } from '@/lib/format'
 import { useMediaQuery } from '@/lib/use-media-query'
@@ -83,11 +85,13 @@ type LikedViewProps = {
   /** Whether the list is complete; liked songs arrive a page at a time. */
   complete: boolean
   onEndReached: () => void
+  /** The next page failed: the list stops there and offers to try again. */
+  moreFailure?: MoreFailure
   /** Plays from a row once every song is loaded. */
   onPlay: (index: number, options?: PlayOptions) => void
 }
 
-export function LikedView({ tracks, complete, onEndReached, onPlay }: LikedViewProps) {
+export function LikedView({ tracks, complete, onEndReached, moreFailure, onPlay }: LikedViewProps) {
   return (
     <TrackCollection
       kind="Playlist"
@@ -99,7 +103,7 @@ export function LikedView({ tracks, complete, onEndReached, onPlay }: LikedViewP
       durationMs={complete ? tracks.reduce((sum, track) => sum + track.durationMs, 0) : null}
       context={{ type: 'liked', id: null, title: 'Liked Songs' }}
       onPlay={onPlay}
-      virtual={{ onEndReached }}
+      virtual={{ onEndReached, moreFailure }}
       empty={<EmptyState icon={<Heart />} title="Songs you like appear here" description="Tap the heart next to any song to save it." />}
     />
   )
@@ -123,8 +127,8 @@ type TrackCollectionProps = {
   onPlay?: (index: number, options?: PlayOptions) => void
   onMove?: (from: number, to: number) => void
   onRemove?: (index: number) => void
-  /** Render only the rows near the viewport, loading more as the end comes into view. */
-  virtual?: { onEndReached: () => void }
+  /** Render only the rows near the viewport, loading more as the end comes into view, until a page fails. */
+  virtual?: { onEndReached: () => void; moreFailure?: MoreFailure }
   menu?: ReactNode
   empty: ReactNode
   failure?: string
@@ -164,6 +168,7 @@ function TrackCollection({ kind, title, art, tint, byline, description, tracks, 
           : virtual
             ? <div className="-mx-2"><VirtualTrackList label={`${title} tracks`} tracks={tracks} variant="playlist" onEndReached={virtual.onEndReached} {...actions} /></div>
             : <div className="-mx-2"><TrackList label={`${title} tracks`} tracks={tracks} addedAt={addedAt} variant="playlist" {...actions} /></div>}
+        {virtual?.moreFailure && <LoadError title="More songs didn’t load" {...virtual.moreFailure} className="mt-4" />}
       </div>
     </div>
   )

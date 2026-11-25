@@ -3,6 +3,7 @@ import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from '
 import { GestureDetector, useNativeGesture, usePanGesture, type NativeGesture } from 'react-native-gesture-handler';
 import Animated, { useAnimatedReaction, useAnimatedStyle, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
+import { plural } from '@squirmy/client-core';
 import type { TrackSummary } from '@squirmy/contracts';
 import { useRealtime } from '../data/realtime';
 import { useCanPlay, useViewer } from '../downloads/DownloadsProvider';
@@ -142,7 +143,7 @@ export default function QueuePage({ onTrackMenu }: QueueProps) {
           </View>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Up next</Text>
-            <Text style={styles.sectionDetail}>{queue.queue.length} {queue.queue.length === 1 ? 'track' : 'tracks'}</Text>
+            <Text style={styles.sectionDetail}>{plural(queue.queue.length, 'track')}</Text>
           </View>
           {queue.queue.length ? (
             <SortableRows entries={queue.queue} scrollGesture={scrollGesture} onTrackMenu={onTrackMenu} />

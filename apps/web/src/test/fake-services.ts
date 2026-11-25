@@ -135,7 +135,7 @@ export class FakeSocket {
 }
 
 type SearchParams = { q: string; limit?: number; type?: SearchKind; offset?: number }
-const list = <T>(items: T[]) => ({ items, nextCursor: null })
+const list = <T>(items: T[]) => ({ items, nextCursor: null as string | null })
 const ok = { ok: true as const }
 const notFound = () => new ApiError(404, 'not_found', 'Not found')
 const found = <T>(value: T | null | undefined): T => {

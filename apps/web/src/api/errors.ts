@@ -26,8 +26,26 @@ export function errorsFromIssues(issues: readonly Issue[]): FormErrors {
   return errors
 }
 
+/**
+ * A failure the app words itself, for a step of an action the server's own message would not
+ * explain (the playlist was made, its songs were not). Shown as it is; `cause` is what failed.
+ */
+export class ActionError extends Error {
+  override readonly name = 'ActionError'
+}
+
+/**
+ * Words a failed step as `message`, keeping a 401 as it is: the session has ended, and the
+ * query client signs out on it.
+ */
+export function failedStep(error: unknown, message: string): Error {
+  if (error instanceof ApiError && error.status === 401) return error
+  return new ActionError(message, { cause: error })
+}
+
 /** A message for any failed call, worded for people. */
 export function errorMessage(error: unknown): string {
+  if (error instanceof ActionError) return error.message
   if (error instanceof ApiError) return error.status === 0 ? 'Can’t reach the server. Check your connection and try again.' : error.message
   return 'Something went wrong'
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { albumTypeLabel, formatDuration, formatReleaseDate, formatRemaining, formatTotalDuration, releaseSubtitle } from './format.js'
+import { albumTypeLabel, formatBytes, formatDuration, formatReleaseDate, formatRemaining, formatTotalDuration, plural, releaseSubtitle, songCountLabel } from './format.js'
 
 describe('formatDuration', () => {
   it('formats m:ss and drops partial seconds', () => {
@@ -67,5 +67,42 @@ describe('release presentation', () => {
     expect(formatReleaseDate('1984-09')).toBe('Sep 1984')
     expect(formatReleaseDate('1999-00-00')).toBe('1999')
     expect(formatReleaseDate('1999-04-00')).toBe('Apr 1999')
+  })
+})
+
+describe('plural', () => {
+  it('groups the digits and picks the noun', () => {
+    expect(plural(1, 'song')).toBe('1 song')
+    expect(plural(0, 'song')).toBe('0 songs')
+    expect(plural(1234, 'song')).toBe('1,234 songs')
+    expect(plural(2, 'person', 'people')).toBe('2 people')
+  })
+})
+
+describe('songCountLabel', () => {
+  it('counts the songs and their length once the list is complete', () => {
+    expect(songCountLabel(1234, { durationMs: 3 * 3_600_000 })).toBe('1,234 songs · 3 hr')
+    expect(songCountLabel(1, { durationMs: 200_000, separator: ', ' })).toBe('1 song, 3 min')
+  })
+
+  it('says there are more, and no length, while pages are still to come', () => {
+    expect(songCountLabel(60, { complete: false, durationMs: 3 * 3_600_000 })).toBe('60+ songs')
+    expect(songCountLabel(1200, { complete: false, durationMs: 0 })).toBe('1,200+ songs')
+  })
+})
+
+describe('formatBytes', () => {
+  it('counts in 1024s, with one decimal under ten', () => {
+    expect(formatBytes(512)).toBe('512 B')
+    expect(formatBytes(2_500)).toBe('2.4 KB')
+    expect(formatBytes(4_200_000)).toBe('4.0 MB')
+    expect(formatBytes(123_000_000)).toBe('117 MB')
+    expect(formatBytes(1024 ** 3)).toBe('1.0 GB')
+    expect(formatBytes(64 * 1024 ** 3)).toBe('64 GB')
+  })
+
+  it('reads nonsense as nothing', () => {
+    expect(formatBytes(-5)).toBe('0 B')
+    expect(formatBytes(Number.NaN)).toBe('0 B')
   })
 })

@@ -39,6 +39,7 @@ export function useAlbumMenu(album: AlbumSummary, onPlay?: () => void) {
     artists: album.artists,
     playable: !dimmed,
     onPlay: onPlay ?? (() => void playAlbum(album)),
+    onShuffle: () => void playAlbum(album, { shuffle: true }),
     onEnqueue: placement => withTracks(tracks => controls.enqueue(tracks.filter(track => isPlayable(track, viewer)), placement)),
     playlists: library.playlists,
     onAddToPlaylist: playlist => withTracks(tracks => {

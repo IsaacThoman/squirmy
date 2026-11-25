@@ -4,7 +4,7 @@ import {
 } from '@squirmy/client-core';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useAccountKey } from '../account/AccountProvider';
-import { usePlaylists, useSearch, useSearchPages } from '../data/queries';
+import { useAllPlaylists, useSearch, useSearchPages } from '../data/queries';
 import { useViewer } from '../downloads/DownloadsProvider';
 import { catalogWaitMs, searchItems, searchStage } from './search';
 
@@ -19,8 +19,16 @@ export type SearchList = {
   failed: boolean;
   /** The catalog could not be searched; what is listed is the server's own music. */
   catalogFailed: boolean;
+  /** A failed search is being asked again (Try again): its failure stays shown until the answer. */
+  retrying?: boolean;
   refetch: () => Promise<unknown>;
   loadMore?: () => void;
+  /**
+   * The next page did not load. The list ends with the failure and Try again (`retryMore`)
+   * instead of asking again each time its end comes into view.
+   */
+  moreFailed?: boolean;
+  retryMore?: () => void;
 };
 
 /**
@@ -34,14 +42,18 @@ export function useSearchList(text: string, filter: SearchFilter): SearchList {
   const term = text.trim();
   const search = useSearch(filter === 'all' ? text : '');
   const pages = useSearchPages(text, filterKind(filter));
-  const playlists = usePlaylists();
-  // `usePlaylists` hands out a new list every render; the ranking needs one per answer.
+  // Every playlist, not only the first page of them, so any of them can be found by name.
+  const playlists = useAllPlaylists();
+  // `useAllPlaylists` hands out a new list every render; the ranking needs one per answer.
   const playlistItems = useMemo(() => playlists.data?.pages.flatMap(page => page.items) ?? [], [playlists.data]);
 
   const answered = search.query === term && term.length > 0;
   const library = answered && !search.library.isPlaceholderData ? search.library.data : undefined;
   const catalog = answered && !search.catalog.isPlaceholderData ? search.catalog.data : undefined;
-  const catalogFailed = answered && search.catalog.isError && !search.catalog.isFetching;
+  // A query is in error while fetching only when it is asked again after failing (Try again):
+  // the failure stays shown meanwhile, so the list does not jump in between.
+  const catalogFailed = answered && search.catalog.isError;
+  const catalogRetrying = catalogFailed && search.catalog.isFetching;
   const libraryFailed = answered && search.library.isError && !search.library.isFetching;
 
   const [waited, setWaited] = useState<string | null>(null);
@@ -86,7 +98,10 @@ export function useSearchList(text: string, filter: SearchFilter): SearchList {
       const items = playlistItems.map(playlist => ({ playlist, score: playlistScore(term, playlist.name) }))
         .filter(({ score }) => score > 0).sort((a, b) => b.score - a.score)
         .map(({ playlist }): SearchItem => ({ type: 'playlist', playlist }));
-      return { items, stale: false, pending: false, failed: false, catalogFailed: false, refetch: playlists.refetch };
+      if (playlists.isError && !playlists.data) return { items: null, stale: false, pending: false, failed: true, catalogFailed: false, refetch: playlists.refetch };
+      // Found among the playlists loaded so far, with more on their way until the list is whole.
+      const pending = !playlists.complete && !playlists.isFetchNextPageError;
+      return { items, stale: false, pending, failed: false, catalogFailed: false, refetch: playlists.refetch };
     }
     if (filter === 'all') {
       if (libraryFailed && (catalogFailed || search.catalog.isError)) {
@@ -94,18 +109,22 @@ export function useSearchList(text: string, filter: SearchFilter): SearchList {
       }
       if (!all) return null;
       return {
-        items: all.items, stale: false, pending: !all.full, failed: false, catalogFailed,
+        items: all.items, stale: false, pending: !all.full, failed: false, catalogFailed, retrying: catalogRetrying,
         refetch: () => Promise.all([search.library.refetch(), search.catalog.refetch()]),
       };
     }
     if (pages.isError && !pages.data) return { items: null, stale: false, pending: false, failed: true, catalogFailed: false, refetch: pages.refetch };
     if (!paged || pages.isPlaceholderData) return null;
+    const moreFailed = pages.isFetchNextPageError;
     return {
       items: paged, stale: false, pending: pages.isFetchingNextPage, failed: false,
       catalogFailed: pages.data?.pages.some(page => page.catalogFailed) ?? false, refetch: pages.refetch,
-      loadMore: pages.hasNextPage && !pages.isFetchingNextPage ? () => void pages.fetchNextPage() : undefined,
+      retrying: pages.isRefetching && !pages.isFetchingNextPage,
+      // A page that failed is asked for again only from its Try again, not as the list's end comes into view.
+      loadMore: pages.hasNextPage && !pages.isFetchingNextPage && !moreFailed ? () => void pages.fetchNextPage() : undefined,
+      moreFailed, retryMore: () => void pages.fetchNextPage(),
     };
-  }, [term, filter, all, paged, pages, playlists, playlistItems, search.library, search.catalog, libraryFailed, catalogFailed]);
+  }, [term, filter, all, paged, pages, playlists, playlistItems, search.library, search.catalog, libraryFailed, catalogFailed, catalogRetrying]);
 
   // The last results shown stand in, faded, while the next ones are on their way: only for the
   // same filter and the same search typed on or deleted back, never under an unrelated one.
@@ -117,7 +136,7 @@ export function useSearchList(text: string, filter: SearchFilter): SearchList {
   if (!term) return { items: null, stale: false, pending: false, failed: false, catalogFailed: false, refetch: async () => {} };
   if (current) return current;
   return shown?.list.items && shown.filter === filter && continuesQuery(term, shown.term)
-    ? { ...shown.list, stale: true, pending: true, loadMore: undefined }
+    ? { ...shown.list, stale: true, pending: true, loadMore: undefined, moreFailed: false }
     : { items: null, stale: false, pending: true, failed: false, catalogFailed: false, refetch: async () => {} };
 }
 

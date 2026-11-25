@@ -16,7 +16,7 @@ Starred songs and playlists are your own picks, so they show every song with a f
 
 ## Connect an app
 
-1. In Squirmy, open **Settings → App passwords** and choose **Create**. Name it after the app ("Symfonium on my phone"), enter your account password, and choose **Create**.
+1. In Squirmy's web app, open **Settings → App passwords** and choose **Create** (the iOS app doesn't make app passwords). Name it after the app ("Symfonium on my phone"), enter your account password, and choose **Create**.
 2. Copy the password. It is shown once.
 3. In the app, add a Subsonic (or OpenSubsonic, or Navidrome) server:
    - **Server address**: the address you open Squirmy at, such as `https://music.example.com`. Do not add `/rest`.

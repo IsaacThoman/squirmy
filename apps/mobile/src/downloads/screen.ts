@@ -1,4 +1,4 @@
-import { UNAVAILABLE_LABEL } from '@squirmy/client-core';
+import { formatBytes, GIGABYTE, plural, UNAVAILABLE_LABEL } from '@squirmy/client-core';
 import type { StreamQuality } from '@squirmy/contracts';
 import type { Href } from 'expo-router';
 import { Alert, Platform } from 'react-native';
@@ -8,7 +8,7 @@ import { usePageLinks } from '../library/links';
 import { tapFeedback } from '../library/shared';
 import { useDownloadActions, useDownloadManager, useDownloadsSummary } from './DownloadsProvider';
 import { freeSpace } from './files';
-import { downloadStatus, formatBytes, songPage, songsId, type CollectionRow } from './model';
+import { downloadStatus, songPage, songsId, type CollectionRow } from './model';
 
 export const downloadQualityOptions: readonly { value: StreamQuality; label: string }[] = [
   { value: 'original', label: 'Original' },
@@ -16,10 +16,9 @@ export const downloadQualityOptions: readonly { value: StreamQuality; label: str
   { value: 'data_saver', label: 'Data Saver' },
 ];
 
-const gigabyte = 1000 ** 3;
 export const capOptions: readonly { value: number | null; label: string }[] = [
   { value: null, label: 'No Limit' },
-  ...[1, 2, 5, 10, 25, 50].map(size => ({ value: size * gigabyte, label: `${size} GB` })),
+  ...[1, 2, 5, 10, 25, 50].map(size => ({ value: size * GIGABYTE, label: `${size} GB` })),
 ];
 
 export const downloadQualityNote = 'Original keeps each file as it is when this device can play it. High is AAC at 256 kbps. Data Saver takes the least space. A change applies to new downloads.';
@@ -36,7 +35,7 @@ export type DownloadItem = {
 };
 
 function count(total: number) {
-  return `${total} ${total === 1 ? 'song' : 'songs'}`;
+  return plural(total, 'song');
 }
 
 /** The Downloads screen: what is kept, grouped by album and playlist, the space it takes, and the download settings. */

@@ -540,12 +540,13 @@ export type ApiClient = ReturnType<typeof createApiClient>
 /**
  * URL of an artwork rendition, or null without artwork. `size` is the display size in
  * pixels (multiply by the pixel ratio first); the smallest served size at least that
- * large is chosen, or the largest. The route needs no auth.
+ * large is chosen, or the largest. The route needs no auth. The extension lets a CDN in
+ * front of the server cache renditions (Cloudflare caches by extension).
  */
 export function artworkUrl(baseUrl: string, artwork: Artwork | null | undefined, size: number): string | null {
   if (!artwork) return null
   const served = ART_SIZES.find(candidate => candidate >= size) ?? ART_SIZES[ART_SIZES.length - 1]
-  return `${trimSlash(baseUrl)}${API_PREFIX}/art/${encodeURIComponent(artwork.id)}/${served}`
+  return `${trimSlash(baseUrl)}${API_PREFIX}/art/${encodeURIComponent(artwork.id)}/${served}.webp`
 }
 
 /** Playable URL of a descriptor: its signed `url` resolved against the server root. */

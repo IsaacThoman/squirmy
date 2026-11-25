@@ -58,7 +58,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Similar artists on artist pages, genre pages
 - [x] New-release feed on Home (server, web and iOS)
 - [x] Wantlist (server, iOS add, web), opt-in behind `wantlistEnabled`
-- [ ] Wantlist: hide it on the web while `wantlistEnabled` is off, add the switch to Admin → Server settings, and let iOS remove a want
+- [x] Wantlist: hidden on the web while `wantlistEnabled` is off, the switch in Admin → Server settings, and removing a want on iOS
 - [x] Gray-out on web
 - [x] Gray-out on mobile
 - [x] One heart: hearting a song, album or artist is what saves it to the library, on web, iOS and Subsonic (stars); the web Library is one combined view like the phone's

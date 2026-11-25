@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { Alert, Platform } from 'react-native';
 import { closeSheet } from '../closeSheet';
 import { useDownloadActions, useDownloadsSummary } from '../downloads/DownloadsProvider';
-import { formatBytes } from '../downloads/model';
+import { formatBytes, plural } from '@squirmy/client-core';
 import { SheetFrame, SheetInfo, SheetNote, SheetRow, SheetRows } from '../SheetUI';
 import { displayAddress, serverVersion } from './address';
 import { unsavedSignIn, useAccount } from './AccountProvider';
@@ -30,10 +30,10 @@ export function AccountSheet() {
   if (state.status !== 'signedIn') return null;
   const { server, user } = state;
   const kept = Boolean(downloads?.collections.length);
-  const keptLine = downloads ? `${downloads.count} ${downloads.count === 1 ? 'song' : 'songs'} · ${formatBytes(downloads.usedBytes)}` : '';
+  const keptLine = downloads ? `${plural(downloads.count, 'song')} · ${formatBytes(downloads.usedBytes)}` : '';
   // Downloads belong to this account on this server, so leaving removes them.
   const leaving = (message: string) => kept && downloads
-    ? `${message} The ${downloads.count} ${downloads.count === 1 ? 'song' : 'songs'} (${formatBytes(downloads.usedBytes)}) downloaded from it will be removed from this ${Platform.OS === 'ios' ? 'iPhone' : 'phone'}.`
+    ? `${message} The ${plural(downloads.count, 'song')} (${formatBytes(downloads.usedBytes)}) downloaded from it will be removed from this ${Platform.OS === 'ios' ? 'iPhone' : 'phone'}.`
     : message;
   // The sheet closes first, and the account goes once it is off screen: otherwise the
   // sign-in screen appears beneath a sheet still showing this account while it slides away.

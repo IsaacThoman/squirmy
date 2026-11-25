@@ -13,6 +13,7 @@ import { StreamingCacheContext } from './context';
 import { cacheIndex } from './database';
 import { cacheFiles } from './files';
 import { StreamingCache, type CacheSource } from './manager';
+import { savedLimit } from '../downloads/model';
 import { defaultLimitBytes, limitOptions } from './model';
 
 /** Covers are kept at the size the lock screen uses, as downloads keep them. */
@@ -22,7 +23,7 @@ const keptArtSize = 600;
 const limitItem = accountItem<number>('cacheLimit', 'device');
 
 function storedLimit(): number {
-  const stored = limitItem.read();
+  const stored = savedLimit(limitItem.read());
   return limitOptions.some(option => option.value === stored) ? stored! : defaultLimitBytes;
 }
 

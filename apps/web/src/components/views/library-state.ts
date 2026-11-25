@@ -2,8 +2,8 @@ import { LIKED_SONGS_ID, type LibraryItemsSort, type LibraryPinKind } from '@squ
 import type { LibraryItem } from './LibraryView'
 
 /**
- * The Library's filter chips, as the iOS app has them. `all`: Liked Songs, the playlists, the
- * albums and the artists together, recently played first (`GET /library/items`). The filter is in the URL (`/library?filter=albums`), which deep links use.
+ * The Library's filter chips. `all`: Liked Songs, the playlists, the albums and the artists
+ * together, recently played first (`GET /library/items`), which is the iOS app's whole Library: it has no chips. The filter is in the URL (`/library?filter=albums`), which deep links use.
  */
 export const LIBRARY_FILTERS = ['all', 'playlists', 'albums', 'artists', 'songs'] as const
 export type LibraryFilterName = (typeof LIBRARY_FILTERS)[number]
