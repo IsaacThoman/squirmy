@@ -1,6 +1,6 @@
 import type { PlaybackNotice } from '@squirmy/client-core';
 
-/** How long a one-off status (a skipped song, one that couldn't play) stays in the player. */
+/** How long a one-off status (a skipped song, one that couldn't play, a song queued) stays in the player. */
 export const eventShownMs = 5000;
 
 /** A line the player shows in place of the artist: client-core's notice wording, `detail` a quieter second line. */
@@ -15,8 +15,8 @@ export function spokenStatus({ message, detail }: PlaybackNotice): string {
  * What the player says about playback, in the mini player and Now Playing, where the
  * artist line would be. The app has no toasts.
  *
- * A one-off event (a skip, a song that couldn't play, rejoining the other devices) shows
- * for `eventShownMs`. A lasting one explains a pause (the server can't fetch music, nothing
+ * A one-off event (a skip, a song that couldn't play, rejoining the other devices, a song
+ * queued or a radio starting from a menu that has closed) shows for `eventShownMs`. A lasting one explains a pause (the server can't fetch music, nothing
  * left plays offline) and stays until playback resumes (`resume`). The newest shows: a
  * one-off reported during a lasting status shows over it for its few seconds, then the
  * lasting one shows again; a lasting status replaces whatever was there.
@@ -30,7 +30,8 @@ export class PlaybackStatusStore {
 
   constructor(private readonly announce: (text: string) => void = () => undefined) {}
 
-  report(notice: PlaybackNotice, { lasting = false }: { lasting?: boolean } = {}): void {
+  /** Shows `notice`. Returns its id, for `withdraw`. */
+  report(notice: PlaybackNotice, { lasting = false }: { lasting?: boolean } = {}): number {
     const status: PlaybackStatus = { message: notice.message, ...notice.detail && { detail: notice.detail }, id: this.nextId++, lasting };
     if (lasting) {
       this.lasting = status;
@@ -44,6 +45,14 @@ export class PlaybackStatusStore {
       }, eventShownMs);
     }
     this.announce(spokenStatus(notice));
+    this.emit();
+    return status.id;
+  }
+
+  /** Takes a one-off event away before its time, if it still shows: what it said was under way is done. */
+  withdraw(id: number): void {
+    if (this.event?.id !== id) return;
+    this.dropEvent();
     this.emit();
   }
 

@@ -1,5 +1,5 @@
 import {
-  ApiError, artworkUrl, createInitialSession, PlaybackNoticeWatcher, randomSeed, refreshFetchedTracks, SessionClient, skipNotice, splitSession, unavailableNotice,
+  ApiError, artworkUrl, createInitialSession, randomSeed, refreshFetchedTracks, SessionClient, splitSession,
   type PlaybackNotice, type SessionClientSnapshot, type SessionMoveResult, type SessionPlayer,
 } from '@squirmy/client-core';
 import { createSocketTransport } from '@squirmy/client-core/socket';
@@ -25,6 +25,8 @@ import {
   qualityFor, seedOf,
 } from './player/session';
 import { watchLoading, type LoadingPhase, type LoadingWatch } from './player/loading';
+import { createNoticeReporter } from './player/playbackNotices';
+import { PendingSeek } from './player/pendingSeek';
 import { playbackStatus } from './player/usePlaybackStatus';
 import { syncSystemVolume } from './player/systemVolume';
 import { SystemVolume } from '../modules/now-playing';
@@ -34,7 +36,7 @@ import { followSession } from './streamingCache/session';
 
 export type { QueueEntry };
 
-type Runtime = { client: SessionClient; device: ClientDevice; loading: LoadingWatch };
+type Runtime = { client: SessionClient; device: ClientDevice; loading: LoadingWatch; seeks: PendingSeek };
 type PlayOptions = { start?: number; shuffle?: boolean; context?: PlaybackContext };
 
 const defaultQuality: Pick<UserSettings, 'qualityWifi' | 'qualityCellular'> = { qualityWifi: 'original', qualityCellular: 'high' };
@@ -142,6 +144,8 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
           },
         },
       });
+      // Seeks from the app and the lock screen alike: one made while the server fetches the song waits for it.
+      const seeks = new PendingSeek(client);
 
       // The lock screen shows the loaded entry; its summary may arrive after it starts.
       let waitingForItem = false;
@@ -173,7 +177,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         onPause: () => send({ type: 'pause' }),
         onNext: () => send({ type: 'next' }),
         onPrevious: () => send({ type: 'previous' }),
-        onSeek: positionMs => send({ type: 'seek', positionMs }),
+        onSeek: positionMs => seeks.seek(positionMs),
         favoriteFor: entryId => favoriteState(trackOf(entryId), live.current.likes),
         // The in-app heart's path: shown at once, sent (or queued offline), set back with a
         // failure on the heart if the server refuses. The app may be in the background; it still runs.
@@ -208,22 +212,15 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       // it was queued has neither, so the player and the lock screen would keep a blank cover.
       const stopRefreshing = refreshFetchedTracks(client, tracks);
 
-      // What to say when the server could not fetch songs, worded as on the web
-      // (client-core's `PlaybackNoticeWatcher`): one status per song that was playing or
-      // next, one counting a run of songs the provider does not have, and one when playback stops on a
-      // failure instead, with no more per song until playback resumes.
-      const notices = new PlaybackNoticeWatcher(trackId => client.failureOf(trackId));
-      notices.update(client.getSnapshot());
-      const stopWatching = client.subscribe(() => {
-        const snapshot = client.getSnapshot();
-        // A pause the player was explaining is over.
-        if (snapshot.session.playing) playbackStatus.resume();
-        const { skipped, unavailable, stopped } = notices.update(snapshot);
-        for (const { entry, failure } of skipped) report(skipNotice(tracks.get(entry.trackId, entry.albumId)?.title, failure));
-        // The player shows one status at a time, so a run's growing count replaces the last.
-        if (unavailable) report(unavailableNotice(unavailable, tracks.get(unavailable.entry.trackId, unavailable.entry.albumId)?.title));
-        if (stopped) report(stopped, true);
+      // What to say when the server could not fetch songs, worded as on the web (`createNoticeReporter`).
+      const notices = createNoticeReporter({
+        failureOf: trackId => client.failureOf(trackId),
+        titleOf: (trackId, albumId) => tracks.get(trackId, albumId)?.title,
+        status: playbackStatus,
       });
+      notices(client.getSnapshot());
+      const stopWatching = client.subscribe(() => notices(client.getSnapshot()));
+      const stopSeeking = client.subscribe(() => seeks.update());
       const loading = watchLoading(client);
       const systemVolume = SystemVolume;
       const stopVolume = systemVolume ? syncSystemVolume({
@@ -330,7 +327,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       client.start();
       followPlaying();
       holdWhilePreparing();
-      setRuntime({ client, device, loading });
+      setRuntime({ client, device, loading, seeks });
       teardown = () => {
         // Not saved here: this runs on sign-out too, after the account's data was removed.
         clearTimeout(saveTimer);
@@ -348,6 +345,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         onOffline.current = null;
         onLikes.current = null;
         stopWatching();
+        stopSeeking();
         playbackStatus.clear();
         loading.dispose();
         stopVolume();
@@ -402,7 +400,8 @@ function createActions(runtime: Runtime | null, canPlay: (track: TrackSummary) =
   return {
     playPause: () => send({ type: session().playing ? 'pause' : 'play' }),
     play: () => send({ type: 'play' }),
-    seek: (positionMs: number) => send({ type: 'seek', positionMs: Math.max(0, positionMs) }),
+    /** Seeks now, or once the server has fetched the current song (`PendingSeek`). */
+    seek: (positionMs: number) => runtime?.seeks.seek(Math.max(0, positionMs)),
     next: () => send({ type: 'next' }),
     previous: () => send({ type: 'previous' }),
     /** Back to the song before, however far into this one; nothing when there is none. */
@@ -450,6 +449,17 @@ function createActions(runtime: Runtime | null, canPlay: (track: TrackSummary) =
       send({ type: 'removeFromQueue', entryId: entry.id });
     },
     clearHistory: () => send({ type: 'clearHistory' }),
+    clearQueue: () => send({ type: 'clearQueue' }),
+    /**
+     * Pauses or resumes `trackId` when it is the current song, as tapping it again in a list
+     * does on the web; false when it is not (or it failed), so the tap plays it instead.
+     */
+    toggleIfCurrent: (trackId: string) => {
+      const current = session().current;
+      if (current?.trackId !== trackId || current.state === 'failed') return false;
+      send({ type: session().playing ? 'pause' : 'play' });
+      return true;
+    },
   };
 }
 
@@ -538,13 +548,19 @@ export function usePosition(enabled = true): number {
   const runtime = useContext(RuntimeContext);
   const { session } = useSnapshot();
   const active = useAppActive();
-  const [position, setPosition] = useState(() => runtime?.client.getPositionMs() ?? 0);
+  const [position, setPosition] = useState(() => runtime?.seeks.position() ?? 0);
   useEffect(() => {
-    const read = () => setPosition(runtime?.client.getPositionMs() ?? 0);
+    const read = () => setPosition(runtime?.seeks.position() ?? 0);
     read();
-    if (!runtime || !enabled || !active || !session.playing || session.stalled) return;
+    if (!runtime) return;
+    // A seek kept for a song still being fetched moves the position without a session change.
+    const stopSeeks = runtime.seeks.subscribe(read);
+    if (!enabled || !active || !session.playing || session.stalled) return stopSeeks;
     const timer = setInterval(read, 250);
-    return () => clearInterval(timer);
+    return () => {
+      stopSeeks();
+      clearInterval(timer);
+    };
   }, [active, enabled, runtime, session]);
   return position;
 }
@@ -596,13 +612,18 @@ export function usePositionEvery(intervalMs: number, enabled = true): number {
   // Seeks and track changes move the clock without a tick.
   const anchor = useSessionValue(({ session }) => `${session.current?.id ?? ''}:${session.positionMs}:${session.anchorAt}`);
   const active = useAppActive();
-  const [position, setPosition] = useState(() => runtime?.client.getPositionMs() ?? 0);
+  const [position, setPosition] = useState(() => runtime?.seeks.position() ?? 0);
   useEffect(() => {
-    const read = () => setPosition(runtime?.client.getPositionMs() ?? 0);
+    const read = () => setPosition(runtime?.seeks.position() ?? 0);
     read();
-    if (!runtime || !enabled || !active || !moving) return;
+    if (!runtime) return;
+    const stopSeeks = runtime.seeks.subscribe(read);
+    if (!enabled || !active || !moving) return stopSeeks;
     const timer = setInterval(read, intervalMs);
-    return () => clearInterval(timer);
+    return () => {
+      stopSeeks();
+      clearInterval(timer);
+    };
   }, [active, anchor, enabled, intervalMs, moving, runtime]);
   return position;
 }

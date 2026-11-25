@@ -23,6 +23,7 @@ import { searchFilterLabels } from './library/search';
 import { useRecentSearches, useSearchList } from './library/useSearchList';
 import { useBriefFailures } from './inlineFeedback';
 import { radioFailure } from './library/failures';
+import { radioStartingNotice } from './library/trackActionList';
 import { playbackStatus } from './player/usePlaybackStatus';
 import { defaultSort, sortNames, sortOptions, type SortName } from './library/sorting';
 import type { Page } from './library/links';
@@ -347,6 +348,13 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
   const tracks = useMemo(() => shown.flatMap(item => (item.type === 'track' ? [item.track] : [])), [shown]);
   const songItems = useSongListItems({
     tracks, kind: 'Song', onTrackMenu: track => onTrackMenu(track),
+    // As on the web, a song that can't play opens its album, where there may be more to say or want.
+    onUnavailable: index => {
+      const track = tracks[index]!;
+      if (!track.album) return;
+      recents.add({ type: 'track', track });
+      onOpen(link('album', track.album.id));
+    },
     onPlay: index => {
       const track = tracks[index]!;
       recents.add({ type: 'track', track });
@@ -387,9 +395,15 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
         title: radioFailed ? radioFailure : 'Start radio', icon: radioFailed ? 'exclamationmark.circle' : 'dot.radiowaves.left.and.right', onPress: () => {
           tapFeedback();
           radioFailures.drop(item.artist.id);
-          api?.radio.artist(item.artist.id).then(actions.playRadio, () => {
+          if (!api) return;
+          // The menu has closed, so the player says the radio is on its way, and that it failed
+          // if it does (VoiceOver hears both from there).
+          const starting = playbackStatus.report(radioStartingNotice);
+          api.radio.artist(item.artist.id).then(radio => {
+            playbackStatus.withdraw(starting);
+            actions.playRadio(radio);
+          }, () => {
             radioFailures.fail(item.artist.id, true);
-            // The menu has closed, so the player says it too (and VoiceOver hears it from there).
             playbackStatus.report({ message: `Couldn’t start a radio for ${item.artist.name}` });
           });
         },

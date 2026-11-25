@@ -13,14 +13,14 @@ import { useRealtime } from '../data/realtime';
 import { useCanPlay, useTrackDownload, useViewer } from '../downloads/DownloadsProvider';
 import { downloadSymbol, unavailableReason } from '../downloads/model';
 import { IconButton, TrackActionButtons, TrackActionsMenu, TrackCover, hitShape } from '../native/Controls';
-import { useCurrentTrackState, useTrackLoading } from '../playback';
+import { useCurrentTrackState, usePlaybackActions, useTrackLoading } from '../playback';
 import { STILL_LOADING_LABEL } from '../player/loading';
 import { isAccessibilitySize } from '../fontScale';
 import { spokenDuration, trackDuration } from './duration';
 import type { SongListProps } from './SongList';
 import { heartButton, heartColor } from './heart';
 import {
-  sameRow, songRowKey, songRows, useSongRowHandlers, type SongListItems, type SongRowHandlers, type SongRowItem,
+  pressVerb, sameRow, songRowKey, songRows, useSongRowHandlers, type SongListItems, type SongRowHandlers, type SongRowItem,
 } from './rows';
 import { trackActions, useDownloadedOnItsOwn, useTrackActionRunner, type TrackAction } from './trackActions';
 import { unavailableOpacity, useColors } from '../theme';
@@ -68,10 +68,11 @@ function useListHeight(rows: number) {
  * playlist being reordered. Long lists go through `useSongListItems` instead.
  */
 export function SongList(props: SongListProps) {
-  const { tracks, numbered, playlist, album, kind } = props;
+  const { tracks, numbered, playlist, album, kind, onUnavailable } = props;
   const { run } = useTrackActionRunner();
-  const handlers = useSongRowHandlers(props);
-  const rows = useMemo(() => songRows({ tracks, numbered, playlist, album, kind }), [album, numbered, playlist, tracks, kind]);
+  const handlers = useSongRowHandlers(props, usePlaybackActions().toggleIfCurrent);
+  const opens = Boolean(onUnavailable);
+  const rows = useMemo(() => songRows({ tracks, numbered, playlist, album, kind, opens }), [album, numbered, playlist, tracks, kind, opens]);
   const onMove = ([source]: number[], destination: number) => {
     const itemId = source === undefined ? undefined : playlist?.itemIds[source];
     if (!playlist || !itemId) return;
@@ -98,10 +99,11 @@ export function SongList(props: SongListProps) {
  * screen exist.
  */
 export function useSongListItems(props: SongListProps): SongListItems {
-  const { tracks, numbered, playlist, album, kind } = props;
+  const { tracks, numbered, playlist, album, kind, onUnavailable } = props;
   const { run } = useTrackActionRunner();
-  const handlers = useSongRowHandlers(props);
-  const data = useMemo(() => songRows({ tracks, numbered, playlist, album, kind }), [album, numbered, playlist, tracks, kind]);
+  const handlers = useSongRowHandlers(props, usePlaybackActions().toggleIfCurrent);
+  const opens = Boolean(onUnavailable);
+  const data = useMemo(() => songRows({ tracks, numbered, playlist, album, kind, opens }), [album, numbered, playlist, tracks, kind, opens]);
   const renderItem = useCallback(({ item }: { item: SongRowItem }) => <SongListItem item={item} run={run} handlers={handlers} />, [handlers, run]);
   return { data, renderItem, keyExtractor: songRowKey, rowHeight };
 }
@@ -157,9 +159,10 @@ const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
       ]}>
         <ContextMenu>
           <ContextMenu.Trigger>
-            <Button onPress={playable ? () => handlers.play(item.index) : undefined}
-              modifiers={[buttonStyle('plain'), accessibilityLabel(`${playable ? 'Play ' : ''}${track.title} by ${track.artistCredit}${
-                track.explicit ? ', Explicit' : ''}${spoken ? `, ${spoken}` : ''}${playable ? '' : `, ${unavailableReason(track, offline, viewer)}`}`)]}>
+            <Button onPress={playable ? () => handlers.play(item.index) : item.opens ? () => handlers.unavailable(item.index) : undefined}
+              modifiers={[buttonStyle('plain'), accessibilityLabel(`${playable ? `${pressVerb(playing)} ` : ''}${track.title} by ${track.artistCredit}${
+                track.explicit ? ', Explicit' : ''}${spoken ? `, ${spoken}` : ''}${playable ? '' : `, ${unavailableReason(track, offline, viewer)}${
+                item.opens ? '. Opens its album' : ''}`}`)]}>
               {/* A gray song fades its artwork, and its text takes colors that stay readable (3:1). */}
               <HStack spacing={10} modifiers={[rowFrame, ...(large ? [padding({ vertical: 8 })] : []), hitShape]}>
                 {number !== undefined ? (
