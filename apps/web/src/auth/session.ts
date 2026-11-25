@@ -1,6 +1,6 @@
 import { ApiError, type ApiClient } from '@squirmy/client-core'
 import { queryKeys, type SetupStatus, type User } from '@squirmy/contracts'
-import { useQuery, type QueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { createContext, useContext } from 'react'
 import { useApi } from '@/api/services'
 
@@ -40,9 +40,17 @@ async function finishSignOut(api: ApiClient) {
   )
 }
 
+// Set while this browser signs out on purpose. The server closes the session's socket as it
+// ends it, and the session check that follows finds nobody signed in: no reason to say it ended.
+let signingOut = false
+export function setSigningOut(value: boolean) {
+  signingOut = value
+}
+
 /** The signed-in user, or null when signed out. */
 export function useMe() {
   const api = useApi()
+  const client = useQueryClient()
   return useQuery({
     queryKey: queryKeys.me(),
     queryFn: async () => {
@@ -51,8 +59,11 @@ export function useMe() {
         return null
       }
       return api.auth.me().catch((error: unknown) => {
-        if (error instanceof ApiError && error.status === 401) return null
-        throw error
+        if (!(error instanceof ApiError && error.status === 401)) throw error
+        // Signed in until now, so the server ended the session (signed out elsewhere, the
+        // password changed, the account disabled; the socket closing is what asks): sign-in says so.
+        if (!signingOut) signedOut(client)
+        return null
       })
     },
   })

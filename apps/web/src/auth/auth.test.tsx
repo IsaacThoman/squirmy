@@ -6,6 +6,7 @@ import { useLocation } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from '@/App'
 import { users } from '@/fixtures/server'
+import { setSigningOut } from '@/auth/session'
 import { DOWN_AFTER_MS } from '@/realtime/RealtimeProvider'
 import { fakeServices, root } from '@/test/fake-services'
 import { renderWithApp } from '@/test/render'
@@ -80,6 +81,18 @@ describe('route guards', () => {
     expect(screen.getByText('Your session ended. Sign in again to keep listening.').closest('[role=status]')).toBeInTheDocument()
   })
 
+  it('says the session ended when the server closes the socket and the session is gone', async () => {
+    // A password changed in another browser, or an admin disabling the account: the server
+    // closes this browser's socket, and the session check that follows is refused.
+    const { services, api, socket } = fakeServices()
+    renderWithApp(app, '/', services)
+    await screen.findByRole('button', { name: 'Account, Alex Rivera' })
+    api.auth.me.mockRejectedValue(new ApiError(401, 'unauthorized', 'Sign in to continue'))
+    act(() => socket.serverEmit('disconnect', 'io server disconnect'))
+    expect(await screen.findByRole('heading', { name: 'Sign in to Squirmy' })).toBeInTheDocument()
+    expect(screen.getByText('Your session ended. Sign in again to keep listening.').closest('[role=status]')).toBeInTheDocument()
+  })
+
   it('says nothing on sign-in when the visitor simply is not signed in', async () => {
     renderWithApp(app, '/admin/jobs', fakeServices({ user: null }).services)
     expect(await screen.findByRole('heading', { name: 'Sign in to Squirmy' })).toBeInTheDocument()
@@ -127,6 +140,19 @@ describe('signing out', () => {
     expect(later.api.auth.me).toHaveBeenCalled()
     expect(later.api.auth.logout).not.toHaveBeenCalled()
   }, 15_000)
+
+  it('says nothing about an ended session while this browser is the one signing out', async () => {
+    const { services, api, socket } = fakeServices()
+    // The server ends the session and closes the socket before the log-out's answer arrives.
+    api.auth.logout.mockReturnValueOnce(new Promise(() => {}))
+    renderWithApp(app, '/', services)
+    await logOut()
+    api.auth.me.mockRejectedValue(new ApiError(401, 'unauthorized', 'Sign in to continue'))
+    act(() => socket.serverEmit('disconnect', 'io server disconnect'))
+    expect(await screen.findByRole('heading', { name: 'Sign in to Squirmy' })).toBeInTheDocument()
+    expect(screen.queryByText(/Your session ended/)).toBeNull()
+    setSigningOut(false)
+  })
 
   it('signs in again after an offline sign-out without asking the server to end the new session', async () => {
     const { services, api } = fakeServices()
