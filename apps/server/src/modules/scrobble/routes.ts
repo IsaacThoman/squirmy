@@ -1,4 +1,6 @@
-import { ConnectListenBrainzRequest, type LastFmConnectStart, type ScrobblingStatus } from '@squirmy/contracts'
+import {
+  ConnectListenBrainzRequest, isLastFmReturn, LastFmConnectRequest, type LastFmConnectStart, type LastFmOutcome, type ScrobblingStatus,
+} from '@squirmy/contracts'
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { z } from 'zod'
 import { getConfig } from '../../config.js'
@@ -15,19 +17,29 @@ import { invalidateScrobbling, scrobblingStatus } from './status.js'
 const STATE_TTL_SECONDS = 10 * 60
 const statePurpose = 'lastfm-connect-state'
 
-const CallbackQuery = z.object({ state: z.string().optional(), token: z.string().optional() })
+const CallbackQuery = z.object({ state: z.string().optional(), token: z.string().optional(), return: z.string().optional() })
 
-/** `<userId>.<expiry in epoch seconds>.<signature>`: binds the callback to the user who started it. */
-export function lastFmState(userId: string, now = Date.now()): string {
-  const message = `${userId}.${Math.floor(now / 1000) + STATE_TTL_SECONDS}`
-  return `${message}.${sign(statePurpose, message)}`
+/** What a state signs: the user, the expiry and, for an app, where the browser returns to. */
+const stateMessage = (userId: string, expiry: string, returnTo?: string) => returnTo ? `${userId}.${expiry}.${returnTo}` : `${userId}.${expiry}`
+
+/**
+ * `<userId>.<expiry in epoch seconds>.<signature>`: binds the callback to the user who started it,
+ * and to the app address it returns to (sent next to it as `return`), so neither can be swapped.
+ */
+export function lastFmState(userId: string, now = Date.now(), returnTo?: string): string {
+  const expiry = String(Math.floor(now / 1000) + STATE_TTL_SECONDS)
+  return `${userId}.${expiry}.${sign(statePurpose, stateMessage(userId, expiry, returnTo))}`
 }
 
-/** The user a state was issued to, or null when it is forged or expired. */
-export function verifyLastFmState(state: string, now = Date.now()): string | null {
-  const [userId, expiry, signature] = state.split('.')
-  if (!userId || !expiry || !signature || !verify(statePurpose, `${userId}.${expiry}`, signature)) return null
-  return Number(expiry) * 1000 > now ? userId : null
+/**
+ * What a callback's state vouches for: the user it was issued to (null once it expired) and the
+ * return address signed with it. Null when it is forged, or the return address was changed.
+ */
+export function verifyLastFmState(state: string, returnTo?: string, now = Date.now()): { userId: string | null; returnTo?: string } | null {
+  const [userId, expiry, signature, extra] = state.split('.')
+  if (!userId || !expiry || !signature || extra !== undefined || !verify(statePurpose, stateMessage(userId, expiry, returnTo), signature)) return null
+  if (returnTo !== undefined && !isLastFmReturn(returnTo)) return null
+  return { userId: Number(expiry) * 1000 > now ? userId : null, returnTo }
 }
 
 /** The server's public origin, for the callback URL Last.fm sends the browser back to. */
@@ -36,8 +48,13 @@ function origin(request: FastifyRequest): string {
   return configured ? configured.replace(/\/+$/, '') : `${request.protocol}://${request.host}`
 }
 
-/** Where the browser lands after the Last.fm approval: the web app's settings page. */
-const settingsPage = (outcome: 'connected' | 'denied' | 'invalid_state' | 'error') => `/settings?lastfm=${outcome}`
+/** Where the browser lands after the Last.fm approval: the app that started it, else the web app's settings page. */
+function settingsPage(outcome: LastFmOutcome, returnTo?: string): string {
+  if (!returnTo) return `/settings?lastfm=${outcome}`
+  const url = new URL(returnTo)
+  url.searchParams.set('lastfm', outcome)
+  return url.toString()
+}
 
 export async function scrobbleRoutes(app: FastifyInstance) {
   app.get('/me/scrobbling', async (request): Promise<ScrobblingStatus> => scrobblingStatus(requireUser(request).id))
@@ -61,30 +78,35 @@ export async function scrobbleRoutes(app: FastifyInstance) {
 
   app.post('/me/scrobbling/lastfm/start', async (request): Promise<LastFmConnectStart> => {
     const user = requireUser(request)
-    const callback = `${origin(request)}/api/v1/scrobbling/lastfm/callback?state=${lastFmState(user.id)}`
+    const { returnTo } = LastFmConnectRequest.parse(request.body ?? {})
+    const query = new URLSearchParams({ state: lastFmState(user.id, Date.now(), returnTo), ...(returnTo && { return: returnTo }) })
+    const callback = `${origin(request)}/api/v1/scrobbling/lastfm/callback?${query}`
     const url = (await targetAvailable('lastfm')) ? await lastfm.getAuthUrl(callback) : null
     if (!url) throw new AppError(409, 'lastfm_not_configured', 'Last.fm is not set up on this server: an admin needs to add an API key and secret')
     return { url }
   })
 
   // Reached by the browser from Last.fm, possibly one without a Squirmy session (a phone's
-  // system browser), so the signed state is what identifies the user.
+  // browser session), so the signed state is what identifies the user. An app's return address
+  // is followed only when the state signs it; a forged one goes to the web app.
   app.get('/scrobbling/lastfm/callback', async (request, reply) => {
     const query = CallbackQuery.parse(request.query)
-    const userId = query.state ? verifyLastFmState(query.state) : null
-    if (!userId || !query.token) return reply.redirect(settingsPage('invalid_state'))
+    const state = query.state ? verifyLastFmState(query.state, query.return) : null
+    const land = (outcome: LastFmOutcome) => reply.redirect(settingsPage(outcome, state?.returnTo))
+    const userId = state?.userId
+    if (!userId || !query.token) return land('invalid_state')
     try {
       const session = await lastfm.getSession(query.token)
-      if (!session) return reply.redirect(settingsPage('denied'))
+      if (!session) return land('denied')
       await saveConnection(userId, 'lastfm', session.sessionKey, session.username)
     } catch (error) {
-      if (error instanceof ProviderError) return reply.redirect(settingsPage('error'))
+      if (error instanceof ProviderError) return land('error')
       // The user was deleted since the state was issued.
-      if (error instanceof AppError && error.status === 404) return reply.redirect(settingsPage('invalid_state'))
+      if (error instanceof AppError && error.status === 404) return land('invalid_state')
       throw error
     }
     await invalidateScrobbling(userId)
-    return reply.redirect(settingsPage('connected'))
+    return land('connected')
   })
 
   app.delete('/me/scrobbling/lastfm', async (request): Promise<ScrobblingStatus> => {

@@ -1,15 +1,24 @@
-import { queryKeys, type NormalizationMode, type ScrobbleService, type ScrobblingStatus, type StreamQuality } from '@squirmy/contracts';
+import {
+  isLastFmReturn, queryKeys, type NormalizationMode, type ScrobbleService, type ScrobblingStatus, type StreamQuality, type UpdateUserSettings,
+} from '@squirmy/contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import * as Haptics from 'expo-haptics';
+import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
+import { Alert } from 'react-native';
+import { loadFailure } from '../data/errors';
 import { useScrobbling, useUpdateSettings, useUserSettings } from '../data/queries';
 import { announce } from '../inlineFeedback';
 import { useAccount, useSignedInApi } from './AccountProvider';
+import { disconnectConfirmation, lastFmReturnFailure } from './scrobbling';
+
+export { lastFmNote, scrobbleDetail, scrobbleFooter } from './scrobbling';
 
 export const normalizationOptions: readonly { value: NormalizationMode; label: string }[] = [
   { value: 'auto', label: 'Automatic' },
-  { value: 'track', label: 'Track' },
-  { value: 'album', label: 'Album' },
+  { value: 'track', label: 'Per Song' },
+  { value: 'album', label: 'Per Album' },
   { value: 'off', label: 'Off' },
 ];
 
@@ -20,7 +29,6 @@ export const qualityOptions: readonly { value: StreamQuality; label: string }[] 
 ];
 
 export const normalizationNote = 'Plays every song at a similar volume. Automatic keeps an album’s own dynamics when you play it in order. Squirmy only turns songs down, never up.';
-export const lastFmNote = 'Plays are sent once you have listened to half a song or four minutes of it.';
 export const lastFmAdminNote = 'Last.fm scrobbling isn’t set up on this server. As an admin, you can add a Last.fm API key in the web app’s server settings.';
 
 /** Where a ListenBrainz user finds the token to paste. */
@@ -32,40 +40,53 @@ export function openListenBrainzSettings() {
 
 export const qualityNote = 'Original streams the file as it is when this device can play it. High is AAC at 256 kbps. Data Saver uses the least data.';
 
-/** A line about a scrobbling service: who it is connected as, or what is wrong. */
-export function scrobbleDetail(service: ScrobbleService): string {
-  if (!service.connected) return service.available ? 'Not connected' : 'Not set up on this server';
-  if (service.needsAttention) return `${service.account ?? 'Your account'} needs to be connected again`;
-  if (service.lastError) return service.lastError;
-  const queued = service.pending ? ` · ${service.pending} waiting` : '';
-  return `Connected as ${service.account ?? 'you'}${queued}`;
-}
-
-/** What the settings screen says under a service's controls when the server or the service refused. */
+/** What the settings screen says under a section's controls when the server or the service refused. */
 export const scrobbleFailures = {
   token: 'ListenBrainz didn’t accept that token.',
   disconnect: 'Couldn’t disconnect. Try again.',
   lastFm: 'Couldn’t reach Last.fm. Try again.',
 } as const;
 
+/** A refused settings change, said under the controls that made it. */
+export function saveFailure(error: unknown): string {
+  return `Couldn’t save that change. ${loadFailure(error).description}`;
+}
+
+/** Where a section's refusal shows: Playback, or a scrobbling service. */
+export type SettingsSection = 'playback' | ScrobbleService['target'];
+
+/** The scrobbling switch in `UserSettings` for each service. */
+const switchFor = { listenbrainz: 'scrobbleListenBrainz', lastfm: 'scrobbleLastFm' } as const satisfies Record<ScrobbleService['target'], keyof UpdateUserSettings>;
+
+/**
+ * A query's failure to load, for the screen to show with a way to try again. A request waiting
+ * for the connection (paused) has failed for now, too. Null while it has data or is loading.
+ */
+function failureOf(query: { data?: unknown; isError: boolean; isPending: boolean; fetchStatus: string; error: unknown; refetch: () => unknown }) {
+  if (query.data !== undefined || !(query.isError || (query.isPending && query.fetchStatus === 'paused'))) return null;
+  const failure = loadFailure(query.error);
+  return { connection: failure.connection, description: failure.description, retry: failure.retry ? () => void query.refetch() : null };
+}
+
 /**
  * The signed-in user's settings and scrobbling connections, with the changes the settings
- * screen makes. A refused change is kept per service (`errors`), for the screen to show under
- * that service's controls until the next try.
+ * screen makes. A refused change is kept per section (`errors`), for the screen to show under
+ * that section's controls until the next try there.
  */
 export function useSettingsScreen() {
   const api = useSignedInApi();
   const { state } = useAccount();
   const queryClient = useQueryClient();
-  const [errors, setErrors] = useState<Partial<Record<ScrobbleService['target'], string>>>({});
-  const setError = (target: ScrobbleService['target'], message: string | null) => {
-    setErrors(current => ({ ...current, [target]: message ?? undefined }));
+  const [errors, setErrors] = useState<Partial<Record<SettingsSection, string>>>({});
+  const setError = (section: SettingsSection, message: string | null) => {
+    setErrors(current => ({ ...current, [section]: message ?? undefined }));
     if (message) announce(message);
   };
   const settings = useUserSettings();
   const scrobbling = useScrobbling();
   const update = useUpdateSettings();
   const setStatus = (status: ScrobblingStatus) => queryClient.setQueryData(queryKeys.scrobbling(), status);
+  const refreshStatus = () => queryClient.invalidateQueries({ queryKey: queryKeys.scrobbling() });
   const service = (target: ScrobbleService['target']) => scrobbling.data?.services.find(item => item.target === target);
 
   const connectListenBrainz = useMutation({
@@ -82,26 +103,56 @@ export function useSettingsScreen() {
   });
   const connectLastFm = useMutation({
     mutationFn: async () => {
-      const { url } = await api!.scrobble.startLastFm();
-      // The server finishes the connection; the browser returns here when it is closed.
-      await WebBrowser.openBrowserAsync(url);
-      await queryClient.invalidateQueries({ queryKey: queryKeys.scrobbling() });
+      const returnTo = Linking.createURL('settings');
+      // The server finishes the connection, then sends the browser back to the app, which closes
+      // it and says how it went. A build whose scheme the server doesn't know (Expo Go) can only
+      // open the approval and look again when the browser is closed.
+      if (!isLastFmReturn(returnTo)) {
+        await WebBrowser.openBrowserAsync((await api!.scrobble.startLastFm()).url);
+        return null;
+      }
+      const { url } = await api!.scrobble.startLastFm({ returnTo });
+      const result = await WebBrowser.openAuthSessionAsync(url, returnTo);
+      return result.type === 'success' ? lastFmReturnFailure(result.url) : null;
     },
     onMutate: () => setError('lastfm', null),
+    onSuccess: failure => { if (failure) setError('lastfm', failure); },
     onError: () => setError('lastfm', scrobbleFailures.lastFm),
+    onSettled: refreshStatus,
   });
+
+  /** Saves a change, shown at once; a refusal puts it back and says so under `section`'s controls. */
+  const save = (section: SettingsSection, change: UpdateUserSettings, onSettled?: () => unknown) => {
+    setError(section, null);
+    update.mutate(change, { onError: error => setError(section, saveFailure(error)), onSettled });
+  };
 
   return {
     isAdmin: state.status === 'signedIn' && state.user.role === 'admin',
     settings: settings.data,
-    update: update.mutate,
+    /** Why the settings didn't load, with a way to try again. */
+    settingsFailure: failureOf(settings),
+    /** Why the scrobbling connections didn't load, with a way to try again. */
+    scrobblingFailure: failureOf(scrobbling),
+    update: (change: UpdateUserSettings) => save('playback', change),
     listenBrainz: service('listenbrainz'),
     lastFm: service('lastfm'),
+    /** The user's switch for a service; the settings change at once, the status when the server answers. */
+    scrobbleEnabled: (service: ScrobbleService) => settings.data?.[switchFor[service.target]] ?? service.enabled,
+    setScrobbling: (target: ScrobbleService['target'], enabled: boolean) => save(target, { [switchFor[target]]: enabled }, refreshStatus),
     connectListenBrainz: connectListenBrainz.mutate,
     connectingListenBrainz: connectListenBrainz.isPending,
     connectLastFm: () => connectLastFm.mutate(),
-    disconnect: disconnect.mutate,
-    /** What the last try for each service was refused with, shown under its controls. */
+    /** Asks first, as plays still waiting to be sent are dropped with the connection. */
+    disconnect: (target: ScrobbleService['target']) => {
+      const { title, message } = disconnectConfirmation(target);
+      void Haptics.selectionAsync();
+      Alert.alert(title, message, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Disconnect', style: 'destructive', onPress: () => disconnect.mutate(target) },
+      ]);
+    },
+    /** What the last try in each section was refused with, shown under its controls. */
     errors,
   };
 }
