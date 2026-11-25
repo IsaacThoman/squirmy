@@ -225,17 +225,6 @@ export type SearchFilter = (typeof searchFilters)[number]
 export const filterKind = (filter: SearchFilter): SearchKind | null => (filter === 'all' || filter === 'playlist' ? null : filter)
 
 /**
- * The songs to queue when one song of a result list is played: that song, then the other
- * playable songs of the list in order, so playing on continues through what was found.
- * Returns the tracks and where the chosen song is among them.
- */
-export function searchQueue(items: readonly SearchItem[], chosen: TrackSummary, playable: (track: TrackSummary) => boolean): { tracks: TrackSummary[]; start: number } {
-  const tracks = items.flatMap(item => (item.type === 'track' && (item.track.id === chosen.id || playable(item.track)) ? [item.track] : []))
-  const start = tracks.findIndex(track => track.id === chosen.id)
-  return start < 0 ? { tracks: [chosen], start: 0 } : { tracks, start }
-}
-
-/**
  * Keeps rows already on screen for a query where they were. A later answer for the same
  * query (a refresh after a play, or after music becomes playable) may rank them differently;
  * rows moving under the pointer or finger read as a glitch. Rows the earlier answer did not
