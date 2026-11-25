@@ -132,7 +132,7 @@ const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
   const viewer = useViewer();
   // At accessibility sizes titles and credits take more lines, and the length moves under the title.
   const large = isAccessibilitySize(useWindowDimensions().fontScale);
-  // Only an album's track list shows each song's length, as on web.
+  // Only an album's track list shows each song's length. Web shows it on every song row, as its rows have the width.
   const duration = number !== undefined ? trackDuration(track.durationMs) : null;
   const spoken = number !== undefined ? spokenDuration(track.durationMs) : null;
   const credit = item.kind ? `${item.kind} · ${track.artistCredit}` : track.artistCredit;
