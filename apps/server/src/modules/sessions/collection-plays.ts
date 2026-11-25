@@ -1,9 +1,8 @@
-import { queryKeys, type PlaybackContext } from '@squirmy/contracts'
+import { LIKED_SONGS_ID, queryKeys, type PlaybackContext } from '@squirmy/contracts'
 import { sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../../database/client.js'
 import { invalidate } from '../../realtime/index.js'
-import { LIKED_SONGS_ID } from '../catalog/library-items.js'
 import { resolveOne } from '../catalog/redirects.js'
 
 /**
@@ -18,9 +17,12 @@ import { resolveOne } from '../catalog/redirects.js'
  *
  * It is recorded here, where every client's commands arrive, so a web tab, the iOS app
  * and one device controlling another all count the same way.
+ *
+ * Adding a collection to the library counts as well (`recordCollectionAdd`), so what the user
+ * just hearted or created heads Recently played until they play something else.
  */
 
-type Played = { type: 'album' | 'playlist' | 'artist' | 'liked'; id: string }
+export type Played = { type: 'album' | 'playlist' | 'artist' | 'liked'; id: string }
 
 const uuid = z.uuid()
 
@@ -55,4 +57,17 @@ export async function recordCollectionPlay(userId: string, context: PlaybackCont
     )
     select exists (select 1 from latest where entity_type = ${played.type} and entity_id = ${id}) as "wasLatest"`)
   if (!row?.wasLatest) await invalidate({ user: userId }, [queryKeys.libraryItems()])
+}
+
+/**
+ * Records that the user added a collection to their library just now: saved an album or
+ * artist, liked a song (Liked Songs), created a playlist, or uploaded an album. It then heads
+ * the Library's Recently played, as a play would. `id` is already resolved; the callers
+ * invalidate the Library themselves.
+ */
+export async function recordCollectionAdd(userId: string, added: Played): Promise<void> {
+  await db.execute(sql`
+    insert into collection_plays (user_id, entity_type, entity_id, played_at)
+    values (${userId}, ${added.type}, ${added.id}, now())
+    on conflict (user_id, entity_type, entity_id) do update set played_at = greatest(collection_plays.played_at, excluded.played_at)`)
 }

@@ -4,7 +4,7 @@
  * puts something in a user's library, beside the server's collection.
  */
 import {
-  type AlbumPage, type AlbumSummary, type ArtistPage, type ArtistSummary, type LikeEntityType, type Page, type PageQuery, type TrackPage, type TrackSummary,
+  LIKED_SONGS_ID, type AlbumPage, type AlbumSummary, type ArtistPage, type ArtistSummary, type LikeEntityType, type Page, type PageQuery, type TrackPage, type TrackSummary,
 } from '@squirmy/contracts'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
@@ -13,6 +13,7 @@ import { badRequest } from '../../lib/errors.js'
 import { after, cursorKeys, orderBy, toPage, type Ordering } from '../catalog/pagination.js'
 import { resolveMerged } from '../catalog/redirects.js'
 import { albumSummaries, artistSummaries, trackSummaries } from '../catalog/summaries.js'
+import { recordCollectionAdd } from '../sessions/collection-plays.js'
 import { announceUserChange } from './changes.js'
 import { entityTable, resolveEntity, storedType } from './entities.js'
 import { fetchMissingOf } from './library.js'
@@ -25,12 +26,19 @@ import { fetchMissingOf } from './library.js'
  * `savedAt` puts the save back at the time a removal answered (Undo), so the item returns to
  * its place in Recently added and Liked Songs; a time in the future is taken as now. An
  * existing save keeps its own time.
+ *
+ * A new save (not an Undo) also puts what it added at the top of the Library's Recently
+ * played: the album or artist, or Liked Songs for a track.
  */
 export async function likeEntity(userId: string, type: LikeEntityType, id: string, options: { savedAt?: string } = {}): Promise<string> {
   const entityId = await resolveEntity(type, id)
   const now = new Date()
   const savedAt = options.savedAt ? new Date(Math.min(new Date(options.savedAt).getTime(), now.getTime())) : now
-  await db.insert(likes).values({ userId, entityType: storedType[type], entityId, createdAt: savedAt }).onConflictDoNothing()
+  const inserted = await db.insert(likes).values({ userId, entityType: storedType[type], entityId, createdAt: savedAt })
+    .onConflictDoNothing().returning({ id: likes.entityId })
+  if (inserted.length > 0 && !options.savedAt) {
+    await recordCollectionAdd(userId, type === 'track' ? { type: 'liked', id: LIKED_SONGS_ID } : { type, id: entityId })
+  }
   await announceUserChange(userId, type, entityId)
   if (type !== 'artist') await fetchMissingOf(userId, type, entityId)
   return entityId
