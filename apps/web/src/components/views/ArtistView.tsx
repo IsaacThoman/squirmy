@@ -2,6 +2,7 @@ import { ARTIST_SECTION_KEYS, type AlbumSummary, type AlbumType, type ArtistDeta
 import { ChevronLeft, Disc3, ExternalLink, Radio } from 'lucide-react'
 import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
+import type { MoreFailure } from '@/api/queries'
 import { Page, PageHeader } from '@/components/layout/Page'
 import { AlbumCard, ArtistCard, Monogram } from '@/components/music/Cards'
 import { CollectionHeader, PlayActions } from '@/components/music/CollectionHeader'
@@ -14,6 +15,7 @@ import { VirtualGrid } from '@/components/music/VirtualGrid'
 import { Button } from '@/components/ui/button'
 import { Badge, EmptyState, Spinner } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
+import { LoadError } from '@/components/ui/query-state'
 import { albumPresentation, artistReleasesPath, artistSectionTitle, canFetch, isArtistSectionKey, isPlayable } from '@/lib/catalog'
 import { plural } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -200,11 +202,13 @@ type ArtistReleasesViewProps = {
   /** Undefined while the first page loads. */
   albums: AlbumSummary[] | undefined
   onEndReached: () => void
+  /** The next page failed: the grid stops there and offers to try again. */
+  moreFailure?: MoreFailure
   onPlayAlbum: (album: AlbumSummary) => void
 }
 
 /** Every release of one section of an artist page, a page at a time as it scrolls. */
-export function ArtistReleasesView({ artist, artistId, section, total, albums, onEndReached, onPlayAlbum }: ArtistReleasesViewProps) {
+export function ArtistReleasesView({ artist, artistId, section, total, albums, onEndReached, moreFailure, onPlayAlbum }: ArtistReleasesViewProps) {
   const wants = useAlbumWants()
   const title = artistSectionTitle(section)
   return (
@@ -234,6 +238,7 @@ export function ArtistReleasesView({ artist, artistId, section, total, albums, o
               />
             )
             : <EmptyState icon={<Disc3 />} title="Nothing here yet" />}
+        {moreFailure && Boolean(albums?.length) && <LoadError title="More releases didn’t load" {...moreFailure} />}
       </Page>
     </>
   )
