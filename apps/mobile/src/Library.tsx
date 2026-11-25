@@ -1,4 +1,4 @@
-import { albumPresentation, librarySave, searchContext, searchFilters, searchItemKey, searchQueue, type SearchFilter, type SearchItem } from '@squirmy/client-core';
+import { albumPresentation, canFetch, librarySave, searchContext, searchFilters, searchItemKey, searchQueue, type SearchFilter, type SearchItem } from '@squirmy/client-core';
 import { type AlbumSummary, type HomeSection, type LibraryItem, type TrackSummary } from '@squirmy/contracts';
 import { useNavigation, useRouter, type Href } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -8,8 +8,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAccount, useSignedInApi, useWantlistEnabled } from './account/AccountProvider';
 import { shade } from './data/color';
 import {
-  libraryMatchLimit, libraryMatchMinLength, useGenreCovers, useGenres, useHome, useLibraryAlbumIds,
-  useLibraryItems, useLibraryMatches, usePlaylists,
+  libraryMatchLimit, libraryMatchMinLength, useAllPlaylists, useGenreCovers, useGenres, useHome, useLibraryAlbumIds,
+  useLibraryItems, useLibraryMatches,
 } from './data/queries';
 import { useLibraryActions, useLikeFailures } from './data/library';
 import { useAvailability, useViewer } from './downloads/DownloadsProvider';
@@ -19,7 +19,7 @@ import {
 } from './library/BrowseControls';
 import { libraryRows, type LibraryRow } from './library/libraryRows';
 import { libraryAlbumMatches } from './library/librarySearch';
-import { searchFilterLabels } from './library/search';
+import { searchEnd, searchFilterLabels, searchNotice } from './library/search';
 import { useRecentSearches, useSearchList } from './library/useSearchList';
 import { useBriefFailures } from './inlineFeedback';
 import { radioFailure } from './library/failures';
@@ -34,7 +34,8 @@ import {
   albumCollection, albumTypeLabels, artistCollection, CollectionCover, CollectionRail, EmptyState, gridColumns, gutter, largeTextScale, likedCollection, matches,
   OfflineBadge, playlistCollection, QueryState, SectionTitle, tapFeedback, useCollectionDim, type Collection,
 } from './library/shared';
-import { useRealtime } from './data/realtime';
+import { useRealtime, useScanProgress } from './data/realtime';
+import { homeEmpty } from './library/homeEmpty';
 import { SongList, useSongListItems } from './library/SongList';
 import type { SongRowItem } from './library/rows';
 import { usePlaybackActions } from './playback';
@@ -106,7 +107,10 @@ export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAcc
   const wantlist = useWantlistEnabled();
   // A Home saved before the wantlist was switched off, or from an older server, may still have it.
   const sections = (home.data?.sections ?? []).filter(section => sectionSize(section) > 0 && (wantlist || section.id !== 'wantlist'));
-  const serverName = state.status === 'signedIn' ? state.server.name : 'your server';
+  const viewer = useViewer();
+  const router = useRouter();
+  const scan = useScanProgress();
+  const empty = homeEmpty({ canFindMusic: canFetch(viewer), isAdmin: state.status === 'signedIn' && state.user.role === 'admin', scan });
   const list = useAnimatedRef<Animated.ScrollView>();
   const scrollOffset = useScrollOffset(list);
   // Re-tapping Home goes back to its top, as the system's tabs do.
@@ -122,8 +126,8 @@ export function HomeScreen({ link, onOpen, onTrackMenu, onOpenDevices, onOpenAcc
       </View>
       <OfflineBadge style={styles.homeOffline} />
       {!home.data && <QueryState query={home} what="your music" />}
-      {home.data && !sections.length && <EmptyState icon="music.note.house" title="No music yet"
-        description={`Add music to a library folder on ${serverName}. It shows up here as soon as it has been scanned.`} />}
+      {home.data && !sections.length && <EmptyState icon={empty.icon} title={empty.title} description={empty.description}
+        action={empty.findMusic ? { title: 'Find music', onPress: () => { tapFeedback(); router.navigate('/(tabs)/(search)'); } } : undefined} />}
       {sections.map(section => <HomeRail key={section.id} section={section} link={link} onOpen={onOpen} onTrackMenu={onTrackMenu} />)}
     </Animated.ScrollView>
     <ScrollEdge solid={top} fade={scrollEdgeFade} scrollOffset={scrollOffset} contentGap={contentGap} />
@@ -172,7 +176,8 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
   // A single character narrows what is loaded. Longer queries search the server's library.
   const searching = [...query.trim()].length >= libraryMatchMinLength;
   const libraryFound = useLibraryMatches(query);
-  const playlists = usePlaylists(searching);
+  // Every playlist, so one far down the list is found too.
+  const playlists = useAllPlaylists(searching);
   // The search finds albums with any file on the server; the Albums list's own membership
   // decides which of them are in the library (`libraryAlbumMatches`).
   const albumIds = useLibraryAlbumIds(searching);
@@ -294,6 +299,20 @@ const filterOf = (label: string) => searchFilters.find(filter => searchFilterLab
 const resultCover = 42;
 const recentItems = 10;
 
+/**
+ * A part of the results that could not be had, said where it is missing (above the rows, or at
+ * their end), with Try again; a spinner in its place while it is asked again.
+ */
+function RetryNote({ message, retrying, onRetry }: { message: string; retrying: boolean; onRetry: () => void }) {
+  const colors = useColors();
+  const styles = useStyles();
+  return <View style={styles.retryNote}>
+    <Text style={styles.retryNoteText}>{message}</Text>
+    {retrying ? <ActivityIndicator style={styles.retryBusy} color={colors.muted} accessibilityLabel="Trying again" />
+      : <BrowseButton label="Try again" title="Try again" onPress={() => { tapFeedback(); onRetry(); }} />}
+  </View>;
+}
+
 /** A result as the row it is drawn with, for what is not a song. */
 function resultCollection(item: Exclude<SearchItem, { type: 'track' }>, link: BrowseProps['link']): Collection {
   switch (item.type) {
@@ -409,7 +428,12 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
 
   const collectionDim = useCollectionDim();
   const renderSong = songItems.renderItem;
-  const renderRow = ({ item: row }: { item: SearchRow }) => {
+  // An earlier search's results stay, faded, while this one's load, but are not there to be
+  // played or opened (as on web): their touches go to the list, which still scrolls.
+  const renderRow = (info: { item: SearchRow }) => list.stale && info.item.kind !== 'heading'
+    ? <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">{renderResult(info)}</View>
+    : renderResult(info);
+  const renderResult = ({ item: row }: { item: SearchRow }) => {
     switch (row.kind) {
       case 'song': return <View style={styles.songs}>{renderSong({ item: row.song })}</View>;
       case 'row': {
@@ -429,17 +453,24 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
   const genreNames = (genres.data ?? []).slice(0, 6).map(genre => genre.name);
   const genreCovers = useGenreCovers(genreNames);
 
-  const empty = active && list.items !== null && !list.items.length && !list.pending && !list.stale;
+  const retry = () => void list.refetch();
+  const notice = active ? searchNotice(list, offline) : null;
+  const end = active ? searchEnd(list) : null;
   const header = active ? <>
-    {offline ? <EmptyState icon="wifi.slash" title="You’re offline" description="Search needs your server. Your downloads are in your Library." />
-      : list.failed ? <EmptyState icon="wifi.exclamationmark" title="Search isn’t available" description="Check your connection to the server."
-        action={{ title: 'Try again', onPress: () => { tapFeedback(); void list.refetch(); } }} />
-        : list.items === null ? <View style={styles.searching}><ActivityIndicator color={colors.muted} accessibilityLabel="Searching" /></View>
-          : empty ? <EmptyState icon="magnifyingglass" title="No results"
-            description={filter === 'all' ? 'Try a different song, album, or artist.' : 'Try All, or another spelling.'} />
-            : list.catalogFailed && <Text style={styles.matchNote}>Only music on your server is listed: the catalog couldn’t be searched.</Text>}
+    {notice === 'offline' ? <EmptyState icon="wifi.slash" title="You’re offline" description="Search needs your server. Your downloads are in your Library." />
+      : notice === 'failed' ? <EmptyState icon="wifi.exclamationmark" title="Search isn’t available" description="Check your connection to the server."
+        action={{ title: 'Try again', onPress: () => { tapFeedback(); retry(); } }} />
+        : notice === 'searching' ? <View style={styles.searching}><ActivityIndicator color={colors.muted} accessibilityLabel="Searching" /></View>
+          : notice === 'catalogEmpty' ? <EmptyState icon="wifi.exclamationmark" title="Couldn’t search the catalog"
+            description={`Nothing on your server matches “${term}”.`}
+            action={{ title: 'Try again', busy: list.retrying, onPress: () => { tapFeedback(); retry(); } }} />
+            : notice === 'noResults' ? <EmptyState icon="magnifyingglass" title="No results"
+              description={filter === 'all' ? 'Try a different song, album, or artist.' : 'Try All, or another spelling.'} />
+              : notice === 'catalogNote' && <RetryNote message="Couldn’t search the catalog. Only music on your server is listed."
+                retrying={Boolean(list.retrying)} onRetry={retry} />}
   </> : undefined;
-  const footer = active ? (list.pending && list.items?.length ? <ActivityIndicator style={styles.more} color={colors.muted} /> : undefined)
+  const footer = active ? (end === 'moreFailed' ? <RetryNote message="More results didn’t load." retrying={false} onRetry={list.retryMore!} />
+    : end === 'loading' ? <ActivityIndicator style={styles.more} color={colors.muted} /> : undefined)
     // Without genres or recently viewed results, the page still says what it is for rather than stand empty.
     : genreNames.length === 0 ? rows.length ? undefined : genres.data
       ? <EmptyState icon="magnifyingglass" title="Search your music" description="Find songs, albums, artists and playlists by name." />
@@ -472,7 +503,7 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
     <FlatList data={offline && active ? [] : rows} renderItem={renderRow} keyExtractor={searchRowKey}
       keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
       onEndReached={active ? list.loadMore : undefined} onEndReachedThreshold={1.5}
-      style={list.stale && styles.stale}
+      extraData={list.stale} style={list.stale && styles.stale}
       contentContainerStyle={[styles.searchBody, active ? styles.belowSearchChips : styles.belowSearchField, { paddingBottom: bottomInset }]}
       showsVerticalScrollIndicator={false} ListHeaderComponent={header} ListFooterComponent={footer} /></View>
   </View>;
@@ -499,6 +530,9 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   songsHeading: { marginHorizontal: -gutter, marginTop: 18 },
   more: { marginVertical: 20 },
   matchNote: { color: colors.quiet, fontSize: 13, textAlign: 'center', marginVertical: 18, marginHorizontal: 12 },
+  retryNote: { alignItems: 'center', gap: 2, marginVertical: 12, marginHorizontal: 12 },
+  retryNoteText: { color: colors.muted, fontSize: 13, textAlign: 'center', lineHeight: 18 },
+  retryBusy: { width: 44, height: 44 },
   searching: { paddingVertical: 48, alignItems: 'center' },
   searchHeader: { marginHorizontal: gutter, marginTop: 13 },
   searchHeaderOverChips: { marginBottom: 12 },

@@ -1,7 +1,7 @@
 import { searchItemKey, type SearchItem } from '@squirmy/client-core';
 import type { AlbumSummary, ArtistSummary, PlaylistSummary, SearchResults, TrackSummary } from '@squirmy/contracts';
 import { describe, expect, it } from 'vitest';
-import { searchItems, searchStage } from './search';
+import { searchEnd, searchItems, searchNotice, searchStage } from './search';
 
 const artist = (id: string, inLibrary = true): ArtistSummary => ({ id, mbid: null, name: id, image: null, inLibrary });
 const album = (id: string, availability: AlbumSummary['availability'] = 'full'): AlbumSummary => ({
@@ -55,5 +55,47 @@ describe('searchStage', () => {
     expect(searchStage({ library: true, catalog: false, catalogFailed: false, waited: true })).toBe('partial');
     expect(searchStage({ library: true, catalog: false, catalogFailed: true, waited: false })).toBe('full');
     expect(searchStage({ library: false, catalog: true, catalogFailed: false, waited: false })).toBe('full');
+  });
+});
+
+describe('searchNotice', () => {
+  const list = { items: [] as unknown[], stale: false, pending: false, failed: false, catalogFailed: false };
+
+  it('says a failed catalog search failed rather than that nothing was found', () => {
+    expect(searchNotice({ ...list, catalogFailed: true }, false)).toBe('catalogEmpty');
+    expect(searchNotice(list, false)).toBe('noResults');
+  });
+
+  it('notes a failed catalog beside rows from the server, but not over an earlier search', () => {
+    expect(searchNotice({ ...list, items: [1], catalogFailed: true }, false)).toBe('catalogNote');
+    expect(searchNotice({ ...list, items: [1], catalogFailed: true, stale: true, pending: true }, false)).toBeNull();
+    expect(searchNotice({ ...list, items: [1] }, false)).toBeNull();
+  });
+
+  it('waits rather than say nothing was found while an answer is on its way', () => {
+    expect(searchNotice({ ...list, pending: true }, false)).toBeNull();
+    expect(searchNotice({ ...list, items: null, pending: true }, false)).toBe('searching');
+  });
+
+  it('puts being offline, then a failed search, first', () => {
+    expect(searchNotice({ ...list, failed: true, items: null }, true)).toBe('offline');
+    expect(searchNotice({ ...list, failed: true, items: null }, false)).toBe('failed');
+  });
+});
+
+describe('searchEnd', () => {
+  const list = { items: [1] as unknown[], stale: false, pending: false, failed: false, catalogFailed: false };
+  const retryMore = () => undefined;
+
+  it('ends with the next page’s failure, which is asked for again only from Try again', () => {
+    expect(searchEnd({ ...list, moreFailed: true, retryMore })).toBe('moreFailed');
+    expect(searchEnd({ ...list, moreFailed: true, retryMore, pending: true })).toBe('loading');
+    expect(searchEnd({ ...list, moreFailed: true, retryMore, stale: true })).toBeNull();
+  });
+
+  it('spins while more of a list with rows load', () => {
+    expect(searchEnd({ ...list, pending: true })).toBe('loading');
+    expect(searchEnd({ ...list, items: [], pending: true })).toBeNull();
+    expect(searchEnd(list)).toBeNull();
   });
 });
