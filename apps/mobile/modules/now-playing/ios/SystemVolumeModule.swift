@@ -239,17 +239,21 @@ class SystemVolumeView: ExpoView {
  * A volume view whose track spans its bounds, centred, as the scrubber's does. Left alone, the
  * volume view lays its slider out at the slider's own height from the top, so the track sits
  * above the middle, and the slider insets its track from both ends.
+ *
+ * The place is given where the volume view asks for it, `volumeSliderRect(forBounds:)`, not set
+ * on the slider after its layout: the volume view also moves the slider outside layout, animated,
+ * when AirPlay or Bluetooth devices nearby come and go, and the bar then slid up to the stock
+ * place until the next layout put it back.
  */
 class AlignedVolumeView: MPVolumeView {
-  override func layoutSubviews() {
-    super.layoutSubviews()
+  override func volumeSliderRect(forBounds bounds: CGRect) -> CGRect {
     guard let slider = volumeSlider, bounds.width > 0 else {
-      return
+      return super.volumeSliderRect(forBounds: bounds)
     }
     let track = slider.trackRect(forBounds: CGRect(origin: .zero, size: bounds.size))
     let leading = max(0, track.minX)
     let trailing = max(0, bounds.width - track.maxX)
-    slider.frame = CGRect(x: bounds.minX - leading, y: bounds.minY, width: bounds.width + leading + trailing, height: bounds.height)
+    return CGRect(x: bounds.minX - leading, y: bounds.minY, width: bounds.width + leading + trailing, height: bounds.height)
   }
 }
 
