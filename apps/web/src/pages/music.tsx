@@ -7,12 +7,12 @@ import type { HomeSection, Page as ListPage, PlaylistDetail, TrackSummary } from
 import { queryKeys } from '@squirmy/contracts'
 import { useMutation, useQueryClient, type InfiniteData, type UseQueryResult } from '@tanstack/react-query'
 import { Compass } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
 import { moveItem } from '@/lib/reorder'
 import { useCachedSummary } from '@/api/prefetch'
 import {
-  isNotFound, itemsOf, LIBRARY_MATCH_LIMIT, loadItems, searchesServer, useAlbum, useArtist, useArtistReleases, useGenres, useHome, useLibraryList, useLibraryMatches,
+  isNotFound, itemsOf, LIBRARY_MATCH_LIMIT, searchesServer, useNextPage, useAlbum, useArtist, useArtistReleases, useGenres, useHome, useLibraryList, useLibraryMatches,
   useLikedTracks, usePlaylist, usePlaylists, useWants,
 } from '@/api/queries'
 import { useApi } from '@/api/services'
@@ -162,9 +162,9 @@ export function ArtistReleasesPage() {
   const artist = useArtist(id)
   const summary = useCachedSummary('artist', id, artist.data === undefined)
   const releases = useArtistReleases(id, known ? section : 'album', known)
+  const next = useNextPage(releases)
   if (!known || isNotFound(artist.error) || isNotFound(releases.error)) return <NotFoundPage />
   if (releases.error && !releases.data) return <ErrorPage error={releases.error} retrying={releases.isFetching} onRetry={() => void releases.refetch()} />
-  const { hasNextPage, isFetchingNextPage, fetchNextPage } = releases
   return (
     <ArtistReleasesView
       key={`${id}/${section}`}
@@ -173,7 +173,8 @@ export function ArtistReleasesPage() {
       section={section}
       total={artist.data?.sections?.find(candidate => candidate.key === section)?.total}
       albums={releases.data && itemsOf(releases.data)}
-      onEndReached={() => { if (hasNextPage && !isFetchingNextPage) void fetchNextPage() }}
+      onEndReached={next.onEndReached}
+      moreFailure={next.moreFailure}
       onPlayAlbum={album => void playAlbum(album)}
     />
   )
@@ -283,16 +284,18 @@ function EditablePlaylist({ playlist, onDeleting }: { playlist: PlaylistDetail; 
 export function LikedPage() {
   const liked = useLikedTracks()
   const controls = usePlayerControls()
+  const { playLoaded } = usePlayCollections()
   const context = { type: 'liked', id: null, title: 'Liked Songs' } as const
-  const { fetchNextPage, hasNextPage, isFetchingNextPage } = liked
-  const play = async (index: number, options?: PlayOptions) => controls.playTracks(await loadItems(liked, 5000), index, context, options)
+  const { hasNextPage, onEndReached, moreFailure } = useNextPage(liked)
+  const play = (index: number, options?: PlayOptions) => playLoaded(liked, 5000, tracks => controls.playTracks(tracks, index, context, options))
   return (
     <Loaded query={liked} skeleton={<CollectionSkeleton />}>
       {data => (
         <LikedView
           tracks={itemsOf(data)}
           complete={!hasNextPage}
-          onEndReached={() => { if (hasNextPage && !isFetchingNextPage) void fetchNextPage() }}
+          onEndReached={onEndReached}
+          moreFailure={moreFailure}
           onPlay={(index, options) => void play(index, options)}
         />
       )}
@@ -466,7 +469,7 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
   const user = useCurrentUser()
   const library = useLibrary()
   const controls = usePlayerControls()
-  const { playAlbum, playPlaylist } = usePlayCollections()
+  const { playAlbum, playPlaylist, playLoaded } = usePlayCollections()
   const [params, setParams] = useSearchParams()
   const [layout, setLayout] = useState(readLibraryLayout)
   const [query, setQuery] = useState('')
@@ -537,12 +540,7 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
     return songs.data && itemsOf(songs.data).filter(track => matches(query, track.title, track.artistCredit, track.album?.title ?? ''))
   }, [filter, searching, matched, songs.data, query])
 
-  // While another sort's list stands in, its cursor is not this list's.
-  const hasNextPage = Boolean(listed?.hasNextPage && !listed.isPlaceholderData)
-  const { fetchNextPage, isFetchingNextPage } = listed ?? {}
-  const onEndReached = useCallback(() => {
-    if (!searching && hasNextPage && !isFetchingNextPage) void fetchNextPage?.()
-  }, [searching, hasNextPage, isFetchingNextPage, fetchNextPage])
+  const { onEndReached, loadingMore, moreFailure } = useNextPage(listed ?? undefined, searching)
 
   const matchedCount = !matched ? 0 : filter === 'songs' ? matched.tracks.length : filter === 'artists' ? matched.artists.length : matched.albums.length
   const count = filter === 'albums' ? listCount(albums, 'album')
@@ -569,7 +567,7 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
   const playSong = async (index: number) => {
     // Filtered, the matches on screen are what is played.
     if (query.trim()) controls.playTracks(tracks ?? [], index, songsContext)
-    else controls.playTracks(await loadItems(songs, index + SONGS_AFTER), index, songsContext)
+    else await playLoaded(songs, index + SONGS_AFTER, list => controls.playTracks(list, index, songsContext))
   }
 
   return (
@@ -603,12 +601,13 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
         : albums.data && !itemsOf(albums.data).length)}
       pending={searching && found.pending}
       capped={searching && matchedCount >= LIBRARY_MATCH_LIMIT}
-      loadingMore={!searching && Boolean(listed?.isFetchingNextPage)}
+      loadingMore={loadingMore}
+      moreFailure={moreFailure}
       onEndReached={onEndReached}
       canAddMusic={user.role === 'admin'}
       onPlayAlbum={album => void playAlbum(album)}
       onPlayPlaylist={playlist => void playPlaylist(playlist)}
-      onPlayLiked={() => void loadItems(liked, 5000).then(list => controls.playTracks(list, 0, likedContext, { collection: true }))}
+      onPlayLiked={() => void playLoaded(liked, 5000, list => controls.playTracks(list, 0, likedContext, { collection: true }))}
       onPlaySong={index => void playSong(index)}
       onNewPlaylist={() => library.newPlaylist()}
       onPin={pinItem}

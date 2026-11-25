@@ -203,18 +203,45 @@ export function useLikedTracks() {
   })
 }
 
-type PagedResult<T> = InfiniteQueryObserverResult<InfiniteData<Page<T>>>
+export type PagedResult<T> = InfiniteQueryObserverResult<InfiniteData<Page<T>>>
 
 export const itemsOf = <T>(data: InfiniteData<Page<T>> | undefined): T[] => data?.pages.flatMap(page => page.items) ?? []
 
-/** The items of a paged list, loading the pages still missing until there are `limit`. */
-export async function loadItems<T>(query: PagedResult<T>, limit: number): Promise<T[]> {
+/** What `useNextPage` needs of an infinite query, whatever its pages hold. */
+type PagedQuery = Pick<InfiniteQueryObserverResult, 'hasNextPage' | 'isPlaceholderData' | 'isFetchingNextPage' | 'isFetchNextPageError' | 'error'> & { fetchNextPage: () => Promise<unknown> }
+
+/** A page past the first that failed, and a way to ask for it again. */
+export type MoreFailure = { error: unknown; retrying: boolean; onRetry: () => void }
+
+/**
+ * Loads a paged list's next page as its end comes into view (`onEndReached`). A page that fails
+ * stops the paging there, as the iOS app does, rather than asking for it again each time the end
+ * is in view: the list says so at its end (`moreFailure`) with a way to try again. `paused` (while
+ * a search stands in for the list) loads nothing.
+ */
+export function useNextPage(query: PagedQuery | undefined, paused = false) {
+  // While another sort's list stands in, its cursor is not this list's.
+  const hasNextPage = Boolean(query?.hasNextPage && !query.isPlaceholderData) && !paused
+  const { fetchNextPage, isFetchingNextPage = false } = query ?? {}
+  const failed = hasNextPage && Boolean(query?.isFetchNextPageError)
+  const onEndReached = useCallback(() => {
+    if (hasNextPage && !failed && !isFetchingNextPage) void fetchNextPage?.()
+  }, [hasNextPage, failed, isFetchingNextPage, fetchNextPage])
+  const moreFailure: MoreFailure | undefined = failed ? { error: query!.error, retrying: isFetchingNextPage, onRetry: () => void fetchNextPage?.() } : undefined
+  return { hasNextPage, onEndReached, loadingMore: hasNextPage && isFetchingNextPage && !failed, moreFailure }
+}
+
+/**
+ * The items of a paged list, loading the pages still missing until there are `limit`.
+ * `complete` is false when a page failed to load: `items` are then the ones loaded so far.
+ */
+export async function loadItems<T>(query: PagedResult<T>, limit: number): Promise<{ items: T[]; complete: boolean }> {
   let state = query
   while (state.hasNextPage && itemsOf(state.data).length < limit) {
     state = await state.fetchNextPage()
-    if (state.isFetchNextPageError) break
+    if (state.isFetchNextPageError) return { items: itemsOf(state.data).slice(0, limit), complete: false }
   }
-  return itemsOf(state.data).slice(0, limit)
+  return { items: itemsOf(state.data).slice(0, limit), complete: true }
 }
 
 /** A search route that is not there yet answers 404: no results, and a note that search is missing. */

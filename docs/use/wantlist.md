@@ -4,7 +4,7 @@ The wantlist is your list of albums and songs you do not have yet. Add gray musi
 
 ## Turning it on
 
-The wantlist is off unless the server's admin turns it on. While it is off the iOS app does not mention it; the web app still shows it, but adding to it fails. It is most useful when music reaches the server by hand; with an [acquisition provider](../server/acquisition.md) that can fetch anything, playing a song is quicker than wanting it.
+The wantlist is off unless the server's admin turns it on. While it is off neither the web app nor the iOS app mentions it. It is most useful when music reaches the server by hand; with an [acquisition provider](../server/acquisition.md) that can fetch anything, playing a song is quicker than wanting it.
 
 An admin turns it on in the web app, in **Admin → Server settings → General → Wantlist**, or with the `wantlistEnabled` setting (see [Server settings](../server/configuration.md#server-settings)):
 
@@ -14,7 +14,7 @@ curl -X PATCH https://music.example.com/api/v1/admin/settings \
   -d '{"wantlistEnabled": true}'
 ```
 
-The iOS app shows or hides it right away. Turning it off keeps everyone's wants, so turning it back on brings them back.
+The web and iOS apps show or hide it right away. Turning it off keeps everyone's wants, so turning it back on brings them back.
 
 ## Adding to it
 

@@ -52,7 +52,7 @@ Sign-in allows 20 attempts a minute per address. Wrong passwords are also counte
 
 App passwords are for [Subsonic apps](./subsonic.md), which need a password of their own. They work only on the Subsonic API under `/rest`; they cannot sign in to the web app or the iOS app, and your account password does not work in Subsonic apps.
 
-1. Open **Settings → App passwords** and choose **Create**.
+1. In the web app, open **Settings → App passwords** and choose **Create**.
 2. Name it after the app that will use it ("Symfonium on my phone"), enter your account password, and choose **Create**. Asking for the password means someone who only borrowed a signed-in browser cannot make a credential that outlives the session.
 3. Copy it. This is the only time it is shown.
 

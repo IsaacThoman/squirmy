@@ -75,6 +75,8 @@ export type LibraryViewProps = {
    * toolbar stay, and under Albums the playlists that loaded show above the message.
    */
   listFailure?: Failure
+  /** A page after the first did not load: the list stops there and offers to try again. */
+  moreFailure?: Failure
   /** The search of the whole library failed. It says so in place of the matches, even when the list itself loaded. */
   searchFailure?: Failure
   /** "60+ albums" for one kind; nothing for All or while searching. */
@@ -115,10 +117,10 @@ const empties = {
 }
 
 /**
- * The library in one place, as on iOS: filter chips (All, Playlists, Albums, Artists, Songs), a
- * sort where the filter has one, grid or list, and a search of the library. All is Liked Songs,
- * the playlists, the albums and the artists in one grid, in the sort's order; searched, the
- * songs that match follow them, as on iOS.
+ * The library in one place: filter chips (All, Playlists, Albums, Artists, Songs), a sort where
+ * the filter has one, grid or list, and a search of the library. All is Liked Songs, the
+ * playlists, the albums and the artists in one grid, in the sort's order, as the iOS app's
+ * Library (which has no chips) is; searched, the songs that match follow them, as on iOS.
  */
 export function LibraryView(props: LibraryViewProps) {
   const { filter, filterHref, query, onQueryChange, genre, onClearGenre, count, sort, sorts, onSortChange, layout, onLayoutChange, capped, loadingMore, pending } = props
@@ -203,6 +205,9 @@ export function LibraryView(props: LibraryViewProps) {
 
         {!searchFailure && shown !== undefined && shown.length > 0 && filter === 'all' && props.libraryEmpty && !searching && <LibraryEmpty canAddMusic={props.canAddMusic} />}
         {(loadingMore || (searching && pending && (shown?.length ?? 0) > 0)) && <div className="flex justify-center py-6"><Spinner /></div>}
+        {props.moreFailure && !searching && !listFailed && Boolean(shown?.length) && (
+          <LoadError title={`More ${filter === 'all' ? 'of your library' : filterLabels[filter].toLowerCase()} didn’t load`} {...props.moreFailure} className="mt-4" />
+        )}
         {capped && !searchFailure && <p className="py-6 text-center text-sm text-muted-foreground">Showing the best matches. Type more to narrow them down.</p>}
       </Page>
     </>
