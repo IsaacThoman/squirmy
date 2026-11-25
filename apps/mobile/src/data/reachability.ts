@@ -3,6 +3,11 @@ import type { FetchLike } from '@squirmy/client-core';
 /** Gateway answers: a proxy in front of the server answered, the server did not. */
 const unreachableStatuses = new Set([502, 503, 504]);
 
+/** Whether an answer with this status came from a proxy in front of a server it could not reach. */
+export function isGatewayStatus(status: number): boolean {
+  return unreachableStatuses.has(status);
+}
+
 /**
  * What the server's HTTP answers said lately. The socket can be slow to connect (a cold
  * start, a WebSocket that falls back to polling) while requests are answered, so a request
@@ -22,7 +27,7 @@ export class HttpReach {
     return async (url, init) => {
       try {
         const response = await fetch(url, init);
-        this.record(!unreachableStatuses.has(response.status));
+        this.record(!isGatewayStatus(response.status));
         return response;
       } catch (error) {
         if (!init.signal?.aborted) this.record(false);

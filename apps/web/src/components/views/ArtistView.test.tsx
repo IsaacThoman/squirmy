@@ -163,6 +163,19 @@ describe('the heart', () => {
     expect(screen.getAllByRole('status').map(status => status.textContent)).toContain('Couldn’t save “Mira Vale” to your library. Try again.')
   })
 
+  it('takes a refused save back out of the library, as well as the heart', async () => {
+    const fake = fakeServices()
+    fake.api.catalog.artist.mockResolvedValue({ ...artistDetail(id)!, liked: false, inLibrary: false })
+    let refuse!: () => void
+    fake.api.userdata.like.mockReturnValueOnce(new Promise<never>((_resolve, reject) => { refuse = () => reject(new Error('No')) }))
+    renderWithApp(<AppRoutes />, `/artist/${id}`, fake.services)
+    await userEvent.click(await screen.findByRole('button', { name: 'Save to library' }))
+    expect(await screen.findByText('Artist · In your library')).toBeInTheDocument()
+    refuse()
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Couldn’t save. Try again.')
+    expect(screen.queryByText('Artist · In your library')).not.toBeInTheDocument()
+  })
+
 })
 
 describe('the artist page', () => {
