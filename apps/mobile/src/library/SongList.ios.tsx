@@ -68,11 +68,11 @@ function useListHeight(rows: number) {
  * playlist being reordered. Long lists go through `useSongListItems` instead.
  */
 export function SongList(props: SongListProps) {
-  const { tracks, numbered, playlist, album, kind, onUnavailable } = props;
+  const { tracks, numbered, playlist, album, artist, kind, onUnavailable } = props;
   const { run } = useTrackActionRunner();
   const handlers = useSongRowHandlers(props, usePlaybackActions().toggleIfCurrent);
   const opens = Boolean(onUnavailable);
-  const rows = useMemo(() => songRows({ tracks, numbered, playlist, album, kind, opens }), [album, numbered, playlist, tracks, kind, opens]);
+  const rows = useMemo(() => songRows({ tracks, numbered, playlist, album, artist, kind, opens }), [album, artist, numbered, playlist, tracks, kind, opens]);
   const onMove = ([source]: number[], destination: number) => {
     const itemId = source === undefined ? undefined : playlist?.itemIds[source];
     if (!playlist || !itemId) return;
@@ -99,11 +99,11 @@ export function SongList(props: SongListProps) {
  * screen exist.
  */
 export function useSongListItems(props: SongListProps): SongListItems {
-  const { tracks, numbered, playlist, album, kind, onUnavailable } = props;
+  const { tracks, numbered, playlist, album, artist, kind, onUnavailable } = props;
   const { run } = useTrackActionRunner();
   const handlers = useSongRowHandlers(props, usePlaybackActions().toggleIfCurrent);
   const opens = Boolean(onUnavailable);
-  const data = useMemo(() => songRows({ tracks, numbered, playlist, album, kind, opens }), [album, numbered, playlist, tracks, kind, opens]);
+  const data = useMemo(() => songRows({ tracks, numbered, playlist, album, artist, kind, opens }), [album, artist, numbered, playlist, tracks, kind, opens]);
   const renderItem = useCallback(({ item }: { item: SongRowItem }) => <SongListItem item={item} run={run} handlers={handlers} />, [handlers, run]);
   return { data, renderItem, keyExtractor: songRowKey, rowHeight };
 }
@@ -116,7 +116,7 @@ const SongListItem = memo(function SongListItem(props: RowProps) {
 }, sameRowProps);
 
 const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
-  const { track, number, playlist, showArtist, album } = item;
+  const { track, number, playlist, showArtist, album, artist } = item;
   const colors = useColors();
   const liked = useLiked('track', track.id, track.liked);
   const likeFailure = useLikeFailure('track', track.id);
@@ -140,7 +140,7 @@ const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
   const credit = item.kind ? `${item.kind} · ${track.artistCredit}` : track.artistCredit;
   const secondLine = [showArtist && credit, large && spoken && duration].filter(Boolean).join(' · ');
   const rowFrame = measuresRows ? frame({ minHeight: rowHeight }) : frame({ height: rowHeight });
-  const options = { playlist: playlist && { ...playlist, onRemove: handlers.remove }, album };
+  const options = { playlist: playlist && { ...playlist, onRemove: handlers.remove }, album, artist };
   // Described from what the row already reads; nothing runs until an item is chosen.
   const actions = trackActions(track, { liked, likeFailure, playable, offline, current: playing, download, onItsOwn, wantlist, wanted, wantFailure, viewer }, options);
   const heart = heartButton(liked, track.title, likeFailure);

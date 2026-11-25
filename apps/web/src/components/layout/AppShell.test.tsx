@@ -121,12 +121,14 @@ describe('AppShell', () => {
       expect(screen.queryByRole('dialog', { name: 'Search' })).not.toBeInTheDocument()
     })
 
-    it('plays a song chosen from the results and stays on the page', async () => {
+    it('plays a song chosen from the results on its own and stays on the page', async () => {
       const { socket } = await renderShell('/library?filter=albums')
       await press('k')
       await userEvent.type(await searchField(), 'amber')
       await userEvent.click(await screen.findByRole('option', { name: 'Amber Song · Lune Park' }))
       await waitFor(() => expect(socket.session.current?.trackId).toBe(track('amber').id))
+      // When it ends, autoplay follows it rather than the other songs found.
+      expect(socket.session.queue).toEqual([])
       expect(socket.session.context).toMatchObject({ type: 'search' })
       expect(where()).toBe('/library?filter=albums')
       expect(screen.queryByRole('dialog', { name: 'Search' })).not.toBeInTheDocument()

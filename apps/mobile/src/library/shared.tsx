@@ -70,7 +70,9 @@ export type Collection = {
   /** An album's availability, which `useCollectionDim` reads with the viewer's rights. */
   availability?: AlbumSummary['availability'];
   /** An album's credited artists, for its menu's "Go to artist". */
-  artists?: readonly { name: string; href: Href }[];
+  artists?: readonly { id: string; name: string; href: Href }[];
+  /** `artists` leaves out the artist whose page the tile is on, so its menu names each one left. */
+  otherArtists?: boolean;
   /** Pinned to the top of the Library; known only for the Library's own list, whose first page starts with the pins. */
   pinned?: boolean;
 };
@@ -85,7 +87,7 @@ export function albumCollection(album: AlbumSummary, link: Link, subtitle = albu
   return {
     key: album.id, kind: 'album', title: album.title, subtitle, href: link('album', album.id), artwork: album.artwork,
     dim: album.availability === 'none', availability: album.availability,
-    artists: album.artists.map(artist => ({ name: artist.name, href: link('artist', artist.id) })),
+    artists: album.artists.map(artist => ({ id: artist.id, name: artist.name, href: link('artist', artist.id) })),
   };
 }
 

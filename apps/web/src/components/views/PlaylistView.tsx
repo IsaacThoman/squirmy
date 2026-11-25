@@ -12,11 +12,9 @@ import { IconButton } from '@/components/ui/icon-button'
 import { FormError } from '@/components/ui/input'
 import { DropdownMenu } from '@/components/ui/menu'
 import { LoadError } from '@/components/ui/query-state'
-import { isPlayable } from '@/lib/catalog'
 import { formatTotalDuration, plural } from '@/lib/format'
 import { useMediaQuery } from '@/lib/use-media-query'
 import { usePlayerControls, type PlayOptions } from '@/player/player-context'
-import { useViewer } from '@/player/on-demand-context'
 import { useTrackActions } from '@/player/use-track-actions'
 
 type PlaylistViewProps = {
@@ -138,8 +136,6 @@ function TrackCollection({ kind, title, art, tint, byline, description, tracks, 
   const controls = usePlayerControls()
   const play = onPlay ?? ((index: number, options?: PlayOptions) => controls.playTracks(tracks, index, context, options))
   const actions = useTrackActions(tracks, context, { onPlay: index => play(index), onMove, onRemove })
-  const viewer = useViewer()
-  const playable = tracks.some(track => isPlayable(track, viewer))
   const size = tracks.length ? [count ?? plural(tracks.length, 'song'), durationMs !== null && formatTotalDuration(durationMs)].filter(Boolean).join(', ') : 'No songs yet'
   return (
     <div>
@@ -151,15 +147,7 @@ function TrackCollection({ kind, title, art, tint, byline, description, tracks, 
         byline={byline}
         meta={[size]}
         description={description}
-        actions={(
-          <PlayActions
-            title={title}
-            onPlay={playable ? () => play(0, { collection: true }) : undefined}
-            onShuffle={playable ? () => play(0, { shuffle: true, collection: true }) : undefined}
-          >
-            {menu}
-          </PlayActions>
-        )}
+        actions={menu && <PlayActions>{menu}</PlayActions>}
       />
       <div className="px-(--gutter) pb-10">
         {failure && <div className="mb-3"><FormError message={failure} /></div>}

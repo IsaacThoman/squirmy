@@ -2,8 +2,8 @@
  * The container of the app shell: the sidebar's playlists, the search dialog and the settings
  * dialog, each with the data it needs.
  */
-import { searchContext, searchQueue } from '@squirmy/client-core'
-import type { PlaylistSummary, TrackSummary } from '@squirmy/contracts'
+import { searchContext } from '@squirmy/client-core'
+import type { PlaylistSummary } from '@squirmy/contracts'
 import { useQueryClient } from '@tanstack/react-query'
 import { Bookmark, Disc3, Heart, House, Library, ListMusic, MicVocal, Music2, Search, ShieldCheck, Upload } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
@@ -152,12 +152,8 @@ function SearchDialogHost({ onOpenChange }: SearchDialogState) {
       case 'album': return void navigate(`/album/${item.album.id}`)
       case 'playlist': return void navigate(`/playlist/${item.playlist.id}`)
       case 'track': {
-        const playable = (track: TrackSummary) => isPlayable(track, viewer)
-        if (playable(item.track)) {
-          // As on the search page: the song, then the songs found after it.
-          const { tracks, start } = searchQueue(search.results?.items ?? [], item.track, playable)
-          return controls.playTracks(tracks, start, searchContext(typed))
-        }
+        // As on the search page: the song on its own, so autoplay follows it.
+        if (isPlayable(item.track, viewer)) return controls.playTracks([item.track], 0, searchContext(typed))
         if (item.track.album) return void navigate(`/album/${item.track.album.id}`)
         return void navigate(`/search?q=${encodeURIComponent(item.track.title)}`)
       }

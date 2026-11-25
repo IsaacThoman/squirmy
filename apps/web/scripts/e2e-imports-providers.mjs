@@ -382,10 +382,11 @@ async function missingAlbum(q) {
   }
   throw new Error(`no on-demand album for ${q}`)
 }
-/** Plays an album from its header's Play, as a list played whole. */
+/** Plays an album from its ⋯ menu's Play, as a list played whole. */
 async function playAlbum(album) {
   await page.goto(`${base}/album/${album.id}`)
-  await button(`Play ${album.title}`).click()
+  await button('More options', page.getByRole('main')).click()
+  await page.getByRole('menuitem', { name: 'Play', exact: true }).click()
 }
 const jobsFor = async trackId => (await get('/admin/acquisition/jobs?limit=50')).items.filter(job => job.trackId === trackId)
 

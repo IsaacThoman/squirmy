@@ -2,7 +2,7 @@ import type { AlbumSummary, ArtistSummary, PlaylistSummary, SearchRanked, Search
 import { describe, expect, it } from 'vitest'
 import type { Viewer } from './availability.js'
 import { addRecentSearch, parseRecentSearches, RECENT_SEARCH_LIMIT, removeRecentSearch } from './recent-searches.js'
-import { continuesQuery, keepOrder, mergeSearch, playlistScore, searchItemKey, searchQueue, tooShortToSearch, type SearchItem } from './search.js'
+import { continuesQuery, keepOrder, mergeSearch, playlistScore, searchItemKey, tooShortToSearch, type SearchItem } from './search.js'
 
 const fetcher: Viewer = { role: 'member', canAcquire: true }
 const member: Viewer = { role: 'member', canAcquire: false }
@@ -162,15 +162,6 @@ describe('mergeSearch', () => {
       expect(playlistScore('Café', 'cafe')).toBeGreaterThan(playlistScore('caf', 'cafe'))
       expect(playlistScore('caf', 'cafe')).toBeGreaterThan(0)
       expect(playlistScore('xyz', 'cafe')).toBe(0)
-    })
-  })
-
-  describe('searchQueue', () => {
-    it('plays the chosen song, then the other songs found that play', () => {
-      const items: SearchItem[] = [{ type: 'track', track: track(1) }, { type: 'artist', artist: artist(2) }, { type: 'track', track: track(3, 'none') }, { type: 'track', track: track(4) }]
-      const playable = (one: TrackSummary) => one.availability !== 'none'
-      expect(searchQueue(items, track(4), playable)).toEqual({ tracks: [track(1), track(4)], start: 1 })
-      expect(searchQueue(items, track(9), playable)).toEqual({ tracks: [track(9)], start: 0 })
     })
   })
 })
