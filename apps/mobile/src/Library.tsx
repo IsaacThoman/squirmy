@@ -1,4 +1,4 @@
-import { albumPresentation, canFetch, librarySave, searchContext, searchFilters, searchItemKey, searchQueue, type SearchFilter, type SearchItem } from '@squirmy/client-core';
+import { albumPresentation, canFetch, librarySave, searchContext, searchFilters, searchItemKey, type SearchFilter, type SearchItem } from '@squirmy/client-core';
 import { type AlbumSummary, type HomeSection, type LibraryItem, type TrackSummary } from '@squirmy/contracts';
 import { useNavigation, useRouter, type Href } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -12,7 +12,7 @@ import {
   useLibraryItems, useLibraryMatches, useServerAlbums,
 } from './data/queries';
 import { useLibraryActions, useLikeFailures } from './data/library';
-import { useAvailability, useViewer } from './downloads/DownloadsProvider';
+import { useViewer } from './downloads/DownloadsProvider';
 import {
   BrowseButton, CollectionGridRow, CollectionRow, GenreGrid, LibraryFilters, LibrarySort, SearchField,
   type RowAction, type SearchHandle,
@@ -368,7 +368,6 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
   const genreWidth = Math.floor((width - gutter * 2 - 12 * (genreColumns - 1)) / genreColumns);
   const { offline } = useRealtime();
   const actions = usePlaybackActions();
-  const { canPlay } = useAvailability();
   const albumPlayer = useAlbumPlayer();
   const api = useSignedInApi();
   const viewer = useViewer();
@@ -398,9 +397,8 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
     onPlay: index => {
       const track = tracks[index]!;
       recents.add({ type: 'track', track });
-      // The song, then the songs found after it, so playing on continues through the results.
-      const queue = active ? searchQueue(shown, track, canPlay) : { tracks: [track], start: 0 };
-      actions.playTracks(queue.tracks, { start: queue.start, context: searchContext(active ? term : '') });
+      // The song on its own: when it ends, autoplay goes on with music like it, not the rest of what was found.
+      actions.playTracks([track], { start: 0, context: searchContext(active ? term : '') });
     },
   });
 

@@ -2,8 +2,8 @@
  * Route containers for the music pages. Each one gathers its data with TanStack Query and
  * hands it to a view in components/views.
  */
-import { filterKind, searchContext, searchFilters, searchQueue, type SearchFilter, type SearchItem } from '@squirmy/client-core'
-import type { HomeSection, Page as ListPage, PlaylistDetail, TrackSummary } from '@squirmy/contracts'
+import { filterKind, searchContext, searchFilters, type SearchFilter, type SearchItem } from '@squirmy/client-core'
+import type { HomeSection, Page as ListPage, PlaylistDetail } from '@squirmy/contracts'
 import { queryKeys } from '@squirmy/contracts'
 import { useMutation, useQueryClient, type InfiniteData, type UseQueryResult } from '@tanstack/react-query'
 import { Compass } from 'lucide-react'
@@ -360,19 +360,15 @@ export function SearchPage() {
     }
   }, [all, pages, filter, term, library.playlists])
 
-  const choose = (item: SearchItem, items: readonly SearchItem[]) => {
+  const choose = (item: SearchItem) => {
     recents.add(item)
     switch (item.type) {
       case 'artist': return void navigate(`/artist/${item.artist.id}`)
       case 'album': return void navigate(`/album/${item.album.id}`)
       case 'playlist': return void navigate(`/playlist/${item.playlist.id}`)
       case 'track': {
-        const playable = (track: TrackSummary) => isPlayable(track, viewer)
-        if (playable(item.track)) {
-          // The song, then the songs listed after it: playing on continues through what was found.
-          const { tracks, start } = searchQueue(items, item.track, playable)
-          return controls.playTracks(tracks, start, searchContext(term))
-        }
+        // The song on its own: when it ends, autoplay goes on with music like it, not the rest of what was found.
+        if (isPlayable(item.track, viewer)) return controls.playTracks([item.track], 0, searchContext(term))
         if (item.track.album) void navigate(`/album/${item.track.album.id}`)
       }
     }

@@ -28,6 +28,8 @@ export type TrackActionOptions = {
   playlist?: { id: string; itemId: string; onRemove?: (itemId: string) => void };
   /** The album whose page the track is shown on, which "Go to album" would only reopen. */
   album?: string;
+  /** The artist whose page the track is shown on, which "Go to artist" would only reopen. */
+  artist?: string;
 };
 
 /** What a track's menu depends on, read by the row that shows it. */
@@ -79,7 +81,7 @@ export function trackActionKey(action: Pick<TrackAction, 'id' | 'page'>): string
  * needs the server is left out, and hearts wait for it. The result only describes the
  * actions; `useTrackActionRunner` carries one out when it is chosen.
  */
-export function trackActions(track: TrackSummary, state: TrackActionState, { playlist, album }: TrackActionOptions = {}): TrackAction[] {
+export function trackActions(track: TrackSummary, state: TrackActionState, { playlist, album, artist }: TrackActionOptions = {}): TrackAction[] {
   const { liked, likeFailure, playable, offline, current, download, onItsOwn, wantlist, wanted, wantFailure, viewer } = state;
   const online = !offline;
   const library = librarySave({ liked });
@@ -111,7 +113,7 @@ export function trackActions(track: TrackSummary, state: TrackActionState, { pla
     wantlist && !playable && track.availability !== 'server' && online && (wanted
       ? { id: 'unwant', ...wantFailure === undefined ? { title: 'Remove from wantlist', icon: 'star.slash' } : failed('Couldn’t remove from wantlist') }
       : { id: 'want', ...wantFailure === undefined ? { title: 'Add to wantlist', icon: 'star' } : failed('Couldn’t add to wantlist') }),
-    ...trackLinks(track, album),
+    ...trackLinks(track, album, artist),
     playlist !== undefined && online && { id: 'remove', title: 'Remove from playlist', icon: 'minus.circle', destructive: true },
   ];
   return items.filter((item): item is TrackAction => Boolean(item));
@@ -119,15 +121,17 @@ export function trackActions(track: TrackSummary, state: TrackActionState, { pla
 
 /**
  * The pages a track leads to: its album, unless that is the page it is shown on, then each
- * credited artist's, as on an artist's page a featured artist is often not the first. Only
- * what exists: a track with no album has no "Go to album".
+ * credited artist's but the one whose page it is shown on, as on an artist's page a featured
+ * artist is often not the first. Each is named when there is more than one artist. Only what
+ * exists: a track with no album has no "Go to album".
  */
-export function trackLinks(track: TrackSummary, album?: string): TrackAction[] {
+export function trackLinks(track: TrackSummary, album?: string, here?: string): TrackAction[] {
   const links: TrackAction[] = [];
   if (track.album && track.album.id !== album) {
     links.push({ id: 'album', title: 'Go to album', subtitle: track.album.title, icon: 'square.stack', page: { page: 'album', id: track.album.id } });
   }
   for (const artist of track.artists) {
+    if (artist.id === here) continue;
     links.push({
       id: 'artist', title: track.artists.length > 1 ? `Go to ${artist.name}` : 'Go to artist', subtitle: artist.name, icon: 'music.mic',
       page: { page: 'artist', id: artist.id },

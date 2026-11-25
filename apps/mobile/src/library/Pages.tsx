@@ -45,6 +45,7 @@ import { displayFontScale, secondaryFontScale } from '../fontScale';
 import { scrollEdgeFade } from '../edgeFade';
 import { ScrollEdge } from '../ScrollEdge';
 import { SongList, useSongListItems, type SongListProps } from './SongList';
+import { besideArtist } from './collectionMenu';
 import { chunk, type SongListItems, type SongRowItem } from './rows';
 import { usePlayAll } from './usePlayAll';
 import { ZoomTarget } from './ZoomLink';
@@ -419,7 +420,8 @@ function TrackListPage({ item, title, info, tracks, complete = true, playAll, co
     if (playAll) playAll.run(start, Boolean(shuffle), playTracks);
     else playTracks(tracks);
   };
-  const songs = useSongListItems({ tracks, onPlay: start => play(undefined, start), onTrackMenu: track => props.onTrackMenu(track) });
+  const songs = useSongListItems({ tracks, artist: context.type === 'artist' ? context.id ?? undefined : undefined,
+    onPlay: start => play(undefined, start), onTrackMenu: track => props.onTrackMenu(track) });
   // Play or Shuffle could load only part of the list: it says so under them, for a few seconds.
   return <DetailPage item={item} tint={null} title={title} info={info} 
     nav={download ? [download.nav] : []} status={<>{playAll?.failed && <FailureLine message={playAllFailure} />}{download?.status}</>}
@@ -613,14 +615,14 @@ function ArtistBody({ artist, link, onOpen, onPlay, onTrackMenu }: {
   return <>
     {top.length > 0 && <TrackSection title="Top Songs"
       onSeeAll={top.length > songLimit ? () => onOpen(link('songs', songsId('top', artist.id))) : undefined}>
-      <SongList tracks={top.slice(0, songLimit)} onPlay={onPlay} onTrackMenu={track => onTrackMenu(track)} />
+      <SongList tracks={top.slice(0, songLimit)} artist={artist.id} onPlay={onPlay} onTrackMenu={track => onTrackMenu(track)} />
     </TrackSection>}
     {groups.map(group => <View key={group.key} style={styles.section}>
       <SectionTitle title={group.title}
         onPress={(group.paged ? group.total : group.albums.length) > Math.min(group.albums.length, railLimit)
           ? () => onOpen(link('releases', releasesId(artist.id, group.key))) : undefined} />
       {/* Gray only what does not play for this viewer (`albumPresentation`, applied by the rail). */}
-      <CollectionRail items={group.albums.slice(0, railLimit).map(album => releaseCollection(album, group.key, link))} />
+      <CollectionRail items={group.albums.slice(0, railLimit).map(album => releaseCollection(album, group.key, link, artist.id))} />
     </View>)}
     {artist.similar.length > 0 && <View style={styles.section}>
       <SectionTitle title="Similar Artists" />
@@ -643,8 +645,8 @@ function ArtistBody({ artist, link, onOpen, onPlay, onTrackMenu }: {
  * year and who made it (web says both too). The year leads, as in `releaseSubtitle`, so a long
  * credit cut short does not take it.
  */
-function releaseCollection(album: AlbumSummary, group: string, link: PageProps['link']) {
-  return albumCollection(album, link, group === appearsOnKey ? [album.year, album.artistCredit].filter(Boolean).join(' · ') : releaseSubtitle(album));
+function releaseCollection(album: AlbumSummary, group: string, link: PageProps['link'], artistId: string) {
+  return besideArtist(albumCollection(album, link, group === appearsOnKey ? [album.year, album.artistCredit].filter(Boolean).join(' · ') : releaseSubtitle(album)), artistId);
 }
 
 /** The id of a page of one discography heading, `<artist>~<heading>`. */
@@ -667,7 +669,7 @@ export function ReleasesScreen({ id, onBack, link, bottomInset = 155 }: PageProp
   const paged = isArtistSectionKey(key) && Boolean(artist.data?.sections);
   const releases = useArtistReleases(artistId, isArtistSectionKey(key) ? key : 'album', paged);
   const albums = paged ? releases.items : group?.albums ?? [];
-  const items = useMemo(() => albums.map(album => releaseCollection(album, key, link)), [albums, key, link]);
+  const items = useMemo(() => albums.map(album => releaseCollection(album, key, link, artistId)), [albums, artistId, key, link]);
   const loading = !artist.data || artist.isPlaceholderData;
   return <CollectionGridPage title={group?.title ?? 'Releases'} detail={artist.data?.name} items={items} onBack={onBack}
     bottomInset={bottomInset}
