@@ -66,8 +66,10 @@ export function lyricCredits(lyrics: Pick<Lyrics, 'synced'> | null | undefined):
 /** How a line is drawn: its opacity, and how blurred it is in points. */
 export type LineLook = { opacity: number; blur: number };
 
-/** Lines farther than this from the sung one are only dimmed; they are off screen while it is followed. */
+/** Lines at least this far from the sung one are blurred to the full, however tall the page. */
 export const blurReach = 8;
+/** The shortest a lyric line is drawn: one line of large title and the space under it. */
+const shortestLine = 48;
 const blurStep = 1.1;
 const blurMax = 5.5;
 const dimmed = 0.3;
@@ -80,11 +82,20 @@ const browsed = 0.62;
  * While a reader scrolls (`browsing`) nothing is blurred; without `blur` (Reduce Transparency,
  * Reduce Motion, VoiceOver) the lines are only dimmed. Plain lyrics, with no sung line, are all bright.
  */
-export function lineLook(distance: number | null, { browsing, blur }: { browsing: boolean; blur: boolean }): LineLook {
+export function lineLook(distance: number | null, { browsing, blur, reach = blurReach }: { browsing: boolean; blur: boolean; reach?: number }): LineLook {
   if (distance === null || distance === 0) return { opacity: 1, blur: 0 };
   if (browsing) return { opacity: browsed, blur: 0 };
   const away = Math.abs(distance);
-  return { opacity: dimmed, blur: blur && away <= blurReach ? Math.min(blurMax, away * blurStep) : 0 };
+  return { opacity: dimmed, blur: blur && away <= reach ? Math.min(blurMax, away * blurStep) : 0 };
+}
+
+/**
+ * How far from the sung line the blur reaches on a page `viewport` points tall: every line that
+ * can be on screen with it, so none past the end shows sharp on an iPad or with the transport hidden.
+ * Lines beyond are only dimmed, which costs nothing to draw while they are off screen.
+ */
+export function blurReachFor(viewport: number): number {
+  return Math.max(blurReach, Math.ceil(viewport / shortestLine) + 1);
 }
 
 /** Timing of the lyrics page, in milliseconds. */
@@ -93,8 +104,6 @@ export const lyricTiming = {
   hideControls: 4000,
   /** After a reader stops scrolling, this long until the page goes back to the sung line. */
   resumeFollow: 3000,
-  /** Each line starts moving this long after the one above it. */
-  stagger: 42,
 };
 
 /**
@@ -200,11 +209,11 @@ export function chromeDeadline(state: LyricsChrome): number | null {
 
 const springResponse = 0.5;
 const springDamping = 0.82;
-/** Long enough for a line's spring to settle, after the last line's stagger. */
-export const waveDuration = 900 + lyricTiming.stagger * 12;
+/** Long enough for the lines' spring to settle. */
+export const waveDuration = 900;
 
 /**
- * The share of its starting offset a line still has to travel `elapsedMs` into its spring,
+ * The share of their starting offset the lines still have to travel `elapsedMs` into their spring,
  * 1 before it starts and settling to 0 with a slight overshoot: a damped spring released
  * from rest, as SwiftUI's `spring(response: 0.5, dampingFraction: 0.82)`.
  */
@@ -216,13 +225,4 @@ export function springRemaining(elapsedMs: number): number {
   const decay = springDamping * omega;
   const ringing = omega * Math.sqrt(1 - springDamping * springDamping);
   return Math.exp(-decay * t) * (Math.cos(ringing * t) + (decay / ringing) * Math.sin(ringing * t));
-}
-
-/**
- * How long after a line change line `index` starts to move: the lines from just above the
- * sung one down, each a moment after the one above, so they ripple up rather than slide as one.
- */
-export function lineDelay(index: number, from: number): number {
-  'worklet';
-  return Math.min(12, Math.max(0, index - from)) * lyricTiming.stagger;
 }

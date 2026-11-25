@@ -10,7 +10,7 @@ import { usePlaybackState, usePosition } from '../playback';
 import { LyricButton, LyricCredits } from './Controls';
 import { selectionFeedback } from './design';
 import {
-  activeLine, chromeDeadline, initialChrome, lineDelay, lineLook, lyricCredits, lyricLines, lyricsChrome, scrollRun, scrollTurn, springRemaining, waveDuration,
+  activeLine, blurReachFor, chromeDeadline, initialChrome, lineLook, lyricCredits, lyricLines, lyricsChrome, scrollRun, scrollTurn, springRemaining, waveDuration,
   type ChromeEvent, type ChromeRules,
 } from './lyrics';
 import LyricsEmpty from './LyricsEmpty';
@@ -41,12 +41,12 @@ function useAccessibilitySetting(setting: AccessibilitySetting): boolean {
   return enabled;
 }
 
-/** The lines' shared motion: each line rides `shift` back to its place on a spring `clock` ms in, a moment after the line above. */
-type Wave = { shift: SharedValue<number>; clock: SharedValue<number>; from: SharedValue<number> };
+/** The lines' shared motion: they all ride `shift` back to their places together, on a spring `clock` ms in. */
+type Wave = { shift: SharedValue<number>; clock: SharedValue<number> };
 
 /**
  * Lyrics as Apple Music draws them: big, bold lines with the sung one bright near the top
- * and the rest dim and blurred more the farther they are, rippling up as the song moves on.
+ * and the rest dim and blurred more the farther they are, moving up together as the song moves on.
  * Left untouched while it plays, the page hides the transport and takes the screen; a tap,
  * or scrolling back up, brings it back. Scrolling by hand clears the blur, and a few seconds after the scroll rests
  * the page goes back to the sung line. The rules are `lyricsChrome`'s.
@@ -98,9 +98,11 @@ export default function LyricsPage({ selected, ref, onControlsHidden, keepContro
 
   const scroll = useAnimatedRef<Animated.ScrollView>();
   const offset = useScrollOffset(scroll);
-  const wave: Wave = { shift: useSharedValue(0), clock: useSharedValue(waveDuration), from: useSharedValue(0) };
+  const wave: Wave = { shift: useSharedValue(0), clock: useSharedValue(waveDuration) };
   const lineTops = useRef<number[]>([]);
   const [viewport, setViewport] = useState(0);
+  // Every line that fits on the page is blurred, however tall the page is.
+  const reach = blurReachFor(viewport);
   // Bumped when the sung line is laid out (or laid out again, as when the text size changes).
   const [placed, setPlaced] = useState(0);
   const entering = useRef(true);
@@ -118,9 +120,8 @@ export default function LyricsPage({ selected, ref, onControlsHidden, keepContro
     const enter = entering.current;
     const rise = enter && !reduceMotion ? entrance : 0;
     entering.current = false;
-    const { shift, clock, from } = wave;
+    const { shift, clock } = wave;
     const reach = viewport * waveReach;
-    const start = Math.max(0, sung - 2);
     scheduleOnUI(() => {
       'worklet';
       const delta = enter ? rise : target - offset.value;
@@ -137,7 +138,6 @@ export default function LyricsPage({ selected, ref, onControlsHidden, keepContro
       // Jump the page there and hold each line where it was, then let them spring into place.
       const left = shift.value * springRemaining(clock.value);
       scrollTo(scroll, 0, target, false);
-      from.value = start;
       shift.value = Math.max(-reach, Math.min(reach, delta + left));
       clock.value = 0;
       clock.value = withTiming(waveDuration, { duration: waveDuration, easing: Easing.linear, reduceMotion: ReduceMotion.Never },
@@ -226,12 +226,12 @@ export default function LyricsPage({ selected, ref, onControlsHidden, keepContro
       >
         {lines.map((line, index) => {
           // Before the first line is sung (`sung` is -1), it waits dim at the top like the rest.
-          const look = lineLook(timed ? index - sung : null, { browsing, blur: blurs });
+          const look = lineLook(timed ? index - sung : null, { browsing, blur: blurs, reach });
           return <LyricRow key={index} index={index} text={line.text} startMs={line.startMs} active={timed && index === sung}
-            opacity={look.opacity} blur={look.blur} delay={following && timed && !reduceMotion ? lineDelay(index, Math.max(0, sung - 2)) : 0}
+            opacity={look.opacity} blur={look.blur}
             wave={wave} onSeek={seek} onLayout={lineLaidOut} watched={index === watched} />;
         })}
-        {credits && <Riding index={lines.length} wave={wave}>
+        {credits && <Riding wave={wave}>
           <LyricCredits credits={credits} opacity={browsing ? 0.62 : 0.45} />
         </Riding>}
       </Animated.ScrollView>
@@ -246,7 +246,6 @@ type LyricRowProps = {
   active: boolean;
   opacity: number;
   blur: number;
-  delay: number;
   wave: Wave;
   onSeek: (startMs: number) => void;
   onLayout: (index: number, top: number) => void;
@@ -254,22 +253,22 @@ type LyricRowProps = {
   watched: boolean;
 };
 
-/** Line `index`'s place in the wave: held where it was, then sprung home a moment after the line above. */
-function useWaveStyle(index: number, wave: Wave) {
+/** A line's place in the wave: held where it was, then sprung home with the rest. */
+function useWaveStyle(wave: Wave) {
   return useAnimatedStyle(() => {
     const shift = wave.shift.value;
     if (!shift) return { transform: [{ translateY: 0 }] };
-    return { transform: [{ translateY: shift * springRemaining(wave.clock.value - lineDelay(index, wave.from.value)) }] };
+    return { transform: [{ translateY: shift * springRemaining(wave.clock.value) }] };
   });
 }
 
-/** What follows the lines (the credits) rides the wave as the line after the last. */
-function Riding({ index, wave, children }: PropsWithChildren<{ index: number; wave: Wave }>) {
-  return <Animated.View style={useWaveStyle(index, wave)}>{children}</Animated.View>;
+/** What follows the lines (the credits) rides the wave with them. */
+function Riding({ wave, children }: PropsWithChildren<{ wave: Wave }>) {
+  return <Animated.View style={useWaveStyle(wave)}>{children}</Animated.View>;
 }
 
-const LyricRow = memo(function LyricRow({ index, text, startMs, active, opacity, blur, delay, wave, onSeek, onLayout, watched }: LyricRowProps) {
-  const style = useWaveStyle(index, wave);
+const LyricRow = memo(function LyricRow({ index, text, startMs, active, opacity, blur, wave, onSeek, onLayout, watched }: LyricRowProps) {
+  const style = useWaveStyle(wave);
   const top = useRef<number | null>(null);
   const laidOut = (event: LayoutChangeEvent) => {
     top.current = event.nativeEvent.layout.y;
@@ -281,12 +280,12 @@ const LyricRow = memo(function LyricRow({ index, text, startMs, active, opacity,
   }, [watched, index, onLayout]);
   return (
     <Animated.View style={style} onLayout={laidOut}>
-      <LyricButton line={text} active={active} opacity={opacity} blur={blur} delay={delay}
+      <LyricButton line={text} active={active} opacity={opacity} blur={blur}
         onPress={startMs === null ? undefined : () => onSeek(startMs)} />
     </Animated.View>
   );
 }, (before, after) => before.text === after.text && before.startMs === after.startMs && before.active === after.active &&
-  before.opacity === after.opacity && before.blur === after.blur && before.delay === after.delay && before.watched === after.watched &&
+  before.opacity === after.opacity && before.blur === after.blur && before.watched === after.watched &&
   before.index === after.index && before.onSeek === after.onSeek && before.onLayout === after.onLayout);
 
 const styles = StyleSheet.create({
