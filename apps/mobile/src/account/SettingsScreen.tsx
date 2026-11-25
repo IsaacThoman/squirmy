@@ -8,7 +8,7 @@ import { StorageSection } from '../streamingCache/StorageSection';
 import { createThemedStyles, useColors } from '../theme';
 import {
   lastFmAdminNote, normalizationNote, normalizationOptions, openListenBrainzSettings, qualityNote, qualityOptions, scrobbleDetail,
-  useSettingsScreen,
+  scrobbleFooter, useSettingsScreen,
 } from './settings';
 
 export function SettingsScreen() {
@@ -19,7 +19,7 @@ export function SettingsScreen() {
   return <ScrollView keyboardShouldPersistTaps="handled">
     <SheetFrame title="Settings" onClose={() => closeSheet(router)}>
       {settings ? <>
-        <Text style={styles.heading}>Normalize volume</Text>
+        <Text style={styles.heading}>Volume normalization</Text>
         <SheetRows>
           {normalizationOptions.map(option => <SheetRow key={option.value} title={option.label} icon="speaker.wave.2.fill"
             selected={settings.normalization === option.value} onPress={() => update({ normalization: option.value })} />)}
@@ -36,10 +36,16 @@ export function SettingsScreen() {
             selected={settings.qualityCellular === option.value} onPress={() => update({ qualityCellular: option.value })} />)}
         </SheetRows>
         <Text style={styles.note}>{qualityNote}</Text>
-      </> : <ActivityIndicator />}
+        {screen.errors.playback && <Text style={[styles.note, styles.error]}>{screen.errors.playback}</Text>}
+      </> : screen.settingsFailure ? <SheetRows>
+        <SheetRow title="Couldn’t load your settings" subtitle={screen.settingsFailure.description} icon="exclamationmark.circle"
+          onPress={screen.settingsFailure.retry ?? (() => {})} />
+      </SheetRows> : <ActivityIndicator />}
       <StorageSection />
       {screen.listenBrainz && <ListenBrainz service={screen.listenBrainz} busy={screen.connectingListenBrainz}
         error={screen.errors.listenbrainz} onConnect={screen.connectListenBrainz} onDisconnect={() => screen.disconnect('listenbrainz')} />}
+      {screen.listenBrainz?.connected && <ScrobbleSwitch service={screen.listenBrainz} enabled={screen.scrobbleEnabled(screen.listenBrainz)}
+        onToggle={enabled => screen.setScrobbling('listenbrainz', enabled)} />}
       {screen.lastFm && !screen.lastFm.available && screen.isAdmin && <Text style={styles.note}>{lastFmAdminNote}</Text>}
       {screen.lastFm?.available && <>
         <Text style={styles.heading}>Last.fm</Text>
@@ -48,10 +54,24 @@ export function SettingsScreen() {
             subtitle={scrobbleDetail(screen.lastFm)} icon="music.note"
             onPress={() => screen.lastFm?.connected && !screen.lastFm.needsAttention ? screen.disconnect('lastfm') : screen.connectLastFm()} />
         </SheetRows>
+        {screen.lastFm.connected && <ScrobbleSwitch service={screen.lastFm} enabled={screen.scrobbleEnabled(screen.lastFm)}
+          onToggle={enabled => screen.setScrobbling('lastfm', enabled)} />}
         {screen.errors.lastfm && <Text style={[styles.note, styles.error]}>{screen.errors.lastfm}</Text>}
       </>}
     </SheetFrame>
   </ScrollView>;
+}
+
+/** A connected service's switch, as on the web: off, plays are kept from the service without disconnecting it. */
+function ScrobbleSwitch({ service, enabled, onToggle }: { service: ScrobbleService; enabled: boolean; onToggle: (enabled: boolean) => void }) {
+  const styles = useStyles();
+  return <>
+    <SheetRows>
+      <SheetRow title={enabled ? 'Turn off scrobbling' : 'Turn on scrobbling'} icon={enabled ? 'pause.circle' : 'play.circle'}
+        onPress={() => onToggle(!enabled)} />
+    </SheetRows>
+    <Text style={styles.note}>{scrobbleFooter(service, enabled)}</Text>
+  </>;
 }
 
 function ListenBrainz({ service, busy, error, onConnect, onDisconnect }: {
