@@ -224,7 +224,7 @@ const browser = await chromium.launch({ args: ['--mute-audio', '--autoplay-polic
 // What the pages show: an album with featured artists, its lead artist, a playlist, saved songs.
 const seed = await browser.newContext()
 await api(seed, 'POST', '/auth/login', credentials)
-const albums = (await api(seed, 'GET', '/library/albums?limit=100')).items
+const albums = (await api(seed, 'GET', '/collection/albums?limit=100')).items
 const album = [...albums].sort((a, b) => b.trackCount - a.trackCount).find(candidate => candidate.artists.length === 1 && candidate.artists[0].name !== 'Various Artists') ?? albums[0]
 const detail = await api(seed, 'GET', `/albums/${album.id}`)
 const songs = detail.discs.flatMap(disc => disc.tracks)

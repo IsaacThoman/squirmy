@@ -172,8 +172,8 @@ await step('the sidebar and the combined view', async () => {
 })
 
 await step('no separate library button is left', async () => {
-  const blueHour = (await get('/library/albums?sort=title&limit=200')).items.find(album => album.title === 'Blue Hour')
-  if (!blueHour) throw new Error('Blue Hour is not in the library')
+  const blueHour = (await get('/collection/albums?sort=title&limit=200')).items.find(album => album.title === 'Blue Hour')
+  if (!blueHour) throw new Error('Blue Hour is not on the server')
   await page.goto(`${base}/album/${blueHour.id}`)
   await heading('Blue Hour').waitFor()
   const header = page.locator('header').filter({ has: heading('Blue Hour') })
@@ -256,7 +256,7 @@ await step('heart a song', async () => {
   check('the server lists it among the library’s songs', saved.items.some(track => track.id === song.id))
 })
 
-const albumsByTitle = async () => new Map((await get('/library/albums?sort=title&limit=200')).items.map(album => [album.title, album]))
+const albumsByTitle = async () => new Map((await get('/collection/albums?sort=title&limit=200')).items.map(album => [album.title, album]))
 const menuItems = () => page.getByRole('menuitem').allTextContents()
 const searchBox = () => page.getByRole('searchbox', { name: 'Find in your library' })
 const busy = { status: 503, contentType: 'application/json', body: JSON.stringify({ error: { code: 'unavailable', message: 'The server is busy. Try again in a moment.' } }) }
