@@ -91,7 +91,6 @@ export default function Player() {
   const [page, setPage] = useState<PlayerPage>('player');
   const [seenLyrics, setSeenLyrics] = useState(false);
   const [seenQueue, setSeenQueue] = useState(false);
-  const lastPane = useRef<DetailPage>('lyrics');
   // Lyrics left to play untouched hide the transport and take the screen down to its bottom edge.
   const [lyricsHideControls, setLyricsHideControls] = useState(false);
   const lyricsPage = useRef<LyricsHandle>(null);
@@ -361,7 +360,6 @@ export default function Player() {
 
   const togglePage = (next: DetailPage) => {
     selectionFeedback();
-    lastPane.current = next;
     if (next === 'lyrics') setSeenLyrics(true);
     else setSeenQueue(true);
     setPage(current => current === next ? 'player' : next);
@@ -487,13 +485,6 @@ export default function Player() {
                 <Animated.View style={[styles.tabletPane, { width: paneWidth - 12 }, paneStyle]}
                   pointerEvents={paneOpen ? 'auto' : 'none'} accessibilityElementsHidden={!paneOpen}
                   importantForAccessibility={paneOpen ? 'auto' : 'no-hide-descendants'}>
-                  <View style={styles.paneHeader}>
-                    <Text accessibilityRole="header" maxFontSizeMultiplier={displayFontScale} style={styles.paneTitle}>
-                      {lastPane.current === 'lyrics' ? 'Lyrics' : 'Queue'}
-                    </Text>
-                    <PlayerButton icon="xmark" label={lastPane.current === 'lyrics' ? 'Close lyrics pane' : 'Close queue pane'}
-                      color={colors.muted} size={17} onPress={closePane} />
-                  </View>
                   <View style={styles.detailPanel}>{lyricsPanel}{queuePanel}</View>
                 </Animated.View>
               </GestureDetector>}
@@ -739,8 +730,6 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   nowPlaying: { flex: 1, justifyContent: 'flex-start', alignItems: 'center', paddingHorizontal: edgeInset },
   tabletNowPlaying: { justifyContent: 'center', paddingHorizontal: artworkInset },
   tabletPane: { position: 'absolute', right: 12, top: 0, bottom: 12, overflow: 'hidden' },
-  paneHeader: { minHeight: 54, paddingLeft: 22, paddingRight: 10, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  paneTitle: { flex: 1, color: colors.text, fontSize: 23, fontWeight: '700' },
   artwork: { position: 'absolute', top: 0, left: 0, overflow: 'hidden', backgroundColor: colors.surface },
   noArtwork: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   details: { ...StyleSheet.absoluteFill, paddingTop: compactArtworkTop },
