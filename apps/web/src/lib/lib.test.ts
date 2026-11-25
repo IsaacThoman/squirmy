@@ -42,10 +42,16 @@ describe('lyrics', () => {
   it('parses LRC and finds the line being sung', () => {
     const lines = parseLrc('[00:12.50] Second\n[00:01.00]First\nno stamp\n[01:00.00][01:30.00]Chorus')
     expect(lines.map(line => line.text)).toEqual(['First', 'Second', 'Chorus', 'Chorus'])
-    expect(lines[1].timeMs).toBe(12_500)
+    expect(lines[1].startMs).toBe(12_500)
     expect(activeLine(lines, 500)).toBe(-1)
     expect(activeLine(lines, 13_000)).toBe(1)
     expect(activeLine(lines, 95_000)).toBe(3)
+  })
+
+  it('follows the offset tag, so a positive offset brings every line earlier', () => {
+    const lines = parseLrc('[offset:+1500]\n[00:10.00]Kettle on the stove')
+    expect(lines[0].startMs).toBe(8_500)
+    expect(activeLine(lines, 9_000)).toBe(0)
   })
 })
 

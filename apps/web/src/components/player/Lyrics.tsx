@@ -67,7 +67,7 @@ export function LyricsPane({ lyrics, onSeek, status: given, onRetry: givenRetry 
       lineRefs.current[next]?.focus()
     } else if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
-      onSeek(lines[at]!.timeMs)
+      onSeek(lines[at]!.startMs)
     }
   }
 
@@ -101,7 +101,7 @@ export function LyricsPane({ lyrics, onSeek, status: given, onRetry: givenRetry 
             {lines.map((line, index) => {
               const look = lineLook(index - active, browsing)
               return <div
-                key={`${line.timeMs}-${index}`}
+                key={`${line.startMs}-${index}`}
                 ref={element => { lineRefs.current[index] = element }}
                 role="option"
                 tabIndex={index === tabStop ? 0 : -1}
@@ -109,7 +109,7 @@ export function LyricsPane({ lyrics, onSeek, status: given, onRetry: givenRetry 
                 data-active={index === active || undefined}
                 onFocus={() => setCursor(index)}
                 onClick={() => {
-                  onSeek(line.timeMs)
+                  onSeek(line.startMs)
                   // A click seeks and leaves the lyrics following the music.
                   setCursor(null)
                 }}
