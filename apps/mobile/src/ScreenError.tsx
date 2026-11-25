@@ -1,4 +1,4 @@
-import { useRouter, type ErrorBoundaryProps } from 'expo-router';
+import { useNavigation, useRouter, type ErrorBoundaryProps } from 'expo-router';
 import { Component, useEffect, type ErrorInfo, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -30,9 +30,12 @@ function useLogged(where: string, error: unknown) {
 export function PageError({ error, retry }: ErrorBoundaryProps) {
   const styles = useStyles();
   const router = useRouter();
+  const navigation = useNavigation();
   const { top } = useSafeAreaInsets();
   useLogged('A page', error);
-  const back = router.canGoBack();
+  // The page's own stack: the router's root state may not have the page in it yet when the
+  // error is in the page's first render, and would say there is nothing to go back to.
+  const back = navigation.canGoBack();
   return <View style={[styles.page, { paddingTop: top + 8 }]}>
     {back && <View style={styles.nav}><BrowseBackButton onPress={() => router.back()} /></View>}
     <EmptyState icon="exclamationmark.triangle" title="Something went wrong"
