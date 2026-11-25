@@ -36,10 +36,37 @@ export const ConnectListenBrainzRequest = z.object({ token: z.string().trim().mi
 export type ConnectListenBrainzRequest = z.infer<typeof ConnectListenBrainzRequest>
 
 /**
- * `POST /api/v1/me/scrobbling/lastfm/start`: open `url` in a browser. After the user
- * approves, Last.fm returns to the server, which stores the session and redirects to the
- * web app's `/settings?lastfm=connected`. Otherwise `lastfm` is `denied` (not approved),
- * `invalid_state` (forged or older than ten minutes: start again) or `error` (Last.fm failed).
+ * The app schemes a Last.fm approval may return to (`LastFmConnectRequest.returnTo`): the iOS
+ * app's, and its development build's. Anything else returns to the web app.
+ */
+export const lastFmReturnSchemes = ['squirmy', 'squirmy-dev'] as const
+
+/**
+ * `POST /api/v1/me/scrobbling/lastfm/start`, optionally with where the browser goes once Last.fm
+ * answers: a URL in one of `lastFmReturnSchemes`, such as `squirmy://settings`, for an app that
+ * opened the approval in its own browser session. Without one, it goes to the web app.
+ */
+export const LastFmConnectRequest = z.object({
+  returnTo: z.string().max(200).refine(isLastFmReturn, 'Not a return address this server allows').optional(),
+})
+export type LastFmConnectRequest = z.infer<typeof LastFmConnectRequest>
+
+/** Whether `url` is a return address `LastFmConnectRequest` allows: one of the app schemes, no spaces. */
+export function isLastFmReturn(url: string): boolean {
+  const scheme = /^([a-z][a-z0-9+.-]*):\/\/\S*$/i.exec(url)?.[1]
+  return Boolean(scheme && (lastFmReturnSchemes as readonly string[]).includes(scheme))
+}
+
+/**
+ * The answer to `POST /api/v1/me/scrobbling/lastfm/start`: open `url` in a browser. After the user
+ * approves, Last.fm returns to the server, which stores the session and redirects to the web
+ * app's `/settings?lastfm=connected`, or to `returnTo` with the same `lastfm` parameter.
+ * Otherwise `lastfm` is `denied` (not approved), `invalid_state` (forged or older than ten
+ * minutes: start again) or `error` (Last.fm failed).
  */
 export const LastFmConnectStart = z.object({ url: z.url() })
 export type LastFmConnectStart = z.infer<typeof LastFmConnectStart>
+
+/** What `lastfm` says on the page Last.fm's approval returns to. */
+export const LastFmOutcome = z.enum(['connected', 'denied', 'invalid_state', 'error'])
+export type LastFmOutcome = z.infer<typeof LastFmOutcome>
