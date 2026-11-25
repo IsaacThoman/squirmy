@@ -32,7 +32,7 @@ import { playAllFailure, radioFailure, wantFailureLabel, wantFailure as wantFail
 import { heartButton } from './heart';
 import {
   albumCollection, albumTypeLabels, artistCollection, CollectionCover, CollectionRail, EmptyState, FailureLine, gridColumns, gutter, likedCollection, nearEnd,
-  playlistCollection,
+  OfflineBadge, playlistCollection,
   QueryState, recentCollection, SectionTitle, tapFeedback, useCollectionDim, type Collection,
 } from './shared';
 import { useCollectionActions } from './collectionActions';
@@ -147,7 +147,7 @@ function DetailPage({
     </Animated.View>
     {/* No title here: the header's own, an accessibility header, names the page for VoiceOver. */}
     <View pointerEvents="box-none" style={[styles.nav, { top: top + 6 }]}>
-      <BrowseBackButton onPress={onBack} />
+      <View pointerEvents="box-none" style={styles.navStart}><BrowseBackButton onPress={onBack} /><OfflineBadge /></View>
       <View style={styles.navActions}>
         {nav.filter((button): button is AlbumNavProps => Boolean(button)).map(button => <AlbumNavButton key={button.label} {...button} />)}
       </View>
@@ -176,7 +176,7 @@ function PageFallback({ query, what, onBack }: { query: Parameters<typeof QueryS
   const styles = useStyles();
   const { top } = useSafeAreaInsets();
   return <View style={[styles.page, { paddingTop: top + 8 }]}>
-    <View style={styles.fallbackNav}><BrowseBackButton onPress={onBack} /></View>
+    <View style={[styles.fallbackNav, styles.navStart]}><BrowseBackButton onPress={onBack} /><OfflineBadge /></View>
     {query.isError || query.isPending
       ? <QueryState query={query} what={what} />
       : <EmptyState icon="music.note" title="Not available" description="Go back to browse your library." />}
@@ -740,7 +740,9 @@ function CollectionGridPage({ title, detail, items, header, onBack, onEndReached
       </>}
       ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.more} /> : undefined} />
     <ScrollEdge solid={top} fade={scrollEdgeFade} scrollOffset={scrollOffset} contentGap={contentGap} />
-    <View pointerEvents="box-none" style={[styles.nav, { top: top + 8 }]}><BrowseBackButton onPress={onBack} /></View>
+    <View pointerEvents="box-none" style={[styles.nav, { top: top + 8 }]}>
+      <View pointerEvents="box-none" style={styles.navStart}><BrowseBackButton onPress={onBack} /><OfflineBadge /></View>
+    </View>
   </View>;
 }
 
@@ -751,6 +753,8 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
     gap: 8, paddingHorizontal: gutter,
   },
   navActions: { flexDirection: 'row', gap: 10 },
+  // The back button, and beside it the Offline badge when the server cannot be reached, as on the tabs' pages.
+  navStart: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   fallbackNav: { paddingHorizontal: gutter, alignItems: 'flex-start' },
   overscrollFill: { position: 'absolute', bottom: '100%', height: '100%', left: 0, right: 0 },
   status: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1 },
