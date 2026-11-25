@@ -1,8 +1,16 @@
 diff --git a/node_modules/react-native-screens/ios/RNSScreenStack.mm b/node_modules/react-native-screens/ios/RNSScreenStack.mm
-index 5da1196..b0eecc5 100644
+index 5da1196..601d481 100644
 --- a/node_modules/react-native-screens/ios/RNSScreenStack.mm
 +++ b/node_modules/react-native-screens/ios/RNSScreenStack.mm
-@@ -662,6 +662,30 @@ - (void)setModalViewControllers:(NSArray<UIViewController *> *)controllers
+@@ -258,6 +258,7 @@ @implementation RNSScreenStackView {
+   NSMutableArray<RNSScreenView *> *_reactSubviews;
+   BOOL _invalidated;
+   BOOL _isFullWidthSwipingWithPanGesture; // used only for content swipe with RNSPanGestureRecognizer
++  __weak UIViewController *_zoomSwipeScreen;
+   RNSPercentDrivenInteractiveTransition *_interactionController;
+   __weak RNSScreenStackManager *_manager;
+   BOOL _updateScheduled;
+@@ -662,6 +663,30 @@ - (void)setModalViewControllers:(NSArray<UIViewController *> *)controllers
    finish();
  }
  
@@ -33,7 +41,7 @@ index 5da1196..b0eecc5 100644
  - (void)setPushViewControllers:(NSArray<UIViewController *> *)controllers
  {
    // when there is no change we return immediately
-@@ -681,6 +705,10 @@ - (void)setPushViewControllers:(NSArray<UIViewController *> *)controllers
+@@ -681,6 +706,10 @@ - (void)setPushViewControllers:(NSArray<UIViewController *> *)controllers
    // making any updated when transition is ongoing and schedule updates for when the transition
    // is complete.
    if (_controller.transitionCoordinator != nil) {
@@ -44,7 +52,7 @@ index 5da1196..b0eecc5 100644
      if (!_updateScheduled) {
        _updateScheduled = YES;
        __weak RNSScreenStackView *weakSelf = self;
-@@ -885,15 +913,11 @@ - (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)gestureRecognizer
+@@ -885,19 +914,14 @@ - (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)gestureRecognizer
  #else
  
    if ([gestureRecognizer isKindOfClass:[RNSPanGestureRecognizer class]]) {
@@ -65,34 +73,54 @@ index 5da1196..b0eecc5 100644
      }
  
      if ([self isInGestureResponseDistance:gestureRecognizer topScreen:topScreen]) {
-@@ -998,7 +1022,26 @@ - (void)handleSwipe:(UIPanGestureRecognizer *)gestureRecognizer
+-      _isFullWidthSwipingWithPanGesture = YES;
+       [self cancelTouchesInParent];
+       return YES;
+     }
+@@ -997,6 +1021,16 @@ - (void)handleSwipe:(UIPanGestureRecognizer *)gestureRecognizer
+ 
    switch (gestureRecognizer.state) {
      case UIGestureRecognizerStateBegan: {
-       _interactionController = [RNSPercentDrivenInteractiveTransition new];
-+      // Squirmy: a zoom can't follow a drag, so a page that zoomed open slides away under the finger instead.
-+      // It keeps its zoom for the back button and the edge if the swipe is let go.
++      // Squirmy: UIKit drives its own interactive zoom at the edge and on pull-down.
++      // For our full-screen pan, wait for a committed swipe and let UIKit animate the zoom back.
 +      UIViewController *top = _controller.topViewController;
-+      id zoom = nil;
 +      if (@available(iOS 18, *)) {
-+        zoom = top.preferredTransition;
-+        top.preferredTransition = nil;
++        if (top.preferredTransition != nil) {
++          _zoomSwipeScreen = top;
++          break;
++        }
 +      }
++      _isFullWidthSwipingWithPanGesture = [gestureRecognizer isKindOfClass:[RNSPanGestureRecognizer class]];
+       _interactionController = [RNSPercentDrivenInteractiveTransition new];
        [_controller popViewControllerAnimated:YES];
-+      if (zoom != nil) {
-+        [_controller.transitionCoordinator
-+            animateAlongsideTransition:nil
-+                            completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
-+                              if (@available(iOS 18, *)) {
-+                                if (context.isCancelled && top.preferredTransition == nil) {
-+                                  top.preferredTransition = zoom;
-+                                }
-+                              }
-+                            }];
-+      }
+       break;
+@@ -1008,7 +1042,10 @@ - (void)handleSwipe:(UIPanGestureRecognizer *)gestureRecognizer
+     }
+ 
+     case UIGestureRecognizerStateCancelled: {
++      _zoomSwipeScreen = nil;
+       [_interactionController cancelInteractiveTransition];
++      _interactionController = nil;
++      _isFullWidthSwipingWithPanGesture = NO;
        break;
      }
  
-@@ -1142,6 +1185,60 @@ - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event
+@@ -1019,6 +1056,14 @@ - (void)handleSwipe:(UIPanGestureRecognizer *)gestureRecognizer
+       float gestureDistance = translation + velocity * 0.3;
+       gestureDistance = isInverted ? gestureDistance * -1 : gestureDistance;
+       BOOL shouldFinishTransition = gestureDistance > snapPoint;
++      if (UIViewController *zoomScreen = _zoomSwipeScreen) {
++        _zoomSwipeScreen = nil;
++        // The screen may already have closed or another screen may have opened during the drag.
++        if (shouldFinishTransition && _controller.topViewController == zoomScreen) {
++          [_controller popViewControllerAnimated:YES];
++        }
++        break;
++      }
+       if (shouldFinishTransition) {
+         [_interactionController finishInteractiveTransition];
+       } else {
+@@ -1142,6 +1187,60 @@ - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event
  
  #if !TARGET_OS_TV && !TARGET_OS_VISION
  
@@ -153,13 +181,12 @@ index 5da1196..b0eecc5 100644
  - (BOOL)isScrollViewPanGestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
  {
    // NOTE: This hack is required to restore native behavior of edge swipe (interactive pop gesture)
-@@ -1192,13 +1289,14 @@ - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceive
+@@ -1192,13 +1291,13 @@ - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceive
      // On iOS 26, depending on whether custom animations are on, we select
      // either interactiveContentPopGestureRecognizer or RNSPanGestureRecognizer,
      // then we allow them to proceed iff full screen swipe is enabled.
-+    // Squirmy: the native content swipe does not start on a page that zoomed open, and gives way to any
-+    // horizontal scroll view even when it is scrolled all the way back. The full screen pan handles both,
-+    // so it is the full screen back swipe on every page.
++    // Squirmy: use our full-screen pan so zoomed pages can close from the content area and
++    // horizontal scroll views can hand off the back swipe when scrolled all the way back.
      if ([gestureRecognizer isKindOfClass:[RNSPanGestureRecognizer class]]) {
 -      return customAnimationOnSwipePropSetAndSelectedAnimationIsCustom ? topScreen.isFullScreenSwipeEffectivelyEnabled
 -                                                                       : NO;
@@ -172,7 +199,7 @@ index 5da1196..b0eecc5 100644
      }
    } else {
      // We want to pass events to RNSPanGestureRecognizer iff full screen swipe is enabled.
-@@ -1213,6 +1311,14 @@ - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceive
+@@ -1213,6 +1312,14 @@ - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceive
    }
  #endif // check for iOS >= 26
  
@@ -187,7 +214,7 @@ index 5da1196..b0eecc5 100644
    // RNSScreenEdgeGestureRecognizer || _UIParallaxTransitionPanGestureRecognizer
    return YES;
  }
-@@ -1251,6 +1357,11 @@ - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
+@@ -1251,6 +1358,11 @@ - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
  - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
      shouldRequireFailureOfGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer
  {
@@ -199,7 +226,7 @@ index 5da1196..b0eecc5 100644
    if (@available(iOS 26, *)) {
      if (gestureRecognizer == _controller.interactiveContentPopGestureRecognizer &&
          [self isScrollViewPanGestureRecognizer:otherGestureRecognizer]) {
-@@ -1280,6 +1391,13 @@ - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
+@@ -1280,6 +1392,13 @@ - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
    }
  #endif // check for iOS >= 26
  
