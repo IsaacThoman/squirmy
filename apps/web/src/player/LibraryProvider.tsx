@@ -1,8 +1,9 @@
 import { queryKeys, type CreatePlaylistRequest, type EntityFields, type Page, type PlaylistSummary, type TrackSummary, type WantItem } from '@squirmy/contracts'
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import { useCallback, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useCallback, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { applyChanges } from '@/realtime/apply-changes'
+import { failedStep } from '@/api/errors'
 import { patchEntity } from '@/api/patch'
 import { playlistQuery, usePlaylists, useWants } from '@/api/queries'
 import { useApi } from '@/api/services'
@@ -38,6 +39,10 @@ const handled = <T,>(promise: Promise<T>): Promise<T> => {
   promise.catch(() => {})
   return promise
 }
+
+/** Whether a retried form asks for other details than the try that made the playlist did. */
+const otherDetails = (before: CreatePlaylistRequest, request: CreatePlaylistRequest) =>
+  request.name !== before.name || (request.description ?? null) !== (before.description ?? null) || (request.isPublic ?? false) !== (before.isPublic ?? false)
 
 const songs = (tracks: TrackSummary[]) => (tracks.length === 1 ? tracks[0].title : plural(tracks.length, 'song'))
 
@@ -119,10 +124,24 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     onSuccess: detail => { queryClient.setQueryData(queryKeys.playlist(detail.id), detail) },
   })
 
+  // The playlist the open New playlist dialog has made. When its songs fail to go in, the dialog
+  // stays open to try again, and the retry adds them to this one (with any details changed since)
+  // rather than making a second, as the iOS app does.
+  const made = useRef<{ playlist: PlaylistSummary; request: CreatePlaylistRequest } | null>(null)
   const create = useMutation({
     mutationFn: async ({ request, tracks }: { request: CreatePlaylistRequest; tracks: TrackSummary[] }) => {
-      const playlist = await api.userdata.createPlaylist(request)
-      if (tracks.length) await api.userdata.addPlaylistItems(playlist.id, { tracks: playlistTracks(tracks) })
+      const retry = made.current !== null
+      let playlist = made.current?.playlist ?? await api.userdata.createPlaylist(request)
+      if (made.current && otherDetails(made.current.request, request)) playlist = await api.userdata.updatePlaylist(playlist.id, request)
+      made.current = { playlist, request }
+      if (!tracks.length) return playlist
+      try {
+        // A retry leaves out songs that went in on a try whose answer never came back.
+        await api.userdata.addPlaylistItems(playlist.id, { tracks: playlistTracks(tracks), skipDuplicates: retry || undefined })
+      } catch (error) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.playlists() })
+        throw failedStep(error, `Made “${playlist.name}”, but couldn’t add ${tracks.length === 1 ? `“${tracks[0].title}”` : songs(tracks)}. Try again.`)
+      }
       return playlist
     },
     // With songs, the new playlist in the sidebar says it is made; an empty one opens to be filled.
@@ -131,6 +150,10 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       if (!tracks.length) void navigate(`/playlist/${playlist.id}`)
     },
   })
+  const openDraft = useCallback((tracks: TrackSummary[]) => {
+    made.current = null
+    setDraft({ tracks })
+  }, [])
 
   const wantedIds = useMemo(() => new Set(wants?.items.map(item => (item.type === 'album' ? item.album.id : item.track.id))), [wants])
   const playlists = useMemo(() => allPlaylists?.items.filter(playlist => playlist.ownerId === user.id) ?? [], [allPlaylists, user.id])
@@ -139,11 +162,15 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const { mutateAsync: addTo } = add
 
   // Songs the playlist has already are asked about first. Its cached copy is current enough:
-  // the server's invalidations refresh it whenever it changes elsewhere.
+  // the server's invalidations refresh it whenever it changes elsewhere. When what it holds
+  // cannot be read, nothing is added: the place that asked says it did not work, to try again,
+  // rather than adding songs it may have already without asking.
   const addToPlaylist = useCallback(async (playlist: Pick<PlaylistSummary, 'id' | 'name'>, tracks: TrackSummary[]) => {
     if (!tracks.length) return true
-    const detail = await queryClient.fetchQuery({ ...playlistQuery(api, playlist.id), staleTime: 60_000 }).catch(() => null)
-    const there = new Set(detail?.items.map(item => item.track.id))
+    const detail = await queryClient.fetchQuery({ ...playlistQuery(api, playlist.id), staleTime: 60_000 }).catch((error: unknown) => {
+      throw failedStep(error, 'Couldn’t check for songs it has already. Try again.')
+    })
+    const there = new Set(detail.items.map(item => item.track.id))
     const repeated = tracks.filter(track => there.has(track.id))
     if (repeated.length) {
       setRepeatedAdd({ playlist, tracks, repeated })
@@ -160,8 +187,8 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     setWanted: (target, wanted) => handled(setWanted({ target, wanted }).then(() => {})),
     playlists,
     addToPlaylist: (playlist, tracks) => handled(addToPlaylist(playlist, tracks)),
-    newPlaylist: (tracks = []) => setDraft({ tracks }),
-  }), [wantlistEnabled, wantedIds, playlists, setSaved, setWanted, addToPlaylist])
+    newPlaylist: (tracks = []) => openDraft(tracks),
+  }), [wantlistEnabled, wantedIds, playlists, setSaved, setWanted, addToPlaylist, openDraft])
 
   return (
     <LibraryContext value={actions}>
