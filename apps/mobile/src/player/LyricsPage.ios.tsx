@@ -10,7 +10,7 @@ import { usePlaybackState, usePosition } from '../playback';
 import { LyricButton, LyricCredits } from './Controls';
 import { selectionFeedback } from './design';
 import {
-  activeLine, chromeDeadline, initialChrome, lineDelay, lineLook, lyricCredits, lyricLines, lyricsChrome, scrollRun, scrollTurn, springRemaining, waveDuration,
+  activeLine, blurReachFor, chromeDeadline, initialChrome, lineDelay, lineLook, lyricCredits, lyricLines, lyricsChrome, scrollRun, scrollTurn, springRemaining, waveDuration,
   type ChromeEvent, type ChromeRules,
 } from './lyrics';
 import LyricsEmpty from './LyricsEmpty';
@@ -101,6 +101,8 @@ export default function LyricsPage({ selected, ref, onControlsHidden }: LyricsPr
   const wave: Wave = { shift: useSharedValue(0), clock: useSharedValue(waveDuration), from: useSharedValue(0) };
   const lineTops = useRef<number[]>([]);
   const [viewport, setViewport] = useState(0);
+  // Every line that fits on the page is blurred, however tall the page is.
+  const reach = blurReachFor(viewport);
   // Bumped when the sung line is laid out (or laid out again, as when the text size changes).
   const [placed, setPlaced] = useState(0);
   const entering = useRef(true);
@@ -226,7 +228,7 @@ export default function LyricsPage({ selected, ref, onControlsHidden }: LyricsPr
       >
         {lines.map((line, index) => {
           // Before the first line is sung (`sung` is -1), it waits dim at the top like the rest.
-          const look = lineLook(timed ? index - sung : null, { browsing, blur: blurs });
+          const look = lineLook(timed ? index - sung : null, { browsing, blur: blurs, reach });
           return <LyricRow key={index} index={index} text={line.text} startMs={line.startMs} active={timed && index === sung}
             opacity={look.opacity} blur={look.blur} delay={following && timed && !reduceMotion ? lineDelay(index, Math.max(0, sung - 2)) : 0}
             wave={wave} onSeek={seek} onLayout={lineLaidOut} watched={index === watched} />;

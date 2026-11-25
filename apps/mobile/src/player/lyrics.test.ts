@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  activeLine, blurReach, chromeDeadline, initialChrome, lineDelay, lineInView, lineLook, lyricCredits, lyricLines, lyricsChrome, lyricTiming,
+  activeLine, blurReach, blurReachFor, chromeDeadline, initialChrome, lineDelay, lineInView, lineLook, lyricCredits, lyricLines, lyricsChrome, lyricTiming,
   scrollRun, scrollTurn, springRemaining, waveDuration, type ChromeEvent, type ChromeRules, type LyricsChrome,
 } from './lyrics';
 
@@ -88,6 +88,19 @@ describe('lineLook', () => {
   it('caps the blur and only dims lines past its reach', () => {
     expect(lineLook(blurReach, follow).blur).toBe(lineLook(blurReach - 1, follow).blur);
     expect(lineLook(blurReach + 1, follow)).toEqual({ opacity: lineLook(1, follow).opacity, blur: 0 });
+  });
+
+  it('blurs every line that fits on a tall page', () => {
+    // A 13-inch iPad in portrait with the transport hidden, and an iPhone's lyrics page.
+    for (const viewport of [1300, 760]) {
+      const reach = blurReachFor(viewport);
+      expect(reach * 48).toBeGreaterThan(viewport);
+      expect(lineLook(reach, { ...follow, reach }).blur).toBeGreaterThan(0);
+      expect(lineLook(reach + 1, { ...follow, reach }).blur).toBe(0);
+    }
+    // Before the page is measured, and on a short one, the blur still reaches its usual distance.
+    expect(blurReachFor(0)).toBe(blurReach);
+    expect(blurReachFor(200)).toBe(blurReach);
   });
 
   it('clears the blur while browsing, keeping the sung line brightest', () => {
