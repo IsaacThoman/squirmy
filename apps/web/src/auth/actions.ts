@@ -3,7 +3,7 @@ import { queryKeys, type User } from '@squirmy/contracts'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { forgetPersistedCache } from '@/api/persist'
 import { useApi } from '@/api/services'
-import { setSignedInUser, setSignOutPending } from './session'
+import { setSignedInUser, setSigningOut, setSignOutPending } from './session'
 
 /**
  * Ends this browser's session. The pages kept for the next visit are deleted, then the page
@@ -18,6 +18,7 @@ export function useLogout(): () => void {
   const queryClient = useQueryClient()
   const { mutate } = useMutation({
     mutationFn: async () => {
+      setSigningOut(true)
       // A 401 means the server has ended the session already.
       const reached = await api.auth.logout().then(() => true, (error: unknown) => error instanceof ApiError && error.status === 401)
       await forgetPersistedCache(queryClient.getQueryData<User | null>(queryKeys.me())?.id)
@@ -25,9 +26,11 @@ export function useLogout(): () => void {
     },
     onSuccess: reached => {
       if (reached) return window.location.replace('/login')
+      setSigningOut(false)
       setSignOutPending(true)
       setSignedInUser(queryClient, null, 'unreachable')
     },
+    onError: () => setSigningOut(false),
   })
   return () => mutate()
 }

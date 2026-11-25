@@ -154,7 +154,7 @@ const a = await signedIn(browser, admin)
 await api(a.context, 'PATCH', '/admin/settings', { musicBrainzEnabled: false, deezerEnabled: false, coverArtArchiveEnabled: false, wikidataEnabled: false, lrclibEnabled: false })
 const scanned = await until(() => api(a.context, 'GET', '/admin/library/stats'), stats => stats.tracks >= 117 && stats.pending === 0, 180_000, 1000)
 check('the demo library is scanned', scanned.tracks >= 117, `${scanned.albums} albums, ${scanned.tracks} tracks`)
-const blueHour = (await api(a.context, 'GET', '/library/albums?sort=title&limit=200')).items.find(album => album.title === 'Blue Hour')
+const blueHour = (await api(a.context, 'GET', '/collection/albums?sort=title&limit=200')).items.find(album => album.title === 'Blue Hour')
 const page = a.page
 
 await step('album playback', async () => {

@@ -149,7 +149,7 @@ if (status.needsSetup) {
 
 // The music the shots show: the demo library's Blue Hour, its artist, and a playlist.
 const setup = await browser.newContext({ storageState: session, viewport: { width: 1440, height: 900 } })
-const albums = await api(setup, 'GET', '/library/albums?sort=title&limit=200')
+const albums = await api(setup, 'GET', '/collection/albums?sort=title&limit=200')
 const blueHour = albums.items.find(album => album.title === 'Blue Hour')
 const album = `/album/${blueHour.id}`
 const artist = `/artist/${blueHour.artists[0].id}`
@@ -158,7 +158,7 @@ const playlists = await api(setup, 'GET', '/playlists')
 let playlist = playlists.items.find(item => item.name === 'Late Night')
 if (!playlist) {
   playlist = await api(setup, 'POST', '/playlists', { name: 'Late Night', description: 'Slow songs for the drive home.', isPublic: true })
-  const others = (await api(setup, 'GET', '/library/tracks?sort=title&limit=40')).items.filter(track => track.album?.id !== blueHour.id).slice(0, 6)
+  const others = (await api(setup, 'GET', '/collection/tracks?sort=title&limit=40')).items.filter(track => track.album?.id !== blueHour.id).slice(0, 6)
   await api(setup, 'POST', `/playlists/${playlist.id}/items`, { tracks: [...detail.discs[0].tracks.slice(0, 3), ...others].map(track => ({ trackId: track.id, albumId: track.album?.id })) })
 }
 
