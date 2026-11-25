@@ -1,6 +1,6 @@
 import { ApiError } from '@squirmy/client-core';
 import { describe, expect, it, vi } from 'vitest';
-import { LikeQueue, type QueuedLike } from './likeQueue';
+import { isUnsent, LikeQueue, likeRetryDelay, likeRetryDelaysMs, type QueuedLike } from './likeQueue';
 
 function memory(initial: QueuedLike[] = []) {
   let saved = initial;
@@ -36,17 +36,50 @@ describe('LikeQueue', () => {
     expect(send.mock.calls.map(([like]) => like)).toEqual([{ type: 'track', id: 'a', liked: false }, { type: 'artist', id: 'a', liked: true }]);
   });
 
-  it('drops and reports what the server refuses, and retries server errors', async () => {
+  it('drops and reports what the server refuses, a 500 included, and keeps what a gateway answered', async () => {
     const send = vi.fn(async (like: QueuedLike) => {
       if (like.id === 'gone') throw new ApiError(404, 'not_found', 'No such track');
-      if (like.id === 'busy') throw new ApiError(503, 'unavailable', 'Try later');
+      if (like.id === 'broken') throw new ApiError(500, 'internal', 'Something broke');
+      if (like.id === 'down') throw new ApiError(502, 'bad_gateway', 'Bad gateway');
     });
     const queue = new LikeQueue(memory(), send);
     queue.add({ type: 'track', id: 'gone', liked: true });
-    queue.add({ type: 'track', id: 'busy', liked: true });
+    queue.add({ type: 'track', id: 'broken', liked: true });
+    queue.add({ type: 'track', id: 'down', liked: true });
     const result = await queue.flush();
-    expect(result.refused.map(like => like.id)).toEqual(['gone']);
-    expect(queue.pending.map(like => like.id)).toEqual(['busy']);
+    expect(result.refused.map(like => like.id)).toEqual(['gone', 'broken']);
+    expect(queue.pending.map(like => like.id)).toEqual(['down']);
+  });
+
+  it('counts as unsent only what never reached the server', () => {
+    expect(isUnsent(new ApiError(0, 'network_error', 'Network request failed'))).toBe(true);
+    expect(isUnsent(new TypeError('Network request failed'))).toBe(true);
+    for (const status of [502, 503, 504]) expect(isUnsent(new ApiError(status, 'unavailable', 'Gateway'))).toBe(true);
+    for (const status of [400, 403, 404, 500, 501]) expect(isUnsent(new ApiError(status, 'error', 'No'))).toBe(false);
+  });
+
+  it('tries a few times, waiting longer each time, then gives up', () => {
+    expect(likeRetryDelaysMs.map((_delay, index) => likeRetryDelay(index + 1))).toEqual([15_000, 30_000, 60_000, 120_000, 240_000]);
+    expect(likeRetryDelay(likeRetryDelaysMs.length + 1)).toBeNull();
+  });
+
+  it('gives up on everything waiting, in storage too, and returns it for the hearts to go back', async () => {
+    const storage = memory();
+    const queue = new LikeQueue(storage, offline);
+    queue.add({ type: 'track', id: 'a', liked: true, inLibrary: false });
+    queue.add({ type: 'album', id: 'b', liked: false });
+    await queue.flush();
+    expect(queue.giveUp().map(like => like.id)).toEqual(['a', 'b']);
+    expect(queue.pending).toEqual([]);
+    expect(storage.saved).toEqual([]);
+  });
+
+  it('keeps the library mark from before the first change to an item, for a refusal to put back', () => {
+    const queue = new LikeQueue(memory(), offline);
+    queue.add({ type: 'track', id: 'a', liked: true, inLibrary: false });
+    queue.add({ type: 'track', id: 'a', liked: false, inLibrary: true });
+    queue.add({ type: 'track', id: 'a', liked: true, inLibrary: true });
+    expect(queue.pending).toEqual([{ type: 'track', id: 'a', liked: true, inLibrary: false }]);
   });
 
   it('keeps a change made while the previous one for the same item was being sent', async () => {

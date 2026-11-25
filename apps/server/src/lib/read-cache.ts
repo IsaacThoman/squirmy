@@ -26,7 +26,7 @@ export type CacheTag =
   | 'home' | 'library' | 'album' | 'artist' | 'track' | 'search' | 'likes' | 'playlists' | 'history' | 'wants'
 
 /** Key roots that never change what a cached read returns. */
-const unrelated = new Set(['admin', 'settings', 'scrobbling', 'me', 'lyrics'])
+const unrelated = new Set(['admin', 'settings', 'scrobbling', 'me', 'lyrics', 'uploads'])
 const known = new Set<string>(['home', 'library', 'album', 'artist', 'track', 'search', 'likes', 'playlists', 'history', 'wants'])
 
 const ttlMs = 5 * 60_000

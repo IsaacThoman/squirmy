@@ -44,7 +44,7 @@ describe('subsonic', () => {
   let coverId: string
 
   async function person(username: string, role: 'admin' | 'member' = 'member') {
-    const row = await createUser({ username, role })
+    const row = await createUser({ username, role, settings: { libraryIncludesServerMusic: true } })
     const { secret } = await createAppPassword(row.id, 'Subsonic')
     return { id: row.id, username, secret: secret!, client: subsonicClient(app, { username, secret: secret! }) }
   }

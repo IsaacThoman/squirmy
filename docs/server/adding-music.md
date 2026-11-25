@@ -59,6 +59,19 @@ Admins can always upload; members need **Can upload music** (see [Users and acce
 
 Below, **Recent imports** lists your imports (an admin sees everyone's, inbox and provider imports included), updating as they move. Open one for its details, or cancel one that is still receiving.
 
+What you upload is on the server for everyone: they find it in search and on Home and can play it. It joins your own library (its albums are hearted for you when the import finishes), and nobody else's unless they heart it or include all of the server's music in their library.
+
+## Managing uploads
+
+**Your uploads** (from **Add music**, the account menu or **Settings → Library**) lists the albums you uploaded, newest first, with their songs, size and when they arrived. **Delete album** and a song's delete button remove those files from the server after asking; it can't be undone.
+
+- Only the uploaded files go. A scanned file of the same song, or another person's upload of it, stays, and so does the album when such a file is left.
+- Files outside a managed folder are never deleted (`upload_not_deletable`); they stay as they are.
+- The files' cover and lyrics sidecars go with them, then folders left empty. Catalog entries nothing else uses are removed. Your own heart on the album goes once it has no file left; other people's hearts stay, and the album stays gray in their libraries.
+- Admins manage everyone's uploads, and the inbox folder's, in **Admin → Uploads**, filtered with **Uploaded by**.
+
+Through the API: `GET /api/v1/me/uploads`, `GET /api/v1/me/uploads/albums/$ALBUM` for its songs, `DELETE /api/v1/me/uploads/albums/$ALBUM` and `DELETE /api/v1/me/uploads/files/$FILE`. Admins use the same routes under `/api/v1/admin/uploads`, with `?uploader=` (a user id, or `inbox`).
+
 ### Through the API
 
 With `curl` and `jq`:

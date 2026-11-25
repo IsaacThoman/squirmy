@@ -42,6 +42,13 @@ function useBrowseProps(tab: Tab) {
   };
 }
 
+/** On this server: the server's music, from Home's New on this server and an empty Library. */
+export function ServerMusicRoute({ tab }: { tab: Tab }) {
+  const props = useBrowseProps(tab);
+  const router = useRouter();
+  return <LibraryScreen server onBack={() => router.back()} {...props} />;
+}
+
 export function BrowseIndex({ tab }: { tab: Tab }) {
   const props = useBrowseProps(tab);
   switch (tab) {

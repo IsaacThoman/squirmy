@@ -14,9 +14,12 @@
  *   active (`albumCoveredWithoutTracks`), else `none`.
  *
  * Library membership is separate from availability and lives here too (`inLibraryAlbum`,
- * `inLibraryRecording`): a user's library is the server's collection (present files no
- * provider delivered) plus what that user saved with the heart (`likes`). A file fetched for
- * playing is cache, so it makes a track `server` without putting anything in a library.
+ * `inLibraryRecording`): a user's library is what that user saved with the heart (`likes`),
+ * plus the server's collection (present files no provider delivered) for a user who turned
+ * on `libraryIncludesServerMusic` (`collectionCounts`). Without a user the same helpers
+ * answer for the collection alone: the server's music, which `/collection/*` lists. A file
+ * fetched for playing is cache, so it makes a track `server` without putting anything in a
+ * library.
  */
 import { INCOMING_FOLDER, type AlbumAvailability, type TrackAvailability } from '@squirmy/contracts'
 import { sql, type SQL } from 'drizzle-orm'
@@ -32,6 +35,18 @@ export function recordingOwned(recordingId: string): SQL {
 /** SQL condition: the file (alias) is part of the collection: present and not delivered by a provider. */
 export function collectionFile(alias: string): SQL {
   return sql.raw(`(${alias}.missing_since is null and not ${alias}.cached)`)
+}
+
+/**
+ * SQL condition: the server's collection counts toward the user's library, because they
+ * turned on `libraryIncludesServerMusic` (off by default). Without a user it always does:
+ * that is the server's music. Every collection branch of a membership query is gated by
+ * this one condition. It does not depend on the row, so Postgres runs it once per
+ * statement (an InitPlan) and skips the branches it gates when it is false.
+ */
+export function collectionCounts(userId: string | null): SQL {
+  if (!userId) return sql`true`
+  return sql`exists (select 1 from users opted where opted.id = ${userId} and opted.settings @> '{"libraryIncludesServerMusic": true}'::jsonb)`
 }
 
 /**
@@ -85,7 +100,7 @@ export async function membership(userId: string, ids: { albums?: readonly string
   const [albumRows, recordingRows, artistRows] = await Promise.all([
     albums.length === 0 ? [] : db.execute<{ id: string; library: 'collection' | 'saved' | null }>(sql`
       select a.id, case
-        when exists (select 1 from media_files f where f.album_id = a.id and ${collectionFile('f')}) then 'collection'
+        when ${collectionCounts(userId)} and exists (select 1 from media_files f where f.album_id = a.id and ${collectionFile('f')}) then 'collection'
         when ${saved('album', 'a.id', userId)} then 'saved'
       end as library
       from albums a where a.id = any(${uuidArray(albums)})`),
@@ -109,42 +124,44 @@ export function saved(type: 'album' | 'recording' | 'artist', entity: string, us
 }
 
 /**
- * SQL condition: the album id expression is in the user's library, because a collection
- * file is linked to it or the user saved it. Without a user, collection only.
+ * SQL condition: the album id expression is in the user's library, because the user saved
+ * it, or a collection file is linked to it and the collection counts for them
+ * (`collectionCounts`). Without a user, collection only.
  */
 export function inLibraryAlbum(album: string, userId: string | null): SQL {
-  const owned = sql`exists (select 1 from media_files collected where collected.album_id = ${sql.raw(album)} and ${collectionFile('collected')})`
+  const owned = sql`(${collectionCounts(userId)} and exists (select 1 from media_files collected where collected.album_id = ${sql.raw(album)} and ${collectionFile('collected')}))`
   return userId ? sql`(${owned} or ${saved('album', album, userId)})` : owned
 }
 
 /**
- * SQL condition: the recording id expression is in the user's library: a collection file
- * links it, the user saved it, or a present file of it belongs to an album the user saved.
- * Without a user, collection only.
+ * SQL condition: the recording id expression is in the user's library: the user saved it,
+ * a present file of it (cache included) belongs to an album the user saved, or a
+ * collection file links it and the collection counts for them. Without a user, collection only.
  */
 export function inLibraryRecording(recording: string, userId: string | null): SQL {
-  const owned = collectedRecording(recording)
+  const owned = collectedRecording(recording, userId)
   if (!userId) return owned
   return sql`(${owned} or ${saved('recording', recording, userId)} or ${savedAlbumHolds(recording, userId)})`
 }
 
 /**
  * SQL expression: why the recording id expression is in the user's library, the first of
- * `collection` (a collection file links it), `album` (a present file of it is on an album the
+ * `collection` (a collection file links it and the collection counts for the user), `album` (a present file of it is on an album the
  * user saved) and `saved` (the user saved the recording), or null when it is not. Only `saved`
  * is something removing the track takes away: in the other two it stays.
  */
 export function recordingLibrary(recording: string, userId: string | null): SQL {
-  if (!userId) return sql`case when ${collectedRecording(recording)} then 'collection' end`
+  if (!userId) return sql`case when ${collectedRecording(recording, null)} then 'collection' end`
   return sql`case
-    when ${collectedRecording(recording)} then 'collection'
+    when ${collectedRecording(recording, userId)} then 'collection'
     when ${savedAlbumHolds(recording, userId)} then 'album'
     when ${saved('recording', recording, userId)} then 'saved'
   end`
 }
 
-function collectedRecording(recording: string): SQL {
-  return sql`exists (select 1 from media_files collected where collected.recording_id = ${sql.raw(recording)} and ${collectionFile('collected')})`
+/** SQL condition: a collection file links the recording, and the collection counts for the user. */
+function collectedRecording(recording: string, userId: string | null): SQL {
+  return sql`(${collectionCounts(userId)} and exists (select 1 from media_files collected where collected.recording_id = ${sql.raw(recording)} and ${collectionFile('collected')}))`
 }
 
 function savedAlbumHolds(recording: string, userId: string): SQL {

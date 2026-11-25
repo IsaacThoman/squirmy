@@ -3,7 +3,7 @@ import type { SquirmySocket } from '@squirmy/client-core/socket'
 import {
   DEFAULT_ORGANIZE_TEMPLATE, ORGANIZE_TEMPLATE_TOKENS,
   type AcquisitionPolicy, type AlbumPage, type CommandEnvelope, type DeviceInfo, type Import, type LibraryItemPage, type LibraryRoot, type LibraryStats, type OrganizeTemplateInfo, type PlaylistSummary,
-  type ScrobblingStatus, type SearchKind, type SessionHello, type SetupStatus, type TrackSummariesRequest, type User, type WantItem,
+  type ScrobblingStatus, type SearchKind, type SessionHello, type SetupStatus, type TrackSummariesRequest, type UploadAlbum, type UploadFile, type User, type WantItem,
 } from '@squirmy/contracts'
 import { vi } from 'vitest'
 import type { Services } from '@/api/services'
@@ -135,7 +135,7 @@ export class FakeSocket {
 }
 
 type SearchParams = { q: string; limit?: number; type?: SearchKind; offset?: number }
-const list = <T>(items: T[]) => ({ items, nextCursor: null })
+const list = <T>(items: T[]) => ({ items, nextCursor: null as string | null })
 const ok = { ok: true as const }
 const notFound = () => new ApiError(404, 'not_found', 'Not found')
 const found = <T>(value: T | null | undefined): T => {
@@ -173,6 +173,17 @@ export const upload: Import = {
   },
   createdAt: '2026-11-20T10:00:00.000Z', updatedAt: '2026-11-20T10:02:00.000Z', completedAt: '2026-11-20T10:02:00.000Z',
 }
+
+/** One album the fixture admin uploaded, and its two songs. */
+export const uploadAlbum: UploadAlbum = {
+  album: libraryAlbums[0]!,
+  uploader: { id: currentUser.id, username: currentUser.username, displayName: currentUser.displayName },
+  fileCount: 2, bytes: 20 * 1024 ** 2, uploadedAt: '2026-11-20T10:02:00.000Z',
+}
+export const uploadFiles: UploadFile[] = libraryTracks.slice(0, 2).map((track, index) => ({
+  fileId: `00000000-0000-4000-8b00-00000000000${index + 1}`, track, title: track.title, uploader: uploadAlbum.uploader,
+  codec: 'flac', bytes: 10 * 1024 ** 2, durationMs: track.durationMs, uploadedAt: uploadAlbum.uploadedAt,
+}))
 
 const policy: AcquisitionPolicy = { preferLossless: true, maxFileBytes: 5e8, storageQuotaBytes: 0, timeoutSeconds: 900, targetRootId: null, deliveryBaseUrl: null }
 
@@ -246,6 +257,9 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
       albums: vi.fn(async () => list(libraryAlbums)),
       artists: vi.fn(async () => list(libraryArtists)),
       tracks: vi.fn(async () => list(libraryTracks)),
+      collectionAlbums: vi.fn(async () => list(libraryAlbums)),
+      collectionArtists: vi.fn(async () => list(libraryArtists)),
+      collectionTracks: vi.fn(async () => list(libraryTracks)),
       genres: vi.fn(async () => list(genres.map(genre => ({ name: genre.name, albumCount: 1 })))),
       album: vi.fn(async (id: string) => found(albumDetail(id))),
       artist: vi.fn(async (id: string) => found(artistDetail(id))),
@@ -289,6 +303,16 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
       get: vi.fn(async (id: string) => (id === upload.id ? upload : found(null))),
       albums: vi.fn(async () => list([{ album: libraryAlbums[0], files: 5, filed: true }])),
       cancel: vi.fn(async () => ({ ...upload, status: 'failed', error: 'Cancelled' })),
+    },
+    uploads: {
+      list: vi.fn(async () => list([uploadAlbum])),
+      album: vi.fn(async () => list(uploadFiles)),
+      deleteAlbum: vi.fn(async () => ({ deletedFiles: 2, deletedBytes: 20 * 1024 ** 2, keptFiles: 0 })),
+      deleteFile: vi.fn(async () => ({ deletedFiles: 1, deletedBytes: 10 * 1024 ** 2, keptFiles: 0 })),
+      adminList: vi.fn(async () => list([uploadAlbum, { ...uploadAlbum, uploader: null }])),
+      adminAlbum: vi.fn(async () => list(uploadFiles)),
+      adminDeleteAlbum: vi.fn(async () => ({ deletedFiles: 2, deletedBytes: 20 * 1024 ** 2, keptFiles: 0 })),
+      adminDeleteFile: vi.fn(async () => ({ deletedFiles: 1, deletedBytes: 10 * 1024 ** 2, keptFiles: 0 })),
     },
     acquisition: {
       providers: vi.fn(async () => list([])),

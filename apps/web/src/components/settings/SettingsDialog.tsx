@@ -2,7 +2,7 @@ import {
   ChangePasswordRequest, ConnectListenBrainzRequest, CreateAppPasswordRequest, UpdateUserRequest,
   type AppPassword, type NormalizationMode, type ScrobbleService, type ScrobbleTarget, type ScrobblingStatus, type StreamQuality, type UpdateUserSettings, type User, type UserSettings,
 } from '@squirmy/contracts'
-import { AlertTriangle, AudioLines, Check, CircleCheck, Info, KeyRound, LogOut, Palette, Pencil, Plus, Radio, ShieldCheck, User as UserIcon, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, AudioLines, Check, CircleCheck, FolderUp, Info, KeyRound, Library, LogOut, Palette, Pencil, Plus, Radio, ShieldCheck, User as UserIcon, type LucideIcon } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { useFormSubmit } from '@/api/errors'
 import { Button } from '@/components/ui/button'
@@ -21,6 +21,7 @@ import type { SettingsSection } from './settings-dialog'
 
 const sections: { id: SettingsSection; label: string; icon: LucideIcon }[] = [
   { id: 'playback', label: 'Playback', icon: AudioLines },
+  { id: 'library', label: 'Library', icon: Library },
   { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'account', label: 'Account', icon: UserIcon },
   { id: 'scrobbling', label: 'Scrobbling', icon: Radio },
@@ -82,10 +83,12 @@ export type SettingsDialogProps = {
   onLogout: () => void
   /** Admins get a link to the admin panel under the sections. */
   onOpenAdmin?: () => void
+  /** Whoever may upload gets a link to Your uploads in the Library section. */
+  onOpenUploads?: () => void
   /** Said in place of a section's controls when its first read failed. */
   failures?: Partial<Record<'settings' | 'scrobbling' | 'appPasswords', ReactNode>>
   /** A change the section's controls made that the server refused, said under them. */
-  errors?: Partial<Record<'playback' | 'scrobbling', string>>
+  errors?: Partial<Record<'playback' | 'library' | 'scrobbling', string>>
   /** What Last.fm answered when it sent the browser back here, said at the top of Scrobbling. */
   lastFm?: { message: string; ok: boolean }
   /** The password was changed while the dialog is open: the Account section says so. */
@@ -98,7 +101,7 @@ const SAVED_MS = 2500
 /** The user's settings in a dialog: sections down the left, the chosen one on the right. */
 export function SettingsDialog({
   open, onOpenChange, section, onSectionChange, user, serverName, version, settings, onSettingsChange, deviceName, defaultDeviceName, onDeviceNameChange,
-  scrobbling, onConnectListenBrainz, onConnectLastFm, onDisconnect, appPasswords, onCreateAppPassword, onRevokeAppPassword, onChangePassword, onRename, onLogout, onOpenAdmin, failures,
+  scrobbling, onConnectListenBrainz, onConnectLastFm, onDisconnect, appPasswords, onCreateAppPassword, onRevokeAppPassword, onChangePassword, onRename, onLogout, onOpenAdmin, onOpenUploads, failures,
   errors, lastFm, passwordChanged,
 }: SettingsDialogProps) {
   // The field shows the new name; "Saved" beside it says it reached the device lists.
@@ -194,6 +197,33 @@ export function SettingsDialog({
                     }}
                   />
                 </Row>
+              </Panel>
+            )}
+
+            {section === 'library' && (
+              <Panel title="Library" description="Your library is what you heart, with the music you upload. Everything on this server is on Home, and plays for everyone.">
+                {settings ? (
+                  <Row
+                    htmlFor="library-server-music"
+                    label="Show all of this server’s music in your library"
+                    description="Adds every album on this server to your library, as well as what you heart. Turn it off to keep your library to your own picks."
+                  >
+                    <Switch
+                      id="library-server-music"
+                      checked={settings.libraryIncludesServerMusic}
+                      onCheckedChange={libraryIncludesServerMusic => onSettingsChange({ libraryIncludesServerMusic })}
+                    />
+                  </Row>
+                ) : failures?.settings ?? <LoadingRows rows={1} />}
+                <FormError message={errors?.library} />
+                {onOpenUploads && (
+                  <>
+                    <Separator />
+                    <Row label="Your uploads" description="See and delete the music you uploaded to this server.">
+                      <Button size="sm" variant="outline" onClick={onOpenUploads}><FolderUp />Manage</Button>
+                    </Row>
+                  </>
+                )}
               </Panel>
             )}
 

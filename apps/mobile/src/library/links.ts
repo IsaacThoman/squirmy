@@ -9,6 +9,11 @@ export function pageHref(tab: Tab, page: Page, id: string): Href {
   return { pathname: `/(tabs)/(${tab})/${page}/[id]`, params: { id } } as Href;
 }
 
+/** On this server (the server's music, Home's See all), over a tab's own stack. */
+export function serverMusicHref(tab: Exclude<Tab, 'search'>): Href {
+  return `/(tabs)/(${tab})/collection` as Href;
+}
+
 /** The tab on screen, also from a sheet or Now Playing above it. */
 export function useCurrentTab(): Tab {
   return tabIn(useRootNavigationState());
@@ -34,5 +39,6 @@ export function useBrowseBackLabel() {
     case 'genre': return 'Genre';
     case 'releases': return 'Releases';
     case 'songs': return 'Songs';
+    case 'collection': return 'On this server';
   }
 }

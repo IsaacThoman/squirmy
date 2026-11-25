@@ -4,19 +4,19 @@ Squirmy speaks the [OpenSubsonic](https://opensubsonic.netlify.app/) API, so app
 
 The API was tested against py-opensonic, py-sonic, subsonic-api (Node) and the Airsonic Refix web client. Other apps (Symfonium, Amperfy, play:Sub, Substreamer, DSub, Feishin, Supersonic and so on) speak the same API but have not been tried; reports are welcome.
 
-Subsonic apps see **your library only**, and only the parts of it with a file on the server, because these apps sync their lists and expect to play anything in them at once:
+Subsonic apps see **your library only**, and only the parts of it with a file on the server, because these apps sync their lists and expect to play anything in them at once. Your library is what you hearted (starred) and uploaded, plus the server's collection if you turn on **Show all of this server’s music in your library** in the web app's **Settings → Library**:
 
-- **Albums**: the server's collection (music scanned from your folders, uploaded or imported) and the albums you added to your library in Squirmy, once at least one of their songs has a file. An album you added shows only the songs that have arrived so far.
-- **Songs**: the collection's, the songs you added, and the songs of albums you added, when they have a file.
+- **Albums**: the albums you added to your library in Squirmy (your uploads included), once at least one of their songs has a file, and with the setting on the server's collection (music scanned from your folders, uploaded or imported). An album you added shows only the songs that have arrived so far.
+- **Songs**: the songs you added and the songs of albums you added, when they have a file, and with the setting on the collection's.
 - **Artists**: those credited on the albums or songs above.
 
-Music the server fetched only because someone played it is not in anyone's library, so it stays out of albums, artists, search, random songs and genres. Once your server streams through a provider, Subsonic apps therefore show fewer albums than they used to: your library, not everything that was ever played. Add an album to your library in Squirmy's web or phone app to see it in Subsonic apps too. Each person sees their own additions; the collection is shared.
+Music the server fetched only because someone played it is not in anyone's library, so it stays out of albums, artists, search, random songs and genres. Once your server streams through a provider, Subsonic apps therefore show fewer albums than they used to: your library, not everything that was ever played. Add an album to your library in Squirmy's web or phone app to see it in Subsonic apps too. Each person sees their own additions; the collection is shared, and searching with a query finds all of it.
 
 Starred songs and playlists are your own picks, so they show every song with a file on the server, whether or not it is in your library; starred albums and artists show only when they are in it. A song that has a file can always be streamed by its id.
 
 ## Connect an app
 
-1. In Squirmy, open **Settings → App passwords** and choose **Create**. Name it after the app ("Symfonium on my phone"), enter your account password, and choose **Create**.
+1. In Squirmy's web app, open **Settings → App passwords** and choose **Create** (the iOS app doesn't make app passwords). Name it after the app ("Symfonium on my phone"), enter your account password, and choose **Create**.
 2. Copy the password. It is shown once.
 3. In the app, add a Subsonic (or OpenSubsonic, or Navidrome) server:
    - **Server address**: the address you open Squirmy at, such as `https://music.example.com`. Do not add `/rest`.
@@ -63,7 +63,7 @@ Requests can be GET or form POST, with or without `.view`, and answers come as X
 - **Scrobbles are plays.** A scrobble adds the play to your history at the time the app reports, and from there to ListenBrainz or Last.fm when you have connected them. A "now playing" notice shows in `getNowPlaying` until the song would have ended.
 - **The play queue is your Squirmy queue.** Save the queue in one app and Squirmy's web and phone apps pick it up paused at the same point, and the other way round. Tracks a Subsonic app saved before its current song are remembered until the queue changes in Squirmy. Of a very long queue, 5,000 tracks from the current song on, and 5,000 before it, are kept.
 - **Music folders are library roots.** Apps that filter by folder see one folder per root.
-- **Your library is Squirmy's library**, the music on the server plus what you saved, limited to songs whose files are on the server: an album you starred shows once its files have arrived.
+- **Your library is Squirmy's library**, what you saved (plus the music on the server with the setting on), limited to songs whose files are on the server: an album you starred shows once its files have arrived. A search with a query, and opening an album or artist by id, also reach the server's collection, so search finds everything the server has.
 - **Similar songs and artists** come from Squirmy's radio, limited to your library.
 - **ReplayGain** values on songs are Squirmy's loudness measurements (or the file's own tags until a file is measured), relative to -18 LUFS.
 

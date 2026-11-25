@@ -24,15 +24,17 @@ type AnyPage = z.ZodObject<{ items: z.ZodArray<z.ZodType>; nextCursor: z.ZodNull
 type User = Awaited<ReturnType<typeof signIn>>
 
 /**
- * Library membership (docs/architecture.md, "Availability"): the collection, which every
- * user has, plus each user's saves. Files a provider delivered are cache and put nothing
- * in a library by themselves.
+ * Library membership (docs/architecture.md, "Availability"): each user's saves, plus the
+ * collection for a user who includes the server's music (`libraryIncludesServerMusic`).
+ * `owner` and `other` include it, so most cases here cover both ways in; `fresh` keeps the
+ * default. Files a provider delivered are cache and put nothing in a library by themselves.
  */
 describe('library membership', () => {
   useTestDatabase()
   let app: FastifyInstance
   let owner: User
   let other: User
+  let fresh: User
   const ids = (items: { id: string }[]) => items.map((item) => item.id)
   const fetched = 'provider:00000000-0000-7000-8000-000000000000'
 
@@ -64,8 +66,9 @@ describe('library membership', () => {
 
   beforeAll(async () => {
     app = await buildApp()
-    owner = await signIn()
-    other = await signIn()
+    owner = await signIn({ settings: { libraryIncludesServerMusic: true } })
+    other = await signIn({ settings: { libraryIncludesServerMusic: true } })
+    fresh = await signIn()
   })
   beforeEach(async () => {
     await db.delete(likes)
@@ -106,11 +109,11 @@ describe('library membership', () => {
     expect(await albumIds(other)).toEqual([scanned.albumId])
     expect(body(await get(other, `/albums/${wanted.albumId}`), AlbumDetail).library).toBeNull()
 
-    const home = body(await get(owner, '/home'), HomeResponse)
-    const added = home.sections.find((section) => section.id === 'recently-added')
-    expect(added?.kind === 'albums' && ids(added.albums)).toEqual([wanted.albumId, scanned.albumId])
-    const theirs = body(await get(other, '/home'), HomeResponse).sections.find((section) => section.id === 'recently-added')
-    expect(theirs?.kind === 'albums' && ids(theirs.albums)).toEqual([scanned.albumId])
+    // Home's Recently added is the server's music, the same for both: not a save without files.
+    for (const user of [owner, other]) {
+      const added = body(await get(user, '/home'), HomeResponse).sections.find((section) => section.id === 'recently-added')
+      expect(added?.kind === 'albums' && ids(added.albums)).toEqual([scanned.albumId])
+    }
 
     // Its artist is a library artist for the saver only; its songs wait for their files.
     expect(await artistNames(owner)).toEqual([scanned.artist.name, wanted.artist.name].sort())
@@ -355,6 +358,81 @@ describe('library membership', () => {
     }
     expect(await run((shape) => libraryArtistsQuery(owner.id, { limit: 50 }, shape))).toHaveLength(4)
     expect(await run((shape) => libraryArtistsQuery(other.id, { limit: 50 }, shape))).toHaveLength(2)
+  })
+
+  it("keeps a library to the user's saves unless they include the server's music", async () => {
+    const scanned = await createAlbum({ title: 'On the server', owned: true })
+    const uploaded = await createAlbum({ title: 'Someone uploaded', owned: true, source: 'upload' })
+    await db.update(albums).set({ genres: ['Folk'] }).where(eq(albums.id, scanned.albumId))
+    for (const sort of ['recent', 'title', 'artist', 'year']) {
+      expect(await albumIds(fresh, sort)).toEqual([])
+      expect(await trackIds(fresh, sort)).toEqual([])
+    }
+    expect(await artistNames(fresh)).toEqual([])
+    expect(body(await get(fresh, '/library/genres'), GenrePage).items).toEqual([])
+    // The music is still there to play, and its pages say it is not in this library.
+    const page = body(await get(fresh, `/albums/${scanned.albumId}`), AlbumDetail)
+    expect(page).toMatchObject({ availability: 'full', library: null })
+    expect(page.discs[0]!.tracks.every((track) => track.availability === 'server' && !track.inLibrary && track.library === null)).toBe(true)
+    expect(body(await get(fresh, `/artists/${scanned.artist.id}`), ArtistDetail).inLibrary).toBe(false)
+
+    // A heart brings in the album, its songs with files and its artist.
+    await save(fresh, 'album', scanned.albumId)
+    expect(await albumIds(fresh)).toEqual([scanned.albumId])
+    expect(body(await get(fresh, `/albums/${scanned.albumId}`), AlbumDetail).library).toBe('saved')
+    expect((await trackIds(fresh)).sort()).toEqual(scanned.tracks.map((track) => track.recordingId).sort())
+    expect(await artistNames(fresh)).toEqual([scanned.artist.name])
+
+    // Including the server's music brings the rest; the setting is the user's alone.
+    const turned = await app.inject({ method: 'PATCH', url: '/api/v1/me/settings', headers: fresh.headers, payload: { libraryIncludesServerMusic: true } })
+    expect(turned.json()).toMatchObject({ libraryIncludesServerMusic: true })
+    expect((await albumIds(fresh, 'title')).sort()).toEqual([scanned.albumId, uploaded.albumId].sort())
+    expect(body(await get(fresh, `/albums/${scanned.albumId}`), AlbumDetail).library).toBe('collection')
+    await app.inject({ method: 'PATCH', url: '/api/v1/me/settings', headers: fresh.headers, payload: { libraryIncludesServerMusic: false } })
+    expect(await albumIds(fresh)).toEqual([scanned.albumId])
+  })
+
+  it("lists the server's music under /collection for everyone, whatever their library", async () => {
+    const root = (await createLibraryRoot()).id
+    const minute = (n: number) => new Date(Date.UTC(2026, 0, 1, 0, n))
+    const older = await createAlbum({ title: 'Older', tracks: [{ title: 'old a' }, { title: 'old b' }] })
+    const newer = await createAlbum({ title: 'Newer', tracks: [{ title: 'new a' }] })
+    for (const [index, track] of older.tracks.entries()) {
+      await createFile({ rootId: root, recordingId: track.recordingId, albumId: older.albumId, addedAt: minute(1), relPath: `older/0${index + 1}.flac` })
+    }
+    await createFile({ rootId: root, recordingId: newer.tracks[0]!.recordingId, albumId: newer.albumId, addedAt: minute(2), source: 'upload' })
+    // Neither cache nor a save without files is the server's music.
+    await createAlbum({ title: 'Cached', owned: true, source: fetched })
+    const wanted = await createAlbum({ title: 'Wanted' })
+    await save(fresh, 'album', wanted.albumId)
+    await db.update(albums).set({ genres: ['Folk'] }).where(eq(albums.id, older.albumId))
+
+    for (const user of [fresh, owner]) {
+      for (const limit of [1, 200]) {
+        expect(ids(await walk(user, '/collection/albums?sort=recent', AlbumPage, limit))).toEqual([newer.albumId, older.albumId])
+        expect(ids(await walk(user, '/collection/tracks?sort=recent', TrackPage, limit)))
+          .toEqual([newer.tracks[0]!.recordingId, older.tracks[0]!.recordingId, older.tracks[1]!.recordingId])
+      }
+      expect(ids(await walk(user, '/collection/albums?sort=title', AlbumPage, 1))).toEqual([newer.albumId, older.albumId])
+      expect(ids(await walk(user, '/collection/albums?sort=recent&genre=folk', AlbumPage, 5))).toEqual([older.albumId])
+      expect((await walk(user, '/collection/artists', ArtistPage, 1)).map((artist) => artist.name).sort())
+        .toEqual([older.artist.name, newer.artist.name].sort())
+      for (const sort of ['title', 'artist', 'year']) {
+        expect(ids(await walk(user, `/collection/tracks?sort=${sort}`, TrackPage, 2))).toHaveLength(3)
+      }
+    }
+    // Rows still say whether the viewer has them.
+    const tracks = await walk(fresh, '/collection/tracks', TrackPage, 10)
+    expect(tracks.every((track) => !track.inLibrary)).toBe(true)
+    expect((await walk(owner, '/collection/tracks', TrackPage, 10)).every((track) => track.inLibrary)).toBe(true)
+
+    // The server's lists read the same from the members as from the catalog index.
+    for (const sort of ['title', 'artist', 'year'] as const) {
+      const [small, large] = await Promise.all((['small', 'large'] as const).map(async (shape) =>
+        (await db.execute<{ id: string }>(libraryAlbumsQuery(null, { sort, limit: 50 }, shape))).map((row) => row.id)))
+      expect(small).toEqual(large)
+      expect(small).toHaveLength(2)
+    }
   })
 
   it('rejects cursors of the recent order from before saves', async () => {

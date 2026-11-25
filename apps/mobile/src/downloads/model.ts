@@ -1,4 +1,4 @@
-import { ApiError, isPlayable, UNAVAILABLE_LABEL, type Viewer } from '@squirmy/client-core';
+import { ApiError, formatBytes, GIGABYTE, isPlayable, plural, UNAVAILABLE_LABEL, type Viewer } from '@squirmy/client-core';
 import type {
   AcquisitionJob, AlbumDetail, Artwork, PlaybackDescriptor, PlaylistSummary, StreamQuality, TrackSummary,
 } from '@squirmy/contracts';
@@ -326,9 +326,7 @@ const waiting: Record<WaitReason, string> = {
   storage: 'Storage limit reached',
 };
 
-function songs(count: number) {
-  return `${count} ${count === 1 ? 'song' : 'songs'}`;
-}
+const songs = (count: number) => plural(count, 'song');
 
 /**
  * The line under a collection's buttons while it is downloaded or downloading. It counts
@@ -397,10 +395,14 @@ export function canPlay(track: Pick<TrackSummary, 'id' | 'availability'>, { offl
   return isPlayable(track, viewer);
 }
 
-export function formatBytes(bytes: number): string {
-  if (bytes < 1000 ** 2) return `${Math.max(0, Math.round(bytes / 1000))} KB`;
-  if (bytes < 1000 ** 3) return `${(bytes / 1000 ** 2).toFixed(bytes < 10 * 1000 ** 2 ? 1 : 0)} MB`;
-  return `${(bytes / 1000 ** 3).toFixed(bytes < 10 * 1000 ** 3 ? 1 : 0)} GB`;
+/**
+ * A size limit as chosen, from one saved before limits were counted in 1024s, when
+ * `5 GB` was 5·1000³ bytes: the same choice in today's gigabytes. Anything else is as saved.
+ */
+export function savedLimit<T extends number | null | undefined>(bytes: T): T {
+  if (typeof bytes !== 'number' || bytes <= 0) return bytes;
+  const decimal = bytes / 1000 ** 3;
+  return (Number.isInteger(decimal) ? decimal * GIGABYTE : bytes) as T;
 }
 
 /** The small mark a downloaded (or downloading) track carries next to its artist. */

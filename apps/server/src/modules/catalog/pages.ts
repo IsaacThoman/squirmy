@@ -12,7 +12,7 @@ import { ensureAlbumDetail, ensureArtistDetail, ensureLyrics } from '../enrichme
 import { specialPurposeArtists } from '../metadata/musicbrainz.js'
 import { canStartArtistRadio, similarArtists } from '../radio/index.js'
 import { releaseKey } from '../search/keys.js'
-import { canonicalRelease, collectionFile } from './availability.js'
+import { canonicalRelease, collectionCounts, collectionFile } from './availability.js'
 import { resolveOne } from './redirects.js'
 import { alignedTrackSummaries, albumSummaries, artistSummaries, trackSummaries } from './summaries.js'
 
@@ -129,9 +129,10 @@ export async function albumDetail(userId: string, id: string): Promise<AlbumDeta
       select coalesce(rl.release_date, a.release_date) as "releaseDate", a.genres, a.description, rl.label,
         exists (select 1 from likes l where l.user_id = ${userId} and l.entity_type = 'album' and l.entity_id = a.id) as liked,
         exists (select 1 from wants w where w.user_id = ${userId} and w.entity_type = 'album' and w.entity_id = a.id and w.fulfilled_at is null) as wanted,
-        -- A collection album is everyone's; the heart (liked) shows the viewer's own save.
+        -- A collection album is in the library of everyone the collection counts for; the
+        -- heart (liked) shows the viewer's own save.
         case
-          when exists (select 1 from media_files f where f.album_id = a.id and ${collectionFile('f')}) then 'collection'
+          when ${collectionCounts(userId)} and exists (select 1 from media_files f where f.album_id = a.id and ${collectionFile('f')}) then 'collection'
           when exists (select 1 from likes li where li.user_id = ${userId} and li.entity_type = 'album' and li.entity_id = a.id) then 'saved'
         end as library
       from albums a left join releases rl on rl.id = ${canonicalRelease('a')}

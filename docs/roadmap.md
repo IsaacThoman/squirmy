@@ -58,7 +58,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Similar artists on artist pages, genre pages
 - [x] New-release feed on Home (server, web and iOS)
 - [x] Wantlist (server, iOS add, web), opt-in behind `wantlistEnabled`
-- [ ] Wantlist: hide it on the web while `wantlistEnabled` is off, add the switch to Admin → Server settings, and let iOS remove a want
+- [x] Wantlist: hidden on the web while `wantlistEnabled` is off, the switch in Admin → Server settings, and removing a want on iOS
 - [x] Gray-out on web
 - [x] Gray-out on mobile
 - [x] One heart: hearting a song, album or artist is what saves it to the library, on web, iOS and Subsonic (stars); the web Library is one combined view like the phone's
@@ -68,6 +68,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 
 - [x] Imports: upload API, inbox folder, staging, zip extraction, duplicates, filing into a managed root (server)
 - [x] Upload screen in the web app: folders, files and zips with progress, pause and cancel; the imports list and detail; import settings
+- [x] A personal library: the library is what you heart (uploads hearted for their uploader), the server's music on Home and On this server, an opt-in to include all of it; Your uploads and Admin → Uploads to delete uploaded music (web; iOS next)
 - [x] Fingerprinting for untagged files
 - [x] Offline downloads on mobile
 

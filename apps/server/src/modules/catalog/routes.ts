@@ -55,6 +55,24 @@ export async function catalogRoutes(app: FastifyInstance) {
     return cachedRead(request, reply, { userId, tags: lists }, () => listLibraryGenres(userId, query))
   })
 
+  // The server's music: the same lists over the collection alone, nobody's saves, with the
+  // per-viewer fields (`inLibrary`) still the viewer's.
+  app.get('/collection/albums', async (request, reply) => {
+    const userId = requireUser(request).id
+    const query = LibraryQuery.parse(request.query)
+    return cachedRead(request, reply, { userId, tags: lists }, () => listLibraryAlbums(null, query))
+  })
+  app.get('/collection/artists', async (request, reply) => {
+    const userId = requireUser(request).id
+    const query = LibraryQuery.parse(request.query)
+    return cachedRead(request, reply, { userId, tags: lists }, () => listLibraryArtists(null, query, userId))
+  })
+  app.get('/collection/tracks', async (request, reply) => {
+    const userId = requireUser(request).id
+    const query = LibraryQuery.parse(request.query)
+    return cachedRead(request, reply, { userId, tags: lists }, () => listLibraryTracks(null, query, userId))
+  })
+
   app.get('/home', async (request, reply) => {
     const userId = requireUser(request).id
     return cachedRead(request, reply, { userId, tags: everything, rewarm: true }, () => home(userId))

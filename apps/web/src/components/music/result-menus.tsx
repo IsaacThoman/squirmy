@@ -68,6 +68,7 @@ export function useResultMenus() {
       artists: album.artists,
       playable: plays,
       onPlay: () => void playAlbum(album),
+      onShuffle: () => void playAlbum(album, { shuffle: true }),
       onEnqueue: placement => enqueue(album, placement),
       playlists: library.playlists,
       onAddToPlaylist: playlist => withTracks(album, tracks => {

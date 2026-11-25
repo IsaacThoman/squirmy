@@ -1,4 +1,4 @@
-import { planChanges, TrackStore } from '@squirmy/client-core';
+import { cachedInLibrary, heartFields, heartRollback, planChanges, TrackStore } from '@squirmy/client-core';
 import {
   queryKeys, type AlbumDetail, type LikeEntityType, type Page, type PlaylistDetail, type PlaylistSummary, type TrackSummary,
   type WantEntityType,
@@ -13,7 +13,7 @@ import { heartFailure } from '../library/heart';
 import { playlistEditFailure, wantFailure } from '../library/failures';
 import { accountItem } from './accountStorage';
 import { applyChanges } from './changes';
-import { LikeQueue, type QueuedLike } from './likeQueue';
+import { LikeQueue, likeRetryDelay, type QueuedLike } from './likeQueue';
 import { findTrack, remembersToDrop, withLikedTrack } from './likePatch';
 import { useRealtime } from './realtime';
 
@@ -49,20 +49,17 @@ type LibraryValue = {
 const LibraryContext = createContext<LibraryValue | null>(null);
 
 const noSummaries = () => Promise.reject(new Error('Signed out'));
-/** Likes the server could not take (a 5xx, a dropped request) are sent again after this, then twice as long each time. */
-const retryFirstMs = 15_000;
-const retryMaxMs = 4 * 60_000;
 const likedTracksKey = [...queryKeys.likes(), 'track'];
 
 /**
  * Shows a heart everywhere at once, as the same `patch` change the server then sends every
  * device of the user (`applyChanges`): every cached answer that carries the item gets the new
  * flag, and Liked Songs gains or loses the track, so nothing has to be fetched again. A
- * hearted track is in the library; an unhearted one may still be (its album, the server's
- * collection), so `inLibrary` waits for the server's patch then.
+ * hearted track or artist is in the library; an unhearted one may still be (its saved album, or the
+ * server's collection for a user who includes it), so `inLibrary` waits for the server's patch then
+ * (`heartFields`). A refusal passes the `fields` that put the item back as it was.
  */
-function patchLike(queryClient: QueryClient, type: LikeEntityType, id: string, liked: boolean) {
-  const fields = type === 'track' && liked ? { liked, inLibrary: true } : { liked };
+function patchLike(queryClient: QueryClient, type: LikeEntityType, id: string, liked: boolean, fields = heartFields(type, liked)) {
   applyChanges(queryClient, planChanges([{ kind: 'patch', entity: type, id, fields }]), { own: true });
   if (type !== 'track') return;
   const queries = queryClient.getQueryCache().getAll();
@@ -81,7 +78,9 @@ function patchLike(queryClient: QueryClient, type: LikeEntityType, id: string, l
 /**
  * What the user keeps: hearts (their library), the wantlist and the track summaries every
  * screen shares. Hearts apply at once. Made offline, they wait in a queue (kept across
- * launches) and are sent when the server is back; one the server refuses rolls back.
+ * launches) and are sent when the server is back. One the server refuses (a 500 included)
+ * rolls back and says so on the heart, as on web; so does one that still cannot reach the
+ * server after a few tries while the app is online (`likeRetryDelay`).
  */
 export function LibraryProvider({ children }: PropsWithChildren) {
   const api = useSignedInApi();
@@ -132,7 +131,7 @@ export function LibraryProvider({ children }: PropsWithChildren) {
 
   const isOffline = useRef(offline);
   isOffline.current = offline;
-  const retry = useRef<{ timer?: ReturnType<typeof setTimeout>; delayMs: number }>({ delayMs: retryFirstMs });
+  const retry = useRef<{ timer?: ReturnType<typeof setTimeout>; failedTries: number }>({ failedTries: 0 });
   const { failures: likeFailures, fail: failLike, drop: dropLikeFailure } = useBriefFailures<boolean>();
   const flush = useCallback(() => {
     if (!queue) return;
@@ -145,20 +144,28 @@ export function LibraryProvider({ children }: PropsWithChildren) {
         remember(`${like.type}:${like.id}`, undefined);
         patchLike(queryClient, like.type, like.id, like.liked);
       }
-      for (const like of refused) {
+      const rollBack = (like: QueuedLike) => {
         remember(`${like.type}:${like.id}`, undefined);
-        patchLike(queryClient, like.type, like.id, !like.liked);
+        patchLike(queryClient, like.type, like.id, !like.liked, heartRollback(like.type, like.liked, like.inLibrary));
         // The heart shows it, and a tap on it sends the same change again.
         failLike(`${like.type}:${like.id}`, like.liked);
         announce(heartFailure(like.liked, like.title));
+      };
+      refused.forEach(rollBack);
+      // Offline, the reconnect sends what is left, however long that takes: hearts made on
+      // a plane wait for the ground. Online, the server could not be reached, so try again a
+      // few times, then give up and say so rather than show a heart that never saved.
+      if (!queue.pending.length || isOffline.current) {
+        retry.current.failedTries = 0;
+        return;
       }
-      // Offline, the reconnect sends what is left; online, the server failed, so try again later.
-      if (queue.pending.length && !isOffline.current) {
-        clearTimeout(retry.current.timer);
-        retry.current.timer = setTimeout(flush, retry.current.delayMs);
-        retry.current.delayMs = Math.min(retry.current.delayMs * 2, retryMaxMs);
-      } else if (!queue.pending.length) {
-        retry.current.delayMs = retryFirstMs;
+      const delay = likeRetryDelay(++retry.current.failedTries);
+      clearTimeout(retry.current.timer);
+      if (delay === null) {
+        retry.current.failedTries = 0;
+        queue.giveUp().forEach(rollBack);
+      } else {
+        retry.current.timer = setTimeout(flush, delay);
       }
     });
   }, [failLike, queryClient, queue, remember]);
@@ -171,10 +178,12 @@ export function LibraryProvider({ children }: PropsWithChildren) {
   const change = useCallback((like: QueuedLike) => {
     if (!queue) return;
     const { type, id, liked } = like;
+    // What a refusal puts back, read before the heart changes it.
+    const inLibrary = cachedInLibrary(queryClient.getQueryCache().getAll().map(query => query.state.data), id);
     dropLikeFailure(`${type}:${id}`);
     remember(`${type}:${id}`, liked);
     patchLike(queryClient, type, id, liked);
-    queue.add(like);
+    queue.add(inLibrary === undefined ? like : { ...like, inLibrary });
     flush();
   }, [dropLikeFailure, flush, queryClient, queue, remember]);
   const setLiked = useCallback((type: LikeEntityType, id: string, liked: boolean, title?: string) =>
@@ -323,7 +332,7 @@ export function useWanted(id: string | undefined, fromServer?: boolean): boolean
 
 type AddChange = { id: string; tracks: readonly TrackSummary[]; anyway?: boolean };
 
-/** What adding answered: `skipped` when the playlist already had the songs, so the server left them out. */
+/** What adding answered: `skipped` when the playlist already had some of the songs, so the server left them out. */
 export type AddResult = { skipped: boolean };
 
 /**
@@ -335,7 +344,7 @@ export type AddResult = { skipped: boolean };
 export function usePlaylistActions() {
   const api = useSignedInApi();
   const queryClient = useQueryClient();
-  const { failPlaylist } = useLibrary();
+  const { failPlaylist, tracks: trackStore } = useLibrary();
   const settle = (playlist: PlaylistDetail | PlaylistSummary) => {
     if ('items' in playlist) queryClient.setQueryData(queryKeys.playlist(playlist.id), playlist);
     void queryClient.invalidateQueries({ queryKey: [...queryKeys.playlists(), 'list'] });
@@ -408,6 +417,21 @@ export function usePlaylistActions() {
      */
     has: (id: string, trackId: string) => cached(id)?.items.some(item => item.track.id === trackId),
     /**
+     * The tracks the playlist has already, from its page, which is loaded first when it is not
+     * cached (as on web, a minute-old copy is current enough: the server's invalidations refresh
+     * it). Empty when it can't be loaded: the server still leaves duplicates out.
+     */
+    repeated: async (id: string, tracks: readonly TrackSummary[]): Promise<TrackSummary[]> => {
+      const detail = api ? await queryClient.fetchQuery({ queryKey: queryKeys.playlist(id), queryFn: async () => {
+        const playlist = await api.userdata.playlist(id);
+        trackStore.prime(playlist.items.map(item => item.track));
+        return playlist;
+      }, staleTime: 60_000 })
+        .catch(() => undefined) : cached(id);
+      const there = new Set(detail?.items.map(item => item.track.id));
+      return tracks.filter(track => there.has(track.id));
+    },
+    /**
      * Adds the tracks, leaving out ones the playlist has unless `anyway` (the person chose to
      * add them again). Resolves once the server has answered; rejects when it refused.
      */
@@ -415,8 +439,8 @@ export function usePlaylistActions() {
       options: { anyway?: boolean } = {}): Promise<AddResult> => {
       const before = cached(playlist.id)?.items.length ?? playlist.trackCount;
       const answer = await add.mutateAsync({ id: playlist.id, tracks, anyway: options.anyway });
-      // The answer is the whole playlist, so an unchanged length is how a skipped duplicate shows.
-      return { skipped: !options.anyway && before !== undefined && answer.items.length === before };
+      // The answer is the whole playlist, so fewer new items than songs sent is how a skipped duplicate shows.
+      return { skipped: !options.anyway && before !== undefined && answer.items.length < before + tracks.length };
     },
     move: (id: string, itemId: string, toIndex: number) => edit.mutate({ id, itemId, toIndex }),
     /** Removes the item at once, with no Undo: the song can be added again from its menu. */

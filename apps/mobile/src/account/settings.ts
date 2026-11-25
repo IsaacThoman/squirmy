@@ -38,6 +38,10 @@ export function openListenBrainzSettings() {
   void WebBrowser.openBrowserAsync(listenBrainzSettingsUrl);
 }
 
+/** The library's switch (`libraryIncludesServerMusic`), worded as on web. */
+export const serverMusicLabel = 'Show all of this server’s music in your library';
+export const serverMusicNote = 'Your library is what you heart, with the music you upload. This adds every album on this server too. Everything on this server is on Home either way, and plays for everyone.';
+
 export const qualityNote = 'Original streams the file as it is when this device can play it. High is AAC at 256 kbps. Data Saver uses the least data.';
 
 /** What the settings screen says under a section's controls when the server or the service refused. */
@@ -52,8 +56,8 @@ export function saveFailure(error: unknown): string {
   return `Couldn’t save that change. ${loadFailure(error).description}`;
 }
 
-/** Where a section's refusal shows: Playback, or a scrobbling service. */
-export type SettingsSection = 'playback' | ScrobbleService['target'];
+/** Where a section's refusal shows: Playback, Library, or a scrobbling service. */
+export type SettingsSection = 'playback' | 'library' | ScrobbleService['target'];
 
 /** The scrobbling switch in `UserSettings` for each service. */
 const switchFor = { listenbrainz: 'scrobbleListenBrainz', lastfm: 'scrobbleLastFm' } as const satisfies Record<ScrobbleService['target'], keyof UpdateUserSettings>;
@@ -135,6 +139,8 @@ export function useSettingsScreen() {
     /** Why the scrobbling connections didn't load, with a way to try again. */
     scrobblingFailure: failureOf(scrobbling),
     update: (change: UpdateUserSettings) => save('playback', change),
+    /** Whether the library holds all of the server's music, not only what the user saved. */
+    setLibraryIncludesServerMusic: (libraryIncludesServerMusic: boolean) => save('library', { libraryIncludesServerMusic }),
     listenBrainz: service('listenbrainz'),
     lastFm: service('lastfm'),
     /** The user's switch for a service; the settings change at once, the status when the server answers. */

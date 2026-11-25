@@ -41,7 +41,7 @@ describe.skipIf(!process.env.SQUIRMY_PERF)('library lists in a catalog of stubs'
 
   beforeAll(async () => {
     app = await buildApp()
-    user = await signIn()
+    user = await signIn({ settings: { libraryIncludesServerMusic: true } })
     const started = performance.now()
     await seedStubCatalog({ stubs: 200_000, artists: 20_000, collectionAlbums: 30, savedAlbums: 20, fetchedAlbums: 2_000, tracksPerAlbum: TRACKS_PER_ALBUM, userId: user.id })
     report.push(`seeded in ${Math.round(performance.now() - started)} ms`)

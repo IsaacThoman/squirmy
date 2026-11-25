@@ -114,6 +114,11 @@ import {
   UserSettings,
   type WantEntityType,
   WantPage,
+  type AdminUploadAlbumQuery,
+  type AdminUploadsQuery,
+  DeleteUploadsResponse,
+  UploadAlbumPage,
+  UploadFileList,
 } from '@squirmy/contracts'
 import { z } from 'zod'
 
@@ -392,6 +397,12 @@ export function createApiClient(options: ApiClientOptions) {
       artists: (query: Partial<LibraryQuery> = {}) => get('/library/artists', ArtistPage, query),
       tracks: (query: Partial<LibraryQuery> = {}) => get('/library/tracks', TrackPage, query),
       genres: (query: Partial<PageQuery> = {}) => get('/library/genres', GenrePage, query),
+      /** The server's albums (its collection), whatever is in the user's library: Home's See all. */
+      collectionAlbums: (query: Partial<LibraryQuery> = {}) => get('/collection/albums', AlbumPage, query),
+      /** The artists of the server's albums, by name. */
+      collectionArtists: (query: Partial<LibraryQuery> = {}) => get('/collection/artists', ArtistPage, query),
+      /** The server's songs. */
+      collectionTracks: (query: Partial<LibraryQuery> = {}) => get('/collection/tracks', TrackPage, query),
       home: () => get('/home', HomeResponse),
       artist: (artistId: string) => get(`/artists/${id(artistId)}`, ArtistDetail),
       /** One section of an artist page, paged ("See all"). */
@@ -483,6 +494,23 @@ export function createApiClient(options: ApiClientOptions) {
       /** Cancels an import that is still receiving. */
       cancel: (importId: string) => send('DELETE', `/imports/${id(importId)}`, Import),
     },
+    uploads: {
+      /** The music you uploaded, by album, newest first. */
+      list: (query: Partial<PageQuery> = {}) => get('/me/uploads', UploadAlbumPage, query),
+      /** Your uploaded files on one album, in track order. */
+      album: (albumId: string) => get(`/me/uploads/albums/${id(albumId)}`, UploadFileList),
+      /** Deletes your uploaded files on the album from the server, for everyone. Cannot be undone. */
+      deleteAlbum: (albumId: string) => send('DELETE', `/me/uploads/albums/${id(albumId)}`, DeleteUploadsResponse),
+      /** Deletes one of your uploaded files from the server, for everyone. Cannot be undone. */
+      deleteFile: (fileId: string) => send('DELETE', `/me/uploads/files/${id(fileId)}`, DeleteUploadsResponse),
+      /** Admins: everyone's uploads, or one uploader's (a user id, or `inbox`). */
+      adminList: (query: Partial<AdminUploadsQuery> = {}) => get('/admin/uploads', UploadAlbumPage, query),
+      adminAlbum: (albumId: string, query: AdminUploadAlbumQuery = {}) => get(`/admin/uploads/albums/${id(albumId)}`, UploadFileList, query),
+      /** Admins: deletes the album's uploaded files (of one uploader, when given) from the server. */
+      adminDeleteAlbum: (albumId: string, query: AdminUploadAlbumQuery = {}) =>
+        request('DELETE', `/admin/uploads/albums/${id(albumId)}`, { schema: DeleteUploadsResponse, query }),
+      adminDeleteFile: (fileId: string) => send('DELETE', `/admin/uploads/files/${id(fileId)}`, DeleteUploadsResponse),
+    },
     acquisition: {
       providers: () => get('/admin/acquisition/providers', AcquisitionProviderList),
       /** Calls the provider's `capabilities` straight away. The secret is never returned. */
@@ -512,12 +540,13 @@ export type ApiClient = ReturnType<typeof createApiClient>
 /**
  * URL of an artwork rendition, or null without artwork. `size` is the display size in
  * pixels (multiply by the pixel ratio first); the smallest served size at least that
- * large is chosen, or the largest. The route needs no auth.
+ * large is chosen, or the largest. The route needs no auth. The extension lets a CDN in
+ * front of the server cache renditions (Cloudflare caches by extension).
  */
 export function artworkUrl(baseUrl: string, artwork: Artwork | null | undefined, size: number): string | null {
   if (!artwork) return null
   const served = ART_SIZES.find(candidate => candidate >= size) ?? ART_SIZES[ART_SIZES.length - 1]
-  return `${trimSlash(baseUrl)}${API_PREFIX}/art/${encodeURIComponent(artwork.id)}/${served}`
+  return `${trimSlash(baseUrl)}${API_PREFIX}/art/${encodeURIComponent(artwork.id)}/${served}.webp`
 }
 
 /** Playable URL of a descriptor: its signed `url` resolved against the server root. */

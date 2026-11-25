@@ -171,9 +171,9 @@ describe('artworkUrl', () => {
 
   it('picks the smallest served size that is large enough', () => {
     const artwork = { id, color: null, thumbhash: null }
-    expect(artworkUrl('https://music.test', artwork, 120)).toBe(`https://music.test/api/v1/art/${id}/300`)
-    expect(artworkUrl('', artwork, 96)).toBe(`/api/v1/art/${id}/96`)
-    expect(artworkUrl('', artwork, 5000)).toBe(`/api/v1/art/${id}/1200`)
+    expect(artworkUrl('https://music.test', artwork, 120)).toBe(`https://music.test/api/v1/art/${id}/300.webp`)
+    expect(artworkUrl('', artwork, 96)).toBe(`/api/v1/art/${id}/96.webp`)
+    expect(artworkUrl('', artwork, 5000)).toBe(`/api/v1/art/${id}/1200.webp`)
     expect(artworkUrl('', null, 96)).toBeNull()
   })
 })

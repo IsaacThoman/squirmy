@@ -15,7 +15,7 @@ import { downloadIndex } from './database';
 import { downloadFiles, downloadNetwork } from './files';
 import { DownloadManager, type CollectionContent, type DownloadSource } from './manager';
 import {
-  albumCollectionId, canPlay, likedId, playlistCollectionId, type CollectionDownload, type CollectionKind, type TrackDownload,
+  albumCollectionId, canPlay, likedId, playlistCollectionId, savedLimit, type CollectionDownload, type CollectionKind, type TrackDownload,
 } from './model';
 
 /** Covers are kept at the size the lock screen uses. */
@@ -111,7 +111,7 @@ export function DownloadsProvider({ children }: PropsWithChildren) {
         return apiRef.current;
       }, serverUrl),
       options: {
-        quality: settings?.downloadQuality ?? 'original', wifiOnly: settings?.downloadOnWifiOnly ?? true, capBytes: capItem.read(), canFetch: fetches,
+        quality: settings?.downloadQuality ?? 'original', wifiOnly: settings?.downloadOnWifiOnly ?? true, capBytes: savedLimit(capItem.read()), canFetch: fetches,
       },
     });
     next.start();
@@ -306,7 +306,7 @@ export function useDownloadedLikes(): TrackSummary[] | null {
 /** Starting and removing downloads. */
 export function useDownloadActions() {
   const manager = useDownloadManager();
-  const [cap, setCapState] = useState(() => capItem.read());
+  const [cap, setCapState] = useState(() => savedLimit(capItem.read()));
   const setCap = useCallback((bytes: number | null) => {
     capItem.write(bytes);
     setCapState(bytes);

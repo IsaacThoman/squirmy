@@ -57,7 +57,7 @@ describe('pins of the Library', () => {
 
   beforeAll(async () => {
     app = await buildApp()
-    user = await signIn({ username: 'listener' })
+    user = await signIn({ username: 'listener', settings: { libraryIncludesServerMusic: true } })
     const other = await createUser({ username: 'other' })
     moss = await createArtist({ name: 'Moss' })
     const zed = await createArtist({ name: 'Zed' })

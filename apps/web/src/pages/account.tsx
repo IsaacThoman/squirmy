@@ -6,7 +6,7 @@ import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-route
 import { errorMessage } from '@/api/errors'
 import { useFolderListing } from '@/api/folders'
 import { useApi } from '@/api/services'
-import { setSetupDone, setSignedInUser, useMe, useSetupStatus } from '@/auth/session'
+import { setSetupDone, setSignedInUser, useMe, useSetupStatus, useSignInNotice } from '@/auth/session'
 import { LoginView, RegisterView, SetupAccountView, SetupDoneView, SetupLibraryView } from '@/components/auth/AuthViews'
 import { webDevice } from '@/lib/device'
 
@@ -20,12 +20,14 @@ export function LoginPage() {
   const api = useApi()
   const { data: status } = useSetupStatus()
   const signedIn = useSignedIn()
+  const notice = useSignInNotice()
   const login = useMutation({ mutationFn: api.auth.login, onSuccess: response => signedIn(response.user), meta: { inline: true } })
   return (
     <LoginView
       serverName={status!.serverName}
       version={status!.version}
       inviteRequired={status!.registrationRequiresInvite}
+      notice={notice}
       onSubmit={credentials => login.mutateAsync({ ...credentials, device: webDevice() })}
     />
   )

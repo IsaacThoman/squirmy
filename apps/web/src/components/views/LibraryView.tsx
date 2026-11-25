@@ -1,5 +1,5 @@
 import type { AlbumSummary, ArtistSummary, LibraryItemsSort, PlaylistSummary, TrackSummary } from '@squirmy/contracts'
-import { CloudOff, Disc3, FolderPlus, LayoutGrid, List, ListMusic, MicVocal, Plus, Search, SearchX, X } from 'lucide-react'
+import { CloudOff, Disc3, FolderPlus, LayoutGrid, List, ListMusic, MicVocal, Plus, Search, SearchX, Server, X } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { errorMessage } from '@/api/errors'
@@ -48,6 +48,11 @@ const NARROW_QUERY = '(width < 768px)'
 const itemKey = (item: LibraryItem) => (item.kind === 'liked' ? 'liked' : item.kind === 'playlist' ? item.playlist.id : item.kind === 'album' ? item.album.id : item.artist.id)
 
 export type LibraryViewProps = {
+  /**
+   * `server`: the server's music (`/collection`, Home's See all) rather than the user's
+   * library, with its own title and wording, the Albums, Artists and Songs chips, and no pins.
+   */
+  server?: boolean
   filter: LibraryFilterName
   /** Where each filter chip goes: the filter, with the sort kept. */
   filterHref: (filter: LibraryFilterName) => string
@@ -75,6 +80,8 @@ export type LibraryViewProps = {
    * toolbar stay, and under Albums the playlists that loaded show above the message.
    */
   listFailure?: Failure
+  /** A page after the first did not load: the list stops there and offers to try again. */
+  moreFailure?: Failure
   /** The search of the whole library failed. It says so in place of the matches, even when the list itself loaded. */
   searchFailure?: Failure
   /** "60+ albums" for one kind; nothing for All or while searching. */
@@ -101,6 +108,11 @@ export type LibraryViewProps = {
   onPin?: (item: LibraryItem, pinned: boolean) => Promise<unknown>
 }
 
+const serverEmpty = { icon: <Disc3 />, title: 'Nothing on this server yet', description: 'Music scanned from the server’s folders, uploaded or dropped in its inbox shows up here.' }
+
+/** The server's music has no playlists of its own, and no All: its lists are the albums, their artists and the songs. */
+const SERVER_FILTERS = ['albums', 'artists', 'songs'] as const satisfies readonly LibraryFilterName[]
+
 /** An item's pin, where it is known. */
 function itemPin(item: LibraryItem, onPin: LibraryViewProps['onPin']): CardPin | undefined {
   if (item.pinned === undefined || !onPin) return undefined
@@ -109,16 +121,16 @@ function itemPin(item: LibraryItem, onPin: LibraryViewProps['onPin']): CardPin |
 }
 
 const empties = {
-  albums: { icon: <Disc3 />, title: 'Add music to your library', description: 'Albums and songs you save show up here, with the music on this server. Find something you love and tap the heart.' },
+  albums: { icon: <Disc3 />, title: 'Add music to your library', description: 'Albums and songs you save show up here, with the music you upload. Find something you love and tap the heart.' },
   artists: { icon: <MicVocal />, title: 'No artists yet', description: 'Artists you save, and the artists of albums in your library, show up here.' },
   songs: { icon: <ListMusic />, title: 'No songs yet', description: 'Songs you save, and the songs of albums you save, show up here.' },
 }
 
 /**
- * The library in one place, as on iOS: filter chips (All, Playlists, Albums, Artists, Songs), a
- * sort where the filter has one, grid or list, and a search of the library. All is Liked Songs,
- * the playlists, the albums and the artists in one grid, in the sort's order; searched, the
- * songs that match follow them, as on iOS.
+ * The library in one place: filter chips (All, Playlists, Albums, Artists, Songs), a sort where
+ * the filter has one, grid or list, and a search of the library. All is Liked Songs, the
+ * playlists, the albums and the artists in one grid, in the sort's order, as the iOS app's
+ * Library (which has no chips) is; searched, the songs that match follow them, as on iOS.
  */
 export function LibraryView(props: LibraryViewProps) {
   const { filter, filterHref, query, onQueryChange, genre, onClearGenre, count, sort, sorts, onSortChange, layout, onLayoutChange, capped, loadingMore, pending } = props
@@ -128,14 +140,15 @@ export function LibraryView(props: LibraryViewProps) {
   const songMatches = songs ? [] : props.songMatches ?? []
   const { playlistsFailure, searchFailure, listFailure } = props
   const narrow = useMediaQuery(NARROW_QUERY)
-  const chips = LIBRARY_FILTERS.map(name => (
+  const server = props.server ?? false
+  const chips = (server ? SERVER_FILTERS : LIBRARY_FILTERS).map(name => (
     <Link key={name} to={filterHref(name)} aria-current={name === filter ? 'page' : undefined} className={pillClass}>{filterLabels[name]}</Link>
   ))
   // The list failed. Under All, what did load (Liked Songs, the playlists) still shows above the message.
   const listFailed = Boolean(listFailure) && !searching && !searchFailure
   const failedList = listFailed && (
     <LoadError
-      title={filter === 'all' ? 'Your library didn’t load' : `Your ${filterLabels[filter].toLowerCase()} didn’t load`}
+      title={server ? `This server’s ${filterLabels[filter].toLowerCase()} didn’t load` : filter === 'all' ? 'Your library didn’t load' : `Your ${filterLabels[filter].toLowerCase()} didn’t load`}
       error={listFailure!.error}
       onRetry={listFailure!.onRetry}
       retrying={listFailure!.retrying}
@@ -145,12 +158,12 @@ export function LibraryView(props: LibraryViewProps) {
 
   return (
     <>
-      <PageHeader title="Library" nav={narrow ? undefined : chips} navLabel="Library filters" />
+      <PageHeader title={server ? 'On this server' : 'Library'} nav={narrow ? undefined : chips} navLabel={server ? 'Filters' : 'Library filters'} />
       <Page>
         {/* A phone's header has room for the title alone. Here every chip shows, wrapping if it must, rather than hiding past a sideways swipe. */}
-        {narrow && <nav aria-label="Library filters" className="-mx-1 -mt-2 mb-3 flex flex-wrap gap-1 px-1 py-1">{chips}</nav>}
+        {narrow && <nav aria-label={server ? 'Filters' : 'Library filters'} className="-mx-1 -mt-2 mb-3 flex flex-wrap gap-1 px-1 py-1">{chips}</nav>}
         <div className="mb-4 flex flex-wrap items-center gap-2">
-          <SearchField value={query} onValueChange={onQueryChange} placeholder="Find in your library" className="w-full sm:w-64" />
+          <SearchField value={query} onValueChange={onQueryChange} placeholder={server ? 'Find on this server' : 'Find in your library'} className="w-full sm:w-64" />
           {genre && (
             <span className="inline-flex h-8 items-center gap-1 rounded-md border border-input pl-2.5 pr-1 text-sm">
               <span className="text-muted-foreground">Genre:</span> {genre}
@@ -183,7 +196,7 @@ export function LibraryView(props: LibraryViewProps) {
         {playlistsFailure && !searchFailure && <PlaylistsFailed {...playlistsFailure} />}
 
         {searchFailure
-          ? <EmptyState icon={<CloudOff />} title="Couldn’t search your library" description={errorMessage(searchFailure.error)} action={<Button variant="primary" onClick={searchFailure.onRetry}>Try again</Button>} />
+          ? <EmptyState icon={<CloudOff />} title={server ? 'Couldn’t search this server' : 'Couldn’t search your library'} description={errorMessage(searchFailure.error)} action={<Button variant="primary" onClick={searchFailure.onRetry}>Try again</Button>} />
           // Nothing else to show: the message takes the list's place.
           : listFailed && !shown?.length
             ? failedList
@@ -203,6 +216,9 @@ export function LibraryView(props: LibraryViewProps) {
 
         {!searchFailure && shown !== undefined && shown.length > 0 && filter === 'all' && props.libraryEmpty && !searching && <LibraryEmpty canAddMusic={props.canAddMusic} />}
         {(loadingMore || (searching && pending && (shown?.length ?? 0) > 0)) && <div className="flex justify-center py-6"><Spinner /></div>}
+        {props.moreFailure && !searching && !listFailed && Boolean(shown?.length) && (
+          <LoadError title={`More ${filter === 'all' ? 'of your library' : filterLabels[filter].toLowerCase()} didn’t load`} {...props.moreFailure} className="mt-4" />
+        )}
         {capped && !searchFailure && <p className="py-6 text-center text-sm text-muted-foreground">Showing the best matches. Type more to narrow them down.</p>}
       </Page>
     </>
@@ -285,7 +301,7 @@ function ArtistRow({ artist, pin }: { artist: ArtistSummary; pin?: CardPin }) {
 }
 
 /** Nothing to list: a search or a genre that matched nothing, or a library with nothing in it yet. */
-function Nothing({ filter, searching, pending, genre, onClearGenre, canAddMusic }: LibraryViewProps & { searching: boolean }) {
+function Nothing({ filter, searching, pending, genre, onClearGenre, canAddMusic, server }: LibraryViewProps & { searching: boolean }) {
   if (searching) {
     if (pending) return <TrackRowsSkeleton rows={6} art />
     return <EmptyState icon={<SearchX />} title="Nothing found" description="Try another search or filter." />
@@ -293,12 +309,16 @@ function Nothing({ filter, searching, pending, genre, onClearGenre, canAddMusic 
   if (genre) {
     return <EmptyState icon={<SearchX />} title={`Nothing tagged “${genre}”`} action={<Button variant="primary" onClick={onClearGenre}>Show every genre</Button>} />
   }
+  if (server) return <LibraryEmpty canAddMusic={canAddMusic} server {...serverEmpty} />
   if (filter === 'artists' || filter === 'songs') return <LibraryEmpty canAddMusic={canAddMusic} {...empties[filter]} />
   return <LibraryEmpty canAddMusic={canAddMusic} />
 }
 
-/** An empty library is an invitation: Search is where music is found and saved. */
-function LibraryEmpty({ canAddMusic, icon = empties.albums.icon, title = empties.albums.title, description = empties.albums.description }: { canAddMusic: boolean; icon?: ReactNode; title?: string; description?: string }) {
+/**
+ * An empty library is an invitation: Search is where music is found and saved, and the
+ * server's own music is a page away.
+ */
+function LibraryEmpty({ canAddMusic, icon = empties.albums.icon, title = empties.albums.title, description = empties.albums.description, server = false }: { canAddMusic: boolean; icon?: ReactNode; title?: string; description?: string; server?: boolean }) {
   return (
     <EmptyState
       icon={icon}
@@ -307,6 +327,7 @@ function LibraryEmpty({ canAddMusic, icon = empties.albums.icon, title = empties
       action={(
         <div className="flex flex-wrap justify-center gap-2">
           <Button asChild variant="primary"><Link to="/search"><Search />Find music</Link></Button>
+          {!server && <Button asChild variant="outline"><Link to="/collection"><Server />Browse this server</Link></Button>}
           {canAddMusic && <Button asChild variant="outline"><Link to="/admin/library"><FolderPlus />Add a music folder</Link></Button>}
         </div>
       )}

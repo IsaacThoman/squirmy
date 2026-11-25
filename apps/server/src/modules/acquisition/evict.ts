@@ -13,9 +13,10 @@
  *   stored queue, or played in the last day. Also spared: files that arrived in the last
  *   hour (a device may be downloading them), files of imports still running, and anything
  *   outside a managed root (a read-only root is never written to).
- * - **Deleting** a file removes it from disk and its `media_files` row, then the local-only
- *   catalog rows it leaves unused, exactly as a purge of a missing file would. Catalog
- *   albums and recordings stay, so the track goes back to `on_demand`.
+ * - **Deleting** a file is `deleteLibraryFile` (library/delete.ts): from disk and its
+ *   `media_files` row, then the local-only catalog rows it leaves unused, exactly as a
+ *   purge of a missing file would. Catalog albums and recordings stay, so the track goes
+ *   back to `on_demand`.
  *
  * Folders: a file under `_Fetched/` or `_Incoming/` takes its sidecars (cover, lyrics) and
  * then its folder with it once no other file is there. Anywhere else (a delivery filed
@@ -24,21 +25,18 @@
  * `discardUnrequested` uses the same deletion for delivered files that are not what the
  * job asked for (docs/provider-protocol.md, "Verification"): they are not kept for review.
  */
-import { readdir, rmdir, unlink } from 'node:fs/promises'
-import path from 'node:path'
-import { FETCHED_FOLDER, INCOMING_FOLDER, queryKeys, type AcquisitionUsage } from '@squirmy/contracts'
+import { queryKeys, type AcquisitionUsage } from '@squirmy/contracts'
 import { and, eq, isNull, or, sql } from 'drizzle-orm'
 import { getConfig } from '../../config.js'
 import { db } from '../../database/client.js'
-import { imports, libraryRoots, mediaFiles } from '../../database/schema.js'
+import { imports, mediaFiles } from '../../database/schema.js'
 import { enqueue } from '../../jobs/index.js'
 import { invalidate } from '../../realtime/index.js'
 import { saversOf } from '../catalog/availability.js'
 import { resolveMerged } from '../catalog/redirects.js'
 import { uuidArray } from '../catalog/sql.js'
 import { incomingFolder } from '../imports/service.js'
-import { fileKind } from '../imports/paths.js'
-import { lockCatalog, removeOrphans } from '../library/cleanup.js'
+import { deleteLibraryFile } from '../library/delete.js'
 import { isPinned, pinnedFile, queuedRecordings } from '../userdata/pins.js'
 import { getAcquisitionPolicy } from './policy.js'
 import { announceAvailability } from './resolve.js'
@@ -177,60 +175,18 @@ export async function deleteCachedFile(fileId: string, check: { unpinned?: boole
     const [links] = await db.select({ recordingId: mediaFiles.recordingId, albumId: mediaFiles.albumId }).from(mediaFiles).where(eq(mediaFiles.id, fileId))
     if (!links || await isPinned(links)) return null
   }
-  const removed = await db.transaction(async (tx) => {
-    // Ingest, matching and the purge relink and delete the same rows; take their lock first.
-    await lockCatalog(tx)
-    const [row] = await tx.select({ file: mediaFiles, rootPath: libraryRoots.path }).from(mediaFiles)
-      .innerJoin(libraryRoots, eq(libraryRoots.id, mediaFiles.rootId))
-      .where(and(
-        eq(mediaFiles.id, fileId), eq(mediaFiles.cached, true), present, eq(libraryRoots.mode, 'managed'),
-        check.recordingId === undefined ? undefined : and(
-          eq(mediaFiles.matchLocked, false),
-          check.recordingId === null ? isNull(mediaFiles.recordingId) : eq(mediaFiles.recordingId, check.recordingId),
-        ),
-      ))
-      .for('update', { of: mediaFiles })
-    if (!row) return null
-    await unlink(path.join(row.rootPath, row.file.relPath)).catch((error: NodeJS.ErrnoException) => {
-      if (error.code !== 'ENOENT') throw error
-    })
-    await tx.delete(mediaFiles).where(eq(mediaFiles.id, fileId))
-    await removeOrphans(tx, { albumIds: [row.file.albumId], releaseIds: [row.file.releaseId], recordingIds: [row.file.recordingId] })
-    return row
+  const removed = await deleteLibraryFile(fileId, {
+    where: and(
+      eq(mediaFiles.cached, true),
+      check.recordingId === undefined ? undefined : and(
+        eq(mediaFiles.matchLocked, false),
+        check.recordingId === null ? isNull(mediaFiles.recordingId) : eq(mediaFiles.recordingId, check.recordingId),
+      ),
+    ),
   })
   if (!removed) return null
   usageCache = undefined
-  await tidyFolder(removed.file.rootId, removed.rootPath, removed.file.relPath).catch(report)
-  return { size: removed.file.size, recordingId: removed.file.recordingId, albumId: removed.file.albumId }
-}
-
-/**
- * After deleting `relPath`: inside `_Fetched/` or `_Incoming/`, removes the folder's
- * sidecars and the folder once no other file of the root is there (by row or on disk),
- * then empty parents up to the top folder. Elsewhere it changes nothing more.
- */
-async function tidyFolder(rootId: string, rootPath: string, relPath: string) {
-  const top = relPath.split('/')[0]
-  if (top !== FETCHED_FOLDER && top !== INCOMING_FOLDER) return
-  let folder = path.posix.dirname(relPath)
-  if (folder === top) return
-  const [other] = await db.select({ id: mediaFiles.id }).from(mediaFiles)
-    .where(and(eq(mediaFiles.rootId, rootId), sql`starts_with(${mediaFiles.relPath}, ${`${folder}/`})`)).limit(1)
-  if (other) return
-  const absolute = path.join(rootPath, folder)
-  const entries = await readdir(absolute, { withFileTypes: true }).catch(() => null)
-  if (!entries) return
-  // Only plain sidecars go: a folder holding audio, other files or subfolders is left as it is.
-  if (entries.some((entry) => !entry.isFile() || fileKind(entry.name) !== 'sidecar')) return
-  for (const entry of entries) await unlink(path.join(absolute, entry.name)).catch(() => {})
-  while (folder !== top && folder !== '.') {
-    try {
-      await rmdir(path.join(rootPath, folder))
-    } catch {
-      return
-    }
-    folder = path.posix.dirname(folder)
-  }
+  return { size: removed.size, recordingId: removed.recordingId, albumId: removed.albumId }
 }
 
 /**

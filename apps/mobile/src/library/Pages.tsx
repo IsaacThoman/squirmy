@@ -1,6 +1,7 @@
 import type { AlbumDetail, AlbumSummary, ArtistDetail, HistoryItem, HomeSection, PlaybackContext, TrackSummary } from '@squirmy/contracts';
-import { albumNote, albumPresentation, canFetch, formatReleaseDate, formatTotalDuration, releaseSubtitle } from '@squirmy/client-core';
+import { albumNote, albumPresentation, artistAvailabilityNote, canFetch, formatReleaseDate, relatedAlbums, releaseSubtitle, songCountLabel } from '@squirmy/client-core';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useMemo, useState, type ReactElement, type ReactNode } from 'react';
 import { ActionSheetIOS, ActivityIndicator, Alert, Platform, Pressable, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, {
@@ -32,10 +33,12 @@ import { playAllFailure, radioFailure, wantFailureLabel, wantFailure as wantFail
 import { heartButton } from './heart';
 import {
   albumCollection, albumTypeLabels, artistCollection, CollectionCover, CollectionRail, EmptyState, FailureLine, gridColumns, gutter, likedCollection, nearEnd,
-  playlistCollection,
+  OfflineBadge, playlistCollection,
   QueryState, recentCollection, SectionTitle, tapFeedback, useCollectionDim, type Collection,
 } from './shared';
-import { useCollectionActions } from './collectionActions';
+import { albumPlaylistSheet, useCollectionActions } from './collectionActions';
+import { albumActions } from './albumActions';
+import { confirmQueued } from './queued';
 import { uniqueTracks } from './loadAll';
 import { useStartGuard } from './pending';
 import { displayFontScale, secondaryFontScale } from '../fontScale';
@@ -147,7 +150,7 @@ function DetailPage({
     </Animated.View>
     {/* No title here: the header's own, an accessibility header, names the page for VoiceOver. */}
     <View pointerEvents="box-none" style={[styles.nav, { top: top + 6 }]}>
-      <BrowseBackButton onPress={onBack} />
+      <View pointerEvents="box-none" style={styles.navStart}><BrowseBackButton onPress={onBack} /><OfflineBadge /></View>
       <View style={styles.navActions}>
         {nav.filter((button): button is AlbumNavProps => Boolean(button)).map(button => <AlbumNavButton key={button.label} {...button} />)}
       </View>
@@ -155,8 +158,11 @@ function DetailPage({
   </View>;
 }
 
-/** A bio or description cut at `lines`; when it is cut, a tap shows all of it and another cuts it again. */
-function ExpandableText({ text, lines, flush }: { text: string; lines: number; flush?: boolean }) {
+/**
+ * A bio or description cut at `lines`; when it is cut, a tap shows all of it and another cuts it again.
+ * `link` sits beside More, such as where a biography comes from.
+ */
+function ExpandableText({ text, lines, flush, link }: { text: string; lines: number; flush?: boolean; link?: ReactNode }) {
   const styles = useStyles();
   const [expanded, setExpanded] = useState(false);
   const [cut, setCut] = useState(false);
@@ -164,7 +170,10 @@ function ExpandableText({ text, lines, flush }: { text: string; lines: number; f
   return <Pressable onPress={cut ? () => { tapFeedback(); setExpanded(!expanded); } : undefined} style={[styles.descriptionBlock, flush && styles.flush]}
     accessibilityRole={cut ? 'button' : 'text'} accessibilityHint={cut ? (expanded ? 'Shows less' : 'Shows the whole text') : undefined}>
     <Text style={styles.description} numberOfLines={expanded ? undefined : lines}>{text}</Text>
-    {cut && <Text style={styles.moreLabel}>{expanded ? 'Less' : 'More'}</Text>}
+    {(cut || link) && <View style={styles.moreRow}>
+      {cut && <Text style={styles.moreLabel}>{expanded ? 'Less' : 'More'}</Text>}
+      {link}
+    </View>}
     {/* The whole text, laid out unseen, to tell whether the visible copy is cut. */}
     <Text style={[styles.description, styles.measure]} onTextLayout={event => setCut(event.nativeEvent.lines.length > lines)}
       accessibilityElementsHidden importantForAccessibility="no-hide-descendants">{text}</Text>
@@ -176,7 +185,7 @@ function PageFallback({ query, what, onBack }: { query: Parameters<typeof QueryS
   const styles = useStyles();
   const { top } = useSafeAreaInsets();
   return <View style={[styles.page, { paddingTop: top + 8 }]}>
-    <View style={styles.fallbackNav}><BrowseBackButton onPress={onBack} /></View>
+    <View style={[styles.fallbackNav, styles.navStart]}><BrowseBackButton onPress={onBack} /><OfflineBadge /></View>
     {query.isError || query.isPending
       ? <QueryState query={query} what={what} />
       : <EmptyState icon="music.note" title="Not available" description="Go back to browse your library." />}
@@ -192,8 +201,9 @@ function TrackSection({ title, detail, onSeeAll, children }: { title: string; de
   </View>;
 }
 
-function songCount(tracks: readonly TrackSummary[], durationMs = tracks.reduce((sum, track) => sum + track.durationMs, 0)) {
-  return `${tracks.length} ${tracks.length === 1 ? 'song' : 'songs'} · ${formatTotalDuration(durationMs)}`;
+/** `1,234 songs · 3 hr`; `60+ songs` for a list still to load more pages, whose total would undercount. */
+function songCount(tracks: readonly TrackSummary[], durationMs = tracks.reduce((sum, track) => sum + track.durationMs, 0), complete = true) {
+  return songCountLabel(tracks.length, { durationMs, complete });
 }
 
 function share(message: string) {
@@ -250,6 +260,11 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   // After a minute of looking the page says the songs are late, and offers to check again.
   const overdue = useOverdue(lookingUp, id);
   const discs = data?.discs;
+  // The lead artist's discography, for other versions and "More by" under the songs, as on web; asked once the album is here.
+  const leadId = album.data?.artists[0]?.id;
+  const lead = useArtist(leadId ?? '', { enabled: Boolean(leadId), poll: false });
+  const leadData = lead.isPlaceholderData ? undefined : lead.data;
+  const related = useMemo(() => data ? relatedAlbums(data, leadData) : { versions: [], more: [] }, [data, leadData]);
   useEffect(() => {
     if (!waitingPlay || !data) return;
     const list = data.discs.flatMap(disc => disc.tracks);
@@ -299,6 +314,24 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
       }));
 
   const artistLinks = data.artists.map(artist => ({ name: artist.name, open: () => { tapFeedback(); onOpen(link('artist', artist.id)); } }));
+  // The ⋯ menu, as on web: what the buttons do, then the queue, a playlist, the library, the
+  // artists, and Share. The placeholder does not know the songs or whether it is saved.
+  const menu = albumActions({
+    plays: playable, offline, songsKnown: !album.isPlaceholderData && tracks.length > 0, artists: data.artists, share: true,
+    saved: album.isPlaceholderData ? undefined : { liked, failed: likeFailure !== undefined },
+    want: wantButton.length ? { wanted, failed: wantFailure !== undefined } : undefined,
+  }, {
+    play: shuffle => play(shuffle),
+    enqueue: placement => {
+      actions.enqueue(tracks, placement);
+      confirmQueued(placement);
+    },
+    addToPlaylist: () => onOpen(albumPlaylistSheet(data.id)),
+    setSaved: saved => setLiked('album', data.id, saved, data.title),
+    setWanted: want => setWanted('album', data.id, want, data.title),
+    goToArtist: index => onOpen(link('artist', data.artists[index]!.id)),
+    share: () => share(`${data.title} · ${data.artistCredit}`),
+  });
 
   return <DetailPage item={albumCollection(data, link)} tint={data.artwork?.color ?? fallbackTint} title={data.title}
     artist={data.artistCredit} artistLinks={artistLinks}
@@ -309,7 +342,7 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
       !album.isPlaceholderData && { ...heartButton(liked, data.title, likeFailure),
         onPress: () => { tapFeedback(); setLiked('album', data.id, !liked, data.title); } },
       control.nav,
-      { icon: 'square.and.arrow.up', label: `Share ${data.title}`, onPress: () => share(`${data.title} · ${data.artistCredit}`) },
+      { icon: 'ellipsis', label: `More options for ${data.title}`, menu },
     ]}
     onBack={onBack} bottomInset={bottomInset}>
     {/* The songs first, as on web; then what the record's back says, and any description. */}
@@ -327,6 +360,14 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
     </TrackSection>
     <AlbumFooter album={data} />
     {data.description ? <ExpandableText text={data.description} lines={6} /> : null}
+    {related.versions.length > 0 && <View style={styles.section}>
+      <SectionTitle title="Other versions" />
+      <CollectionRail items={related.versions.map(other => albumCollection(other, link, releaseSubtitle(other)))} />
+    </View>}
+    {related.more.length > 0 && leadData && <View style={styles.section}>
+      <SectionTitle title={`More by ${leadData.name}`} onPress={() => onOpen(link('artist', leadData.id))} />
+      <CollectionRail items={related.more.map(other => albumCollection(other, link, releaseSubtitle(other)))} />
+    </View>}
   </DetailPage>;
 }
 
@@ -386,11 +427,13 @@ const historyPage = (api: Api, cursor: string, limit: number) => api.userdata.hi
 /** Each song once, at its latest play: the page lists songs, not every play of them. */
 const historyTracks = (items: readonly HistoryItem[]) => uniqueTracks(items.map(item => item.track));
 
-function TrackListPage({ item, title, info, tracks, playAll, context, empty, loadMore, loadingMore, download, props }: {
+function TrackListPage({ item, title, info, tracks, complete = true, playAll, context, empty, loadMore, loadingMore, download, props }: {
   item: Collection;
   title: string;
   info: string;
   tracks: readonly TrackSummary[];
+  /** Every page of the list is loaded, so its count and length are the whole list's. */
+  complete?: boolean;
   /** Loads the rest of a list shown in part before playing it; without it, `tracks` is played as it is. */
   playAll?: PlayAll;
   context: PlaybackContext;
@@ -414,7 +457,7 @@ function TrackListPage({ item, title, info, tracks, playAll, context, empty, loa
     nav={download ? [download.nav] : []} status={<>{playAll?.failed && <FailureLine message={playAllFailure} />}{download?.status}</>}
     onBack={props.onBack} onEndReached={loadMore} bottomInset={props.bottomInset ?? 155}
     list={tracks.length ? { ...songs, footer: loadingMore && <ActivityIndicator style={{ marginVertical: 20 }} /> } : undefined}>
-    {tracks.length ? <TrackSection title="Songs" detail={songCount(tracks)} />
+    {tracks.length ? <TrackSection title="Songs" detail={songCount(tracks, undefined, complete)} />
       : <EmptyState icon={item.special === 'liked' ? 'heart' : 'clock.arrow.circlepath'} {...empty} />}
   </DetailPage>;
 }
@@ -429,7 +472,9 @@ function LikedScreen(props: PageProps) {
     liked.items, () => download.liked(liked.items));
   // Kept songs stand in when the list can't load; with none, the page says why and offers to try again.
   if (!tracks || (liked.isError && !liked.data && !tracks.length)) return <PageFallback query={liked} what="your liked songs" onBack={props.onBack} />;
+  // The songs kept on this device stand in whole; the server's list is whole once its last page is in.
   return <TrackListPage item={likedCollection(props.link)} title="Liked Songs" info="Playlist" tracks={tracks} download={control}
+    complete={!liked.data || !liked.hasNextPage}
     playAll={liked.data ? playAll : undefined}
     context={{ type: 'liked', id: null, title: 'Liked Songs' }} loadMore={liked.loadMore} loadingMore={liked.isFetchingNextPage}
     empty={{ title: 'No liked songs yet', description: 'Tap the heart on any song to add it to Liked Songs.' }} props={props} />;
@@ -441,7 +486,7 @@ function HistoryScreen(props: PageProps) {
   const tracks = useMemo(() => historyTracks(history.items), [history.items]);
   if (!history.data) return <PageFallback query={history} what="your history" onBack={props.onBack} />;
   return <TrackListPage item={recentCollection(props.link)} title="Recently Played" info="Listening history"
-    tracks={tracks} playAll={playAll} context={{ type: 'history', id: null, title: 'Recently Played' }}
+    tracks={tracks} complete={!history.hasNextPage} playAll={playAll} context={{ type: 'history', id: null, title: 'Recently Played' }}
     loadMore={history.loadMore} loadingMore={history.isFetchingNextPage}
     empty={{ title: 'Nothing played yet', description: 'Play a song and it will appear in your history.' }} props={props} />;
 }
@@ -567,7 +612,8 @@ export function ArtistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInse
 
   // The disambiguation ("60s band from the UK") tells same-name artists apart, as on web.
   return <DetailPage item={artistCollection(data, link)} tint={data.image?.color ?? null} title={data.name}
-    info={['Artist', data.disambiguation, ...data.genres.slice(0, 2)].filter(Boolean).join('  ·  ')}
+    // Someone who may not fetch music is told how much of the discography plays, as on web.
+    info={['Artist', data.disambiguation, ...data.genres.slice(0, 2), !placeholder && artistAvailabilityNote(data, viewer)].filter(Boolean).join('  ·  ')}
     buttons={playButtons(top, canPlay, play)} status={radioFailed && <FailureLine message={`${radioFailure}.`} />}
     nav={[
       // The heart saves (follows) the artist, which puts it in the library. The placeholder
@@ -613,10 +659,14 @@ function ArtistBody({ artist, link, onOpen, onPlay, onTrackMenu }: {
       <SectionTitle title="Similar Artists" />
       <CollectionRail items={artist.similar.map(similar => artistCollection(similar, link))} size={110} />
     </View>}
-    {/* Three lines, with More for the rest. */}
+    {/* Three lines, with More for the rest, and Read more for where the biography comes from. */}
     {artist.bio && <View style={styles.section}>
       <SectionTitle title="About" />
-      <ExpandableText text={artist.bio} lines={3} flush />
+      <ExpandableText text={artist.bio} lines={3} flush link={artist.bioUrl ? <Pressable accessibilityRole="link"
+        accessibilityHint="Opens the whole biography in a browser" hitSlop={8} style={({ pressed }) => pressed && styles.pressed}
+        onPress={() => { tapFeedback(); void WebBrowser.openBrowserAsync(artist.bioUrl!); }}>
+        <Text style={styles.moreLabel}>Read more</Text>
+      </Pressable> : undefined} />
     </View>}
   </>;
 }
@@ -740,7 +790,9 @@ function CollectionGridPage({ title, detail, items, header, onBack, onEndReached
       </>}
       ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.more} /> : undefined} />
     <ScrollEdge solid={top} fade={scrollEdgeFade} scrollOffset={scrollOffset} contentGap={contentGap} />
-    <View pointerEvents="box-none" style={[styles.nav, { top: top + 8 }]}><BrowseBackButton onPress={onBack} /></View>
+    <View pointerEvents="box-none" style={[styles.nav, { top: top + 8 }]}>
+      <View pointerEvents="box-none" style={styles.navStart}><BrowseBackButton onPress={onBack} /><OfflineBadge /></View>
+    </View>
   </View>;
 }
 
@@ -751,6 +803,8 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
     gap: 8, paddingHorizontal: gutter,
   },
   navActions: { flexDirection: 'row', gap: 10 },
+  // The back button, and beside it the Offline badge when the server cannot be reached, as on the tabs' pages.
+  navStart: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   fallbackNav: { paddingHorizontal: gutter, alignItems: 'flex-start' },
   overscrollFill: { position: 'absolute', bottom: '100%', height: '100%', left: 0, right: 0 },
   status: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1 },
@@ -759,7 +813,9 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   descriptionBlock: { marginHorizontal: gutter, marginTop: 18 },
   flush: { marginTop: 0 },
   description: { color: colors.muted, fontSize: 14, lineHeight: 21 },
-  moreLabel: { color: colors.accent, fontSize: 14, fontWeight: '600', marginTop: 4 },
+  moreRow: { flexDirection: 'row', alignItems: 'center', gap: 20, marginTop: 4 },
+  moreLabel: { color: colors.accent, fontSize: 14, fontWeight: '600' },
+  pressed: { opacity: 0.6 },
   measure: { position: 'absolute', top: 0, left: 0, right: 0, opacity: 0 },
   // The rows' own height spaces the first song from the heading.
   trackListTitle: { marginBottom: 2 },

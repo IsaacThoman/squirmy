@@ -10,6 +10,7 @@ import { useCurrentUser, useSetupStatus } from '@/auth/session'
 import type { SettingsDialogState } from '@/components/layout/AppShell'
 import { SettingsDialog } from '@/components/settings/SettingsDialog'
 import { loadFailure } from '@/components/ui/load-failure'
+import { canUploadMusic } from '@/lib/catalog'
 import { browserName, deviceName } from '@/lib/device'
 import { usePlayerControls } from '@/player/player-context'
 
@@ -25,6 +26,13 @@ const lastFmReturns: Record<string, { message: string; ok: boolean }> = {
 
 const scrobbleSettings: (keyof UpdateUserSettings)[] = ['scrobbleListenBrainz', 'scrobbleLastFm']
 
+/** The section whose controls made a change: a scrobbling switch is in Scrobbling, the library's in Library, the rest in Playback. */
+function refusedIn(patch: UpdateUserSettings): 'scrobbling' | 'library' | 'playback' {
+  const keys = Object.keys(patch) as (keyof UpdateUserSettings)[]
+  if (keys.some(key => scrobbleSettings.includes(key))) return 'scrobbling'
+  return keys.includes('libraryIncludesServerMusic') ? 'library' : 'playback'
+}
+
 /** The user's playback settings, saved as they change. */
 function useSettingsUpdate() {
   const api = useApi()
@@ -32,10 +40,15 @@ function useSettingsUpdate() {
   return useMutation({
     mutationFn: (patch: UpdateUserSettings) => api.userdata.updateSettings(patch),
     onMutate: patch => queryClient.setQueryData<UserSettings>(queryKeys.settings(), settings => settings && { ...settings, ...patch }),
-    onSuccess: settings => {
+    onSuccess: (settings, patch) => {
       queryClient.setQueryData(queryKeys.settings(), settings)
-      // A service's switch is a setting, and the scrobbling status reports it.
-      return queryClient.invalidateQueries({ queryKey: queryKeys.scrobbling() })
+      // A service's switch is a setting, and the scrobbling status reports it. The library's
+      // switch changes what is in the library everywhere; the server says so too, and this
+      // browser does not wait for it.
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.scrobbling() }),
+        ...patch.libraryIncludesServerMusic !== undefined ? [queryClient.invalidateQueries({ queryKey: queryKeys.library() })] : [],
+      ])
     },
     onError: () => queryClient.invalidateQueries({ queryKey: queryKeys.settings() }),
   })
@@ -82,7 +95,7 @@ export function SettingsDialogHost({ open, section, lastFm, onOpenChange, onSect
   })
   // A refused change is said under the controls that made it: a scrobbling switch in Scrobbling, the rest in Playback.
   const refused = update.isError && update.variables
-    ? { [Object.keys(update.variables).some(key => scrobbleSettings.includes(key as keyof UpdateUserSettings)) ? 'scrobbling' : 'playback']: `Couldn’t save that change. ${errorMessage(update.error)}` }
+    ? { [refusedIn(update.variables)]: `Couldn’t save that change. ${errorMessage(update.error)}` }
     : {}
   const lastFmStart = connections.lastFm.isError ? `Couldn’t start connecting to Last.fm. ${errorMessage(connections.lastFm.error)}` : undefined
   // What the dialog said goes with it: opened again, it starts afresh.
@@ -122,6 +135,7 @@ export function SettingsDialogHost({ open, section, lastFm, onOpenChange, onSect
       onRename={user.role === 'admin' ? displayName => rename.mutateAsync(displayName) : undefined}
       onLogout={logout}
       onOpenAdmin={user.role === 'admin' ? () => { onOpenChange(false); void navigate('/admin') } : undefined}
+      onOpenUploads={canUploadMusic(user) ? () => { onOpenChange(false); void navigate('/uploads') } : undefined}
       failures={{
         settings: loadFailure(settings, 'Your playback settings did not load'),
         scrobbling: loadFailure(scrobbling, 'Your scrobbling connections did not load'),

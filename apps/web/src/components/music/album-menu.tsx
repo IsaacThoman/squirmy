@@ -1,5 +1,5 @@
 import type { ArtistRef, PlaylistSummary } from '@squirmy/contracts'
-import { ListEnd, ListMusic, ListPlus, ListStart, MicVocal, Play, Plus } from 'lucide-react'
+import { ListEnd, ListMusic, ListPlus, ListStart, MicVocal, Play, Plus, Shuffle } from 'lucide-react'
 import type { MenuEntry } from '@/components/ui/menu'
 import { librarySaveEntry, wantEntry } from './library-save-entry'
 
@@ -9,6 +9,8 @@ export type AlbumMenuOptions = {
   playable: boolean
   /** Offered where nothing else plays the album, such as on a card. */
   onPlay?: () => void
+  /** Beside Play, as in the iOS app's menus. */
+  onShuffle?: () => void
   /** Waits for the album's songs when it has to fetch them; a failure is said on the entry. */
   onEnqueue: (placement: 'next' | 'last') => void | Promise<unknown>
   /** The user's own playlists; `null` is a new one. */
@@ -29,13 +31,14 @@ export type AlbumMenuOptions = {
 }
 
 /**
- * An album's menu, the same on its page and on its cards, wherever they are: play it, queue it,
+ * An album's menu, the same on its page and on its cards, wherever they are: play or shuffle it, queue it,
  * add it to a playlist, the one library entry, the Wantlist for what does not play, and its artists.
  */
 export function albumMenuEntries(options: AlbumMenuOptions): MenuEntry[] {
-  const { artists, playable, onPlay, onEnqueue, playlists, onAddToPlaylist, songsKnown = true, liked, onToggleSaved, want, onGoToArtist } = options
+  const { artists, playable, onPlay, onShuffle, onEnqueue, playlists, onAddToPlaylist, songsKnown = true, liked, onToggleSaved, want, onGoToArtist } = options
   return [
     ...(onPlay ? [{ label: 'Play', icon: <Play />, disabled: !playable, onSelect: onPlay }] : []),
+    ...(onShuffle ? [{ label: 'Shuffle', icon: <Shuffle />, disabled: !playable, onSelect: onShuffle }] : []),
     // The queue may be out of sight: the entry says it worked.
     { label: 'Play next', icon: <ListStart />, disabled: !playable, onSelect: () => onEnqueue('next'), done: 'Playing next' },
     { label: 'Add to queue', icon: <ListEnd />, disabled: !playable, onSelect: () => onEnqueue('last'), done: 'Added to queue' },

@@ -2,6 +2,7 @@ import { ARTIST_SECTION_KEYS, type AlbumSummary, type AlbumType, type ArtistDeta
 import { ChevronLeft, Disc3, ExternalLink, Radio } from 'lucide-react'
 import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
+import type { MoreFailure } from '@/api/queries'
 import { Page, PageHeader } from '@/components/layout/Page'
 import { AlbumCard, ArtistCard, Monogram } from '@/components/music/Cards'
 import { CollectionHeader, PlayActions } from '@/components/music/CollectionHeader'
@@ -14,7 +15,8 @@ import { VirtualGrid } from '@/components/music/VirtualGrid'
 import { Button } from '@/components/ui/button'
 import { Badge, EmptyState, Spinner } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
-import { albumPresentation, artistReleasesPath, artistSectionTitle, canFetch, isArtistSectionKey, isPlayable } from '@/lib/catalog'
+import { LoadError } from '@/components/ui/query-state'
+import { artistAvailabilityNote, artistReleaseCounts, artistReleasesPath, artistSectionTitle, canFetch, isArtistSectionKey, isPlayable } from '@/lib/catalog'
 import { plural } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useLibrary } from '@/player/library-context'
@@ -36,15 +38,6 @@ function sectionsOf(artist: ArtistDetail): ArtistSection[] {
   ].filter(section => section.items.length).map(section => ({ ...section, title: '', total: section.items.length }))
 }
 
-/**
- * How many of the artist's releases there are, and how many play for a viewer who may not fetch.
- * A server that predates the counts sends every release in `albums`, so they are counted there.
- */
-function releaseCounts(artist: ArtistDetail, viewer: ReturnType<typeof useViewer>) {
-  if (artist.releaseCount !== undefined && artist.ownedReleaseCount !== undefined) return { total: artist.releaseCount, playing: artist.ownedReleaseCount }
-  return { total: artist.albums.length, playing: artist.albums.filter(album => albumPresentation(album, viewer) === 'normal').length }
-}
-
 export function ArtistView({ artist, onPlayAlbum }: { artist: ArtistDetail; onPlayAlbum: (album: AlbumSummary) => void }) {
   const library = useLibrary()
   const viewer = useViewer()
@@ -54,7 +47,8 @@ export function ArtistView({ artist, onPlayAlbum }: { artist: ArtistDetail; onPl
   const actions = useTrackActions(artist.topTracks, context)
   const wants = useAlbumWants()
   // A requester plays everything here, so only someone who may not fetch music is told how much plays.
-  const { total, playing } = releaseCounts(artist, viewer)
+  const { total } = artistReleaseCounts(artist, viewer)
+  const note = artistAvailabilityNote(artist, viewer)
   const playable = artist.topTracks.some(track => isPlayable(track, viewer))
   const sections = sectionsOf(artist)
   const hasTop = artist.topTracks.length > 0
@@ -64,7 +58,7 @@ export function ArtistView({ artist, onPlayAlbum }: { artist: ArtistDetail; onPl
     <div>
       <ArtistHeader
         artist={artist}
-        line={canFetch(viewer) || playing === total ? plural(total, 'release') : `${playing} of ${plural(total, 'release')} available`}
+        line={note ?? plural(total, 'release')}
         actions={(
           <PlayActions
             id={artist.id}
@@ -200,11 +194,13 @@ type ArtistReleasesViewProps = {
   /** Undefined while the first page loads. */
   albums: AlbumSummary[] | undefined
   onEndReached: () => void
+  /** The next page failed: the grid stops there and offers to try again. */
+  moreFailure?: MoreFailure
   onPlayAlbum: (album: AlbumSummary) => void
 }
 
 /** Every release of one section of an artist page, a page at a time as it scrolls. */
-export function ArtistReleasesView({ artist, artistId, section, total, albums, onEndReached, onPlayAlbum }: ArtistReleasesViewProps) {
+export function ArtistReleasesView({ artist, artistId, section, total, albums, onEndReached, moreFailure, onPlayAlbum }: ArtistReleasesViewProps) {
   const wants = useAlbumWants()
   const title = artistSectionTitle(section)
   return (
@@ -234,6 +230,7 @@ export function ArtistReleasesView({ artist, artistId, section, total, albums, o
               />
             )
             : <EmptyState icon={<Disc3 />} title="Nothing here yet" />}
+        {moreFailure && Boolean(albums?.length) && <LoadError title="More releases didn’t load" {...moreFailure} />}
       </Page>
     </>
   )

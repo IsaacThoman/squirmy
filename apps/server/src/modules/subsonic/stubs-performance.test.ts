@@ -30,7 +30,7 @@ describe.skipIf(!process.env.SQUIRMY_PERF)('subsonic in a catalog of stubs', () 
 
   beforeAll(async () => {
     app = await buildApp()
-    const user = await createUser({ username: 'mira' })
+    const user = await createUser({ username: 'mira', settings: { libraryIncludesServerMusic: true } })
     client = subsonicClient(app, { username: 'mira', secret: (await createAppPassword(user.id, 'perf')).secret! })
     await seedStubCatalog({ stubs: 200_000, artists: 20_000, collectionAlbums: 30, savedAlbums: 20, fetchedAlbums: 2_000, tracksPerAlbum: TRACKS_PER_ALBUM, userId: user.id })
   }, 600_000)

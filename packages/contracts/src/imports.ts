@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { AlbumSummary } from './catalog.js'
+import { AlbumSummary, TrackSummary } from './catalog.js'
 import { Id, IsoDateTime, PageQuery, page } from './common.js'
 
 /**
@@ -200,3 +200,93 @@ export type ImportAlbum = z.infer<typeof ImportAlbum>
 
 export const ImportAlbumList = page(ImportAlbum)
 export type ImportAlbumList = z.infer<typeof ImportAlbumList>
+
+/**
+ * Uploads: the music people brought to the server, as files, so they can manage it.
+ * `GET /me/uploads` lists the caller's own (from `kind: upload` imports); `GET
+ * /admin/uploads` lists everyone's, the inbox folder's included. Both group the files by
+ * uploader and album, newest upload first, and leave out imports still running.
+ *
+ * Deleting an upload (`DELETE /me/uploads/...`, `DELETE /admin/uploads/...`) removes the
+ * files from the server's disk, for everyone, and cannot be undone. Only uploaded files
+ * go: a scanned file of the same song, or another person's upload of it, stays. Files
+ * outside a managed root are never deleted (`upload_not_deletable`). When an album has no
+ * file left, the uploader's own save of it (made when the upload finished) goes too; other
+ * people's saves stay.
+ */
+
+/** Who uploaded. Null in these lists means the inbox folder, whose imports have no user. */
+export const Uploader = z.object({
+  id: Id,
+  username: z.string(),
+  displayName: z.string().nullable(),
+})
+export type Uploader = z.infer<typeof Uploader>
+
+/** One uploader's uploaded files on one album. */
+export const UploadAlbum = z.object({
+  album: AlbumSummary,
+  uploader: Uploader.nullable(),
+  /** Uploaded audio files on the album: one per song, unless a song was uploaded twice. */
+  fileCount: z.number().int(),
+  /** Their size on disk. */
+  bytes: z.number().int(),
+  /** When the newest of them arrived. */
+  uploadedAt: IsoDateTime,
+})
+export type UploadAlbum = z.infer<typeof UploadAlbum>
+
+export const UploadAlbumPage = page(UploadAlbum)
+export type UploadAlbumPage = z.infer<typeof UploadAlbumPage>
+
+/** Whose uploads an admin route means: a user's id, or `inbox` for the inbox folder's. */
+export const UploaderFilter = z.union([Id, z.literal('inbox')])
+export type UploaderFilter = z.infer<typeof UploaderFilter>
+
+/**
+ * Query of `GET /admin/uploads`, and of the admin routes for one album's uploads. Without
+ * `uploader`, every uploader's (and the inbox's).
+ */
+export const AdminUploadsQuery = PageQuery.extend({
+  uploader: UploaderFilter.optional(),
+})
+export type AdminUploadsQuery = z.infer<typeof AdminUploadsQuery>
+
+/** Query of the admin routes for one album's uploads (`GET` and `DELETE /admin/uploads/albums/:albumId`). */
+export const AdminUploadAlbumQuery = z.object({
+  uploader: UploaderFilter.optional(),
+})
+export type AdminUploadAlbumQuery = z.infer<typeof AdminUploadAlbumQuery>
+
+/**
+ * One uploaded file (`GET /me/uploads/albums/:albumId`, `GET /admin/uploads/albums/:albumId`),
+ * in track order. `fileId` is what `DELETE .../files/:fileId` takes: uploads are the one
+ * place besides playback where clients see files, because a file is what gets deleted.
+ */
+export const UploadFile = z.object({
+  fileId: Id,
+  /** The song, as everywhere else. Null while the file is linked to none. */
+  track: TrackSummary.nullable(),
+  /** The song's title from the file's tags (or its name), for a file with no track. */
+  title: z.string(),
+  uploader: Uploader.nullable(),
+  /** The file's codec, such as `flac` or `mp3`. */
+  codec: z.string(),
+  bytes: z.number().int(),
+  durationMs: z.number().int(),
+  uploadedAt: IsoDateTime,
+})
+export type UploadFile = z.infer<typeof UploadFile>
+
+/** An album's uploaded files, all of them, with `nextCursor: null`. */
+export const UploadFileList = page(UploadFile)
+export type UploadFileList = z.infer<typeof UploadFileList>
+
+/** The answer to every upload deletion. */
+export const DeleteUploadsResponse = z.object({
+  deletedFiles: z.number().int(),
+  deletedBytes: z.number().int(),
+  /** Files left as they were: outside a managed root, or the disk refused. */
+  keptFiles: z.number().int(),
+})
+export type DeleteUploadsResponse = z.infer<typeof DeleteUploadsResponse>

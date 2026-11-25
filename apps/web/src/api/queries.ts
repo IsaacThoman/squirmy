@@ -1,5 +1,5 @@
 import { ApiError, type ApiClient } from '@squirmy/client-core'
-import { Id, queryKeys, type AlbumSummary, type ArtistSectionKey, type ArtistSummary, type LibraryItem, type LibraryItemsSort, type LibraryQuery, type Page, type SearchResults, type TrackSummary } from '@squirmy/contracts'
+import { Id, queryKeys, type AlbumSummary, type ArtistSectionKey, type ArtistSummary, type LibraryItem, type LibraryItemsSort, type LibraryQuery, type Page, type SearchResults, type TrackSummary, type UploaderFilter } from '@squirmy/contracts'
 import { infiniteQueryOptions, keepPreviousData, useInfiniteQuery, useQuery, type InfiniteData, type InfiniteQueryObserverResult } from '@tanstack/react-query'
 import { awaitsTrackList } from '@/lib/catalog'
 import { useCallback, useRef } from 'react'
@@ -166,6 +166,57 @@ export function useLibraryList<K extends LibraryKind>(kind: K, filter: LibraryFi
   return useInfiniteQuery({ ...libraryListQuery(useApi(), kind, filter), placeholderData: keepPreviousData, enabled })
 }
 
+/** The server's lists (`/collection/*`): its albums, their artists and its songs, whatever is in the user's library. */
+export type CollectionKind = 'albums' | 'artists' | 'tracks'
+const collectionKeys = { albums: queryKeys.collectionAlbums, artists: queryKeys.collectionArtists, tracks: queryKeys.collectionTracks }
+
+/** One of the server's lists, a page at a time: the library's lists over all of the server's music (Home's See all). */
+export function useCollectionList<K extends CollectionKind>(kind: K, filter: LibraryFilter, enabled = true) {
+  const api = useApi()
+  const fetchers = { albums: api.catalog.collectionAlbums, artists: api.catalog.collectionArtists, tracks: api.catalog.collectionTracks }
+  const sort = filter.sort === 'played' ? 'recent' : filter.sort
+  return useInfiniteQuery({
+    queryKey: [...collectionKeys[kind](), filter],
+    queryFn: ({ pageParam }) => fetchers[kind]({ ...filter, sort, cursor: pageParam, limit: pageSizes[kind] }) as Promise<Page<LibraryItems[K]>>,
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: page => page.nextCursor ?? undefined,
+    placeholderData: keepPreviousData,
+    enabled,
+  })
+}
+
+/**
+ * Whose uploads a page lists: the user's own (Your uploads), or for an admin everyone's,
+ * one person's or the inbox's (`uploader`).
+ */
+export type UploadsScope = { admin: false } | { admin: true; uploader?: UploaderFilter }
+
+const uploadsKey = (scope: UploadsScope) => (scope.admin ? [...queryKeys.adminUploads(), scope.uploader ?? null] : [...queryKeys.uploads()])
+
+/** Uploads by album, newest first, a page at a time. */
+export function useUploads(scope: UploadsScope) {
+  const api = useApi()
+  return useInfiniteQuery({
+    queryKey: uploadsKey(scope),
+    queryFn: ({ pageParam }) => (scope.admin
+      ? api.uploads.adminList({ cursor: pageParam, limit: 50, ...(scope.uploader && { uploader: scope.uploader }) })
+      : api.uploads.list({ cursor: pageParam, limit: 50 })),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: page => page.nextCursor ?? undefined,
+    placeholderData: keepPreviousData,
+  })
+}
+
+/** One album's uploaded songs, loaded when the album is opened on the page. */
+export function useUploadFiles(scope: UploadsScope, albumId: string, uploader: UploaderFilter | undefined, enabled: boolean) {
+  const api = useApi()
+  return useQuery({
+    queryKey: [...uploadsKey(scope), 'album', albumId, uploader ?? null],
+    queryFn: () => (scope.admin ? api.uploads.adminAlbum(albumId, uploader ? { uploader } : {}) : api.uploads.album(albumId)),
+    enabled,
+  })
+}
+
 /** The most matches the Library's own search lists; past it, the page asks for more letters. */
 export const LIBRARY_MATCH_LIMIT = 50
 /** The server's library search ignores shorter queries, so the Library filters what it has instead. */
@@ -203,18 +254,45 @@ export function useLikedTracks() {
   })
 }
 
-type PagedResult<T> = InfiniteQueryObserverResult<InfiniteData<Page<T>>>
+export type PagedResult<T> = InfiniteQueryObserverResult<InfiniteData<Page<T>>>
 
 export const itemsOf = <T>(data: InfiniteData<Page<T>> | undefined): T[] => data?.pages.flatMap(page => page.items) ?? []
 
-/** The items of a paged list, loading the pages still missing until there are `limit`. */
-export async function loadItems<T>(query: PagedResult<T>, limit: number): Promise<T[]> {
+/** What `useNextPage` needs of an infinite query, whatever its pages hold. */
+type PagedQuery = Pick<InfiniteQueryObserverResult, 'hasNextPage' | 'isPlaceholderData' | 'isFetchingNextPage' | 'isFetchNextPageError' | 'error'> & { fetchNextPage: () => Promise<unknown> }
+
+/** A page past the first that failed, and a way to ask for it again. */
+export type MoreFailure = { error: unknown; retrying: boolean; onRetry: () => void }
+
+/**
+ * Loads a paged list's next page as its end comes into view (`onEndReached`). A page that fails
+ * stops the paging there, as the iOS app does, rather than asking for it again each time the end
+ * is in view: the list says so at its end (`moreFailure`) with a way to try again. `paused` (while
+ * a search stands in for the list) loads nothing.
+ */
+export function useNextPage(query: PagedQuery | undefined, paused = false) {
+  // While another sort's list stands in, its cursor is not this list's.
+  const hasNextPage = Boolean(query?.hasNextPage && !query.isPlaceholderData) && !paused
+  const { fetchNextPage, isFetchingNextPage = false } = query ?? {}
+  const failed = hasNextPage && Boolean(query?.isFetchNextPageError)
+  const onEndReached = useCallback(() => {
+    if (hasNextPage && !failed && !isFetchingNextPage) void fetchNextPage?.()
+  }, [hasNextPage, failed, isFetchingNextPage, fetchNextPage])
+  const moreFailure: MoreFailure | undefined = failed ? { error: query!.error, retrying: isFetchingNextPage, onRetry: () => void fetchNextPage?.() } : undefined
+  return { hasNextPage, onEndReached, loadingMore: hasNextPage && isFetchingNextPage && !failed, moreFailure }
+}
+
+/**
+ * The items of a paged list, loading the pages still missing until there are `limit`.
+ * `complete` is false when a page failed to load: `items` are then the ones loaded so far.
+ */
+export async function loadItems<T>(query: PagedResult<T>, limit: number): Promise<{ items: T[]; complete: boolean }> {
   let state = query
   while (state.hasNextPage && itemsOf(state.data).length < limit) {
     state = await state.fetchNextPage()
-    if (state.isFetchNextPageError) break
+    if (state.isFetchNextPageError) return { items: itemsOf(state.data).slice(0, limit), complete: false }
   }
-  return itemsOf(state.data).slice(0, limit)
+  return { items: itemsOf(state.data).slice(0, limit), complete: true }
 }
 
 /** A search route that is not there yet answers 404: no results, and a note that search is missing. */

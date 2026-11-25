@@ -15,7 +15,7 @@ Squirmy serves everything from one port (4747): the web app, the API under `/api
 
 Squirmy compresses its own responses (brotli or gzip for the API's JSON, Subsonic's XML and the web app's files; never audio, images or ranged responses), so the proxy does not need to. API reads carry an `ETag` and `Cache-Control: private, no-cache`: keep both, and pass `If-None-Match` through, so an unchanged page is a short 304. Never cache them in a shared cache.
 
-Artwork (`/api/v1/art/…`) is `public, max-age=31536000, immutable`: the bytes for a URL never change, so a CDN may keep it as long as it likes. The web app asks for `/api/v1/art/<id>/<size>.webp`, which Cloudflare caches by default because of the extension; for the extensionless form the iOS app uses, add a Cloudflare Cache Rule that makes `/api/v1/art/` eligible for cache.
+Artwork (`/api/v1/art/…`) is `public, max-age=31536000, immutable`: the bytes for a URL never change, so a CDN may keep it as long as it likes. The web and iOS apps ask for `/api/v1/art/<id>/<size>.webp`, which Cloudflare caches by default because of the extension. Older iOS builds ask without the extension; for those, add a Cloudflare Cache Rule that makes `/api/v1/art/` eligible for cache.
 
 ## 1. Configure Squirmy
 

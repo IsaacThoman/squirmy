@@ -11,6 +11,13 @@ export const UserSettings = z.object({
   downloadOnWifiOnly: z.boolean().default(true),
   scrobbleListenBrainz: z.boolean().default(false),
   scrobbleLastFm: z.boolean().default(false),
+  /**
+   * Whether the user's library holds all of the server's music (its collection: scanned,
+   * uploaded and inbox files), as well as what they saved. Off by default: a library is what
+   * the user hearted, with their own uploads hearted for them. The server's music is listed
+   * by `/collection/*` either way.
+   */
+  libraryIncludesServerMusic: z.boolean().default(false),
 })
 export type UserSettings = z.infer<typeof UserSettings>
 /** `PATCH /api/v1/me/settings`. Keys left out keep their value; there are no defaults here. */
@@ -22,6 +29,7 @@ export const UpdateUserSettings = z.object({
   downloadOnWifiOnly: z.boolean(),
   scrobbleListenBrainz: z.boolean(),
   scrobbleLastFm: z.boolean(),
+  libraryIncludesServerMusic: z.boolean(),
 }).partial()
 export type UpdateUserSettings = z.infer<typeof UpdateUserSettings>
 

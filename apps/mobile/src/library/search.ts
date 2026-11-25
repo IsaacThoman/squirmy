@@ -34,3 +34,30 @@ export function searchStage({ library, catalog, catalogFailed, waited }: {
   if (catalog || (library && catalogFailed)) return 'full';
   return library && waited ? 'partial' : 'wait';
 }
+
+type NoticeInput = {
+  items: readonly unknown[] | null; stale: boolean; pending: boolean; failed: boolean; catalogFailed: boolean;
+  moreFailed?: boolean; retryMore?: () => void;
+};
+
+/**
+ * What the results say above their rows, as on web: offline; neither search answered; still
+ * waiting; the catalog failed with nothing else found (`catalogEmpty`: not "No results", which
+ * would say there is nothing to find); nothing found; or the catalog failed beside rows from
+ * the server (`catalogNote`, not over an earlier search's rows). Null for just the rows.
+ */
+export function searchNotice(list: NoticeInput, offline: boolean):
+  'offline' | 'failed' | 'searching' | 'catalogEmpty' | 'noResults' | 'catalogNote' | null {
+  if (offline) return 'offline';
+  if (list.failed) return 'failed';
+  if (list.items === null) return 'searching';
+  const empty = !list.items.length && !list.pending && !list.stale;
+  if (empty) return list.catalogFailed ? 'catalogEmpty' : 'noResults';
+  return list.catalogFailed && !list.stale ? 'catalogNote' : null;
+}
+
+/** What ends the results: the next page's failure with Try again, a spinner while more load, or nothing. */
+export function searchEnd(list: NoticeInput): 'moreFailed' | 'loading' | null {
+  if (list.moreFailed && !list.stale && !list.pending && list.retryMore) return 'moreFailed';
+  return list.pending && list.items?.length ? 'loading' : null;
+}

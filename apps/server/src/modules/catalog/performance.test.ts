@@ -41,7 +41,8 @@ describe.skipIf(!process.env.SQUIRMY_PERF)('catalog performance', () => {
 
   beforeAll(async () => {
     app = await buildApp()
-    user = await signIn()
+    // Their library holds the collection as well as their saves: most of the catalog.
+    user = await signIn({ settings: { libraryIncludesServerMusic: true } })
     // Time the wantlist queries rather than the answer for a switched-off wantlist.
     await updateServerSettings({ wantlistEnabled: true })
     const started = performance.now()
@@ -141,6 +142,15 @@ describe.skipIf(!process.env.SQUIRMY_PERF)('catalog performance', () => {
       deep: await libraryItemsQuery(user.id, { sort: 'played', limit: 50, cursor: pinnedDeep }, LIBRARY_PIN_LIMIT),
     }
     cases.push(['items played with pins', (cursor) => (cursor ? pinned.deep : pinned.first), '/api/v1/library/items?sort=played'])
+    // The server's music: the same lists over the collection alone.
+    const server = { albums: await libraryShape(null, 'albums'), tracks: await libraryShape(null, 'tracks') }
+    for (const sort of ['recent', 'title', 'artist', 'year'] as const) {
+      cases.push([`server albums ${sort}`, (cursor) => libraryAlbumsQuery(null, { sort, limit: 50, cursor }, server.albums), `/api/v1/collection/albums?sort=${sort}`])
+    }
+    for (const sort of ['recent', 'title', 'artist'] as const) {
+      cases.push([`server tracks ${sort}`, (cursor) => libraryTracksQuery(null, { sort, limit: 50, cursor }, server.tracks), `/api/v1/collection/tracks?sort=${sort}`])
+    }
+    cases.push(['server artists', (cursor) => libraryArtistsQuery(null, { limit: 50, cursor }, server.albums), '/api/v1/collection/artists'])
 
     for (const [name, query, url] of cases) {
       const first = await explain(query())
@@ -156,6 +166,31 @@ describe.skipIf(!process.env.SQUIRMY_PERF)('catalog performance', () => {
     report.push(`query genres: ${(await explain(libraryGenresQuery(user.id, { limit: 50 }, albums))).toFixed(2)} ms`)
     // Tracks by year sort the library's files, so they are timed but have no index to keep.
     report.push(`query tracks year: ${(await explain(libraryTracksQuery(user.id, { sort: 'year', limit: 50 }, tracks))).toFixed(2)} ms`)
+  }, 300_000)
+
+  it('keeps a library of saves alone on its indexes', async () => {
+    // The default: the collection does not count, so the library is the saves (2,000 likes
+    // and the 500 albums and 500 songs saved above) in a catalog of 10,000 albums.
+    const saver = await signIn()
+    await db.execute(sql`insert into likes (user_id, entity_type, entity_id, created_at)
+      select ${saver.id}, entity_type, entity_id, created_at from likes where user_id = ${user.id}`)
+    await db.execute(sql`analyze likes`)
+    const shapes = { albums: await libraryShape(saver.id, 'albums'), tracks: await libraryShape(saver.id, 'tracks') }
+    const cases: [string, SQL][] = []
+    for (const sort of ['recent', 'title', 'artist', 'year'] as const) cases.push([`saves albums ${sort}`, libraryAlbumsQuery(saver.id, { sort, limit: 50 }, shapes.albums)])
+    for (const sort of ['recent', 'title', 'artist'] as const) cases.push([`saves tracks ${sort}`, libraryTracksQuery(saver.id, { sort, limit: 50 }, shapes.tracks)])
+    cases.push(['saves artists', libraryArtistsQuery(saver.id, { limit: 50 }, shapes.albums)])
+    for (const sort of ['played', 'recent', 'title'] as const) cases.push([`saves items ${sort}`, await libraryItemsQuery(saver.id, { sort, limit: 50 })])
+    for (const [name, query] of cases) {
+      const time = await explain(query)
+      report.push(`query ${name} (${name.includes('tracks') ? shapes.tracks : shapes.albums}): ${time.toFixed(2)} ms`)
+      expect(time, name).toBeLessThan(50)
+    }
+    for (const url of ['/api/v1/library/albums?limit=50', '/api/v1/library/tracks?limit=50', '/api/v1/library/items?limit=50', '/api/v1/home']) {
+      const started = performance.now()
+      expect((await app.inject({ url, headers: saver.headers })).statusCode).toBe(200)
+      report.push(`route ${url} (saves): ${(performance.now() - started).toFixed(1)} ms`)
+    }
   }, 300_000)
 
   it('serves pages and home quickly', async () => {
