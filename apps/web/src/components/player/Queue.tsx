@@ -19,9 +19,6 @@ import { touchTarget } from './Transport'
 const rowHeight = 48
 
 const toggleClass = 'inline-flex h-8 pointer-coarse:h-11 flex-1 items-center justify-center gap-1.5 rounded-full bg-accent/70 px-3 text-xs font-medium text-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 [&_svg]:size-3.5'
-/** The row of toggles is this tall, and the headings of the lists below it pin just under it. */
-const togglesHeight = 'h-11 pointer-coarse:h-14'
-const pinnedUnderToggles = 'top-11 pointer-coarse:top-14'
 
 type QueueContentProps = {
   player: Player
@@ -32,19 +29,24 @@ type QueueContentProps = {
   modes?: boolean
   /** The queue is on screen. Shown again (as a pane of Now Playing is), it goes back to the song playing. */
   shown?: boolean
-  /** Over Now Playing's blurred artwork, where a pinned heading frosts what passes under it rather than covering it. */
-  overArtwork?: boolean
+  /** The queue as a panel of its own, which this closes; without it, a pane of Now Playing, over its artwork. */
+  onClose?: () => void
+  className?: string
 }
+
+/** The lists whose headings the bar above the queue takes over once they scroll away. */
+type QueueSection = 'history' | 'next' | 'autoplay'
+
 
 /**
  * The whole queue, laid out as the iOS app's (and Apple Music's): the history at the top, oldest
  * first, then the song playing with the toggles under it, then Up next ("Continue Playing" while
  * every song in it comes from what is playing) and the Autoplay suggestions. It opens on the song
  * playing, with the history above, out of view until scrolled to; as songs finish and join the
- * history the view keeps its place. Each list's heading pins to the top while its list is in view,
- * under the toggles once the song playing has scrolled away, so the queue always says where it is.
+ * history the view keeps its place. The bar above the queue says where it is: "Queue", or, once a
+ * list's heading has scrolled away, that list's heading, so the list scrolls under nothing.
  */
-export function QueueContent({ player, modes = true, shown = true, overArtwork = false }: QueueContentProps) {
+export function QueueContent({ player, modes = true, shown = true, onClose, className }: QueueContentProps) {
   const { state, controls } = player
   // The queue can be on screen twice, as the panel and as a pane of Now Playing.
   const id = useId()
@@ -53,79 +55,145 @@ export function QueueContent({ player, modes = true, shown = true, overArtwork =
   const historyList = useRef<HTMLElement>(null)
   const viewHeight = useQueuePlacement(home, historyList, shown, state.history)
   const context = contextLabel(state.context)
-  const pinned = cn('sticky z-10', overArtwork ? 'backdrop-blur-xl' : 'bg-background/85 backdrop-blur-md')
+  const nextList = useRef<HTMLElement>(null)
+  const autoplayList = useRef<HTMLElement>(null)
+  const section = useScrolledSection(home, { history: historyList, next: nextList, autoplay: autoplayList })
   const autoplaySwitch = <Switch checked={state.autoplay} onCheckedChange={controls.setAutoplay} aria-label="Autoplay" />
+  const upNext = state.queue.map(item => item.entry)
+  const headings: Record<QueueSection, { title: string; detail?: string | null; icon?: ReactNode }> = {
+    history: { title: 'History' },
+    next: { title: upNextTitle(context, upNext), detail: upNextDetail(context, upNext) ?? 'Songs you add to the queue appear here.' },
+    autoplay: {
+      title: 'Autoplay',
+      detail: state.autoplay ? 'Similar music will keep playing.' : 'Turn on Autoplay to keep listening.',
+      icon: <InfinityIcon aria-hidden className={cn('size-4', state.autoplay ? 'text-primary' : 'text-muted-foreground')} />,
+    },
+  }
+  const shownHeading = section ? headings[section] : null
   return (
-    // The queue keeps its own place as the history grows above it (`useQueuePlacement`); the browser's scroll anchoring would move it twice.
-    <div className="flex flex-col [overflow-anchor:none]">
-      {state.history.length > 0 && (
-        <section ref={historyList} aria-labelledby={`${id}-history`} className="pb-3">
-          <QueueHeading id={`${id}-history`} className={cn(pinned, 'top-0')} action={<ClearButton label="Clear history" onClick={() => setClearingHistory(true)} />}>
-            History
-          </QueueHeading>
-          <ul>{state.history.map(item => <li key={item.entry.id}><QueueRow item={item} onPlay={() => controls.playEntry(item.entry.id)} faded /></li>)}</ul>
-        </section>
-      )}
-
-      {/* At least a screen from the song playing down, so the queue can rest on it with the history above, however short Up next is. */}
-      <div style={{ minHeight: state.history.length ? viewHeight : undefined }}>
-      <div ref={home}>
-        {state.current && (
-          <section aria-label="Now playing">
-            <QueueRow item={state.current} current playing={state.playing} waiting={state.waiting} outage={state.outage} />
-          </section>
-        )}
-      </div>
-      {modes && (
-        <div className={cn(pinned, 'top-0 z-20 flex items-center gap-2 px-2', togglesHeight)}>
-          <button type="button" aria-pressed={state.shuffle} onClick={() => controls.setShuffle(!state.shuffle)} className={toggleClass}>
-            <Shuffle aria-hidden />Shuffle
-          </button>
-          <button type="button" aria-pressed={state.repeat !== 'off'} onClick={controls.cycleRepeat} className={toggleClass}>
-            {state.repeat === 'one' ? <Repeat1 aria-hidden /> : <Repeat aria-hidden />}{state.repeat === 'one' ? 'Repeat one' : 'Repeat'}
-          </button>
-          <button type="button" aria-pressed={state.autoplay} onClick={() => controls.setAutoplay(!state.autoplay)} className={toggleClass}>
-            <InfinityIcon aria-hidden />Autoplay
-          </button>
+    <div className={cn('flex min-h-0 flex-col', className)}>
+      <div className={cn('flex h-12 shrink-0 items-center gap-2 border-b', onClose ? 'pl-4 pr-2' : 'border-foreground/10 px-2')}>
+        {/* The list scrolled to, in the place of "Queue": its heading in the list says the same to a screen reader. */}
+        <div className="grid min-w-0 flex-1 [&>*]:col-start-1 [&>*]:row-start-1">
+          <h2 className={cn('self-center text-sm font-semibold transition-opacity duration-150', shownHeading && 'opacity-0')}>Queue</h2>
+          {shownHeading && (
+            <div aria-hidden className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                {shownHeading.icon}
+                <p className="truncate text-sm font-semibold">{shownHeading.title}</p>
+              </div>
+              {shownHeading.detail && <p className="truncate text-xs text-muted-foreground">{shownHeading.detail}</p>}
+            </div>
+          )}
         </div>
-      )}
-
-      <section aria-labelledby={`${id}-next`} className="pt-2">
-        <QueueHeading
-          id={`${id}-next`}
-          className={cn(pinned, modes ? pinnedUnderToggles : 'top-0')}
-          detail={upNextDetail(context, state.queue.map(item => item.entry)) ?? 'Songs you add to the queue appear here.'}
-          action={state.queue.length > 0 && <ClearButton label="Clear queue" onClick={controls.clearQueue} />}
-        >
-          {upNextTitle(context, state.queue.map(item => item.entry))}
-        </QueueHeading>
-        {state.queue.length > 0 && <SortableQueue items={state.queue} onMove={controls.moveEntry} onRemove={controls.removeEntry} onPlay={controls.playEntry} />}
-      </section>
-
-      <section aria-labelledby={`${id}-autoplay`} className="pt-3">
-        <QueueHeading
-          id={`${id}-autoplay`}
-          className={cn(pinned, modes ? pinnedUnderToggles : 'top-0')}
-          icon={<InfinityIcon aria-hidden className={cn('size-4', state.autoplay ? 'text-primary' : 'text-muted-foreground')} />}
-          detail={state.autoplay ? 'Similar music will keep playing.' : 'Turn on Autoplay to keep listening.'}
-          action={!modes && autoplaySwitch}
-        >
-          Autoplay
-        </QueueHeading>
-        {state.autoplay && <ul>{state.autoplayQueue.map(item => <li key={item.entry.id}><QueueRow item={item} onPlay={() => controls.playEntry(item.entry.id)} faded /></li>)}</ul>}
-      </section>
-      {/* Nothing brings a cleared history back, so it is asked first. */}
-      <ConfirmDialog
-        open={clearingHistory}
-        onOpenChange={setClearingHistory}
-        title="Clear history?"
-        description="The songs you played leave the history on all your devices. This can’t be undone."
-        confirmLabel="Clear history"
-        onConfirm={async () => controls.clearHistory()}
-      />
+        {/* No tooltip: the floating queue puts focus here as it opens, and a tooltip shown on focus would take the first Escape, so closing would need two. */}
+        {onClose && <IconButton label="Close queue" tooltip={false} size="sm" onClick={onClose} className={touchTarget}><X /></IconButton>}
       </div>
+      <ScrollArea className="min-h-0 flex-1">
+        {/* The queue keeps its own place as the history grows above it (`useQueuePlacement`); the browser's scroll anchoring would move it twice. */}
+        <div className={cn('flex flex-col pb-4 [overflow-anchor:none]', onClose && 'px-2')}>
+          {state.history.length > 0 && (
+            <section ref={historyList} aria-labelledby={`${id}-history`} className="pb-3">
+              <QueueHeading id={`${id}-history`} action={<ClearButton label="Clear history" onClick={() => setClearingHistory(true)} />}>
+                History
+              </QueueHeading>
+              <ul>{state.history.map(item => <li key={item.entry.id}><QueueRow item={item} onPlay={() => controls.playEntry(item.entry.id)} faded /></li>)}</ul>
+            </section>
+          )}
+
+          {/* At least a screen from the song playing down, so the queue can rest on it with the history above, however short Up next is. */}
+          <div style={{ minHeight: state.history.length ? viewHeight : undefined }}>
+            <div ref={home}>
+              {state.current && (
+                <section aria-label="Now playing">
+                  <QueueRow item={state.current} current playing={state.playing} waiting={state.waiting} outage={state.outage} />
+                </section>
+              )}
+            </div>
+            {modes && (
+              <div className="flex h-11 items-center gap-2 px-2 pointer-coarse:h-14">
+                <button type="button" aria-pressed={state.shuffle} onClick={() => controls.setShuffle(!state.shuffle)} className={toggleClass}>
+                  <Shuffle aria-hidden />Shuffle
+                </button>
+                <button type="button" aria-pressed={state.repeat !== 'off'} onClick={controls.cycleRepeat} className={toggleClass}>
+                  {state.repeat === 'one' ? <Repeat1 aria-hidden /> : <Repeat aria-hidden />}{state.repeat === 'one' ? 'Repeat one' : 'Repeat'}
+                </button>
+                <button type="button" aria-pressed={state.autoplay} onClick={() => controls.setAutoplay(!state.autoplay)} className={toggleClass}>
+                  <InfinityIcon aria-hidden />Autoplay
+                </button>
+              </div>
+            )}
+
+            <section ref={nextList} aria-labelledby={`${id}-next`} className="pt-2">
+              <QueueHeading
+                id={`${id}-next`}
+                detail={headings.next.detail}
+                action={state.queue.length > 0 && <ClearButton label="Clear queue" onClick={controls.clearQueue} />}
+              >
+                {headings.next.title}
+              </QueueHeading>
+              {state.queue.length > 0 && <SortableQueue items={state.queue} onMove={controls.moveEntry} onRemove={controls.removeEntry} onPlay={controls.playEntry} />}
+            </section>
+
+            <section ref={autoplayList} aria-labelledby={`${id}-autoplay`} className="pt-3">
+              <QueueHeading
+                id={`${id}-autoplay`}
+                icon={headings.autoplay.icon}
+                detail={headings.autoplay.detail}
+                action={!modes && autoplaySwitch}
+              >
+                Autoplay
+              </QueueHeading>
+              {state.autoplay && <ul>{state.autoplayQueue.map(item => <li key={item.entry.id}><QueueRow item={item} onPlay={() => controls.playEntry(item.entry.id)} faded /></li>)}</ul>}
+            </section>
+            {/* Nothing brings a cleared history back, so it is asked first. */}
+            <ConfirmDialog
+              open={clearingHistory}
+              onOpenChange={setClearingHistory}
+              title="Clear history?"
+              description="The songs you played leave the history on all your devices. This can’t be undone."
+              confirmLabel="Clear history"
+              onConfirm={async () => controls.clearHistory()}
+            />
+          </div>
+        </div>
+      </ScrollArea>
     </div>
   )
+}
+
+/**
+ * Which list the queue is scrolled into: the one whose heading has scrolled up out of view while
+ * some of its songs are still in view. Null on the song playing and the toggles, and above.
+ */
+function useScrolledSection(inside: RefObject<HTMLElement | null>, lists: Record<QueueSection, RefObject<HTMLElement | null>>) {
+  const [section, setSection] = useState<QueueSection | null>(null)
+  // The lists' refs never change, so those of the first render serve.
+  const latest = useRef(lists)
+  useEffect(() => {
+    const scroller = scrollParent(inside.current, { overflowing: false })
+    if (!scroller) return
+    let frame = 0
+    const measure = () => {
+      frame = 0
+      const top = scroller.getBoundingClientRect().top + 0.5
+      let found: QueueSection | null = null
+      for (const [key, ref] of Object.entries(latest.current) as [QueueSection, RefObject<HTMLElement | null>][]) {
+        const list = ref.current
+        const heading = list?.firstElementChild
+        if (list && heading && heading.getBoundingClientRect().bottom <= top && list.getBoundingClientRect().bottom > top) found = key
+      }
+      setSection(found)
+    }
+    const onScroll = () => { frame ||= requestAnimationFrame(measure) }
+    measure()
+    scroller.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      scroller.removeEventListener('scroll', onScroll)
+      cancelAnimationFrame(frame)
+    }
+  }, [inside])
+  return section
 }
 
 /**
@@ -173,11 +241,11 @@ function useQueuePlacement(home: RefObject<HTMLElement | null>, history: RefObje
   return viewHeight
 }
 
-function QueueHeading({ id, children, detail, action, icon, className }: {
-  id: string; children: ReactNode; detail?: string | null; action?: ReactNode; icon?: ReactNode; className?: string
+function QueueHeading({ id, children, detail, action, icon }: {
+  id: string; children: ReactNode; detail?: string | null; action?: ReactNode; icon?: ReactNode
 }) {
   return (
-    <div className={cn('flex min-h-11 items-center gap-2 px-2 py-1.5', className)}>
+    <div className="flex min-h-11 items-center gap-2 px-2 py-1.5">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           {icon}
@@ -548,16 +616,5 @@ const SortableQueueRow = memo(function SortableQueueRow({ item, index, count, y,
 
 /** The queue under its title bar. The shell docks it beside the page or floats it over the page. */
 export function QueuePanel({ player, onClose }: { player: Player; onClose: () => void }) {
-  return (
-    <div className="flex h-full w-full flex-col">
-      <div className="flex h-12 shrink-0 items-center justify-between border-b pl-4 pr-2">
-        <h2 className="text-sm font-semibold">Queue</h2>
-        {/* No tooltip: the floating queue puts focus here as it opens, and a tooltip shown on focus would take the first Escape, so closing would need two. */}
-        <IconButton label="Close queue" tooltip={false} size="sm" onClick={onClose} className={touchTarget}><X /></IconButton>
-      </div>
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="px-2 pb-4"><QueueContent player={player} /></div>
-      </ScrollArea>
-    </div>
-  )
+  return <QueueContent player={player} onClose={onClose} className="h-full w-full" />
 }

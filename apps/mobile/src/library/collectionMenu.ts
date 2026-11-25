@@ -1,12 +1,17 @@
 import { albumPresentation, type Viewer } from '@squirmy/client-core';
 import { LIKED_SONGS_ID, type LibraryPinKind } from '@squirmy/contracts';
 import type { Href } from 'expo-router';
+import { albumActions } from './albumActions';
 import type { RowAction } from './BrowseControls';
 import type { Collection } from './shared';
 
 /** What a collection's menu runs; `open` pushes a page of the tab, `pin` pins or unpins it. */
 export type CollectionRunners = {
   playAlbum: (albumId: string, shuffle: boolean) => void;
+  /** Loads the album's songs when they are not cached, then queues what plays. */
+  enqueueAlbum: (item: Collection, placement: 'next' | 'last') => void;
+  /** Opens the add-to-playlist sheet for the whole album. */
+  addAlbumToPlaylist: (albumId: string) => void;
   open: (href: Href) => void;
   pin: (item: Collection, pinned: boolean) => void;
 };
@@ -21,9 +26,9 @@ export function pinTarget(item: Collection): [LibraryPinKind, string] | null {
 }
 
 /**
- * The menu of a tile: an album plays, shuffles and goes to its artists, as its row in Search
- * does; anything else opens. Saving and downloading stay on the pages, which show their
- * state, and so does an artist's radio. In the Library, where it is known whether an item is
+ * The menu of a tile: an album has its page's menu (`albumActions`) but for saving, as its
+ * row in Search does; anything else opens. Saving and downloading stay on the pages, which
+ * show their state, and so does an artist's radio. In the Library, where it is known whether an item is
  * pinned, Pin or Unpin ends the menu. Offline only what opens a page is offered.
  */
 export function collectionActions(item: Collection, context: { offline: boolean; viewer: Viewer | null | undefined }, run: CollectionRunners): RowAction[] {
@@ -40,13 +45,12 @@ function ownActions(item: Collection, { offline, viewer }: { offline: boolean; v
   if (item.kind === 'album') {
     const plays = !offline && !item.dim && (!item.availability || albumPresentation({ availability: item.availability }, viewer) === 'normal');
     const artists = item.artists ?? [];
-    const entries: RowAction[] = [
-      ...(plays ? [
-        { title: 'Play', icon: 'play', onPress: () => run.playAlbum(item.key, false) },
-        { title: 'Shuffle', icon: 'shuffle', onPress: () => run.playAlbum(item.key, true) },
-      ] : []),
-      ...artists.map(artist => ({ title: artists.length > 1 ? `Go to ${artist.name}` : 'Go to artist', icon: 'music.mic', onPress: () => run.open(artist.href) })),
-    ];
+    const entries = albumActions({ plays, offline, artists }, {
+      play: shuffle => run.playAlbum(item.key, shuffle),
+      enqueue: placement => run.enqueueAlbum(item, placement),
+      addToPlaylist: () => run.addAlbumToPlaylist(item.key),
+      goToArtist: index => run.open(artists[index]!.href),
+    });
     return entries.length ? entries : [open];
   }
   return [open];

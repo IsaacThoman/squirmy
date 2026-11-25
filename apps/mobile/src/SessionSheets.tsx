@@ -1,5 +1,5 @@
 import type { SessionMoveResult } from '@squirmy/client-core';
-import { PLAYLIST_NAME_MAX_LENGTH, type DeviceInfo, type PlaylistSummary } from '@squirmy/contracts';
+import { PLAYLIST_NAME_MAX_LENGTH, type DeviceInfo, type PlaylistSummary, type TrackSummary as Track } from '@squirmy/contracts';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -10,7 +10,8 @@ import { usePlaylistActions, useTrack } from './data/library';
 import { useRealtime } from './data/realtime';
 import { useCanPlay, useViewer } from './downloads/DownloadsProvider';
 import { unavailableReason } from './downloads/model';
-import { usePlaylists } from './data/queries';
+import { awaitsTrackList } from './data/albums';
+import { useAlbum, usePlaylists } from './data/queries';
 import { usePageLinks } from './library/links';
 import { matches } from './library/shared';
 import { trackActionKey, useRunTrackAction, useTrackActions } from './library/trackActions';
@@ -24,6 +25,7 @@ import {
 import { DETACHED_SYMBOL, detachedHeader, hasQueueToBring, moveFailure, separateRows } from './player/detach';
 import { announce } from './inlineFeedback';
 import { playlistAddFailure } from './library/failures';
+import { repeatedAddPrompt } from './library/albumActions';
 import { useColors } from './theme';
 
 /** Up to this many playlists the sheet fits them all; beyond, they scroll under a search field. */
@@ -159,12 +161,25 @@ export function TrackActionSheet({ id, albumId, playlistId, itemId }: { id: stri
 }
 
 /**
- * Opened from a track's actions: adds the track to one of the user's playlists, most
- * recently changed first, or to a new one. Many playlists scroll under a search field.
+ * The songs a playlist sheet adds: one track, or with no `trackId` every song `albumId` lists,
+ * which wait for the album. Undefined until they are known.
  */
-export function AddToPlaylistSheet({ trackId, albumId }: { trackId: string; albumId?: string }) {
+function useSongsToAdd(trackId: string | undefined, albumId: string | undefined) {
+  const track = useTrack(trackId || null, albumId || null);
+  const wholeAlbum = !trackId && albumId ? albumId : '';
+  const album = useAlbum(wholeAlbum, { enabled: Boolean(wholeAlbum) }).query.data;
+  if (!wholeAlbum) return { songs: track ? [track] : undefined, track, album: undefined };
+  const songs = album && !awaitsTrackList(album) ? album.discs.flatMap(disc => disc.tracks) : undefined;
+  return { songs, track: undefined, album };
+}
+
+/**
+ * Opened from a track's or an album's actions: adds the songs to one of the user's playlists,
+ * most recently changed first, or to a new one. Many playlists scroll under a search field.
+ */
+export function AddToPlaylistSheet({ trackId, albumId }: { trackId?: string; albumId?: string }) {
   const router = useRouter();
-  const track = useTrack(trackId, albumId || null);
+  const { songs, track, album } = useSongsToAdd(trackId, albumId);
   const { state } = useAccount();
   const userId = state.status === 'signedIn' ? state.user.id : null;
   const list = usePlaylists();
@@ -180,28 +195,33 @@ export function AddToPlaylistSheet({ trackId, albumId }: { trackId: string; albu
   useEffect(() => {
     if (list.hasNextPage) list.loadMore();
   }, [list.hasNextPage, list.items.length]);
-  // As in Apple Music, a song the playlist already has is added again only when asked to.
-  // The sheet stays open while it asks, so another playlist can be chosen instead.
-  const askAnyway = (playlist: PlaylistSummary) => {
-    if (!track) return;
-    Alert.alert(`Already in “${playlist.name}”`, `Add “${track.title}” again?`, [
+  // As in Apple Music, songs the playlist already has are added again only when asked to; for
+  // an album, as on web, Skip adds only the others. The sheet stays open while it asks, so
+  // another playlist can be chosen instead.
+  const ask = (playlist: PlaylistSummary, all: readonly Track[], repeated: readonly Track[]) => {
+    const prompt = repeatedAddPrompt(playlist.name, all, repeated);
+    if (!prompt) return send(playlist, all, false);
+    const there = new Set(repeated.map(song => song.id));
+    Alert.alert(prompt.title, prompt.message, [
       { text: 'Don’t Add', style: 'cancel' },
-      { text: 'Add Anyway', onPress: () => send(playlist, true) },
+      ...prompt.skip ? [{ text: prompt.skip, onPress: () => send(playlist, all.filter(song => !there.has(song.id)), false) }] : [],
+      { text: 'Add Anyway', onPress: () => send(playlist, all, true) },
     ]);
   };
-  // The sheet closes once the server has the song: the playlist's new count is the confirmation.
+  // The sheet closes once the server has the songs: the playlist's new count is the confirmation.
   // A refusal is said here, and the sheet stays to try again.
-  const send = (playlist: PlaylistSummary, anyway: boolean) => {
-    if (!track || sending.current) return;
+  const send = (playlist: PlaylistSummary, tracks: readonly Track[], anyway: boolean) => {
+    if (sending.current) return;
     sending.current = true;
     setAdding(playlist.id);
     setFailed(null);
-    playlists.add(playlist, [track], { anyway }).then(({ skipped }) => {
+    playlists.add(playlist, tracks, { anyway }).then(({ skipped }) => {
       sending.current = false;
       if (!open.current) return;
       setAdding(null);
-      // The server left out a duplicate the phone didn't know of (the playlist's page was never loaded).
-      if (skipped) askAnyway(playlist);
+      // The server left out a duplicate the phone didn't know of (its copy of the playlist was
+      // old). One song is asked about again; of many, the others are in, which is what was meant.
+      if (skipped && tracks.length === 1) ask(playlist, tracks, tracks);
       else closeSheet(router);
     }, () => {
       sending.current = false;
@@ -212,15 +232,26 @@ export function AddToPlaylistSheet({ trackId, albumId }: { trackId: string; albu
       announce(message);
     });
   };
+  // What the playlist has already is looked up first, with the row's spinner, as on web.
   const add = (playlist: PlaylistSummary) => {
-    if (!track || sending.current) return;
+    if (!songs?.length || sending.current) return;
     void Haptics.selectionAsync();
-    if (playlists.has(playlist.id, track.id)) askAnyway(playlist);
-    else send(playlist, false);
+    const known = songs.length === 1 ? playlists.has(playlist.id, songs[0]!.id) : undefined;
+    if (known !== undefined) return ask(playlist, songs, known ? songs : []);
+    sending.current = true;
+    setAdding(playlist.id);
+    void playlists.repeated(playlist.id, songs).then(repeated => {
+      sending.current = false;
+      if (!open.current) return;
+      setAdding(null);
+      ask(playlist, songs, repeated);
+    });
   };
   const create = () => {
     void Haptics.selectionAsync();
-    router.replace({ pathname: '/name-playlist', params: { mode: 'create', name: track?.title ?? '', trackId, albumId: albumId ?? '' } });
+    router.replace({ pathname: '/name-playlist', params: {
+      mode: 'create', name: album?.title ?? track?.title ?? '', trackId: trackId ?? '', albumId: albumId ?? '',
+    } });
   };
   const rows = (items: readonly PlaylistSummary[]) => items.map(playlist => (
     <SheetRow key={playlist.id} title={playlist.name} icon="music.note.list" busy={adding === playlist.id}
@@ -229,8 +260,13 @@ export function AddToPlaylistSheet({ trackId, albumId }: { trackId: string; albu
   const many = owned.length > fittingPlaylists;
   return (
     <Sheet title="Add to playlist">
-      <TrackSummary track={track} />
+      {album ? <TrackSummary track={undefined} collection={{ title: album.title, artwork: album.artwork }}
+        subtitle={songs ? `${album.artistCredit} · ${songs.length} ${songs.length === 1 ? 'song' : 'songs'}` : album.artistCredit} />
+        : <TrackSummary track={track} />}
       {failed && <SheetNote error>{failed}</SheetNote>}
+      {/* An album whose songs the server is still looking up has nothing to add yet. */}
+      {album && !songs && <SheetNote>Looking up the album’s songs…</SheetNote>}
+      {album && songs?.length === 0 && <SheetNote>The server doesn’t know this album’s songs yet.</SheetNote>}
       {many && <SheetField label="Find a playlist" value={query} onChange={setQuery} onSubmit={() => undefined} />}
       <SheetRows>
         <SheetRow title="New playlist" icon="plus" onPress={create} />
@@ -241,23 +277,27 @@ export function AddToPlaylistSheet({ trackId, albumId }: { trackId: string; albu
   );
 }
 
-/** Names a new playlist (adding `trackId` to it, when given) or renames one. */
+/** Names a new playlist (adding the songs of `trackId` or, without one, of `albumId`, when given) or renames one. */
 export function NamePlaylistSheet({ mode, id, name, trackId, albumId }: {
   mode: 'create' | 'rename'; id?: string; name?: string; trackId?: string; albumId?: string;
 }) {
   const router = useRouter();
   const link = usePageLinks();
-  const track = useTrack(trackId || null, albumId || null);
+  const { songs } = useSongsToAdd(trackId, albumId);
+  // Songs were chosen to start the playlist with, whether or not they have loaded yet.
+  const withSongs = Boolean(trackId || albumId);
   const playlists = usePlaylistActions();
   // A new playlist is named after the song by default, and a song's title can be longer than a name may be.
   const [value, setValue] = useState((name ?? '').slice(0, PLAYLIST_NAME_MAX_LENGTH));
   const [saving, setSaving] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const open = useOpenRef();
-  // Made, but the song not added to it: trying again adds the song to this one rather than making another.
+  // Made, but the songs not added to it: trying again adds them to this one rather than making another.
   const created = useRef<PlaylistSummary | null>(null);
-  const ready = Boolean(value.trim()) && (mode === 'create' || value.trim() !== name) && !saving;
-  // The sheet closes once the server has the name (and the song), so a refusal leaves the text
+  // An album's songs are waited for; a song not found here makes the playlist empty, as before.
+  const waiting = !trackId && Boolean(albumId) && songs === undefined;
+  const ready = Boolean(value.trim()) && (mode === 'create' || value.trim() !== name) && !saving && !waiting;
+  // The sheet closes once the server has the name (and the songs), so a refusal leaves the text
   // here to try again, and says so here.
   const save = () => {
     if (!ready) return;
@@ -281,20 +321,20 @@ export function NamePlaylistSheet({ mode, id, name, trackId, albumId }: {
       return playlist;
     });
     made.then(playlist => {
-      const added = track ? playlists.add(playlist, [track]) : Promise.resolve();
+      const added = songs?.length ? playlists.add(playlist, songs) : Promise.resolve();
       added.then(() => {
         if (!open.current) return;
         closeSheet(router);
-        // Made from the Library, the new playlist opens, ready for songs; made while adding a song, the person stays where they were.
-        if (!track) router.navigate(link('playlist', playlist.id));
-      }, fail(`Made “${playlist.name}”, but couldn’t add the song. Try again.`));
+        // Made from the Library, the new playlist opens, ready for songs; made while adding songs, the person stays where they were.
+        if (!withSongs) router.navigate(link('playlist', playlist.id));
+      }, fail(`Made “${playlist.name}”, but couldn’t add ${songs?.length === 1 ? 'the song' : 'the songs'}. Try again.`));
     }, fail('Couldn’t create the playlist. Try again.'));
   };
   return (
     <Sheet title={mode === 'rename' ? 'Rename playlist' : 'New playlist'}>
       <SheetField label="Playlist name" value={value} onChange={setValue} onSubmit={save} autoFocus maxLength={PLAYLIST_NAME_MAX_LENGTH} />
       {failed && <SheetNote error>{failed}</SheetNote>}
-      <SheetAction title={mode === 'rename' ? 'Save' : track ? 'Create and add' : 'Create'} disabled={!ready} onPress={save} />
+      <SheetAction title={mode === 'rename' ? 'Save' : withSongs ? 'Create and add' : 'Create'} disabled={!ready} onPress={save} />
     </Sheet>
   );
 }

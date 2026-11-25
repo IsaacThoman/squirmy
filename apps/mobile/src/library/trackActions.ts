@@ -8,12 +8,12 @@ import { useRealtime } from '../data/realtime';
 import { useCanPlay, useDownloadManager, useTrackDownload, useViewer } from '../downloads/DownloadsProvider';
 import { songsId, type TrackDownload } from '../downloads/model';
 import { useCurrentTrackState, usePlaybackActions } from '../playback';
-import { successFeedback } from '../player/design';
 import { usePlayerTransition } from '../player/transition';
 import { playbackStatus } from '../player/usePlaybackStatus';
 import { pageHref } from './links';
 import { tabIn } from './tabs';
 import { createStartGuard } from './pending';
+import { confirmQueued } from './queued';
 import { queuedNotice, radioStartingNotice, trackActions, type TrackAction, type TrackActionOptions } from './trackActionList';
 
 export { trackActionKey, trackActions, type TrackAction, type TrackActionId, type TrackActionOptions, type TrackActionState } from './trackActionList';
@@ -52,10 +52,9 @@ export function useTrackActionRunner(inSheet = false) {
       case 'next':
       case 'last':
         actions.enqueue([track], action.id);
-        // The queue isn't on screen: the player's status line and a tap say it worked.
-        successFeedback();
+        // The queue isn't on screen: the player's status line, a tap and VoiceOver say it worked.
         playbackStatus.report(queuedNotice(track.title, action.id));
-        return undefined;
+        return confirmQueued(action.id);
       case 'like': return setLiked('track', track.id, true, track.title);
       case 'unlike': return setLiked('track', track.id, false, track.title);
       case 'download': return void manager?.addTrack(track);
