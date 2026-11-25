@@ -1,6 +1,6 @@
 import type { TrackSummary } from '@squirmy/contracts';
 import { describe, expect, it } from 'vitest';
-import { trackActionKey, trackActions, trackLinks, type TrackActionState } from './trackActionList';
+import { queuedNotice, radioStartingNotice, trackActionKey, trackActions, trackLinks, type TrackActionState } from './trackActionList';
 
 const track = (parts: Partial<TrackSummary> = {}): TrackSummary => ({
   id: 't', mbid: null, title: 'Song', artistCredit: 'Artist', artists: [{ id: 'ar', name: 'Artist' }], durationMs: 1,
@@ -136,5 +136,16 @@ describe('trackLinks', () => {
   it('leaves out what does not exist', () => {
     expect(trackLinks(track({ album: null })).map(link => link.id)).toEqual(['artist']);
     expect(trackLinks(track({ album: null, artists: [] }))).toEqual([]);
+  });
+});
+
+describe('queuedNotice and radioStartingNotice', () => {
+  it('says where a queued song went, and names it under that', () => {
+    expect(queuedNotice('Song', 'next')).toEqual({ message: 'Playing next', detail: 'Song' });
+    expect(queuedNotice('Song', 'last')).toEqual({ message: 'Added to queue', detail: 'Song' });
+  });
+
+  it('says a radio is on its way, as the web does', () => {
+    expect(radioStartingNotice).toEqual({ message: 'Starting radio…' });
   });
 });

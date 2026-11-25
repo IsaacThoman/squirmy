@@ -60,6 +60,19 @@ describe('PlaybackStatusStore', () => {
     expect(message(store)).toBe('Several songs in a row aren’t available');
   });
 
+  it('takes an event away early when withdrawn, and nothing newer', () => {
+    const store = new PlaybackStatusStore();
+    store.report({ message: 'Can’t load music right now' }, { lasting: true });
+    const starting = store.report({ message: 'Starting radio…' });
+    store.withdraw(starting);
+    expect(message(store)).toBe('Can’t load music right now');
+    const next = store.report({ message: 'Starting radio…' });
+    store.withdraw(starting);
+    expect(store.current()?.id).toBe(next);
+    store.withdraw(next);
+    expect(message(store)).toBe('Can’t load music right now');
+  });
+
   it('keeps an event shown when playback resumes', () => {
     const store = new PlaybackStatusStore();
     store.report({ message: 'Can’t load music right now' }, { lasting: true });

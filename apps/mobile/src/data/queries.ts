@@ -93,7 +93,8 @@ export function usePlaylists(enabled = true) {
   return usePagedQuery([...queryKeys.playlists(), 'list'], (api, cursor) => api.userdata.playlists({ cursor, limit: pageSize }), enabled);
 }
 
-export function useAlbum(id: string) {
+/** `enabled: false` for a screen that may not need the album, such as a song's add-to-playlist sheet. */
+export function useAlbum(id: string, { enabled = true }: { enabled?: boolean } = {}) {
   const prime = usePrime();
   const api = useSignedInApi();
   const queryClient = useQueryClient();
@@ -107,7 +108,7 @@ export function useAlbum(id: string) {
   const query = useQuery({
     queryKey: queryKeys.album(id),
     queryFn: async () => prime(await api!.catalog.album(id), album => album.discs.flatMap(disc => disc.tracks)),
-    enabled: Boolean(api),
+    enabled: Boolean(api) && enabled,
     placeholderData: placeholder,
     // An album the server has only heard of (from search or an artist's discography) comes
     // back without tracks while the server looks them up; a later answer has them.
@@ -125,7 +126,11 @@ export function useAlbum(id: string) {
   return { query, checkAgain };
 }
 
-export function useArtist(id: string) {
+/**
+ * `enabled: false` until the page knows which artist. `poll: false` for a page that only
+ * borrows the artist, such as an album page's rails: the invalidations are enough there, as on web.
+ */
+export function useArtist(id: string, { enabled = true, poll = true }: { enabled?: boolean; poll?: boolean } = {}) {
   const prime = usePrime();
   const api = useSignedInApi();
   const queryClient = useQueryClient();
@@ -137,11 +142,11 @@ export function useArtist(id: string) {
   return useQuery({
     queryKey: queryKeys.artist(id),
     queryFn: async () => prime(await api!.catalog.artist(id), artist => artist.topTracks),
-    enabled: Boolean(api),
+    enabled: Boolean(api) && enabled,
     placeholderData: placeholder,
     // A page answered while the server still fetches the profile and discography is not
     // final; the realtime invalidation that follows can be missed, so it is asked for again.
-    refetchInterval: query => artistPending(query.state.data, query.state.dataUpdateCount) ? pendingArtistPollMs : false,
+    refetchInterval: query => poll && artistPending(query.state.data, query.state.dataUpdateCount) ? pendingArtistPollMs : false,
   });
 }
 

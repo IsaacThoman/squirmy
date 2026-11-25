@@ -10,6 +10,7 @@ import { LibraryProvider } from '../src/data/library';
 import { RealtimeProvider } from '../src/data/realtime';
 import { DownloadsProvider } from '../src/downloads/DownloadsProvider';
 import Player from '../src/Player';
+import { PlayerErrorBoundary } from '../src/player/PlayerError';
 import { PlayerTransitionProvider } from '../src/player/transition';
 import { PlaybackProvider } from '../src/playback';
 import { noScrollEdgeEffects } from '../src/scrollEdgeEffects';
@@ -18,6 +19,9 @@ import { useAppearance, useColors } from '../src/theme';
 
 // Sheets opened by a link or a restored route still get the tabs beneath them.
 export const unstable_settings = { anchor: '(tabs)' };
+
+// Pages and sheets have their own; this catches what fails outside them, such as a provider.
+export { AppError as ErrorBoundary } from '../src/ScreenError';
 
 // Held until the stored session and the saved lists are read, so launch never flashes the wrong screen.
 void SplashScreen.preventAutoHideAsync();
@@ -90,7 +94,7 @@ function Routes() {
         </Stack.Protected>
       </Stack.Protected>
     </Stack>
-    {signedIn && <Player />}
+    {signedIn && <PlayerErrorBoundary><Player /></PlayerErrorBoundary>}
   </>;
 }
 

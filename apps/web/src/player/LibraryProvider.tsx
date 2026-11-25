@@ -1,3 +1,4 @@
+import { cachedInLibrary, heartFields, heartRollback } from '@squirmy/client-core'
 import { queryKeys, type CreatePlaylistRequest, type EntityFields, type Page, type PlaylistSummary, type TrackSummary, type WantItem } from '@squirmy/contracts'
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useCallback, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
@@ -75,14 +76,17 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     mutationFn: ({ target, saved }: { target: LibraryTarget; saved: boolean }) =>
       (saved ? api.userdata.like(target.type, target.id) : api.userdata.unlike(target.type, target.id)),
     onMutate: ({ target, saved }) => {
-      const fields = saved ? { liked: true, inLibrary: true } : { liked: false }
+      const fields = heartFields(target.type, saved)
+      // What a refusal puts back: a refused save leaves the library as it was.
+      const inLibrary = cachedInLibrary(queryClient.getQueryCache().getAll().map(query => query.state.data), target.id)
       dropReadsOf(queryClient, target.id, fields)
       heart(target, fields)
       failures.clear(`save:${target.id}`)
+      return { inLibrary }
     },
     // The heart goes back and says so beside itself; nothing floats over the page.
-    onError: (_error, { target, saved }) => {
-      heart(target, { liked: !saved })
+    onError: (_error, { target, saved }, context) => {
+      heart(target, heartRollback(target.type, saved, context?.inLibrary))
       failures.fail(
         `save:${target.id}`,
         saved ? 'Couldn’t save. Try again.' : 'Couldn’t remove. Try again.',

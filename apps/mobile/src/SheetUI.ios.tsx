@@ -9,7 +9,7 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BrandMark } from './BrandMark';
-import { IconButton, Symbol, TrackCover, hitShape, plainButton } from './native/Controls';
+import { IconButton, NativeCover, Symbol, TrackCover, hitShape, plainButton } from './native/Controls';
 import type {
   SheetActionProps, SheetFieldProps, SheetFrameProps, SheetNoteProps, SheetPickerRowProps, SheetScrollProps, SheetInfoProps, SheetRowProps, SheetSliderProps,
   TrackSummaryProps,
@@ -153,13 +153,13 @@ function useSummaryLines() {
   return isAccessibilitySize(fontScale) ? [] : [lineLimit(1)];
 }
 
-export function TrackSummary({ track, subtitle }: TrackSummaryProps) {
+export function TrackSummary({ track, subtitle, collection }: TrackSummaryProps) {
   const colors = useColors();
   const lines = useSummaryLines();
   return <HStack spacing={12} modifiers={[padding({ bottom: 4 })]}>
-    <TrackCover track={track} size={53} radius={9} />
+    {collection ? <NativeCover artwork={collection.artwork} size={53} radius={9} /> : <TrackCover track={track} size={53} radius={9} />}
     <VStack alignment="leading" spacing={3}>
-      <Text modifiers={[font({ textStyle: 'headline' }), ...lines]}>{track?.title ?? 'Not Playing'}</Text>
+      <Text modifiers={[font({ textStyle: 'headline' }), ...lines]}>{collection?.title ?? track?.title ?? 'Not Playing'}</Text>
       <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(colors.muted), ...lines]}>{subtitle ?? track?.artistCredit ?? ''}</Text>
     </VStack>
     <Spacer minLength={0} />
