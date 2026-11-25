@@ -41,9 +41,9 @@ export function AlbumMetadata({ title, info, artist, artistLinks = noArtistLinks
 // Sizes of the iOS large title, title 3 and footnote styles.
 const useStyles = createThemedStyles(colors => StyleSheet.create({
   metadata: { alignSelf: 'stretch', alignItems: 'center', gap: 4 },
-  title: { color: colors.text, fontSize: 34, lineHeight: 41, fontWeight: '700', letterSpacing: 0.4, textAlign: 'center' },
+  title: { color: colors.text, fontSize: 34, lineHeight: 41, fontWeight: '600', textAlign: 'center' },
   artist: { color: colors.text, fontSize: 20, lineHeight: 25, fontWeight: '500', textAlign: 'center' },
   artistLink: { color: colors.accent, fontWeight: '600' },
-  info: { color: colors.muted, fontSize: 13, lineHeight: 18, textAlign: 'center' },
+  info: { color: colors.muted, fontSize: 13, lineHeight: 18, fontVariant: ['tabular-nums'], textAlign: 'center' },
   pressed: { opacity: 0.6 },
 }));

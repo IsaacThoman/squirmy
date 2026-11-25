@@ -93,7 +93,7 @@ const SidebarView = memo(function SidebarView({
       )}
     >
       {/* The link grows with the sidebar, and the icon stays on the logo's centerline. */}
-      <span className="flex h-8 w-9 shrink-0 items-center justify-center"><Icon aria-hidden className="size-4" /></span>
+      <span className="flex h-8 w-9 shrink-0 items-center justify-center"><Icon aria-hidden size={16} strokeWidth={1.5} /></span>
       <span className={cn('min-w-0 flex-1 truncate whitespace-nowrap pr-2', textTransition)}>{label}</span>
       {options.hint && <span className={cn('pr-2', textTransition)}>{options.hint}</span>}
     </NavLink>
@@ -185,10 +185,10 @@ const SidebarView = memo(function SidebarView({
           {collapsed && <div aria-hidden className="mx-1.5 mb-2 border-t border-sidebar-border" />}
           {/* Stays mounted while folded, so it fades on the same timeline as the labels. */}
           <div aria-hidden={collapsed} inert={collapsed} className={cn('transition-opacity ease-[cubic-bezier(0.4,0,0.2,1)]', collapsed && 'h-0 overflow-hidden', contentTransition)}>
-            <div className="flex items-center px-2 pb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            <div className="flex items-center px-2 pb-1 text-xs font-medium text-muted-foreground">
               <Link to="/library?filter=playlists" onClick={onNavigate} className="rounded-sm underline-offset-2 outline-none pointer-coarse:flex pointer-coarse:h-11 pointer-coarse:items-center hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline">Playlists</Link>
               <button type="button" onClick={() => library.newPlaylist()} aria-label="New playlist" className="relative -my-0.5 ml-auto flex size-6 items-center justify-center rounded-md pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
-                <Plus aria-hidden className="size-3.5" />
+                <Plus aria-hidden size={16} strokeWidth={1.5} />
               </button>
             </div>
           </div>
@@ -224,7 +224,7 @@ const SidebarView = memo(function SidebarView({
           trigger={(
             <button type="button" aria-label={`Account, ${name}`} className="flex h-10 w-full items-center gap-2 overflow-hidden rounded-lg text-left outline-none pointer-coarse:h-11 hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-sidebar-accent">
               <span className="flex size-9 shrink-0 items-center justify-center">
-                <span aria-hidden className="flex size-7 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">{initial(name)}</span>
+                <span aria-hidden className="flex size-7 items-center justify-center rounded-full bg-sidebar-accent text-xs font-medium text-sidebar-accent-foreground">{initial(name)}</span>
               </span>
               <span className={cn('min-w-0 flex-1 whitespace-nowrap pr-2', textTransition)}>
                 <span dir="auto" className="block truncate text-sm font-medium">{name}</span>

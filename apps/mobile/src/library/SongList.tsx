@@ -170,7 +170,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   flex: { flex: 1 },
   pressed: { opacity: 0.72 },
   unavailable: { opacity: unavailableOpacity },
-  rowTitle: { color: colors.text, fontWeight: '600', fontSize: 15, letterSpacing: -0.2 },
+  rowTitle: { color: colors.text, fontWeight: '600', fontSize: 15 },
   titleText: { flexShrink: 1 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   rowSub: { color: colors.muted, fontSize: 12 },

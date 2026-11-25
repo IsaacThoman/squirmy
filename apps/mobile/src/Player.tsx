@@ -1,6 +1,5 @@
 import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { usePathname, useRouter } from 'expo-router';
 import { useEffect, useRef, useState, type PropsWithChildren } from 'react';
 import { BackHandler, Platform, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
@@ -13,7 +12,6 @@ import { initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-
 import { scheduleOnRN } from 'react-native-worklets';
 import { formatDuration, formatRemaining } from '@squirmy/client-core';
 import { useArtworkImage } from './data/artwork';
-import { fallbackTint } from './data/color';
 import { heartColor } from './library/heart';
 import { OfflineBadge } from './library/shared';
 import { MiniPlayerContent } from './MiniPlayer';
@@ -115,7 +113,6 @@ export default function Player() {
   const loading = useLoading();
   const artwork = track?.album?.artwork;
   const artworkImage = useArtworkImage(artwork, tablet ? tabletArtworkLimit : 440);
-  const backdropImage = useArtworkImage(artwork, 300);
   const detail = useSharedValue(0);
   const queueShown = useSharedValue(0);
   const nowPlayingShift = useSharedValue(0);
@@ -423,15 +420,7 @@ export default function Player() {
       <Animated.View style={[styles.panel, panelStyle]}>
         <Glass tint="systemThinMaterial" animatedProps={glassProps} style={StyleSheet.absoluteFill} />
         <Animated.View style={[styles.page, { width, height }, pageStyle]}>
-          <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: artwork?.color ?? fallbackTint }, backdropStyle]} pointerEvents="none">
-            {backdropImage && <Image source={backdropImage.source} placeholder={backdropImage.placeholder} blurRadius={70}
-              contentFit="cover" cachePolicy="memory-disk" transition={210} style={styles.backdropArt} />}
-            <LinearGradient
-              colors={colors.playerGradient}
-              locations={[0, 0.39, 0.85, 1]}
-              style={StyleSheet.absoluteFill}
-            />
-          </Animated.View>
+          <Animated.View style={[styles.backdrop, backdropStyle]} pointerEvents="none" />
           {/* The footer reaches a little into the home indicator's margin, as Apple Music's does. */}
           <Animated.View style={[styles.safe, { paddingTop: top, paddingBottom: Math.max(0, bottom - 14), paddingLeft: insets.left,
             paddingRight: insets.right }, contentStyle]}>
@@ -724,7 +713,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   page: { position: 'absolute', top: 0, left: 0 },
   bubbleContent: { position: 'absolute', top: 0, left: 0 },
   safe: { flex: 1 },
-  backdropArt: { width: '110%', height: '86%', opacity: 0.62 },
+  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: colors.sheet },
   grabberTouch: { alignItems: 'center' },
   collapse: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center' },
   offline: { position: 'absolute', top: 2, left: artworkInset },
@@ -744,13 +733,13 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   queueArtwork: { width: compactArtworkSize, height: compactArtworkSize, borderRadius: compactArtworkRadius,
     overflow: 'hidden', backgroundColor: colors.surface },
   queueMetadata: { flex: 1, width: 'auto', maxWidth: undefined, minHeight: compactArtworkSize, marginLeft: 12 },
-  compactTrackTitle: { color: colors.text, fontWeight: '700', fontSize: 18 },
+  compactTrackTitle: { color: colors.text, fontWeight: '600', fontSize: 18 },
   compactTrackArtist: { color: colors.muted, marginTop: 2, fontSize: 14 },
   metadataSlot: { width: '100%', maxWidth: 440, justifyContent: 'center' },
   metadata: { width: '100%', maxWidth: 440, flexDirection: 'row', alignItems: 'center', gap: 5 },
   tabletMetadata: { maxWidth: undefined },
   trackCopy: { minWidth: 0, flex: 1 },
-  trackTitle: { fontSize: 30, fontWeight: '700', letterSpacing: -1, color: colors.text },
+  trackTitle: { fontSize: 30, fontWeight: '600', letterSpacing: -0.6, color: colors.text },
   compactTitle: { fontSize: 25 },
   artist: { marginTop: 3, color: colors.muted, fontWeight: '500', fontSize: 16 },
   status: { color: colors.accent, fontWeight: '600' },

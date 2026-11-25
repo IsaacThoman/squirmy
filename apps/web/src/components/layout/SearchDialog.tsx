@@ -156,7 +156,7 @@ export function SearchDialog({ open, onOpenChange, query, onQueryChange, results
         </div>
         {(term ? settledEmpty || failed || catalogFailed : true) && (
           <div className="shrink-0 px-1.5 pt-1.5">
-            {!term && <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Go to</p>}
+            {!term && <p className="px-3 pb-1 pt-2 text-xs font-medium text-muted-foreground">Go to</p>}
             {term && failed && <Notice text="Search didn’t work. Check your connection." onRetry={onRetry} />}
             {/* Said whatever the server had: without the catalog, "No results" would say there is nothing to find. */}
             {term && !failed && catalogFailed && <Notice text="Couldn’t search the catalog. Only music on this server is listed." onRetry={onRetry} />}

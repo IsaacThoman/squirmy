@@ -3,7 +3,7 @@ import { ContextMenu as ContextPrimitive, DropdownMenu as DropdownPrimitive } fr
 import { createContext, use, useEffect, useRef, useState, type ComponentProps, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
 import { errorMessage } from '@/api/errors'
 import { cn } from '@/lib/utils'
-import { Spinner } from './feedback'
+import { Kbd, Spinner } from './feedback'
 
 export const menuContentClass = 'z-50 min-w-44 max-w-[calc(100vw-1rem)] origin-(--radix-popper-transform-origin) animate-enter overflow-y-auto overflow-x-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md data-[state=closed]:animate-exit'
 /** A long menu (every playlist under "Add to playlist") scrolls within the room the screen has. */
@@ -166,7 +166,7 @@ function Entries({ parts, entries, path = '' }: { parts: Parts; entries: MenuEnt
         {shown?.state === 'failed'
           ? <span className="flex min-w-0 flex-col"><Label text={entry.label} /><span className="text-xs text-destructive">{shown.text}</span></span>
           : <Label text={shown?.state === 'done' ? shown.text! : entry.label} />}
-        {entry.shortcut && <span aria-hidden className="ml-auto pl-4 text-xs tracking-widest text-muted-foreground">{entry.shortcut}</span>}
+        {entry.shortcut && <Kbd aria-hidden className="ml-auto shrink-0">{entry.shortcut}</Kbd>}
       </parts.Item>
     )
   })

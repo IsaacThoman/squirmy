@@ -319,7 +319,7 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', wan
 /** The names of the columns, laid out as a row is so that they sit over them. */
 function ListHeader({ variant, dated }: { variant: TrackListVariant; dated: boolean }) {
   return (
-    <div aria-hidden className="@container mb-1 border-b px-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+    <div aria-hidden className="@container mb-1 border-b px-2 text-xs font-medium text-muted-foreground">
       <div className={cn('grid h-8 items-center gap-x-3', columnsOf(variant, dated))}>
         {variant !== 'compact' && <span className="text-center">#</span>}
         <span>Title</span>

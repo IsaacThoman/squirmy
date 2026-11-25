@@ -37,14 +37,10 @@ export const COLOR_THEMES: readonly ColorTheme[] = [
     id: DEFAULT_COLOR_THEME_ID,
     name: 'Squirmy',
     light: {
-      background: '#fbf9ff', surface: '#ffffff', raisedSurface: '#f1edf9', hover: '#ebe5f7', text: '#1d1929', mutedText: '#67607c',
-      border: '#e2dbf0', action: '#b5368f', focus: '#7c5ce0',
-      sidebar: '#f4f0fc', sidebarSelection: '#e6ddf8', sidebarBorder: '#e2dbf0', error: '#c42e3a',
+      background: '#faf9fa', surface: '#ffffff', text: '#211f22', mutedText: '#656169', action: '#a82e80', error: '#c42e3a',
     },
     dark: {
-      background: '#1d1929', surface: '#231e31', raisedSurface: '#383443', hover: '#403c4b', text: '#fffaff', mutedText: '#aca6b5',
-      border: '#4d4366', action: '#f099d8', focus: '#9d7df2',
-      sidebar: '#272139', sidebarSelection: '#3d325d', sidebarBorder: '#362d51', error: '#fe5a5e',
+      background: '#19181b', text: '#f6f3f6', mutedText: '#ada7af', action: '#f099d8', error: '#fe5a5e',
     },
   },
   {
@@ -162,10 +158,9 @@ export function resolvePalette(colors: ThemeColors): ThemePalette {
 }
 
 /**
- * How light an artwork's color may be when it tints a dark page's header (OKLab lightness). The
- * dark tint is strong (`--album-tint`), and a pale cover would otherwise lift the header until its
- * secondary text no longer reads; `color-themes.test.ts` checks every theme against pale, vivid
- * and dark covers. Light pages tint weakly enough to take any color.
+ * How light an artwork's color may be when it tints a dark page's header (OKLab lightness).
+ * The cap keeps pale covers from brightening the header too much. `color-themes.test.ts`
+ * checks text contrast against pale, vivid and dark covers in every theme.
  */
 export const DARK_TINT_MAX_LIGHTNESS = 0.6
 

@@ -222,7 +222,7 @@ function SeparateTrack({ state }: { state: NonNullable<DeviceInfo['detached']> }
 const rowClass = 'flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50'
 
 function GroupLabel({ children }: { children: ReactNode }) {
-  return <p className="px-2 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{children}</p>
+  return <p className="px-2 pb-1 pt-2 text-xs font-medium text-muted-foreground">{children}</p>
 }
 
 function ActionRow({ icon, title, detail, onClick }: { icon: ReactNode; title: string; detail?: string; onClick: () => void }) {

@@ -163,7 +163,7 @@ const later = () => new Promise<void>(resolve => { setTimeout(resolve, 600) })
 function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="border-b pb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{title}</h2>
+      <h2 className="border-b pb-2 text-xs font-medium text-muted-foreground">{title}</h2>
       {children}
     </section>
   )
@@ -233,7 +233,7 @@ function Foundations() {
         </div>
         <p className="max-w-xl text-sm">Body text. Soft-focus synths and close-mic vocals trace the last light of the day.</p>
         <p className="max-w-xl text-sm text-muted-foreground">Secondary text, for descriptions and everything that explains.</p>
-        <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Small caps label</p>
+        <p className="text-xs font-medium text-muted-foreground">Section label</p>
       </Group>
     </>
   )

@@ -14,11 +14,15 @@ function declared(body: string): Record<string, string> {
   return Object.fromEntries([...body.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)].map(([, name, value]) => [name, value.trim()]))
 }
 
-/** The colors a top-level block of index.css declares; sizes and other settings are left out. */
-function declaredColors(selector: string): Record<string, string> {
+function declaredVariables(selector: string): Record<string, string> {
   const block = new RegExp(`(?:^|\\n)${selector.replace('.', '\\.')}\\s*\\{([^}]*)\\}`).exec(indexCss)
   if (!block) throw new Error(`index.css has no ${selector} block`)
-  return Object.fromEntries(Object.entries(declared(block[1])).filter(([, value]) => normalizeHex(value) !== null))
+  return declared(block[1])
+}
+
+/** The colors a top-level block of index.css declares; sizes and other settings are left out. */
+function declaredColors(selector: string): Record<string, string> {
+  return Object.fromEntries(Object.entries(declaredVariables(selector)).filter(([, value]) => normalizeHex(value) !== null))
 }
 
 /** What a theme's stylesheet declares for each appearance. */
@@ -228,7 +232,10 @@ describe('contrast of text drawn in derived colors', () => {
     }
   }
   /** `--album-tint` in index.css: how much of the cover tints the top of a header. */
-  const strength = { light: 0.16, dark: 0.42 }
+  const strength = {
+    light: Number(declaredVariables(':root')['--album-tint']),
+    dark: Number(declaredVariables('.dark')['--album-tint']),
+  }
 
   it.each(palettes)('%s: secondary words in a collection header read at 4.5:1 over any cover\'s tint', (_name, palette, appearance) => {
     // `--color-tint-muted-foreground`: the text, a fifth of the way to the page.

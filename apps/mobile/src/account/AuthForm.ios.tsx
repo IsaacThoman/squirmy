@@ -46,7 +46,7 @@ export function AuthPage({ title, message, children }: AuthPageProps) {
                 <View style={styles.mark}><BrandMark size={markSize} /></View>
               </RNHostView>
             </VStack>
-            <Text modifiers={[font({ textStyle: 'title', weight: 'bold' }), multilineTextAlignment('center'),
+            <Text modifiers={[font({ textStyle: 'title', weight: 'semibold' }), multilineTextAlignment('center'),
               accessibilityAddTraits(['isHeader'])]}>{title}</Text>
             <Text modifiers={[font({ textStyle: 'subheadline' }), foregroundStyle(colors.muted), multilineTextAlignment('center')]}>{message}</Text>
           </VStack>

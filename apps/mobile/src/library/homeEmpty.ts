@@ -1,4 +1,3 @@
-import { plural } from '@squirmy/client-core';
 import type { ScanProgress } from '../data/scanProgress';
 
 export type HomeEmpty = { icon: string; title: string; description: string; findMusic: boolean };
@@ -12,21 +11,21 @@ export type HomeEmpty = { icon: string; title: string; description: string; find
 export function homeEmpty({ canFindMusic, isAdmin, scan }: { canFindMusic: boolean; isAdmin: boolean; scan: ScanProgress | null }): HomeEmpty {
   if (scan) {
     return {
-      icon: 'arrow.triangle.2.circlepath', title: 'Your music is on its way', findMusic: false,
-      description: `Scanning: ${plural(scan.processed, 'file')} of ${scan.total.toLocaleString()} read. Albums appear here as soon as they are ready.`,
+      icon: 'arrow.triangle.2.circlepath', title: 'Scanning music', findMusic: false,
+      description: `${scan.processed.toLocaleString()} of ${scan.total.toLocaleString()} files read. Albums appear as they’re scanned.`,
     };
   }
   if (canFindMusic) {
     return {
       icon: 'music.note.house', title: 'Start listening', findMusic: true,
-      description: 'Search for any artist, album or song and play it. What you play and add to your library shows up here.'
+      description: 'Search for a song, album or artist. Recent plays and music you save show up here.'
         + (isAdmin ? ' Music folders are added from Admin in Squirmy on the web.' : ''),
     };
   }
   return {
-    icon: 'music.note.house', title: 'Nothing in your library yet', findMusic: false,
+    icon: 'music.note.house', title: 'No music on this server yet', findMusic: false,
     description: isAdmin
-      ? 'Add the folder that holds your music from Admin in Squirmy on the web. Albums show up here as they are scanned.'
-      : 'An admin of this server adds the music folders. Albums show up here as soon as one is scanned.',
+      ? 'Add a music folder from Admin in Squirmy on the web. Albums appear as they’re scanned.'
+      : 'Albums appear here after a server admin adds and scans a music folder.',
   };
 }

@@ -8,7 +8,6 @@ import { Cover } from '@/components/music/Cover'
 import { SaveHeart } from '@/components/music/LibrarySave'
 import { Dialog } from '@/components/ui/dialog'
 import { IconButton } from '@/components/ui/icon-button'
-import { useArtUrl } from '@/lib/artwork'
 import { cn } from '@/lib/utils'
 import { playingElsewhere, type Player } from '@/player/player-context'
 import { STILL_LOADING_LABEL, useStillLoading } from '@/player/use-still-loading'
@@ -33,9 +32,6 @@ type NowPlayingProps = {
   onToggleLike: () => void
 }
 
-/** The theme's background over the blurred artwork: a tint at the top, solid under the controls. */
-const wash = 'linear-gradient(to bottom, color-mix(in srgb, var(--background) 55%, transparent), color-mix(in srgb, var(--background) 80%, transparent) 40%, var(--background))'
-
 /** Mount details on first use, then keep their scroll positions when switching panes. */
 function NowPlayingStage({ player, pane, artwork, onClose }: { player: Player; pane: NowPlayingPane; artwork: Artwork | null; onClose: () => void }) {
   const [visited, setVisited] = useState(() => new Set([pane]))
@@ -43,7 +39,7 @@ function NowPlayingStage({ player, pane, artwork, onClose }: { player: Player; p
   return (
     <div data-pane={pane} className="now-playing-stage relative grid min-h-0 flex-1 px-6 py-4 md:px-8 lg:px-10 short-landscape:self-stretch short-landscape:py-2">
       <div className="now-playing-art relative flex min-h-0 min-w-0 items-center justify-center [container-type:size]">
-        <Cover artwork={artwork} size={1200} className="size-[min(100cqw,100cqh,34rem)] rounded-xl shadow-[0_32px_80px_-24px_rgb(0_0_0/0.6)]" />
+        <Cover artwork={artwork} size={1200} className="size-[min(100cqw,100cqh,34rem)] rounded-xl shadow-cover" />
       </div>
       <div className="now-playing-details relative min-h-0 min-w-0">
         <div data-now-playing-scroll id="now-playing-lyrics" inert={pane !== 'lyrics'} aria-hidden={pane !== 'lyrics'} className="now-playing-pane now-playing-lyrics overflow-clip">
@@ -57,10 +53,9 @@ function NowPlayingStage({ player, pane, artwork, onClose }: { player: Player; p
   )
 }
 
-/** Full-screen player: big artwork over a blur of itself, with lyrics or the queue beside it. */
+/** Full-screen player: big artwork, with lyrics or the queue beside it. */
 export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, liked, onToggleLike }: NowPlayingProps) {
   const { state, controls } = player
-  const artUrl = useArtUrl()
   const item = state.current
   const artwork = item?.track.album?.artwork ?? null
   const elsewhere = playingElsewhere(state)
@@ -92,16 +87,6 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
           }}
           className="now-playing-slide fixed inset-0 z-40 flex flex-col overflow-clip bg-background pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] text-foreground outline-none"
         >
-          <div aria-hidden className="absolute inset-0">
-            {artwork && (
-              // Held toward the theme's background, darker in dark mode, so the theme's text stays readable over any cover.
-              <div className="absolute inset-0 opacity-50 saturate-200 dark:opacity-70 dark:brightness-60" style={{ backgroundColor: artwork.color ?? undefined }}>
-                <img src={artUrl(artwork, 300)} alt="" className="absolute inset-[-10%] size-[120%] max-w-none object-cover blur-[70px]" />
-              </div>
-            )}
-            <div className="absolute inset-0" style={{ backgroundImage: wash }} />
-          </div>
-
           <div className="relative flex h-14 shrink-0 items-center justify-between gap-3 px-3 md:px-5">
             <DialogPrimitive.Close asChild>
               <IconButton label="Close Now Playing" tooltip={false} className="text-foreground max-md:size-11 pointer-coarse:size-11"><ChevronDown /></IconButton>
@@ -109,7 +94,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
             <div className="min-w-0 text-center">
               {label && (
                 <>
-                  <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{label.heading}</p>
+                  <p className="text-xs text-muted-foreground">{label.heading}</p>
                   <p className="truncate text-sm font-medium">{label.title}</p>
                 </>
               )}

@@ -14,14 +14,14 @@ describe('homeEmpty', () => {
 
   it('tells a member who may not fetch that an admin adds the music', () => {
     const member = homeEmpty({ canFindMusic: false, isAdmin: false, scan: null });
-    expect(member).toMatchObject({ title: 'Nothing in your library yet', findMusic: false });
-    expect(member.description).toContain('An admin of this server');
+    expect(member).toMatchObject({ title: 'No music on this server yet', findMusic: false });
+    expect(member.description).toContain('a server admin');
   });
 
   it('says how far a scan has come, with nothing to tap', () => {
     expect(homeEmpty({ canFindMusic: true, isAdmin: true, scan: { processed: 1200, total: 4500 } })).toEqual({
-      icon: 'arrow.triangle.2.circlepath', title: 'Your music is on its way', findMusic: false,
-      description: 'Scanning: 1,200 files of 4,500 read. Albums appear here as soon as they are ready.',
+      icon: 'arrow.triangle.2.circlepath', title: 'Scanning music', findMusic: false,
+      description: '1,200 of 4,500 files read. Albums appear as they’re scanned.',
     });
   });
 });

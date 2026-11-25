@@ -4,8 +4,8 @@ import { contrastRatio, fadedText, over } from './faded';
 // The pages and highlights faded text sits on, per appearance (theme.ts): the page (black on
 // iOS, near-black on Android), the surface, and the current row's translucent selection.
 const backgrounds = {
-  dark: ['#000000', '#111014', '#24212B', over('#CBC1FF', 0x1f / 255, '#000000')],
-  light: ['#FFFFFF', '#F0EDF5', over('#5B439E', 0x17 / 255, '#FFFFFF')],
+  dark: ['#000000', '#111014', '#242326', '#1C1B1E', over('#CBC1FF', 0x1f / 255, '#1C1B1E')],
+  light: ['#FFFFFF', '#F1EFF2', '#FAF9FA', over('#5B439E', 0x17 / 255, '#FAF9FA')],
 };
 
 describe('faded song text', () => {

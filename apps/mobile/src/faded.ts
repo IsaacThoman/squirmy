@@ -5,8 +5,8 @@
  * their full color, since they still work.
  */
 export const fadedText = {
-  dark: { title: '#8E8B96', credit: '#77727F' },
-  light: { title: '#75707F', credit: '#8B8595' },
+  dark: { title: '#8E8B96', credit: '#817B89' },
+  light: { title: '#75707F', credit: '#847E8E' },
 } as const;
 
 /** How far a gray row's artwork (cover or track number) fades. */

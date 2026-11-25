@@ -32,11 +32,11 @@ export function CollectionHeader({ kind, title, art, byline, meta, description, 
   const secondary = tints ? 'text-tint-muted-foreground' : 'text-muted-foreground'
   return (
     <header className={cn('px-(--gutter) pb-6 pt-[calc(3rem+var(--breadcrumb-space,0px))] md:pt-[calc(2.5rem+var(--breadcrumb-space,0px))]', tints && 'album-tint')} style={tints ? { '--tint': tints.light, '--tint-dark': tints.dark } as CSSProperties : undefined}>
-      <div className="flex flex-col items-center gap-5 text-center md:flex-row md:items-end md:gap-7 md:text-left">
+      <div className="flex flex-col items-center gap-4 text-center md:flex-row md:items-end md:gap-6 md:text-left">
         <div className="w-[min(56vw,13rem)] shrink-0 md:w-48 lg:w-56 [&>*]:shadow-cover">{art}</div>
         {/* A name with no spaces (a long unbroken title) breaks anywhere rather than run past the edge. */}
         <div className="flex min-w-0 max-w-full flex-col items-center gap-2 wrap-anywhere md:items-start md:pb-1">
-          <span className={cn('text-[11px] font-medium uppercase tracking-wider', secondary)}>{kind}</span>
+          <span className={cn('text-xs font-medium', secondary)}>{kind}</span>
           {/* A very long title steps down a size, so it does not run to four lines. */}
           <h1 dir="auto" className={cn('text-balance font-semibold tracking-tight', title.length > 40 ? 'text-2xl md:text-3xl lg:text-4xl' : 'text-3xl md:text-4xl lg:text-5xl')}>{title}</h1>
           {/* Each link in the byline (an album's artists) is pressed as 44 px on a touch screen; the lines around it are words. */}

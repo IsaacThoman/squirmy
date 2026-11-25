@@ -827,7 +827,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   albumFooterText: { color: colors.quiet, fontSize: 13 },
   section: { marginTop: 28 },
   genreBody: { paddingHorizontal: gutter },
-  genreTitle: { color: colors.text, fontSize: 34, letterSpacing: -1.4, fontWeight: '800', marginTop: 10, marginBottom: 18 },
+  genreTitle: { color: colors.text, fontSize: 34, letterSpacing: -0.6, fontWeight: '600', marginTop: 8, marginBottom: 16 },
   gridDetail: { color: colors.muted, fontSize: 15, fontWeight: '600', marginTop: 10 },
   gridTitleUnderDetail: { marginTop: 2 },
   more: { marginVertical: 20 },

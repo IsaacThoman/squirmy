@@ -145,7 +145,7 @@ Each section has an address that opens the dialog on it, such as `/settings/appe
 **Settings → Appearance** has two choices:
 
 - **Theme**: **Light**, **Dark** or **System**, which follows your device between light and dark.
-- **Color theme**: **Squirmy** (the default: soft violet with a berry accent), **Pulpo** (neutral grays), **Ocean** (blue), **Forest** (green) or **Ember** (orange). Each has light and dark colors, and its preview shows the ones in use now.
+- **Color theme**: **Squirmy** (the default, with a hint of violet in its grays and a berry accent), **Pulpo** (neutral grays), **Ocean** (blue), **Forest** (green) or **Ember** (orange). Each has light and dark colors, and its preview shows the ones in use now.
 
 Both apply at once. They are kept in this browser, not in your account, so each browser and device has its own.
 
