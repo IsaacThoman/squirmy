@@ -3,6 +3,7 @@ import { enqueue, schedule } from '../../jobs/index.js'
 import type { ServerModule } from '../types.js'
 import { fallbackCover } from './covers.js'
 import { artistDetailRun, lyricsRun } from './detail.js'
+import { keepNamedEditions, type EditionsJob } from './named-editions.js'
 import { enrichAlbum } from './owned.js'
 import { foldArtistCopy } from './artist-copies.js'
 import { repairReleases, type RepairReport } from './repair.js'
@@ -30,6 +31,8 @@ export type ReconcileJob = {
  *   enrichment.artist        { artistId }     profile, discography, image, bio, top tracks
  *   enrichment.lyrics        { recordingId }  an LRCLIB lookup
  *   enrichment.cover         { albumId }      another cover when its source has none (covers.ts)
+ *   enrichment.editions      { albumId }      edition rows for a release group's editions with a title of
+ *                                             their own (named-editions.ts), queued when the group is opened
  *   enrichment.sweep         queues owned music that was never enriched, every 30 minutes
  *   enrichment.new-releases  refreshes library artists' discographies, weekly
  *   enrichment.reconcile     { artistId? }    merges an artist's duplicate album rows; { artistCopy }
@@ -52,6 +55,9 @@ export const enrichmentModule: ServerModule = {
     })
     registry.define<EnrichCoverJob>('enrichment.cover', { concurrency: 2, retryLimit: 1 }, async ({ albumId }) => {
       await fallbackCover(albumId)
+    })
+    registry.define<EditionsJob>('enrichment.editions', { retryLimit: 1, timeoutSeconds: 10 * 60 }, async ({ albumId }) => {
+      await keepNamedEditions(albumId)
     })
     registry.define('enrichment.sweep', { retryLimit: 1 }, async () => {
       await sweep()

@@ -171,6 +171,13 @@ export const AlbumDetail = AlbumSummary.extend({
    * also hearted reads `collection`. Optional for older servers.
    */
   library: z.enum(['collection', 'saved']).nullable().optional(),
+  /**
+   * Other versions of this album: its other editions (a deluxe beside the standard
+   * edition, the standard edition from a deluxe) and its lead artist's other rows of the
+   * same release, at most 20, the standard edition first. The artist page lists each
+   * release once, so these are not in its discography. Optional for older servers.
+   */
+  versions: z.array(AlbumSummary).optional(),
 })
 export type AlbumDetail = z.infer<typeof AlbumDetail>
 

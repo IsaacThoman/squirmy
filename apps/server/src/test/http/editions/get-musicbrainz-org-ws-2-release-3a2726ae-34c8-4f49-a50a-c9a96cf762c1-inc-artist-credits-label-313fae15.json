@@ -1,0 +1,1380 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release/3a2726ae-34c8-4f49-a50a-c9a96cf762c1?inc=artist-credits+labels+recordings+release-groups+isrcs+url-rels&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "cover-art-archive": {
+        "darkened": false,
+        "artwork": true,
+        "front": true,
+        "back": false,
+        "count": 1
+      },
+      "disambiguation": "deluxe",
+      "release-group": {
+        "primary-type": "Album",
+        "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+        "first-release-date": "2025-02-21",
+        "disambiguation": "",
+        "secondary-types": [],
+        "id": "3607f069-61cb-4e4a-b450-863ad0cf7f95",
+        "secondary-type-ids": [],
+        "artist-credit": [
+          {
+            "name": "Tate McRae",
+            "artist": {
+              "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+              "sort-name": "McRae, Tate",
+              "type": "Person",
+              "country": "CA",
+              "name": "Tate McRae",
+              "disambiguation": "",
+              "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df"
+            },
+            "joinphrase": ""
+          }
+        ],
+        "title": "So Close to What"
+      },
+      "id": "3a2726ae-34c8-4f49-a50a-c9a96cf762c1",
+      "relations": [
+        {
+          "type": "free streaming",
+          "attribute-ids": {},
+          "ended": false,
+          "attributes": [],
+          "begin": null,
+          "target-credit": "",
+          "url": {
+            "id": "fc9fe5e7-5d3a-44e0-8a0b-6cd76519cf9b",
+            "resource": "https://open.spotify.com/album/4AIX5TN8oT656mgxRwDevJ"
+          },
+          "end": null,
+          "direction": "forward",
+          "target-type": "url",
+          "type-id": "08445ccf-7b99-4438-9f9a-fb9ac18099ee",
+          "attribute-values": {},
+          "source-credit": ""
+        },
+        {
+          "attributes": [],
+          "target-credit": "",
+          "url": {
+            "resource": "https://www.deezer.com/album/859781272",
+            "id": "5ad33b72-d953-4597-8bd8-059e794070c6"
+          },
+          "begin": null,
+          "type": "free streaming",
+          "ended": false,
+          "attribute-ids": {},
+          "type-id": "08445ccf-7b99-4438-9f9a-fb9ac18099ee",
+          "source-credit": "",
+          "attribute-values": {},
+          "end": null,
+          "target-type": "url",
+          "direction": "forward"
+        },
+        {
+          "type": "purchase for download",
+          "attribute-ids": {},
+          "ended": false,
+          "attributes": [],
+          "begin": null,
+          "url": {
+            "id": "bc0f91a5-c5d7-42ef-a764-b39299f4c3a3",
+            "resource": "https://music.apple.com/fr/album/1853104433"
+          },
+          "target-credit": "",
+          "end": null,
+          "direction": "forward",
+          "target-type": "url",
+          "type-id": "98e08c20-8402-4163-8970-53504bb6a1e4",
+          "source-credit": "",
+          "attribute-values": {}
+        },
+        {
+          "type": "purchase for download",
+          "attribute-ids": {},
+          "ended": false,
+          "attributes": [],
+          "begin": null,
+          "target-credit": "",
+          "url": {
+            "id": "5e431141-da49-46d0-b365-e9994e01c133",
+            "resource": "https://music.apple.com/gb/album/1853104433"
+          },
+          "end": null,
+          "direction": "forward",
+          "target-type": "url",
+          "type-id": "98e08c20-8402-4163-8970-53504bb6a1e4",
+          "attribute-values": {},
+          "source-credit": ""
+        },
+        {
+          "type-id": "98e08c20-8402-4163-8970-53504bb6a1e4",
+          "attribute-values": {},
+          "source-credit": "",
+          "end": null,
+          "target-type": "url",
+          "direction": "forward",
+          "attributes": [],
+          "target-credit": "",
+          "url": {
+            "resource": "https://music.apple.com/us/album/1853104433",
+            "id": "5c91f837-59b1-4df9-ab7a-f2fd688ece4a"
+          },
+          "begin": null,
+          "type": "purchase for download",
+          "ended": false,
+          "attribute-ids": {}
+        },
+        {
+          "source-credit": "",
+          "attribute-values": {},
+          "type-id": "98e08c20-8402-4163-8970-53504bb6a1e4",
+          "target-type": "url",
+          "direction": "forward",
+          "end": null,
+          "target-credit": "",
+          "url": {
+            "id": "1776c0d7-cd99-462d-b8a8-3bbff56359d6",
+            "resource": "https://www.qobuz.com/album/so-close-to-what-deluxe-tate-mcrae/v24f4sv95tqqb"
+          },
+          "begin": null,
+          "attributes": [],
+          "ended": false,
+          "attribute-ids": {},
+          "type": "purchase for download"
+        },
+        {
+          "begin": null,
+          "url": {
+            "id": "bc0f91a5-c5d7-42ef-a764-b39299f4c3a3",
+            "resource": "https://music.apple.com/fr/album/1853104433"
+          },
+          "target-credit": "",
+          "attributes": [],
+          "attribute-ids": {},
+          "ended": false,
+          "type": "streaming",
+          "attribute-values": {},
+          "source-credit": "",
+          "type-id": "320adf26-96fa-4183-9045-1f5f32f833cb",
+          "direction": "forward",
+          "target-type": "url",
+          "end": null
+        },
+        {
+          "type-id": "320adf26-96fa-4183-9045-1f5f32f833cb",
+          "attribute-values": {},
+          "source-credit": "",
+          "end": null,
+          "target-type": "url",
+          "direction": "forward",
+          "attributes": [],
+          "url": {
+            "id": "5e431141-da49-46d0-b365-e9994e01c133",
+            "resource": "https://music.apple.com/gb/album/1853104433"
+          },
+          "target-credit": "",
+          "begin": null,
+          "type": "streaming",
+          "ended": false,
+          "attribute-ids": {}
+        },
+        {
+          "ended": false,
+          "attribute-ids": {},
+          "type": "streaming",
+          "url": {
+            "resource": "https://music.apple.com/us/album/1853104433",
+            "id": "5c91f837-59b1-4df9-ab7a-f2fd688ece4a"
+          },
+          "target-credit": "",
+          "begin": null,
+          "attributes": [],
+          "target-type": "url",
+          "direction": "forward",
+          "end": null,
+          "source-credit": "",
+          "attribute-values": {},
+          "type-id": "320adf26-96fa-4183-9045-1f5f32f833cb"
+        },
+        {
+          "ended": false,
+          "attribute-ids": {},
+          "type": "streaming",
+          "url": {
+            "resource": "https://tidal.com/album/475342210",
+            "id": "c33da7bc-a16a-4aaf-9e5c-778d51c38e9e"
+          },
+          "target-credit": "",
+          "begin": null,
+          "attributes": [],
+          "target-type": "url",
+          "direction": "forward",
+          "end": null,
+          "source-credit": "",
+          "attribute-values": {},
+          "type-id": "320adf26-96fa-4183-9045-1f5f32f833cb"
+        },
+        {
+          "end": null,
+          "target-type": "url",
+          "direction": "forward",
+          "type-id": "320adf26-96fa-4183-9045-1f5f32f833cb",
+          "source-credit": "",
+          "attribute-values": {},
+          "type": "streaming",
+          "ended": false,
+          "attribute-ids": {},
+          "attributes": [],
+          "url": {
+            "resource": "https://www.qobuz.com/album/so-close-to-what-deluxe-tate-mcrae/v24f4sv95tqqb",
+            "id": "1776c0d7-cd99-462d-b8a8-3bbff56359d6"
+          },
+          "target-credit": "",
+          "begin": null
+        }
+      ],
+      "text-representation": {
+        "script": "Latn",
+        "language": "eng"
+      },
+      "artist-credit": [
+        {
+          "joinphrase": "",
+          "artist": {
+            "name": "Tate McRae",
+            "disambiguation": "",
+            "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+            "sort-name": "McRae, Tate",
+            "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+            "type": "Person",
+            "country": "CA"
+          },
+          "name": "Tate McRae"
+        }
+      ],
+      "media": [
+        {
+          "format-id": "907a28d9-b3b2-3ef6-89a8-7b18d91d4794",
+          "track-offset": 0,
+          "tracks": [
+            {
+              "artist-credit": [
+                {
+                  "name": "Tate McRae",
+                  "artist": {
+                    "type": "Person",
+                    "country": "CA",
+                    "sort-name": "McRae, Tate",
+                    "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "name": "Tate McRae",
+                    "disambiguation": ""
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "length": 182000,
+              "number": "1",
+              "title": "TRYING ON SHOES",
+              "position": 1,
+              "id": "d2da4b63-27e1-43cb-bba9-5f9c6c0f91e2",
+              "recording": {
+                "video": false,
+                "length": 182000,
+                "disambiguation": "explicit",
+                "first-release-date": "2025-11-21",
+                "title": "TRYING ON SHOES",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "sort-name": "McRae, Tate",
+                      "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                      "type": "Person",
+                      "country": "CA",
+                      "disambiguation": "",
+                      "name": "Tate McRae",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df"
+                    },
+                    "joinphrase": "",
+                    "name": "Tate McRae"
+                  }
+                ],
+                "isrcs": [
+                  "USRC12502273"
+                ],
+                "id": "e92800f0-04fa-41aa-bf37-aa0f6fc1ee07"
+              }
+            },
+            {
+              "position": 2,
+              "id": "fe7fa334-cf52-4050-af69-3682085e9eeb",
+              "recording": {
+                "disambiguation": "explicit",
+                "first-release-date": "2025-11-21",
+                "video": false,
+                "length": 147000,
+                "isrcs": [
+                  "USRC12502272"
+                ],
+                "id": "6dc3dfc6-35eb-4355-b581-d32fc804f77e",
+                "title": "ANYTHING BUT LOVE",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "sort-name": "McRae, Tate",
+                      "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                      "type": "Person",
+                      "country": "CA",
+                      "name": "Tate McRae",
+                      "disambiguation": "",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df"
+                    },
+                    "joinphrase": "",
+                    "name": "Tate McRae"
+                  }
+                ]
+              },
+              "artist-credit": [
+                {
+                  "joinphrase": "",
+                  "artist": {
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "disambiguation": "",
+                    "name": "Tate McRae",
+                    "type": "Person",
+                    "country": "CA",
+                    "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                    "sort-name": "McRae, Tate"
+                  },
+                  "name": "Tate McRae"
+                }
+              ],
+              "length": 147000,
+              "title": "ANYTHING BUT LOVE",
+              "number": "2"
+            },
+            {
+              "length": 168000,
+              "artist-credit": [
+                {
+                  "name": "Tate McRae",
+                  "artist": {
+                    "country": "CA",
+                    "type": "Person",
+                    "sort-name": "McRae, Tate",
+                    "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "disambiguation": "",
+                    "name": "Tate McRae"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "title": "NOBODY’S GIRL",
+              "number": "3",
+              "recording": {
+                "disambiguation": "",
+                "first-release-date": "2025-11-21",
+                "video": false,
+                "length": 168133,
+                "id": "b11f0599-2584-4597-a9ae-d33be23984f0",
+                "isrcs": [
+                  "USRC12502262"
+                ],
+                "title": "NOBODY’S GIRL",
+                "artist-credit": [
+                  {
+                    "name": "Tate McRae",
+                    "artist": {
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "disambiguation": "",
+                      "name": "Tate McRae",
+                      "country": "CA",
+                      "type": "Person",
+                      "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                      "sort-name": "McRae, Tate"
+                    },
+                    "joinphrase": ""
+                  }
+                ]
+              },
+              "position": 3,
+              "id": "203f2d58-c837-48f4-9966-b282989c07be"
+            },
+            {
+              "artist-credit": [
+                {
+                  "name": "Tate McRae",
+                  "artist": {
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "name": "Tate McRae",
+                    "disambiguation": "",
+                    "type": "Person",
+                    "country": "CA",
+                    "sort-name": "McRae, Tate",
+                    "id": "f9133869-f87c-459c-9aa7-2f176cda7e06"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "length": 181000,
+              "title": "HORSESHOE",
+              "number": "4",
+              "position": 4,
+              "id": "be3c200a-ebbe-4a4c-bf9a-8a5aeb151016",
+              "recording": {
+                "isrcs": [
+                  "USRC12502275"
+                ],
+                "id": "d298eee8-46c6-43a6-9b6b-460324096c39",
+                "title": "HORSESHOE",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "type": "Person",
+                      "country": "CA",
+                      "sort-name": "McRae, Tate",
+                      "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "name": "Tate McRae",
+                      "disambiguation": ""
+                    },
+                    "name": "Tate McRae"
+                  }
+                ],
+                "disambiguation": "explicit",
+                "first-release-date": "2025-11-21",
+                "video": false,
+                "length": 181000
+              }
+            },
+            {
+              "title": "TIT FOR TAT",
+              "number": "5",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "name": "Tate McRae",
+                    "disambiguation": "",
+                    "type": "Person",
+                    "country": "CA",
+                    "sort-name": "McRae, Tate",
+                    "id": "f9133869-f87c-459c-9aa7-2f176cda7e06"
+                  },
+                  "joinphrase": "",
+                  "name": "Tate McRae"
+                }
+              ],
+              "length": 177000,
+              "id": "d714e050-17ee-454c-b69c-153cda398a52",
+              "position": 5,
+              "recording": {
+                "id": "aadfe8a5-229d-42a6-a948-437b1baf41dd",
+                "isrcs": [
+                  "USRC12502004"
+                ],
+                "artist-credit": [
+                  {
+                    "name": "Tate McRae",
+                    "joinphrase": "",
+                    "artist": {
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "disambiguation": "",
+                      "name": "Tate McRae",
+                      "country": "CA",
+                      "type": "Person",
+                      "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                      "sort-name": "McRae, Tate"
+                    }
+                  }
+                ],
+                "title": "TIT FOR TAT",
+                "first-release-date": "2025-09-26",
+                "disambiguation": "explicit",
+                "length": 177000,
+                "video": false
+              }
+            },
+            {
+              "id": "57345557-81b3-47c3-8b0a-da21113cea7e",
+              "position": 6,
+              "recording": {
+                "title": "Miss possessive",
+                "artist-credit": [
+                  {
+                    "name": "Tate McRae",
+                    "joinphrase": "",
+                    "artist": {
+                      "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                      "sort-name": "McRae, Tate",
+                      "country": "CA",
+                      "type": "Person",
+                      "disambiguation": "",
+                      "name": "Tate McRae",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df"
+                    }
+                  }
+                ],
+                "id": "b6e7bbb6-fdd3-4c38-ae6e-d7c0377ab2ca",
+                "isrcs": [
+                  "USRC12403576"
+                ],
+                "video": false,
+                "length": 139000,
+                "disambiguation": "explicit",
+                "first-release-date": "2025-02-21"
+              },
+              "number": "6",
+              "title": "Miss possessive",
+              "artist-credit": [
+                {
+                  "artist": {
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "disambiguation": "",
+                    "name": "Tate McRae",
+                    "country": "CA",
+                    "type": "Person",
+                    "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                    "sort-name": "McRae, Tate"
+                  },
+                  "joinphrase": "",
+                  "name": "Tate McRae"
+                }
+              ],
+              "length": 139000
+            },
+            {
+              "number": "7",
+              "title": "Revolving door",
+              "artist-credit": [
+                {
+                  "name": "Tate McRae",
+                  "artist": {
+                    "country": "CA",
+                    "type": "Person",
+                    "sort-name": "McRae, Tate",
+                    "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "name": "Tate McRae",
+                    "disambiguation": ""
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "length": 180000,
+              "position": 7,
+              "id": "7a5d8228-92e9-4e2c-8142-9420dedf622c",
+              "recording": {
+                "isrcs": [
+                  "USRC12403577"
+                ],
+                "id": "a0306258-e12b-41ee-a060-553795f2fd4c",
+                "title": "Revolving door",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "name": "Tate McRae",
+                      "disambiguation": "",
+                      "type": "Person",
+                      "country": "CA",
+                      "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                      "sort-name": "McRae, Tate"
+                    },
+                    "name": "Tate McRae"
+                  }
+                ],
+                "disambiguation": "explicit",
+                "first-release-date": "2025-02-21",
+                "video": false,
+                "length": 180026
+              }
+            },
+            {
+              "position": 8,
+              "id": "af207784-c49a-4a5e-9cf5-1fa993e9f55e",
+              "recording": {
+                "video": false,
+                "length": 162400,
+                "disambiguation": "explicit",
+                "first-release-date": "2025-02-13",
+                "title": "bloodonmyhands",
+                "artist-credit": [
+                  {
+                    "name": "Tate McRae",
+                    "artist": {
+                      "sort-name": "McRae, Tate",
+                      "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                      "country": "CA",
+                      "type": "Person",
+                      "name": "Tate McRae",
+                      "disambiguation": "",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df"
+                    },
+                    "joinphrase": " feat. "
+                  },
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "name": "Flo Milli",
+                      "disambiguation": "songwriter, rapper",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "id": "21dab5d7-3bda-4f72-a054-6379729dcb62",
+                      "sort-name": "Flo Milli",
+                      "country": "US",
+                      "type": "Person"
+                    },
+                    "name": "Flo Milli"
+                  }
+                ],
+                "id": "e5446468-f4a8-40dc-8988-55b4b45a4b39",
+                "isrcs": [
+                  "USRC12403578"
+                ]
+              },
+              "artist-credit": [
+                {
+                  "joinphrase": " feat. ",
+                  "artist": {
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "disambiguation": "",
+                    "name": "Tate McRae",
+                    "type": "Person",
+                    "country": "CA",
+                    "sort-name": "McRae, Tate",
+                    "id": "f9133869-f87c-459c-9aa7-2f176cda7e06"
+                  },
+                  "name": "Tate McRae"
+                },
+                {
+                  "name": "Flo Milli",
+                  "artist": {
+                    "country": "US",
+                    "type": "Person",
+                    "id": "21dab5d7-3bda-4f72-a054-6379729dcb62",
+                    "sort-name": "Flo Milli",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "disambiguation": "songwriter, rapper",
+                    "name": "Flo Milli"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "length": 162000,
+              "title": "bloodonmyhands",
+              "number": "8"
+            },
+            {
+              "artist-credit": [
+                {
+                  "name": "Tate McRae",
+                  "artist": {
+                    "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                    "sort-name": "McRae, Tate",
+                    "country": "CA",
+                    "type": "Person",
+                    "disambiguation": "",
+                    "name": "Tate McRae",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "length": 171000,
+              "number": "9",
+              "title": "Dear god",
+              "position": 9,
+              "id": "705f2bf8-42a8-400a-b318-695c24e9b816",
+              "recording": {
+                "artist-credit": [
+                  {
+                    "name": "Tate McRae",
+                    "artist": {
+                      "name": "Tate McRae",
+                      "disambiguation": "",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                      "sort-name": "McRae, Tate",
+                      "type": "Person",
+                      "country": "CA"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "title": "Dear god",
+                "id": "afa8cb44-cbd5-4e42-a0af-3a4653698406",
+                "isrcs": [
+                  "USRC12403579"
+                ],
+                "length": 171015,
+                "video": false,
+                "first-release-date": "2025-02-21",
+                "disambiguation": ""
+              }
+            },
+            {
+              "length": 191000,
+              "artist-credit": [
+                {
+                  "artist": {
+                    "country": "CA",
+                    "type": "Person",
+                    "sort-name": "McRae, Tate",
+                    "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "name": "Tate McRae",
+                    "disambiguation": ""
+                  },
+                  "joinphrase": "",
+                  "name": "Tate McRae"
+                }
+              ],
+              "number": "10",
+              "title": "Purple lace bra",
+              "recording": {
+                "isrcs": [
+                  "USRC12403552"
+                ],
+                "id": "960a3879-af3e-49e1-97c2-93a04e07c429",
+                "artist-credit": [
+                  {
+                    "name": "Tate McRae",
+                    "artist": {
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "name": "Tate McRae",
+                      "disambiguation": "",
+                      "country": "CA",
+                      "type": "Person",
+                      "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                      "sort-name": "McRae, Tate"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "title": "Purple lace bra",
+                "first-release-date": "2025-02-21",
+                "disambiguation": "",
+                "length": 191132,
+                "video": false
+              },
+              "id": "ff34d4c3-0e5c-439c-a564-188dccff533e",
+              "position": 10
+            },
+            {
+              "recording": {
+                "length": 165000,
+                "video": false,
+                "first-release-date": "2025-01-21",
+                "disambiguation": "",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "sort-name": "McRae, Tate",
+                      "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                      "type": "Person",
+                      "country": "CA",
+                      "disambiguation": "",
+                      "name": "Tate McRae",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df"
+                    },
+                    "name": "Tate McRae"
+                  }
+                ],
+                "title": "Sports car",
+                "isrcs": [
+                  "USRC12403580"
+                ],
+                "id": "7eddec06-b265-4f41-a4b3-18682068ed3d"
+              },
+              "position": 11,
+              "id": "9321338f-ea33-437a-bd28-33bda6478fbe",
+              "number": "11",
+              "title": "Sports car",
+              "length": 165000,
+              "artist-credit": [
+                {
+                  "name": "Tate McRae",
+                  "joinphrase": "",
+                  "artist": {
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "disambiguation": "",
+                    "name": "Tate McRae",
+                    "type": "Person",
+                    "country": "CA",
+                    "sort-name": "McRae, Tate",
+                    "id": "f9133869-f87c-459c-9aa7-2f176cda7e06"
+                  }
+                }
+              ]
+            },
+            {
+              "length": 174000,
+              "artist-credit": [
+                {
+                  "name": "Tate McRae",
+                  "artist": {
+                    "type": "Person",
+                    "country": "CA",
+                    "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                    "sort-name": "McRae, Tate",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "disambiguation": "",
+                    "name": "Tate McRae"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "number": "12",
+              "title": "Signs",
+              "recording": {
+                "id": "9362fb7e-9529-4397-a4c9-1a27ec210c93",
+                "isrcs": [
+                  "USRC12403581"
+                ],
+                "title": "Signs",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "sort-name": "McRae, Tate",
+                      "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                      "country": "CA",
+                      "type": "Person",
+                      "name": "Tate McRae",
+                      "disambiguation": "",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df"
+                    },
+                    "name": "Tate McRae"
+                  }
+                ],
+                "disambiguation": "explicit",
+                "first-release-date": "2025-02-21",
+                "video": false,
+                "length": 173765
+              },
+              "position": 12,
+              "id": "26afc395-7e8a-41f1-a61e-d599dd55f6b1"
+            },
+            {
+              "title": "I know love",
+              "number": "13",
+              "artist-credit": [
+                {
+                  "joinphrase": " feat. ",
+                  "artist": {
+                    "country": "CA",
+                    "type": "Person",
+                    "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                    "sort-name": "McRae, Tate",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "name": "Tate McRae",
+                    "disambiguation": ""
+                  },
+                  "name": "Tate McRae"
+                },
+                {
+                  "name": "The Kid LAROI",
+                  "artist": {
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "name": "The Kid LAROI",
+                    "disambiguation": "rapper/singer",
+                    "country": "AU",
+                    "type": "Person",
+                    "id": "80609a00-b394-4a49-975b-2db6b543fa97",
+                    "sort-name": "Kid Laroi, The"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "length": 156000,
+              "position": 13,
+              "id": "5b6ec3b4-5b1a-449d-86ad-0d7df187d6f1",
+              "recording": {
+                "disambiguation": "explicit",
+                "first-release-date": "2025-02-14",
+                "video": false,
+                "length": 156222,
+                "id": "0033d9b7-cdf8-4191-bc33-75b5a944a455",
+                "isrcs": [
+                  "USRC12403582"
+                ],
+                "title": "I know love",
+                "artist-credit": [
+                  {
+                    "name": "Tate McRae",
+                    "joinphrase": " feat. ",
+                    "artist": {
+                      "type": "Person",
+                      "country": "CA",
+                      "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                      "sort-name": "McRae, Tate",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "name": "Tate McRae",
+                      "disambiguation": ""
+                    }
+                  },
+                  {
+                    "artist": {
+                      "country": "AU",
+                      "type": "Person",
+                      "sort-name": "Kid Laroi, The",
+                      "id": "80609a00-b394-4a49-975b-2db6b543fa97",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "disambiguation": "rapper/singer",
+                      "name": "The Kid LAROI"
+                    },
+                    "joinphrase": "",
+                    "name": "The Kid LAROI"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "916ec149-ad69-4a27-afc6-fc204ed33f42",
+              "position": 14,
+              "recording": {
+                "disambiguation": "explicit",
+                "first-release-date": "2025-02-21",
+                "video": false,
+                "length": 182053,
+                "id": "aa1834c6-7256-4712-a24b-3920ff7e4360",
+                "isrcs": [
+                  "USRC12403583"
+                ],
+                "title": "Like I do",
+                "artist-credit": [
+                  {
+                    "name": "Tate McRae",
+                    "artist": {
+                      "name": "Tate McRae",
+                      "disambiguation": "",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                      "sort-name": "McRae, Tate",
+                      "type": "Person",
+                      "country": "CA"
+                    },
+                    "joinphrase": ""
+                  }
+                ]
+              },
+              "artist-credit": [
+                {
+                  "name": "Tate McRae",
+                  "artist": {
+                    "disambiguation": "",
+                    "name": "Tate McRae",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                    "sort-name": "McRae, Tate",
+                    "country": "CA",
+                    "type": "Person"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "length": 182000,
+              "number": "14",
+              "title": "Like I do"
+            },
+            {
+              "number": "15",
+              "title": "It’s ok I’m ok",
+              "length": 157000,
+              "artist-credit": [
+                {
+                  "artist": {
+                    "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                    "sort-name": "McRae, Tate",
+                    "country": "CA",
+                    "type": "Person",
+                    "disambiguation": "",
+                    "name": "Tate McRae",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df"
+                  },
+                  "joinphrase": "",
+                  "name": "Tate McRae"
+                }
+              ],
+              "recording": {
+                "artist-credit": [
+                  {
+                    "name": "Tate McRae",
+                    "joinphrase": "",
+                    "artist": {
+                      "country": "CA",
+                      "type": "Person",
+                      "sort-name": "McRae, Tate",
+                      "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "name": "Tate McRae",
+                      "disambiguation": ""
+                    }
+                  }
+                ],
+                "title": "It’s ok I’m ok",
+                "isrcs": [
+                  "USRC12402692"
+                ],
+                "id": "fa5150d5-926d-4907-841d-efc9f4a5072c",
+                "length": 156640,
+                "video": false,
+                "first-release-date": "2024-09-12",
+                "disambiguation": "explicit"
+              },
+              "position": 15,
+              "id": "8b3f4baa-99be-4fa1-8612-1c9c9b5399d9"
+            },
+            {
+              "recording": {
+                "disambiguation": "",
+                "first-release-date": "2025-02-21",
+                "video": false,
+                "length": 170098,
+                "isrcs": [
+                  "USRC12403588"
+                ],
+                "id": "de1bb692-3a82-4310-b6b2-e0b0720cef4e",
+                "title": "No I’m not in love",
+                "artist-credit": [
+                  {
+                    "artist": {
+                      "country": "CA",
+                      "type": "Person",
+                      "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                      "sort-name": "McRae, Tate",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "name": "Tate McRae",
+                      "disambiguation": ""
+                    },
+                    "joinphrase": "",
+                    "name": "Tate McRae"
+                  }
+                ]
+              },
+              "position": 16,
+              "id": "04b4e7c2-256a-4965-8f62-c0a1cf2353a9",
+              "length": 170000,
+              "artist-credit": [
+                {
+                  "name": "Tate McRae",
+                  "artist": {
+                    "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                    "sort-name": "McRae, Tate",
+                    "type": "Person",
+                    "country": "CA",
+                    "disambiguation": "",
+                    "name": "Tate McRae",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "title": "No I’m not in love",
+              "number": "16"
+            },
+            {
+              "length": 176000,
+              "artist-credit": [
+                {
+                  "name": "Tate McRae",
+                  "artist": {
+                    "name": "Tate McRae",
+                    "disambiguation": "",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "McRae, Tate",
+                    "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                    "type": "Person",
+                    "country": "CA"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "number": "17",
+              "title": "Means I care",
+              "recording": {
+                "video": false,
+                "length": 175893,
+                "disambiguation": "explicit",
+                "first-release-date": "2025-02-21",
+                "title": "Means I care",
+                "artist-credit": [
+                  {
+                    "name": "Tate McRae",
+                    "joinphrase": "",
+                    "artist": {
+                      "name": "Tate McRae",
+                      "disambiguation": "",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "McRae, Tate",
+                      "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                      "type": "Person",
+                      "country": "CA"
+                    }
+                  }
+                ],
+                "id": "8ab56718-49cf-4736-aaf5-f6c42dae64f9",
+                "isrcs": [
+                  "USRC12403589"
+                ]
+              },
+              "position": 17,
+              "id": "a073be8e-a82d-4c5c-b562-a2b99ccf5ecb"
+            },
+            {
+              "artist-credit": [
+                {
+                  "artist": {
+                    "disambiguation": "",
+                    "name": "Tate McRae",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "McRae, Tate",
+                    "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                    "country": "CA",
+                    "type": "Person"
+                  },
+                  "joinphrase": "",
+                  "name": "Tate McRae"
+                }
+              ],
+              "length": 165000,
+              "number": "18",
+              "title": "Greenlight",
+              "id": "78c2d133-2e47-4569-a41b-fad21e4a89c6",
+              "position": 18,
+              "recording": {
+                "artist-credit": [
+                  {
+                    "name": "Tate McRae",
+                    "artist": {
+                      "disambiguation": "",
+                      "name": "Tate McRae",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                      "sort-name": "McRae, Tate",
+                      "country": "CA",
+                      "type": "Person"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "title": "Greenlight",
+                "isrcs": [
+                  "USRC12403590"
+                ],
+                "id": "5ee95e9c-a735-476c-b19c-afc4a463edd9",
+                "length": 165095,
+                "video": false,
+                "first-release-date": "2025-02-21",
+                "disambiguation": "explicit"
+              }
+            },
+            {
+              "recording": {
+                "isrcs": [
+                  "USRC12403001"
+                ],
+                "id": "7d76f753-f9ef-4a1f-9ef9-be80cbda40cd",
+                "artist-credit": [
+                  {
+                    "name": "Tate McRae",
+                    "artist": {
+                      "name": "Tate McRae",
+                      "disambiguation": "",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "McRae, Tate",
+                      "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                      "type": "Person",
+                      "country": "CA"
+                    },
+                    "joinphrase": ""
+                  }
+                ],
+                "title": "2 hands",
+                "first-release-date": "2024-11-14",
+                "disambiguation": "explicit",
+                "length": 182706,
+                "video": false
+              },
+              "position": 19,
+              "id": "ae1403df-e431-4564-bb0a-5a4209f051ca",
+              "length": 183000,
+              "artist-credit": [
+                {
+                  "name": "Tate McRae",
+                  "joinphrase": "",
+                  "artist": {
+                    "disambiguation": "",
+                    "name": "Tate McRae",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                    "sort-name": "McRae, Tate",
+                    "type": "Person",
+                    "country": "CA"
+                  }
+                }
+              ],
+              "title": "2 hands",
+              "number": "19"
+            },
+            {
+              "id": "3105035b-5ac5-40d9-882b-aae2b7c756bc",
+              "position": 20,
+              "recording": {
+                "disambiguation": "",
+                "first-release-date": "2025-02-21",
+                "video": false,
+                "length": 183748,
+                "id": "2805aefe-567a-4cfc-aead-e177d1961adc",
+                "isrcs": [
+                  "USRC12500271"
+                ],
+                "title": "Siren sounds",
+                "artist-credit": [
+                  {
+                    "name": "Tate McRae",
+                    "artist": {
+                      "name": "Tate McRae",
+                      "disambiguation": "",
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "sort-name": "McRae, Tate",
+                      "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                      "country": "CA",
+                      "type": "Person"
+                    },
+                    "joinphrase": ""
+                  }
+                ]
+              },
+              "artist-credit": [
+                {
+                  "artist": {
+                    "disambiguation": "",
+                    "name": "Tate McRae",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "sort-name": "McRae, Tate",
+                    "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                    "country": "CA",
+                    "type": "Person"
+                  },
+                  "joinphrase": "",
+                  "name": "Tate McRae"
+                }
+              ],
+              "length": 184000,
+              "number": "20",
+              "title": "Siren sounds"
+            },
+            {
+              "recording": {
+                "isrcs": [
+                  "USRC12403591"
+                ],
+                "id": "93439e90-f681-41c3-a34a-2de2626373db",
+                "title": "Nostalgia",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "artist": {
+                      "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                      "name": "Tate McRae",
+                      "disambiguation": "",
+                      "type": "Person",
+                      "country": "CA",
+                      "sort-name": "McRae, Tate",
+                      "id": "f9133869-f87c-459c-9aa7-2f176cda7e06"
+                    },
+                    "name": "Tate McRae"
+                  }
+                ],
+                "disambiguation": "explicit",
+                "first-release-date": "2025-02-21",
+                "video": false,
+                "length": 183500
+              },
+              "id": "fe65e040-c425-49d7-8ad6-5cde36fe3b3d",
+              "position": 21,
+              "length": 184000,
+              "artist-credit": [
+                {
+                  "name": "Tate McRae",
+                  "artist": {
+                    "disambiguation": "",
+                    "name": "Tate McRae",
+                    "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+                    "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+                    "sort-name": "McRae, Tate",
+                    "country": "CA",
+                    "type": "Person"
+                  },
+                  "joinphrase": ""
+                }
+              ],
+              "title": "Nostalgia",
+              "number": "21"
+            }
+          ],
+          "id": "50217baa-af08-4dd1-b822-0c2fab66dce9",
+          "title": "",
+          "format": "Digital Media",
+          "position": 1,
+          "track-count": 21
+        }
+      ],
+      "title": "SO CLOSE TO WHAT???",
+      "quality": "normal",
+      "release-events": [
+        {
+          "date": "2025-11-21",
+          "area": {
+            "type-id": null,
+            "disambiguation": "",
+            "name": "[Worldwide]",
+            "type": null,
+            "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+            "iso-3166-1-codes": [
+              "XW"
+            ],
+            "sort-name": "[Worldwide]"
+          }
+        }
+      ],
+      "asin": null,
+      "barcode": "196873763132",
+      "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+      "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+      "date": "2025-11-21",
+      "status": "Official",
+      "packaging": "None",
+      "country": "XW",
+      "label-info": [
+        {
+          "label": {
+            "name": "RCA",
+            "disambiguation": "RCA Records: simple ‘RCA’ or ‘RCA’ with lightning bolt in circle",
+            "label-code": 316,
+            "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+            "sort-name": "RCA",
+            "id": "1ca5ed29-e00b-4ea5-b817-0bcca0e04946",
+            "type": "Imprint"
+          },
+          "catalog-number": null
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,1511 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release?release-group=3607f069-61cb-4e4a-b450-863ad0cf7f95&inc=media+labels&limit=100&offset=0&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "releases": [
+        {
+          "packaging": null,
+          "asin": null,
+          "id": "048b1ef6-cf2d-4d63-94a6-eb4c61d021d9",
+          "date": "2026-03-13",
+          "release-events": [
+            {
+              "date": "2026-03-13",
+              "area": {
+                "iso-3166-1-codes": [
+                  "US"
+                ],
+                "type": null,
+                "name": "United States",
+                "type-id": null,
+                "sort-name": "United States",
+                "disambiguation": "",
+                "id": "489ce91b-6658-3307-9877-795b68554c98"
+              }
+            }
+          ],
+          "title": "SO CLOSE TO WHAT???",
+          "status": "Official",
+          "barcode": "199584107219",
+          "packaging-id": null,
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "media": [
+            {
+              "id": "4ae00aa0-efdc-4eaa-a596-02de3fa0ac92",
+              "format-id": "3e9080b0-5e6c-34ab-bd15-f526b6306a64",
+              "format": "12\" Vinyl",
+              "title": "",
+              "track-count": 10,
+              "position": 1
+            },
+            {
+              "title": "",
+              "position": 2,
+              "track-count": 11,
+              "format": "12\" Vinyl",
+              "format-id": "3e9080b0-5e6c-34ab-bd15-f526b6306a64",
+              "id": "9d1192f9-49a2-46fd-8b4c-e5bfe28db175"
+            }
+          ],
+          "quality": "normal",
+          "disambiguation": "",
+          "country": "US",
+          "label-info": [
+            {
+              "label": {
+                "type": "Imprint",
+                "label-code": 316,
+                "disambiguation": "RCA Records: simple ‘RCA’ or ‘RCA’ with lightning bolt in circle",
+                "sort-name": "RCA",
+                "id": "1ca5ed29-e00b-4ea5-b817-0bcca0e04946",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "name": "RCA"
+              },
+              "catalog-number": null
+            }
+          ],
+          "cover-art-archive": {
+            "artwork": false,
+            "back": false,
+            "front": false,
+            "count": 0,
+            "darkened": false
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe"
+        },
+        {
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "media": [
+            {
+              "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31",
+              "id": "33e95483-e092-4d7b-9a59-a9b7a77c656b",
+              "title": "",
+              "position": 1,
+              "track-count": 21,
+              "format": "CD"
+            }
+          ],
+          "country": "US",
+          "quality": "normal",
+          "disambiguation": "deluxe",
+          "label-info": [
+            {
+              "catalog-number": "19958-41072-2",
+              "label": {
+                "type": "Imprint",
+                "label-code": 316,
+                "sort-name": "RCA",
+                "disambiguation": "RCA Records: simple ‘RCA’ or ‘RCA’ with lightning bolt in circle",
+                "id": "1ca5ed29-e00b-4ea5-b817-0bcca0e04946",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "name": "RCA"
+              }
+            }
+          ],
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "cover-art-archive": {
+            "front": true,
+            "back": true,
+            "artwork": true,
+            "darkened": false,
+            "count": 15
+          },
+          "packaging": "Jewel Case",
+          "asin": null,
+          "id": "15c620dc-d301-4cc4-aeb8-2e288403548e",
+          "date": "2025-11-21",
+          "release-events": [
+            {
+              "area": {
+                "disambiguation": "",
+                "id": "489ce91b-6658-3307-9877-795b68554c98",
+                "sort-name": "United States",
+                "type-id": null,
+                "name": "United States",
+                "type": null,
+                "iso-3166-1-codes": [
+                  "US"
+                ]
+              },
+              "date": "2025-11-21"
+            }
+          ],
+          "status": "Official",
+          "title": "SO CLOSE TO WHAT???",
+          "barcode": "199584107226",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a"
+        },
+        {
+          "id": "1638d8f2-6cc1-419c-9040-d5e4ca4f467f",
+          "date": "2025-02-21",
+          "release-events": [
+            {
+              "area": null,
+              "date": "2025-02-21"
+            }
+          ],
+          "packaging": "None",
+          "asin": null,
+          "barcode": "196872900200",
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "title": "So Close to What",
+          "status": "Official",
+          "media": [
+            {
+              "id": "cfac7da8-3109-340e-af14-60156f98057a",
+              "format-id": "907a28d9-b3b2-3ef6-89a8-7b18d91d4794",
+              "format": "Digital Media",
+              "title": "",
+              "position": 1,
+              "track-count": 16
+            }
+          ],
+          "country": null,
+          "quality": "normal",
+          "disambiguation": "re‐issue",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "cover-art-archive": {
+            "front": true,
+            "back": false,
+            "artwork": true,
+            "darkened": false,
+            "count": 1
+          },
+          "label-info": [
+            {
+              "label": {
+                "label-code": 316,
+                "type": "Imprint",
+                "name": "RCA",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "RCA",
+                "id": "1ca5ed29-e00b-4ea5-b817-0bcca0e04946",
+                "disambiguation": "RCA Records: simple ‘RCA’ or ‘RCA’ with lightning bolt in circle"
+              },
+              "catalog-number": null
+            }
+          ]
+        },
+        {
+          "cover-art-archive": {
+            "artwork": false,
+            "back": false,
+            "front": false,
+            "darkened": false,
+            "count": 0
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "label-info": [
+            {
+              "catalog-number": null,
+              "label": {
+                "sort-name": "RCA",
+                "id": "1ca5ed29-e00b-4ea5-b817-0bcca0e04946",
+                "disambiguation": "RCA Records: simple ‘RCA’ or ‘RCA’ with lightning bolt in circle",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "name": "RCA",
+                "type": "Imprint",
+                "label-code": 316
+              }
+            }
+          ],
+          "quality": "normal",
+          "disambiguation": "polaroid CD",
+          "country": "US",
+          "media": [
+            {
+              "id": "52e40e75-15a6-3808-9723-f2c9cd6cd53e",
+              "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31",
+              "format": "CD",
+              "track-count": 13,
+              "position": 1,
+              "title": ""
+            }
+          ],
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "barcode": "198028852920",
+          "title": "So Close to What",
+          "status": "Official",
+          "release-events": [
+            {
+              "date": "2025-02-25",
+              "area": {
+                "name": "United States",
+                "type-id": null,
+                "sort-name": "United States",
+                "disambiguation": "",
+                "id": "489ce91b-6658-3307-9877-795b68554c98",
+                "iso-3166-1-codes": [
+                  "US"
+                ],
+                "type": null
+              }
+            }
+          ],
+          "date": "2025-02-25",
+          "id": "2768d49a-77b4-4f78-8b46-11a7247bd8ad",
+          "asin": null,
+          "packaging": "Jewel Case"
+        },
+        {
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "media": [
+            {
+              "format": "CD",
+              "title": "",
+              "position": 1,
+              "track-count": 13,
+              "id": "4d3e0595-b89a-365a-bf11-0442f49ea6cb",
+              "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31"
+            }
+          ],
+          "quality": "normal",
+          "country": "US",
+          "disambiguation": "",
+          "label-info": [
+            {
+              "catalog-number": "TTM142682",
+              "label": {
+                "name": "RCA",
+                "sort-name": "RCA",
+                "disambiguation": "RCA Records: simple ‘RCA’ or ‘RCA’ with lightning bolt in circle",
+                "id": "1ca5ed29-e00b-4ea5-b817-0bcca0e04946",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "label-code": 316,
+                "type": "Imprint"
+              }
+            }
+          ],
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "cover-art-archive": {
+            "front": false,
+            "back": false,
+            "artwork": false,
+            "darkened": false,
+            "count": 0
+          },
+          "packaging": "Jewel Case",
+          "asin": "B0DN2M5RY4",
+          "date": "2025-02-21",
+          "release-events": [
+            {
+              "date": "2025-02-21",
+              "area": {
+                "name": "United States",
+                "type-id": null,
+                "sort-name": "United States",
+                "disambiguation": "",
+                "id": "489ce91b-6658-3307-9877-795b68554c98",
+                "iso-3166-1-codes": [
+                  "US"
+                ],
+                "type": null
+              }
+            }
+          ],
+          "id": "38d597bf-0890-4c9f-8562-28a562ba5538",
+          "status": "Official",
+          "title": "So Close to What",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "barcode": "198028850827"
+        },
+        {
+          "title": "SO CLOSE TO WHAT???",
+          "status": "Official",
+          "barcode": "196873763132",
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "packaging": "None",
+          "asin": null,
+          "id": "3a2726ae-34c8-4f49-a50a-c9a96cf762c1",
+          "date": "2025-11-21",
+          "release-events": [
+            {
+              "area": {
+                "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+                "disambiguation": "",
+                "sort-name": "[Worldwide]",
+                "type-id": null,
+                "name": "[Worldwide]",
+                "type": null,
+                "iso-3166-1-codes": [
+                  "XW"
+                ]
+              },
+              "date": "2025-11-21"
+            }
+          ],
+          "label-info": [
+            {
+              "label": {
+                "label-code": 316,
+                "type": "Imprint",
+                "name": "RCA",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "disambiguation": "RCA Records: simple ‘RCA’ or ‘RCA’ with lightning bolt in circle",
+                "id": "1ca5ed29-e00b-4ea5-b817-0bcca0e04946",
+                "sort-name": "RCA"
+              },
+              "catalog-number": null
+            }
+          ],
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "cover-art-archive": {
+            "count": 1,
+            "darkened": false,
+            "artwork": true,
+            "back": false,
+            "front": true
+          },
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "media": [
+            {
+              "id": "50217baa-af08-4dd1-b822-0c2fab66dce9",
+              "format-id": "907a28d9-b3b2-3ef6-89a8-7b18d91d4794",
+              "format": "Digital Media",
+              "position": 1,
+              "track-count": 21,
+              "title": ""
+            }
+          ],
+          "disambiguation": "deluxe",
+          "quality": "normal",
+          "country": "XW"
+        },
+        {
+          "packaging": "None",
+          "asin": null,
+          "date": "2025-02-24",
+          "release-events": [
+            {
+              "date": "2025-02-24",
+              "area": null
+            }
+          ],
+          "id": "41e6be10-6a54-4323-96e0-8cf0e44695bc",
+          "status": "Official",
+          "title": "So Close to What",
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "barcode": "196872900200",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "media": [
+            {
+              "format-id": "907a28d9-b3b2-3ef6-89a8-7b18d91d4794",
+              "id": "f8cdbdc3-915b-3773-b4ce-42888ce784bf",
+              "title": "",
+              "track-count": 16,
+              "position": 1,
+              "format": "Digital Media"
+            }
+          ],
+          "country": null,
+          "quality": "normal",
+          "disambiguation": "Dolby Atmos mix",
+          "label-info": [
+            {
+              "label": {
+                "type": "Imprint",
+                "label-code": 316,
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "id": "1ca5ed29-e00b-4ea5-b817-0bcca0e04946",
+                "sort-name": "RCA",
+                "disambiguation": "RCA Records: simple ‘RCA’ or ‘RCA’ with lightning bolt in circle",
+                "name": "RCA"
+              },
+              "catalog-number": null
+            }
+          ],
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "cover-art-archive": {
+            "darkened": false,
+            "count": 1,
+            "front": true,
+            "back": false,
+            "artwork": true
+          }
+        },
+        {
+          "label-info": [
+            {
+              "label": {
+                "name": "RCA",
+                "disambiguation": "RCA Records: simple ‘RCA’ or ‘RCA’ with lightning bolt in circle",
+                "sort-name": "RCA",
+                "id": "1ca5ed29-e00b-4ea5-b817-0bcca0e04946",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "label-code": 316,
+                "type": "Imprint"
+              },
+              "catalog-number": null
+            }
+          ],
+          "cover-art-archive": {
+            "count": 1,
+            "darkened": false,
+            "front": true,
+            "artwork": true,
+            "back": false
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "country": null,
+          "quality": "normal",
+          "disambiguation": "deluxe, clean",
+          "media": [
+            {
+              "title": "",
+              "position": 1,
+              "track-count": 21,
+              "format": "Digital Media",
+              "format-id": "907a28d9-b3b2-3ef6-89a8-7b18d91d4794",
+              "id": "315bdcb4-c8b3-4755-8cff-3c8cb9c8b875"
+            }
+          ],
+          "title": "SO CLOSE TO WHAT???",
+          "status": "Official",
+          "barcode": "196873833439",
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "asin": null,
+          "packaging": "None",
+          "id": "452fe260-72a4-4c95-b129-033597182740",
+          "release-events": [
+            {
+              "area": null,
+              "date": "2025-11-21"
+            }
+          ],
+          "date": "2025-11-21"
+        },
+        {
+          "title": "So Close to What",
+          "status": "Official",
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "barcode": "196872904437",
+          "asin": null,
+          "packaging": "None",
+          "date": "2025-02-24",
+          "release-events": [
+            {
+              "date": "2025-02-24",
+              "area": {
+                "type": null,
+                "iso-3166-1-codes": [
+                  "US"
+                ],
+                "sort-name": "United States",
+                "disambiguation": "",
+                "id": "489ce91b-6658-3307-9877-795b68554c98",
+                "type-id": null,
+                "name": "United States"
+              }
+            }
+          ],
+          "id": "5832c67b-9b14-42db-92a8-dd9dd2a7f7a9",
+          "label-info": [
+            {
+              "label": {
+                "label-code": 316,
+                "type": "Imprint",
+                "name": "RCA",
+                "id": "1ca5ed29-e00b-4ea5-b817-0bcca0e04946",
+                "sort-name": "RCA",
+                "disambiguation": "RCA Records: simple ‘RCA’ or ‘RCA’ with lightning bolt in circle",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded"
+              },
+              "catalog-number": null
+            }
+          ],
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "cover-art-archive": {
+            "front": true,
+            "back": false,
+            "artwork": true,
+            "darkened": false,
+            "count": 1
+          },
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "quality": "normal",
+          "disambiguation": "exclusive 18 track digital download",
+          "country": "US",
+          "media": [
+            {
+              "format": "Digital Media",
+              "position": 1,
+              "track-count": 18,
+              "title": "",
+              "id": "14017797-622f-382f-ab4f-448a7ff3400f",
+              "format-id": "907a28d9-b3b2-3ef6-89a8-7b18d91d4794"
+            }
+          ]
+        },
+        {
+          "barcode": "198028850810",
+          "packaging-id": "e724a489-a7e8-30a1-a17c-30dfd6831202",
+          "status": "Official",
+          "title": "So Close to What",
+          "id": "58fcb179-1958-4a01-ab57-dc1edf28f8ae",
+          "release-events": [
+            {
+              "area": {
+                "type": null,
+                "iso-3166-1-codes": [
+                  "US"
+                ],
+                "type-id": null,
+                "sort-name": "United States",
+                "disambiguation": "",
+                "id": "489ce91b-6658-3307-9877-795b68554c98",
+                "name": "United States"
+              },
+              "date": "2025-02-21"
+            }
+          ],
+          "date": "2025-02-21",
+          "packaging": "Gatefold Cover",
+          "asin": "B0DN33VS18",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "cover-art-archive": {
+            "count": 0,
+            "darkened": false,
+            "front": false,
+            "artwork": false,
+            "back": false
+          },
+          "label-info": [
+            {
+              "label": {
+                "name": "RCA",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "disambiguation": "RCA Records: simple ‘RCA’ or ‘RCA’ with lightning bolt in circle",
+                "sort-name": "RCA",
+                "id": "1ca5ed29-e00b-4ea5-b817-0bcca0e04946",
+                "label-code": 316,
+                "type": "Imprint"
+              },
+              "catalog-number": "TTM142684"
+            }
+          ],
+          "media": [
+            {
+              "id": "16258a32-b2db-309d-8a77-fea636e062dd",
+              "format-id": "3e9080b0-5e6c-34ab-bd15-f526b6306a64",
+              "format": "12\" Vinyl",
+              "position": 1,
+              "track-count": 13,
+              "title": ""
+            }
+          ],
+          "disambiguation": "black vinyl",
+          "quality": "normal",
+          "country": "US",
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          }
+        },
+        {
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "media": [
+            {
+              "track-count": 13,
+              "position": 1,
+              "title": "",
+              "format": "12\" Vinyl",
+              "format-id": "3e9080b0-5e6c-34ab-bd15-f526b6306a64",
+              "id": "93e01607-65e3-4c14-a06e-0a0d6978119f"
+            }
+          ],
+          "disambiguation": "JB Hi-Fi AU exclusive transparent orange vinyl",
+          "quality": "normal",
+          "country": "AU",
+          "label-info": [
+            {
+              "catalog-number": "19802885071",
+              "label": {
+                "type": "Imprint",
+                "label-code": 316,
+                "disambiguation": "RCA Records: simple ‘RCA’ or ‘RCA’ with lightning bolt in circle",
+                "sort-name": "RCA",
+                "id": "1ca5ed29-e00b-4ea5-b817-0bcca0e04946",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "name": "RCA"
+              }
+            }
+          ],
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "cover-art-archive": {
+            "front": false,
+            "back": false,
+            "artwork": false,
+            "darkened": false,
+            "count": 0
+          },
+          "packaging": "Cardboard/Paper Sleeve",
+          "asin": null,
+          "id": "6a748f13-3b40-403e-92f1-7f5e1ace1483",
+          "release-events": [
+            {
+              "date": "2025-02-21",
+              "area": {
+                "name": "Australia",
+                "type-id": null,
+                "disambiguation": "",
+                "id": "106e0bec-b638-3b37-b731-f53d507dc00e",
+                "sort-name": "Australia",
+                "iso-3166-1-codes": [
+                  "AU"
+                ],
+                "type": null
+              }
+            }
+          ],
+          "date": "2025-02-21",
+          "status": "Official",
+          "title": "So Close to What",
+          "barcode": "198028850711",
+          "packaging-id": "f7101ce3-0384-39ce-9fde-fbbd0044d35f"
+        },
+        {
+          "label-info": [
+            {
+              "label": {
+                "type": "Imprint",
+                "label-code": 316,
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "id": "1ca5ed29-e00b-4ea5-b817-0bcca0e04946",
+                "sort-name": "RCA",
+                "disambiguation": "RCA Records: simple ‘RCA’ or ‘RCA’ with lightning bolt in circle",
+                "name": "RCA"
+              },
+              "catalog-number": null
+            }
+          ],
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "cover-art-archive": {
+            "back": false,
+            "artwork": false,
+            "front": false,
+            "darkened": false,
+            "count": 0
+          },
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "quality": "normal",
+          "disambiguation": "milky translucent clear LP",
+          "country": "US",
+          "media": [
+            {
+              "position": 1,
+              "track-count": 13,
+              "title": "",
+              "format": "12\" Vinyl",
+              "format-id": "3e9080b0-5e6c-34ab-bd15-f526b6306a64",
+              "id": "38bf659e-2d36-3888-a486-dd5a28027dba"
+            }
+          ],
+          "status": "Official",
+          "title": "So Close to What",
+          "barcode": "198028852715",
+          "packaging-id": "e724a489-a7e8-30a1-a17c-30dfd6831202",
+          "asin": null,
+          "packaging": "Gatefold Cover",
+          "id": "6cf82610-38c7-451f-84fe-1bd8d9d7045d",
+          "date": "2025-02-21",
+          "release-events": [
+            {
+              "area": {
+                "id": "489ce91b-6658-3307-9877-795b68554c98",
+                "disambiguation": "",
+                "sort-name": "United States",
+                "type-id": null,
+                "name": "United States",
+                "type": null,
+                "iso-3166-1-codes": [
+                  "US"
+                ]
+              },
+              "date": "2025-02-21"
+            }
+          ]
+        },
+        {
+          "label-info": [
+            {
+              "catalog-number": "SICP 6601",
+              "label": {
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "RCA",
+                "disambiguation": "RCA Records: simple ‘RCA’ or ‘RCA’ with lightning bolt in circle",
+                "id": "1ca5ed29-e00b-4ea5-b817-0bcca0e04946",
+                "name": "RCA",
+                "type": "Imprint",
+                "label-code": 316
+              }
+            }
+          ],
+          "cover-art-archive": {
+            "count": 5,
+            "darkened": false,
+            "front": true,
+            "artwork": true,
+            "back": true
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "quality": "normal",
+          "country": "JP",
+          "disambiguation": "",
+          "media": [
+            {
+              "format": "CD",
+              "title": "",
+              "position": 1,
+              "track-count": 14,
+              "id": "9d2b24e6-d86c-3efe-8ab9-10c23a35ed24",
+              "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31"
+            }
+          ],
+          "status": "Official",
+          "title": "So Close to What",
+          "barcode": "4547366726107",
+          "packaging-id": null,
+          "asin": null,
+          "packaging": null,
+          "id": "7bb6faf6-cbb7-4e31-9984-94c3b45bbece",
+          "date": "2025-02-26",
+          "release-events": [
+            {
+              "area": {
+                "name": "Japan",
+                "type-id": null,
+                "disambiguation": "",
+                "id": "2db42837-c832-3c27-b4a3-08198f75693c",
+                "sort-name": "Japan",
+                "iso-3166-1-codes": [
+                  "JP"
+                ],
+                "type": null
+              },
+              "date": "2025-02-26"
+            }
+          ]
+        },
+        {
+          "asin": null,
+          "packaging": "Jewel Case",
+          "id": "88fb4947-3069-4cad-89a1-ac5cc985c286",
+          "release-events": [
+            {
+              "date": "2025-02-21",
+              "area": {
+                "type-id": null,
+                "disambiguation": "",
+                "sort-name": "United States",
+                "id": "489ce91b-6658-3307-9877-795b68554c98",
+                "name": "United States",
+                "type": null,
+                "iso-3166-1-codes": [
+                  "US"
+                ]
+              }
+            }
+          ],
+          "date": "2025-02-21",
+          "status": "Official",
+          "title": "So Close to What",
+          "barcode": "198028850421",
+          "packaging-id": "ec27701a-4a22-37f4-bfac-6616e0f9750a",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "quality": "normal",
+          "country": "US",
+          "disambiguation": "limited edition, signed insert",
+          "media": [
+            {
+              "format-id": "9712d52a-4509-3d4b-a1a2-67c88c643e31",
+              "id": "1c7d4f90-5032-3d35-809a-c11d693e5806",
+              "track-count": 13,
+              "position": 1,
+              "title": "",
+              "format": "CD"
+            }
+          ],
+          "label-info": [
+            {
+              "catalog-number": "19802-88504-2",
+              "label": {
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "id": "1ca5ed29-e00b-4ea5-b817-0bcca0e04946",
+                "sort-name": "RCA",
+                "disambiguation": "RCA Records: simple ‘RCA’ or ‘RCA’ with lightning bolt in circle",
+                "name": "RCA",
+                "type": "Imprint",
+                "label-code": 316
+              }
+            },
+            {
+              "label": {
+                "label-code": 316,
+                "type": "Imprint",
+                "name": "RCA",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "RCA",
+                "disambiguation": "RCA Records: simple ‘RCA’ or ‘RCA’ with lightning bolt in circle",
+                "id": "1ca5ed29-e00b-4ea5-b817-0bcca0e04946"
+              },
+              "catalog-number": "19802-88508-2"
+            }
+          ],
+          "cover-art-archive": {
+            "front": true,
+            "back": true,
+            "artwork": true,
+            "count": 18,
+            "darkened": false
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe"
+        },
+        {
+          "title": "So Close to What",
+          "status": "Official",
+          "barcode": "198028850513",
+          "packaging-id": "e724a489-a7e8-30a1-a17c-30dfd6831202",
+          "packaging": "Gatefold Cover",
+          "asin": null,
+          "id": "8970d284-a991-4e25-8eda-8d4db6270c71",
+          "release-events": [
+            {
+              "area": {
+                "sort-name": "United States",
+                "disambiguation": "",
+                "id": "489ce91b-6658-3307-9877-795b68554c98",
+                "type-id": null,
+                "name": "United States",
+                "type": null,
+                "iso-3166-1-codes": [
+                  "US"
+                ]
+              },
+              "date": "2025-02-21"
+            }
+          ],
+          "date": "2025-02-21",
+          "label-info": [
+            {
+              "catalog-number": null,
+              "label": {
+                "name": "RCA",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "id": "1ca5ed29-e00b-4ea5-b817-0bcca0e04946",
+                "sort-name": "RCA",
+                "disambiguation": "RCA Records: simple ‘RCA’ or ‘RCA’ with lightning bolt in circle",
+                "label-code": 316,
+                "type": "Imprint"
+              }
+            }
+          ],
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "cover-art-archive": {
+            "front": false,
+            "artwork": false,
+            "back": false,
+            "count": 0,
+            "darkened": false
+          },
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "media": [
+            {
+              "format": "12\" Vinyl",
+              "title": "",
+              "position": 1,
+              "track-count": 13,
+              "id": "15915359-d52c-35f8-858d-184cc38fc8b2",
+              "format-id": "3e9080b0-5e6c-34ab-bd15-f526b6306a64"
+            }
+          ],
+          "disambiguation": "Target exclusive",
+          "quality": "normal",
+          "country": "US"
+        },
+        {
+          "id": "a008b24c-3027-4e46-9c36-c7fafe2617f1",
+          "release-events": [
+            {
+              "area": {
+                "type": null,
+                "iso-3166-1-codes": [
+                  "XW"
+                ],
+                "type-id": null,
+                "disambiguation": "",
+                "sort-name": "[Worldwide]",
+                "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+                "name": "[Worldwide]"
+              },
+              "date": "2025-02-24"
+            }
+          ],
+          "date": "2025-02-24",
+          "packaging": "None",
+          "asin": null,
+          "barcode": "196872870299",
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "title": "So Close to What",
+          "status": "Official",
+          "media": [
+            {
+              "format": "Digital Media",
+              "title": "",
+              "position": 1,
+              "track-count": 16,
+              "id": "c729f24f-8d2c-3ddf-aced-98ac2108b9d1",
+              "format-id": "907a28d9-b3b2-3ef6-89a8-7b18d91d4794"
+            }
+          ],
+          "quality": "normal",
+          "country": "XW",
+          "disambiguation": "16 Track version",
+          "text-representation": {
+            "language": null,
+            "script": "Latn"
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "cover-art-archive": {
+            "back": false,
+            "artwork": true,
+            "front": true,
+            "darkened": false,
+            "count": 1
+          },
+          "label-info": [
+            {
+              "catalog-number": null,
+              "label": {
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "RCA",
+                "disambiguation": "RCA Records: simple ‘RCA’ or ‘RCA’ with lightning bolt in circle",
+                "id": "1ca5ed29-e00b-4ea5-b817-0bcca0e04946",
+                "name": "RCA",
+                "type": "Imprint",
+                "label-code": 316
+              }
+            }
+          ]
+        },
+        {
+          "barcode": "198028850216",
+          "packaging-id": "e724a489-a7e8-30a1-a17c-30dfd6831202",
+          "status": "Official",
+          "title": "So Close to What",
+          "id": "b361124e-94dc-4244-8deb-96b3e5ab30bc",
+          "release-events": [
+            {
+              "date": "2025-02-21",
+              "area": {
+                "type": null,
+                "iso-3166-1-codes": [
+                  "US"
+                ],
+                "disambiguation": "",
+                "id": "489ce91b-6658-3307-9877-795b68554c98",
+                "sort-name": "United States",
+                "type-id": null,
+                "name": "United States"
+              }
+            }
+          ],
+          "date": "2025-02-21",
+          "asin": null,
+          "packaging": "Gatefold Cover",
+          "cover-art-archive": {
+            "artwork": false,
+            "back": false,
+            "front": false,
+            "darkened": false,
+            "count": 0
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "label-info": [
+            {
+              "label": {
+                "name": "RCA",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "disambiguation": "RCA Records: simple ‘RCA’ or ‘RCA’ with lightning bolt in circle",
+                "sort-name": "RCA",
+                "id": "1ca5ed29-e00b-4ea5-b817-0bcca0e04946",
+                "label-code": 316,
+                "type": "Imprint"
+              },
+              "catalog-number": null
+            }
+          ],
+          "disambiguation": "mardi gras vinyl",
+          "quality": "normal",
+          "country": "US",
+          "media": [
+            {
+              "title": "",
+              "position": 1,
+              "track-count": 13,
+              "format": "12\" Vinyl",
+              "format-id": "3e9080b0-5e6c-34ab-bd15-f526b6306a64",
+              "id": "43393aae-142c-3220-8dfb-c82a1478e162"
+            }
+          ],
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          }
+        },
+        {
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "media": [
+            {
+              "format": "12\" Vinyl",
+              "track-count": 10,
+              "position": 1,
+              "title": "",
+              "id": "bb0ab7d8-1c58-415b-900c-bb9bfe9960da",
+              "format-id": "3e9080b0-5e6c-34ab-bd15-f526b6306a64"
+            },
+            {
+              "format": "12\" Vinyl",
+              "title": "",
+              "track-count": 11,
+              "position": 2,
+              "id": "6e9c052f-cccb-4989-9556-f00d55c79aac",
+              "format-id": "3e9080b0-5e6c-34ab-bd15-f526b6306a64"
+            }
+          ],
+          "country": "XE",
+          "quality": "normal",
+          "disambiguation": "deluxe",
+          "label-info": [
+            {
+              "catalog-number": "19958-41072-1",
+              "label": {
+                "sort-name": "RCA",
+                "disambiguation": "RCA Records: simple ‘RCA’ or ‘RCA’ with lightning bolt in circle",
+                "id": "1ca5ed29-e00b-4ea5-b817-0bcca0e04946",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "name": "RCA",
+                "type": "Imprint",
+                "label-code": 316
+              }
+            }
+          ],
+          "cover-art-archive": {
+            "darkened": false,
+            "count": 0,
+            "front": false,
+            "artwork": false,
+            "back": false
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "packaging": "Gatefold Cover",
+          "asin": null,
+          "id": "b636a021-8c72-4c91-9b0e-1958136c333f",
+          "release-events": [
+            {
+              "area": {
+                "name": "Europe",
+                "sort-name": "Europe",
+                "id": "89a675c2-3e37-3518-b83c-418bad59a85a",
+                "disambiguation": "",
+                "type-id": null,
+                "iso-3166-1-codes": [
+                  "XE"
+                ],
+                "type": null
+              },
+              "date": "2026-03-13"
+            }
+          ],
+          "date": "2026-03-13",
+          "status": "Official",
+          "title": "SO CLOSE TO WHAT???",
+          "barcode": "199584107219",
+          "packaging-id": "e724a489-a7e8-30a1-a17c-30dfd6831202"
+        },
+        {
+          "quality": "normal",
+          "disambiguation": "Dolby Atmos mix, deluxe",
+          "country": "XW",
+          "media": [
+            {
+              "id": "549fe5dc-aaad-418a-8930-e0b1f4e4ac3c",
+              "format-id": "907a28d9-b3b2-3ef6-89a8-7b18d91d4794",
+              "format": "Digital Media",
+              "title": "",
+              "position": 1,
+              "track-count": 21
+            }
+          ],
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "cover-art-archive": {
+            "count": 1,
+            "darkened": false,
+            "artwork": true,
+            "back": false,
+            "front": true
+          },
+          "label-info": [
+            {
+              "catalog-number": null,
+              "label": {
+                "sort-name": "RCA",
+                "disambiguation": "RCA Records: simple ‘RCA’ or ‘RCA’ with lightning bolt in circle",
+                "id": "1ca5ed29-e00b-4ea5-b817-0bcca0e04946",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "name": "RCA",
+                "type": "Imprint",
+                "label-code": 316
+              }
+            }
+          ],
+          "date": "2025-11-21",
+          "release-events": [
+            {
+              "area": {
+                "type": null,
+                "iso-3166-1-codes": [
+                  "XW"
+                ],
+                "type-id": null,
+                "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+                "sort-name": "[Worldwide]",
+                "disambiguation": "",
+                "name": "[Worldwide]"
+              },
+              "date": "2025-11-21"
+            }
+          ],
+          "id": "bbea40b3-b8b6-4ec2-83a7-7e3801f88d10",
+          "asin": null,
+          "packaging": "None",
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "barcode": "196873763156",
+          "status": "Official",
+          "title": "SO CLOSE TO WHAT???"
+        },
+        {
+          "packaging": "Gatefold Cover",
+          "asin": null,
+          "date": "2025-11-21",
+          "release-events": [
+            {
+              "date": "2025-11-21",
+              "area": {
+                "type": null,
+                "iso-3166-1-codes": [
+                  "US"
+                ],
+                "sort-name": "United States",
+                "disambiguation": "",
+                "id": "489ce91b-6658-3307-9877-795b68554c98",
+                "type-id": null,
+                "name": "United States"
+              }
+            }
+          ],
+          "id": "d43da726-a2ef-4394-9da7-fd0d4795925d",
+          "title": "SO CLOSE TO WHAT???",
+          "status": "Official",
+          "packaging-id": "e724a489-a7e8-30a1-a17c-30dfd6831202",
+          "barcode": "199584107219",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "media": [
+            {
+              "format": "12\" Vinyl",
+              "title": "",
+              "track-count": 0,
+              "position": 1,
+              "id": "c4042285-b97f-4861-810c-efbedfa3c57b",
+              "format-id": "3e9080b0-5e6c-34ab-bd15-f526b6306a64"
+            }
+          ],
+          "quality": "normal",
+          "country": "US",
+          "disambiguation": "deluxe",
+          "label-info": [
+            {
+              "label": {
+                "type": "Imprint",
+                "label-code": 316,
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "RCA",
+                "disambiguation": "RCA Records: simple ‘RCA’ or ‘RCA’ with lightning bolt in circle",
+                "id": "1ca5ed29-e00b-4ea5-b817-0bcca0e04946",
+                "name": "RCA"
+              },
+              "catalog-number": null
+            }
+          ],
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "cover-art-archive": {
+            "front": false,
+            "back": false,
+            "artwork": false,
+            "count": 0,
+            "darkened": false
+          }
+        },
+        {
+          "cover-art-archive": {
+            "count": 1,
+            "darkened": false,
+            "front": true,
+            "artwork": true,
+            "back": false
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "label-info": [
+            {
+              "catalog-number": null,
+              "label": {
+                "label-code": 316,
+                "type": "Imprint",
+                "name": "RCA",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "id": "1ca5ed29-e00b-4ea5-b817-0bcca0e04946",
+                "disambiguation": "RCA Records: simple ‘RCA’ or ‘RCA’ with lightning bolt in circle",
+                "sort-name": "RCA"
+              }
+            }
+          ],
+          "media": [
+            {
+              "format-id": "907a28d9-b3b2-3ef6-89a8-7b18d91d4794",
+              "id": "6a1115a7-4054-4351-a84c-f34a5e603677",
+              "track-count": 16,
+              "position": 1,
+              "title": "",
+              "format": "Digital Media"
+            }
+          ],
+          "country": "XW",
+          "quality": "normal",
+          "disambiguation": "clean",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "barcode": "196872983029",
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "status": "Official",
+          "title": "So Close to What",
+          "id": "da372367-746c-411e-8c1e-899e2f4b9f16",
+          "release-events": [
+            {
+              "area": {
+                "disambiguation": "",
+                "sort-name": "[Worldwide]",
+                "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+                "type-id": null,
+                "name": "[Worldwide]",
+                "type": null,
+                "iso-3166-1-codes": [
+                  "XW"
+                ]
+              },
+              "date": "2025-02-21"
+            }
+          ],
+          "date": "2025-02-21",
+          "packaging": "None",
+          "asin": null
+        },
+        {
+          "id": "dbfd9a8c-53cd-4350-ae9b-130bb7836a35",
+          "date": "2025-02-21",
+          "release-events": [
+            {
+              "date": "2025-02-21",
+              "area": {
+                "type-id": null,
+                "sort-name": "[Worldwide]",
+                "disambiguation": "",
+                "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+                "name": "[Worldwide]",
+                "type": null,
+                "iso-3166-1-codes": [
+                  "XW"
+                ]
+              }
+            }
+          ],
+          "packaging": "None",
+          "asin": null,
+          "barcode": "196872648911",
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "title": "So Close to What",
+          "status": "Official",
+          "media": [
+            {
+              "id": "c1223f56-8bde-3cec-9dbb-8f5897b454ae",
+              "format-id": "907a28d9-b3b2-3ef6-89a8-7b18d91d4794",
+              "format": "Digital Media",
+              "title": "",
+              "position": 1,
+              "track-count": 15
+            }
+          ],
+          "quality": "normal",
+          "disambiguation": "explicit",
+          "country": "XW",
+          "text-representation": {
+            "language": "eng",
+            "script": "Latn"
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "cover-art-archive": {
+            "count": 1,
+            "darkened": false,
+            "back": false,
+            "artwork": true,
+            "front": true
+          },
+          "label-info": [
+            {
+              "catalog-number": null,
+              "label": {
+                "type": "Imprint",
+                "label-code": 316,
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "sort-name": "RCA",
+                "disambiguation": "RCA Records: simple ‘RCA’ or ‘RCA’ with lightning bolt in circle",
+                "id": "1ca5ed29-e00b-4ea5-b817-0bcca0e04946",
+                "name": "RCA"
+              }
+            }
+          ]
+        },
+        {
+          "packaging-id": "119eba76-b343-3e02-a292-f0f00644bb9b",
+          "barcode": "196872952872",
+          "status": "Official",
+          "title": "So Close to What",
+          "date": "2025-03-05",
+          "release-events": [
+            {
+              "area": {
+                "type-id": null,
+                "sort-name": "United States",
+                "disambiguation": "",
+                "id": "489ce91b-6658-3307-9877-795b68554c98",
+                "name": "United States",
+                "type": null,
+                "iso-3166-1-codes": [
+                  "US"
+                ]
+              },
+              "date": "2025-03-05"
+            }
+          ],
+          "id": "fdbded97-aee6-4073-9083-402b0123c311",
+          "packaging": "None",
+          "asin": null,
+          "cover-art-archive": {
+            "front": true,
+            "back": false,
+            "artwork": true,
+            "darkened": false,
+            "count": 1
+          },
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "label-info": [
+            {
+              "catalog-number": null,
+              "label": {
+                "disambiguation": "RCA Records: simple ‘RCA’ or ‘RCA’ with lightning bolt in circle",
+                "id": "1ca5ed29-e00b-4ea5-b817-0bcca0e04946",
+                "sort-name": "RCA",
+                "type-id": "b6285b2a-3514-3d43-80df-fcf528824ded",
+                "name": "RCA",
+                "type": "Imprint",
+                "label-code": 316
+              }
+            }
+          ],
+          "media": [
+            {
+              "position": 1,
+              "track-count": 21,
+              "title": "",
+              "format": "Digital Media",
+              "format-id": "907a28d9-b3b2-3ef6-89a8-7b18d91d4794",
+              "id": "14c8c341-9f1d-35bb-84e4-2751a1d17c88"
+            }
+          ],
+          "quality": "normal",
+          "country": "US",
+          "disambiguation": "exclusive 21 track digital download",
+          "text-representation": {
+            "script": "Latn",
+            "language": "eng"
+          }
+        }
+      ],
+      "release-count": 23,
+      "release-offset": 0
+    }
+  }
+}
