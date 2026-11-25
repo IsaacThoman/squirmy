@@ -23,7 +23,7 @@ export type TrackMenuButtonProps = { track: TrackSummary; onPress: () => void };
 export type TrackLinksMenuProps = { track: TrackSummary | undefined; accessibilityLabel: string; children: React.ReactNode };
 /**
  * Without `onPress` (plain lyrics) the line is only text. iOS draws the line at `opacity` and
- * blurred by `blur` points, easing to a new look after `delay` milliseconds; elsewhere the
+ * blurred by `blur` points, easing to a new look; elsewhere the
  * active line is bright and the rest quiet.
  */
 export type LyricButtonProps = {
@@ -32,7 +32,6 @@ export type LyricButtonProps = {
   onPress?: () => void;
   opacity?: number;
   blur?: number;
-  delay?: number;
 };
 
 export function PlayerButton({ icon, label, size = 20, color, onPress, style, selected, busy, filled }: PlayerButtonProps) {

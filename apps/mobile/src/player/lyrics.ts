@@ -104,8 +104,6 @@ export const lyricTiming = {
   hideControls: 4000,
   /** After a reader stops scrolling, this long until the page goes back to the sung line. */
   resumeFollow: 3000,
-  /** Each line starts moving this long after the one above it. */
-  stagger: 42,
 };
 
 /**
@@ -211,11 +209,11 @@ export function chromeDeadline(state: LyricsChrome): number | null {
 
 const springResponse = 0.5;
 const springDamping = 0.82;
-/** Long enough for a line's spring to settle, after the last line's stagger. */
-export const waveDuration = 900 + lyricTiming.stagger * 12;
+/** Long enough for the lines' spring to settle. */
+export const waveDuration = 900;
 
 /**
- * The share of its starting offset a line still has to travel `elapsedMs` into its spring,
+ * The share of their starting offset the lines still have to travel `elapsedMs` into their spring,
  * 1 before it starts and settling to 0 with a slight overshoot: a damped spring released
  * from rest, as SwiftUI's `spring(response: 0.5, dampingFraction: 0.82)`.
  */
@@ -227,13 +225,4 @@ export function springRemaining(elapsedMs: number): number {
   const decay = springDamping * omega;
   const ringing = omega * Math.sqrt(1 - springDamping * springDamping);
   return Math.exp(-decay * t) * (Math.cos(ringing * t) + (decay / ringing) * Math.sin(ringing * t));
-}
-
-/**
- * How long after a line change line `index` starts to move: the lines from just above the
- * sung one down, each a moment after the one above, so they ripple up rather than slide as one.
- */
-export function lineDelay(index: number, from: number): number {
-  'worklet';
-  return Math.min(12, Math.max(0, index - from)) * lyricTiming.stagger;
 }

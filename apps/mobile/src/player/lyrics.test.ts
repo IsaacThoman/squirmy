@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  activeLine, blurReach, blurReachFor, chromeDeadline, initialChrome, lineDelay, lineInView, lineLook, lyricCredits, lyricLines, lyricsChrome, lyricTiming,
+  activeLine, blurReach, blurReachFor, chromeDeadline, initialChrome, lineInView, lineLook, lyricCredits, lyricLines, lyricsChrome, lyricTiming,
   scrollRun, scrollTurn, springRemaining, waveDuration, type ChromeEvent, type ChromeRules, type LyricsChrome,
 } from './lyrics';
 
@@ -231,20 +231,12 @@ describe('line motion', () => {
     expect(springRemaining(0)).toBe(1);
     expect(springRemaining(150)).toBeLessThan(1);
     expect(springRemaining(150)).toBeGreaterThan(0);
-    expect(Math.abs(springRemaining(waveDuration - lineDelay(99, 0)))).toBeLessThan(0.01);
+    expect(Math.abs(springRemaining(waveDuration))).toBeLessThan(0.01);
   });
 
   it('overshoots only a little', () => {
     const samples = Array.from({ length: 100 }, (_, index) => springRemaining(index * 10));
     expect(Math.min(...samples)).toBeGreaterThan(-0.03);
     expect(Math.min(...samples)).toBeLessThan(0);
-  });
-
-  it('starts each line a moment after the one above', () => {
-    expect(lineDelay(3, 5)).toBe(0);
-    expect(lineDelay(5, 5)).toBe(0);
-    expect(lineDelay(6, 5)).toBe(lyricTiming.stagger);
-    expect(lineDelay(8, 5)).toBe(3 * lyricTiming.stagger);
-    expect(lineDelay(500, 5)).toBe(lineDelay(17, 5));
   });
 });
