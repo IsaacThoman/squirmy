@@ -1,5 +1,5 @@
 import { CreateLibraryRootRequest, LoginRequest, RegisterRequest, SetupRequest, UpdateLibraryRootRequest, type DirectoryListing, type LibraryRoot } from '@squirmy/contracts'
-import { ArrowRight, Check, Folder, FolderOpen, FolderPlus, RotateCw, ServerCrash } from 'lucide-react'
+import { ArrowRight, Check, Folder, FolderOpen, FolderPlus, Info, RotateCw, ServerCrash } from 'lucide-react'
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { useFormSubmit, type FormErrors } from '@/api/errors'
@@ -90,7 +90,16 @@ function CredentialFields({ value, onChange, errors, newPassword }: { value: Cre
   )
 }
 
-export function LoginView({ serverName, version, inviteRequired, onSubmit }: { serverName: string; version: string; inviteRequired: boolean; onSubmit: (credentials: Credentials) => Promise<unknown> }) {
+type LoginProps = {
+  serverName: string
+  version: string
+  inviteRequired: boolean
+  /** Why sign-in is showing, when the visitor did not sign out themselves: their session ended. */
+  notice?: string | null
+  onSubmit: (credentials: Credentials) => Promise<unknown>
+}
+
+export function LoginView({ serverName, version, inviteRequired, notice, onSubmit }: LoginProps) {
   const [value, setValue] = useState<Credentials>({ username: '', password: '' })
   const form = useFormSubmit(LoginRequest, onSubmit)
   const submit = (event: FormEvent) => {
@@ -105,6 +114,12 @@ export function LoginView({ serverName, version, inviteRequired, onSubmit }: { s
       footer={<>{inviteRequired ? 'Have an invite?' : 'New here?'} <Link to="/register" className={quietLinkClass}>Create an account</Link></>}
     >
       <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
+        {notice && (
+          <div role="status" className="flex items-start gap-3 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm text-muted-foreground">
+            <Info aria-hidden className="mt-0.5 size-4 shrink-0" />
+            <span>{notice}</span>
+          </div>
+        )}
         <CredentialFields value={value} onChange={setValue} errors={form.errors} />
         <FormError message={form.errors.form} />
         <Button type="submit" variant="primary" className="mt-2 w-full" pending={form.pending}>Sign in</Button>

@@ -1,8 +1,7 @@
-import type { AlbumSummary } from '@squirmy/contracts'
 import { describe, expect, it } from 'vitest'
 import { safeNext } from '@/auth/session'
 import { keyIsTaken } from '@/player/shortcuts'
-import { albumTitleKey, awaitsTrackList, relatedAlbums } from './catalog'
+import { awaitsTrackList } from './catalog'
 import { codecsFor } from './codecs'
 import { claimTabDevice, deviceName } from './device'
 import { formatDate, formatDuration, formatRelative, formatTotalDuration } from './format'
@@ -42,10 +41,16 @@ describe('lyrics', () => {
   it('parses LRC and finds the line being sung', () => {
     const lines = parseLrc('[00:12.50] Second\n[00:01.00]First\nno stamp\n[01:00.00][01:30.00]Chorus')
     expect(lines.map(line => line.text)).toEqual(['First', 'Second', 'Chorus', 'Chorus'])
-    expect(lines[1].timeMs).toBe(12_500)
+    expect(lines[1].startMs).toBe(12_500)
     expect(activeLine(lines, 500)).toBe(-1)
     expect(activeLine(lines, 13_000)).toBe(1)
     expect(activeLine(lines, 95_000)).toBe(3)
+  })
+
+  it('follows the offset tag, so a positive offset brings every line earlier', () => {
+    const lines = parseLrc('[offset:+1500]\n[00:10.00]Kettle on the stove')
+    expect(lines[0].startMs).toBe(8_500)
+    expect(activeLine(lines, 9_000)).toBe(0)
   })
 })
 
@@ -156,32 +161,5 @@ describe('catalog', () => {
     expect(awaitsTrackList({ discs: [], detailPending: true })).toBe(true)
     expect(awaitsTrackList({ discs: [] })).toBe(false)
     expect(awaitsTrackList({ discs: [{ disc: 1, title: null, tracks: [] }], detailPending: true })).toBe(true)
-  })
-
-  it('gives versions of one album one title key', () => {
-    const key = albumTitleKey('Watch The Throne')
-    expect(albumTitleKey('Watch The Throne (Deluxe)')).toBe(key)
-    expect(albumTitleKey('Watch the Throne - Deluxe Edition')).toBe(key)
-    expect(albumTitleKey('Watch The Throne (Deluxe) [Explicit]')).toBe(key)
-    expect(albumTitleKey('Watch The Throne Tour')).not.toBe(key)
-    expect(albumTitleKey('Pokémon')).toBe(albumTitleKey('Pokemon'))
-    // Only punctuation: kept, so such titles do not all become one album.
-    expect(albumTitleKey('!!!')).not.toBe(albumTitleKey('???'))
-  })
-
-  it('splits an artist’s other releases into versions and more, albums first', () => {
-    const release = (id: string, title: string, type: 'album' | 'single' | 'ep') => ({ id, title, type }) as unknown as AlbumSummary
-    const artist = {
-      mbid: null,
-      albums: [release('1', 'Blue Hour', 'album'), release('2', 'Low Tide', 'single'), release('3', 'Blue Hour (Deluxe)', 'album'), release('4', 'Paper Moons', 'ep'), release('5', 'Glass', 'album')],
-    }
-    const { versions, more } = relatedAlbums({ id: '1', title: 'Blue Hour' }, artist)
-    expect(versions.map(album => album.id)).toEqual(['3'])
-    expect(more.map(album => album.id)).toEqual(['5', '4', '2'])
-    // Each other album once, by its plainest title.
-    const editions = { ...artist, albums: [...artist.albums, release('6', 'Glass (Remastered)', 'album')] }
-    expect(relatedAlbums({ id: '1', title: 'Blue Hour' }, editions).more.map(album => album.id)).toEqual(['5', '4', '2'])
-    expect(relatedAlbums({ id: '1', title: 'Blue Hour' }, { ...artist, mbid: '89ad4ac3-39f7-470e-963a-56509c546377' })).toEqual({ versions: [], more: [] })
-    expect(relatedAlbums({ id: '1', title: 'Blue Hour' }, undefined)).toEqual({ versions: [], more: [] })
   })
 })

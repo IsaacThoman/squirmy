@@ -512,7 +512,7 @@ function Music() {
         <div className="max-w-sm"><MiniPlayer player={player} onOpenNowPlaying={() => {}} /></div>
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="rounded-xl border bg-card p-2"><DeviceList player={player} /></div>
-          <ScrollArea className="h-[28rem] rounded-xl border bg-card p-3"><QueueContent player={player} /></ScrollArea>
+          <div className="h-[28rem] overflow-hidden rounded-xl border bg-card"><QueueContent player={player} className="h-full" /></div>
           <div className="h-[28rem] overflow-hidden rounded-xl border bg-card px-4"><LyricsPane lyrics={lyricsFor(track('night-swimming').id)} onSeek={player.controls.seek} /></div>
         </div>
       </Group>

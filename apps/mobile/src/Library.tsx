@@ -23,10 +23,12 @@ import { searchEnd, searchFilterLabels, searchNotice } from './library/search';
 import { useRecentSearches, useSearchList } from './library/useSearchList';
 import { useBriefFailures } from './inlineFeedback';
 import { radioFailure } from './library/failures';
+import { radioStartingNotice } from './library/trackActionList';
 import { playbackStatus } from './player/usePlaybackStatus';
 import { defaultSort, sortNames, sortOptions, type SortName } from './library/sorting';
 import type { Page } from './library/links';
-import { useAlbumPlayer, useCollectionActions } from './library/collectionActions';
+import { albumPlaylistSheet, useAlbumPlayer, useCollectionActions } from './library/collectionActions';
+import { albumActions } from './library/albumActions';
 import { scrollEdgeFade } from './edgeFade';
 import { displayFontScale, isAccessibilitySize } from './fontScale';
 import { ScrollEdge } from './ScrollEdge';
@@ -366,6 +368,13 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
   const tracks = useMemo(() => shown.flatMap(item => (item.type === 'track' ? [item.track] : [])), [shown]);
   const songItems = useSongListItems({
     tracks, kind: 'Song', onTrackMenu: track => onTrackMenu(track),
+    // As on the web, a song that can't play opens its album, where there may be more to say or want.
+    onUnavailable: index => {
+      const track = tracks[index]!;
+      if (!track.album) return;
+      recents.add({ type: 'track', track });
+      onOpen(link('album', track.album.id));
+    },
     onPlay: index => {
       const track = tracks[index]!;
       recents.add({ type: 'track', track });
@@ -390,15 +399,18 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
   const menuFor = (item: Exclude<SearchItem, { type: 'track' }>): RowAction[] => {
     if (offline) return [];
     if (item.type === 'album') {
-      const plays = albumPresentation(item.album, viewer) === 'normal';
-      return [
-        ...(plays ? [
-          { title: 'Play', icon: 'play', onPress: () => { tapFeedback(); albumPlayer.play(item.album.id); } },
-          { title: 'Shuffle', icon: 'shuffle', onPress: () => { tapFeedback(); albumPlayer.play(item.album.id, true); } },
-        ] : []),
-        ...saveAction('album', item.album.id, item.album.title, item.album.liked),
-        ...item.album.artists.map(artist => ({ title: item.album.artists.length > 1 ? `Go to ${artist.name}` : 'Go to artist', icon: 'music.mic', onPress: () => onOpen(link('artist', artist.id)) })),
-      ];
+      const { album } = item;
+      // The album's own menu (`albumActions`), with the heart when the server said whether it is saved.
+      return albumActions({
+        plays: albumPresentation(album, viewer) === 'normal', offline, artists: album.artists,
+        saved: album.liked === undefined ? undefined : { liked: album.liked, failed: likeFailures.has(`album:${album.id}`) },
+      }, {
+        play: shuffle => { tapFeedback(); albumPlayer.play(album.id, shuffle); },
+        enqueue: placement => albumPlayer.enqueue(album.id, album.title, placement),
+        addToPlaylist: () => onOpen(albumPlaylistSheet(album.id)),
+        setSaved: saved => { tapFeedback(); setLiked('album', album.id, saved, album.title); },
+        goToArtist: index => onOpen(link('artist', album.artists[index]!.id)),
+      });
     }
     if (item.type === 'artist') {
       const radioFailed = radioFailures.failures.has(item.artist.id);
@@ -406,9 +418,15 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
         title: radioFailed ? radioFailure : 'Start radio', icon: radioFailed ? 'exclamationmark.circle' : 'dot.radiowaves.left.and.right', onPress: () => {
           tapFeedback();
           radioFailures.drop(item.artist.id);
-          api?.radio.artist(item.artist.id).then(actions.playRadio, () => {
+          if (!api) return;
+          // The menu has closed, so the player says the radio is on its way, and that it failed
+          // if it does (VoiceOver hears both from there).
+          const starting = playbackStatus.report(radioStartingNotice);
+          api.radio.artist(item.artist.id).then(radio => {
+            playbackStatus.withdraw(starting);
+            actions.playRadio(radio);
+          }, () => {
             radioFailures.fail(item.artist.id, true);
-            // The menu has closed, so the player says it too (and VoiceOver hears it from there).
             playbackStatus.report({ message: `Couldn’t start a radio for ${item.artist.name}` });
           });
         },

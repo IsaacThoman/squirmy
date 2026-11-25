@@ -135,7 +135,7 @@ describe('QueueContent', () => {
     const [first, second, third] = items
     render(queueState({ history: [first, second], current: third, queue: [{ ...first, entry: { ...first.entry, id: 'q0' } }] }))
     const headings = screen.getAllByRole('heading').map(heading => heading.textContent)
-    expect(headings).toEqual(['History', 'Up Next', 'Autoplay'])
+    expect(headings).toEqual(['Queue', 'History', 'Up Next', 'Autoplay'])
     const titles = screen.getAllByText(/^(Soft Signal|Amber|Passing Glass)$/).map(node => node.textContent)
     expect(titles).toEqual(['Soft Signal', 'Amber', 'Passing Glass', 'Soft Signal'])
     const history = screen.getByRole('heading', { name: 'History' })
@@ -167,4 +167,30 @@ describe('QueueContent', () => {
     expect(screen.getByRole('switch', { name: 'Autoplay' })).toBeChecked()
     expect(screen.queryByRole('button', { name: 'Shuffle' })).toBeNull()
   })
+
+  it('says above the list which list it is scrolled into, in the place of “Queue”, and nothing scrolls under it', async () => {
+    const [first, second, third] = items
+    render(queueState({ context: { type: 'album', id: 'a1', title: 'Night Drives' }, history: [first], current: second, queue: [third] }))
+    const viewport = document.querySelector<HTMLElement>('[data-radix-scroll-area-viewport]')!
+    const next = screen.getByRole('region', { name: 'Continue Playing' })
+    const box = (top: number, bottom: number) => ({ top, bottom, left: 0, right: 0, width: 0, height: bottom - top, x: 0, y: top, toJSON: () => ({}) }) as DOMRect
+    const real = Element.prototype.getBoundingClientRect
+    // Scrolled into Up next: its heading is above the view's top, some of its songs still in view.
+    Element.prototype.getBoundingClientRect = function (this: Element) {
+      if (this === viewport) return box(100, 500)
+      if (this === next) return box(40, 300)
+      if (this === next.firstElementChild) return box(40, 84)
+      return box(-1000, -900)
+    }
+    try {
+      fireEvent.scroll(viewport)
+      const bar = await screen.findByText('From Night Drives', { selector: '[aria-hidden] p' })
+      expect(bar).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Queue' })).toHaveClass('opacity-0')
+      expect(screen.queryAllByRole('heading', { name: 'Continue Playing' })).toHaveLength(1)
+    } finally {
+      Element.prototype.getBoundingClientRect = real
+    }
+  })
 })
+

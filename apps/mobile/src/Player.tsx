@@ -15,6 +15,7 @@ import { formatDuration, formatRemaining } from '@squirmy/client-core';
 import { useArtworkImage } from './data/artwork';
 import { fallbackTint } from './data/color';
 import { heartColor } from './library/heart';
+import { OfflineBadge } from './library/shared';
 import { MiniPlayerContent } from './MiniPlayer';
 import {
   grab, progress, settle, sideInsets, travel, usePlayerTransition, type Bubble, type BubbleVariant, type Motion, type PlayerPage,
@@ -437,6 +438,8 @@ export default function Player() {
             <GestureDetector gesture={grabberDismiss}>
               <Animated.View style={[styles.grabberTouch, { height: headerHeight }, grabberStyle]}>
                 <View style={styles.collapse} pointerEvents="box-none"><CollapseButton onPress={close} /></View>
+                {/* As on the pages under the player: only downloaded and cached songs play. */}
+                <OfflineBadge style={styles.offline} />
               </Animated.View>
             </GestureDetector>
             <View style={styles.playerStage}>
@@ -724,6 +727,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   backdropArt: { width: '110%', height: '86%', opacity: 0.62 },
   grabberTouch: { alignItems: 'center' },
   collapse: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center' },
+  offline: { position: 'absolute', top: 2, left: artworkInset },
   playerStage: { flex: 1 },
   deckFrame: { flex: 1 },
   // The artwork at the top, the title's room under it; a tall screen's spare height goes below them.

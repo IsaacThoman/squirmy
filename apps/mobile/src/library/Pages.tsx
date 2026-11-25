@@ -1,5 +1,5 @@
 import type { AlbumDetail, AlbumSummary, ArtistDetail, HistoryItem, HomeSection, PlaybackContext, TrackSummary } from '@squirmy/contracts';
-import { albumNote, albumPresentation, artistAvailabilityNote, canFetch, formatReleaseDate, releaseSubtitle, songCountLabel } from '@squirmy/client-core';
+import { albumNote, albumPresentation, artistAvailabilityNote, canFetch, formatReleaseDate, relatedAlbums, releaseSubtitle, songCountLabel } from '@squirmy/client-core';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useMemo, useState, type ReactElement, type ReactNode } from 'react';
@@ -33,10 +33,12 @@ import { playAllFailure, radioFailure, wantFailureLabel, wantFailure as wantFail
 import { heartButton } from './heart';
 import {
   albumCollection, albumTypeLabels, artistCollection, CollectionCover, CollectionRail, EmptyState, FailureLine, gridColumns, gutter, likedCollection, nearEnd,
-  playlistCollection,
+  OfflineBadge, playlistCollection,
   QueryState, recentCollection, SectionTitle, tapFeedback, useCollectionDim, type Collection,
 } from './shared';
-import { useCollectionActions } from './collectionActions';
+import { albumPlaylistSheet, useCollectionActions } from './collectionActions';
+import { albumActions } from './albumActions';
+import { confirmQueued } from './queued';
 import { uniqueTracks } from './loadAll';
 import { useStartGuard } from './pending';
 import { displayFontScale, secondaryFontScale } from '../fontScale';
@@ -148,7 +150,7 @@ function DetailPage({
     </Animated.View>
     {/* No title here: the header's own, an accessibility header, names the page for VoiceOver. */}
     <View pointerEvents="box-none" style={[styles.nav, { top: top + 6 }]}>
-      <BrowseBackButton onPress={onBack} />
+      <View pointerEvents="box-none" style={styles.navStart}><BrowseBackButton onPress={onBack} /><OfflineBadge /></View>
       <View style={styles.navActions}>
         {nav.filter((button): button is AlbumNavProps => Boolean(button)).map(button => <AlbumNavButton key={button.label} {...button} />)}
       </View>
@@ -183,7 +185,7 @@ function PageFallback({ query, what, onBack }: { query: Parameters<typeof QueryS
   const styles = useStyles();
   const { top } = useSafeAreaInsets();
   return <View style={[styles.page, { paddingTop: top + 8 }]}>
-    <View style={styles.fallbackNav}><BrowseBackButton onPress={onBack} /></View>
+    <View style={[styles.fallbackNav, styles.navStart]}><BrowseBackButton onPress={onBack} /><OfflineBadge /></View>
     {query.isError || query.isPending
       ? <QueryState query={query} what={what} />
       : <EmptyState icon="music.note" title="Not available" description="Go back to browse your library." />}
@@ -258,6 +260,11 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   // After a minute of looking the page says the songs are late, and offers to check again.
   const overdue = useOverdue(lookingUp, id);
   const discs = data?.discs;
+  // The lead artist's discography, for other versions and "More by" under the songs, as on web; asked once the album is here.
+  const leadId = album.data?.artists[0]?.id;
+  const lead = useArtist(leadId ?? '', { enabled: Boolean(leadId), poll: false });
+  const leadData = lead.isPlaceholderData ? undefined : lead.data;
+  const related = useMemo(() => data ? relatedAlbums(data, leadData) : { versions: [], more: [] }, [data, leadData]);
   useEffect(() => {
     if (!waitingPlay || !data) return;
     const list = data.discs.flatMap(disc => disc.tracks);
@@ -307,6 +314,24 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
       }));
 
   const artistLinks = data.artists.map(artist => ({ name: artist.name, open: () => { tapFeedback(); onOpen(link('artist', artist.id)); } }));
+  // The ⋯ menu, as on web: what the buttons do, then the queue, a playlist, the library, the
+  // artists, and Share. The placeholder does not know the songs or whether it is saved.
+  const menu = albumActions({
+    plays: playable, offline, songsKnown: !album.isPlaceholderData && tracks.length > 0, artists: data.artists, share: true,
+    saved: album.isPlaceholderData ? undefined : { liked, failed: likeFailure !== undefined },
+    want: wantButton.length ? { wanted, failed: wantFailure !== undefined } : undefined,
+  }, {
+    play: shuffle => play(shuffle),
+    enqueue: placement => {
+      actions.enqueue(tracks, placement);
+      confirmQueued(placement);
+    },
+    addToPlaylist: () => onOpen(albumPlaylistSheet(data.id)),
+    setSaved: saved => setLiked('album', data.id, saved, data.title),
+    setWanted: want => setWanted('album', data.id, want, data.title),
+    goToArtist: index => onOpen(link('artist', data.artists[index]!.id)),
+    share: () => share(`${data.title} · ${data.artistCredit}`),
+  });
 
   return <DetailPage item={albumCollection(data, link)} tint={data.artwork?.color ?? fallbackTint} title={data.title}
     artist={data.artistCredit} artistLinks={artistLinks}
@@ -317,7 +342,7 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
       !album.isPlaceholderData && { ...heartButton(liked, data.title, likeFailure),
         onPress: () => { tapFeedback(); setLiked('album', data.id, !liked, data.title); } },
       control.nav,
-      { icon: 'square.and.arrow.up', label: `Share ${data.title}`, onPress: () => share(`${data.title} · ${data.artistCredit}`) },
+      { icon: 'ellipsis', label: `More options for ${data.title}`, menu },
     ]}
     onBack={onBack} bottomInset={bottomInset}>
     {/* The songs first, as on web; then what the record's back says, and any description. */}
@@ -335,6 +360,14 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
     </TrackSection>
     <AlbumFooter album={data} />
     {data.description ? <ExpandableText text={data.description} lines={6} /> : null}
+    {related.versions.length > 0 && <View style={styles.section}>
+      <SectionTitle title="Other versions" />
+      <CollectionRail items={related.versions.map(other => albumCollection(other, link, releaseSubtitle(other)))} />
+    </View>}
+    {related.more.length > 0 && leadData && <View style={styles.section}>
+      <SectionTitle title={`More by ${leadData.name}`} onPress={() => onOpen(link('artist', leadData.id))} />
+      <CollectionRail items={related.more.map(other => albumCollection(other, link, releaseSubtitle(other)))} />
+    </View>}
   </DetailPage>;
 }
 
@@ -757,7 +790,9 @@ function CollectionGridPage({ title, detail, items, header, onBack, onEndReached
       </>}
       ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.more} /> : undefined} />
     <ScrollEdge solid={top} fade={scrollEdgeFade} scrollOffset={scrollOffset} contentGap={contentGap} />
-    <View pointerEvents="box-none" style={[styles.nav, { top: top + 8 }]}><BrowseBackButton onPress={onBack} /></View>
+    <View pointerEvents="box-none" style={[styles.nav, { top: top + 8 }]}>
+      <View pointerEvents="box-none" style={styles.navStart}><BrowseBackButton onPress={onBack} /><OfflineBadge /></View>
+    </View>
   </View>;
 }
 
@@ -768,6 +803,8 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
     gap: 8, paddingHorizontal: gutter,
   },
   navActions: { flexDirection: 'row', gap: 10 },
+  // The back button, and beside it the Offline badge when the server cannot be reached, as on the tabs' pages.
+  navStart: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   fallbackNav: { paddingHorizontal: gutter, alignItems: 'flex-start' },
   overscrollFill: { position: 'absolute', bottom: '100%', height: '100%', left: 0, right: 0 },
   status: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1 },

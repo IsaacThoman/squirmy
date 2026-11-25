@@ -9,7 +9,7 @@ import { Bookmark, Disc3, Heart, House, Library, ListMusic, MicVocal, Music2, Se
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
 import { HOVER_DELAY_MS, prefetchPage, usePrefetchStartPages, type PrefetchTarget } from '@/api/prefetch'
-import { itemsOf, loadItems, useLikedTracks, usePlaylists } from '@/api/queries'
+import { itemsOf, useLikedTracks, usePlaylists } from '@/api/queries'
 import { useApi } from '@/api/services'
 import { useMergedSearch } from '@/api/use-search'
 import { useLogout } from '@/auth/actions'
@@ -43,12 +43,12 @@ export function ShellPage() {
   const user = useCurrentUser()
   const logout = useLogout()
   const controls = usePlayerControls()
-  const { playPlaylist } = usePlayCollections()
+  const { playPlaylist, playLoaded } = usePlayCollections()
   const playlists = usePlaylists().data?.items ?? noPlaylists
   const liked = useLikedTracks()
   const onPlayPlaylist = useEventCallback((playlist: PlaylistSummary) => void playPlaylist(playlist))
   const onPlayLiked = useEventCallback(() => {
-    void loadItems(liked, 5000).then(tracks => controls.playTracks(tracks, 0, { type: 'liked', id: null, title: 'Liked Songs' }, { collection: true }))
+    void playLoaded(liked, 5000, tracks => controls.playTracks(tracks, 0, { type: 'liked', id: null, title: 'Liked Songs' }, { collection: true }))
   })
   const onLogout = useEventCallback(logout)
 
