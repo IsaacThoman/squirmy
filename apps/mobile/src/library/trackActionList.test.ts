@@ -29,6 +29,12 @@ describe('trackActions', () => {
     expect(ids(track(), state(), { album: 'other' })).toContain('album');
   });
 
+  it('leaves out Go to artist for the artist whose page it is on, naming any other', () => {
+    expect(ids(track(), state(), { artist: track().artists[0]!.id })).not.toContain('artist');
+    const featured = track({ artistCredit: 'Lead feat. Guest', artists: [{ id: 'lead', name: 'Lead' }, { id: 'guest', name: 'Guest' }] });
+    expect(trackActions(featured, state(), { artist: 'lead' }).filter(action => action.id === 'artist').map(action => action.title)).toEqual(['Go to Guest']);
+  });
+
   it('offers the current track only Play while paused, and never Play next', () => {
     expect(ids(track(), state({ current: 'paused' }))).toEqual(['resume', 'last', 'like', 'download', 'playlist', 'radio', 'album', 'artist']);
     expect(trackActions(track(), state({ current: 'paused' }))[0]?.title).toBe('Play');
