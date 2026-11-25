@@ -53,7 +53,7 @@ describe('PlayerProvider', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Queue' }))
 
     const panel = await screen.findByRole('complementary', { name: 'Queue' })
-    const next = within(panel).getByRole('region', { name: 'Up next' })
+    const next = within(panel).getByRole('region', { name: 'Continue Playing' })
     expect(await within(next).findByRole('button', { name: 'Play Soft Signal' })).toBeInTheDocument()
     await userEvent.click(within(panel).getByRole('button', { name: 'Remove Soft Signal from queue' }))
     await waitFor(() => expect(socket.session.queue.map(entry => entry.trackId)).not.toContain(blueHour.discs[0].tracks[1].id))

@@ -209,7 +209,7 @@ await step('transport', async () => {
 await step('queue', async () => {
   await transport(page, 'Queue').click()
   const queue = page.getByRole('complementary', { name: 'Queue' })
-  const next = queue.getByRole('region', { name: 'Up next' })
+  const next = queue.getByRole('region', { name: /^(Continue Playing|Up Next)$/ })
   const order = () => next.getByRole('button', { name: /^Play / }).evaluateAll(rows => rows.map(row => row.getAttribute('aria-label').slice(5)))
   check('up next lists the rest of the album', (await order()).join(' / ') === 'Soft Signal / Blue in the Dark / Underwater Light / Stay Until Morning', (await order()).join(' / '))
   await next.getByRole('button', { name: 'Play Underwater Light', exact: true }).press('ArrowUp')
