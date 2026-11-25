@@ -1,3 +1,4 @@
+import { matchKey } from '../../lib/text.js'
 import type { MbReleaseSummary } from '../metadata/musicbrainz.js'
 import { dateOrder, preferredFormat } from '../matching/score.js'
 
@@ -100,4 +101,63 @@ export function chooseCanonicalRelease(releases: readonly MbReleaseSummary[], hi
   }
   const [trackCount] = [...counts].sort(([, a], [, b]) => b.count - a.count || (a.earliest < b.earliest ? -1 : a.earliest > b.earliest ? 1 : 0))[0]!
   return first(candidates.filter((release) => release.trackCount === trackCount))
+}
+
+/** At most this many editions of one group are kept apart: each costs a MusicBrainz request. */
+export const maxNamedEditions = 6
+
+/**
+ * A title as the cover prints it, give or take case, spacing, quote marks and dashes:
+ * "SO CLOSE TO WHAT???" and "So Close to What" are two titles, "Don’t Stop" and
+ * "DON'T STOP" one.
+ */
+const printedTitle = (title: string) => title.normalize('NFKC').toLocaleLowerCase()
+  .replace(/[‘’`´]/gu, "'").replace(/[“”]/gu, '"').replace(/[‐‑‒–—―]/gu, '-').replace(/\s+/gu, ' ').trim()
+
+type Group = { title: string; releases: readonly MbReleaseSummary[] }
+
+/**
+ * The release a group's own row shows: `chooseCanonicalRelease` over the releases titled as
+ * the group is, when any are, else over all of them. An edition with a title of its own is
+ * not the album however many pressings it has: Tate McRae's deluxe "SO CLOSE TO WHAT???"
+ * had seven with 21 songs beside eight of "So Close to What" with 13, and one more would
+ * have made the album page the deluxe's.
+ */
+export function standardRelease(group: Group): MbReleaseSummary | null {
+  const title = printedTitle(group.title)
+  const named = group.releases.filter((release) => printedTitle(release.title) === title)
+  return chooseCanonicalRelease(named.length > 0 ? named : group.releases)
+}
+
+/**
+ * The editions of a release group that have a title of their own: "SO CLOSE TO WHAT???"
+ * (the deluxe) in the group of "So Close to What", "Midnights (3am Edition)" in
+ * "Midnights". Stores list them as albums of their own; on an album page they are its
+ * other versions. One release per title, chosen as the group's own is
+ * (`chooseCanonicalRelease` over that title's releases), in order of their dates.
+ *
+ * Only releases of the group's best status and of the album's own mix, uncensored, count:
+ * a clean or Dolby Atmos release is not an edition to show. A title that differs from the
+ * standard one only in punctuation counts only when its track count differs too, so a typo
+ * on one pressing is not an edition. Pressings under the standard title (a Japanese CD
+ * with a bonus track, a store exclusive) are not editions here: no name tells them apart.
+ * At most {@link maxNamedEditions}.
+ */
+export function namedEditions(group: Group): MbReleaseSummary[] {
+  const standard = standardRelease(group)
+  if (!standard) return []
+  const best = Math.min(...group.releases.map((release) => statusRank(release.status)))
+  const own = new Set([printedTitle(standard.title), printedTitle(group.title)])
+  const byTitle = new Map<string, MbReleaseSummary[]>()
+  for (const release of group.releases) {
+    if (statusRank(release.status) !== best || otherMix(release) || censored(release) || release.trackCount === 0) continue
+    const title = printedTitle(release.title)
+    if (own.has(title)) continue
+    if (matchKey(release.title) === matchKey(standard.title) && release.trackCount === standard.trackCount) continue
+    byTitle.set(title, [...(byTitle.get(title) ?? []), release])
+  }
+  return [...byTitle.values()]
+    .map((releases) => chooseCanonicalRelease(releases)!)
+    .sort((a, b) => (dateOrder(a.date) < dateOrder(b.date) ? -1 : dateOrder(a.date) > dateOrder(b.date) ? 1 : a.mbid < b.mbid ? -1 : 1))
+    .slice(0, maxNamedEditions)
 }

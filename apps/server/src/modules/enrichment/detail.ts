@@ -15,6 +15,7 @@ import { hydrateAlbum } from './album.js'
 import { hydrateArtist } from './artist.js'
 import { fitStrayFilesNow } from './fit.js'
 import { fetchLyrics } from './lyrics.js'
+import { queueEditionCheck } from './named-editions.js'
 import { artistRadioRows } from './radio.js'
 import { changed } from './rows.js'
 import { onBudget, shared, warn } from './runner.js'
@@ -40,6 +41,8 @@ const albumWork = (albumId: string) => async (usable: () => void) => {
   // on a stand-in recording; folding it in needs no provider. Writing the release fits
   // stand-ins itself, so this only runs when such a file is there.
   if (result && (await fitStrayFilesNow(result)) > 0) await changed([queryKeys.album(result)])
+  // Editions with a title of their own ("SO CLOSE TO WHAT???") become rows of their own.
+  if (result) await queueEditionCheck(result)
 }
 
 const artistWork = (artistId: string) => async (usable: () => void) => {

@@ -1,0 +1,235 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release-group/3607f069-61cb-4e4a-b450-863ad0cf7f95?inc=artist-credits+genres+url-rels&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "artist-credit": [
+        {
+          "artist": {
+            "name": "Tate McRae",
+            "genres": [
+              {
+                "name": "contemporary r&b",
+                "id": "4bb4043a-0ee5-4b84-93fa-6ba4567a6ba0",
+                "disambiguation": "",
+                "count": 2
+              },
+              {
+                "id": "b739a895-85ed-4ad3-8717-4e9ef5387dd8",
+                "disambiguation": "",
+                "name": "dance-pop",
+                "count": 4
+              },
+              {
+                "count": 6,
+                "name": "pop",
+                "disambiguation": "",
+                "id": "911c7bbb-172d-4df8-9478-dbff4296e791"
+              },
+              {
+                "name": "pop rock",
+                "disambiguation": "",
+                "id": "797e2e85-5ffd-495c-a757-8b4079052f0e",
+                "count": 2
+              }
+            ],
+            "type": "Person",
+            "country": "CA",
+            "id": "f9133869-f87c-459c-9aa7-2f176cda7e06",
+            "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+            "disambiguation": "",
+            "sort-name": "McRae, Tate"
+          },
+          "name": "Tate McRae",
+          "joinphrase": ""
+        }
+      ],
+      "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+      "primary-type": "Album",
+      "disambiguation": "",
+      "secondary-type-ids": [],
+      "secondary-types": [],
+      "title": "So Close to What",
+      "genres": [
+        {
+          "count": 3,
+          "name": "pop",
+          "disambiguation": "",
+          "id": "911c7bbb-172d-4df8-9478-dbff4296e791"
+        }
+      ],
+      "relations": [
+        {
+          "url": {
+            "id": "e8f76a9b-ded2-4c00-b55d-ab3510214f4d",
+            "resource": "https://www.allmusic.com/album/mw0004416349"
+          },
+          "target-type": "url",
+          "source-credit": "",
+          "attribute-values": {},
+          "ended": false,
+          "target-credit": "",
+          "attributes": [],
+          "direction": "forward",
+          "type-id": "a50a1d20-2b20-4d2c-9a29-eb771dd78386",
+          "attribute-ids": {},
+          "end": null,
+          "type": "allmusic",
+          "begin": null
+        },
+        {
+          "type": "discography entry",
+          "begin": null,
+          "attributes": [],
+          "direction": "forward",
+          "target-credit": "",
+          "ended": false,
+          "attribute-ids": {},
+          "end": null,
+          "type-id": "5849de4a-78ae-4876-975d-2181107e70b7",
+          "attribute-values": {},
+          "url": {
+            "resource": "https://www.last.fm/music/Tate+McRae/So+Close+to+What",
+            "id": "b6d91324-faec-46a1-8eb1-0b728bfbafae"
+          },
+          "target-type": "url",
+          "source-credit": ""
+        },
+        {
+          "type-id": "99e550f3-5ab4-3110-b5b9-fe01d970b126",
+          "end": null,
+          "attribute-ids": {},
+          "ended": false,
+          "target-credit": "",
+          "direction": "forward",
+          "attributes": [],
+          "begin": null,
+          "type": "discogs",
+          "source-credit": "",
+          "target-type": "url",
+          "url": {
+            "resource": "https://www.discogs.com/master/3758880",
+            "id": "b7a1e867-23a3-4189-877a-ec50dac97faa"
+          },
+          "attribute-values": {}
+        },
+        {
+          "type-id": "38320e40-9f4a-3ae7-8cb2-3f3c9c5d856d",
+          "attribute-ids": {},
+          "end": null,
+          "ended": false,
+          "target-credit": "",
+          "attributes": [],
+          "direction": "forward",
+          "begin": null,
+          "type": "other databases",
+          "source-credit": "",
+          "url": {
+            "id": "4f844232-6f26-4ff0-aa30-108fc14cf2f1",
+            "resource": "https://rateyourmusic.com/release/album/tate-mcrae/so-close-to-what/"
+          },
+          "target-type": "url",
+          "attribute-values": {}
+        },
+        {
+          "attribute-values": {},
+          "source-credit": "",
+          "url": {
+            "id": "941a1021-1f67-4bd8-9694-d392cb7d9dd5",
+            "resource": "https://www.offiziellecharts.de/charts/album-details-546888"
+          },
+          "target-type": "url",
+          "begin": null,
+          "type": "other databases",
+          "type-id": "38320e40-9f4a-3ae7-8cb2-3f3c9c5d856d",
+          "attribute-ids": {},
+          "end": null,
+          "target-credit": "",
+          "ended": false,
+          "attributes": [],
+          "direction": "forward"
+        },
+        {
+          "begin": null,
+          "type": "review",
+          "type-id": "c3ac9c3b-f546-4d15-873f-b294d2c1b708",
+          "attribute-ids": {},
+          "end": null,
+          "target-credit": "",
+          "ended": false,
+          "attributes": [],
+          "direction": "forward",
+          "attribute-values": {},
+          "source-credit": "",
+          "url": {
+            "resource": "https://laut.de/Tate-McRae/Alben/So-Close-To-What-124878",
+            "id": "dd0178cd-c931-4bb9-97d5-00ca8759c90a"
+          },
+          "target-type": "url"
+        },
+        {
+          "source-credit": "",
+          "url": {
+            "resource": "https://pitchfork.com/reviews/albums/tate-mcrae-so-close-to-what/",
+            "id": "0d6a5b6f-e48a-426a-a13c-72615f596722"
+          },
+          "target-type": "url",
+          "attribute-values": {},
+          "attribute-ids": {},
+          "end": null,
+          "type-id": "c3ac9c3b-f546-4d15-873f-b294d2c1b708",
+          "attributes": [],
+          "direction": "forward",
+          "target-credit": "",
+          "ended": false,
+          "begin": null,
+          "type": "review"
+        },
+        {
+          "ended": false,
+          "target-credit": "",
+          "attributes": [],
+          "direction": "forward",
+          "type-id": "c3ac9c3b-f546-4d15-873f-b294d2c1b708",
+          "attribute-ids": {},
+          "end": null,
+          "type": "review",
+          "begin": null,
+          "url": {
+            "id": "e7ee2aa8-eb6a-40e2-9e36-06e14e9858fc",
+            "resource": "https://www.plattentests.de/rezi.php?show=20671"
+          },
+          "target-type": "url",
+          "source-credit": "",
+          "attribute-values": {}
+        },
+        {
+          "attribute-ids": {},
+          "end": null,
+          "type-id": "b988d08c-5d86-4a57-9557-c83b399e3580",
+          "attributes": [],
+          "direction": "forward",
+          "ended": false,
+          "target-credit": "",
+          "begin": null,
+          "type": "wikidata",
+          "source-credit": "",
+          "url": {
+            "resource": "https://www.wikidata.org/wiki/Q131181870",
+            "id": "6b6c7ade-8397-4d58-97c1-d49cf3cac212"
+          },
+          "target-type": "url",
+          "attribute-values": {}
+        }
+      ],
+      "id": "3607f069-61cb-4e4a-b450-863ad0cf7f95",
+      "first-release-date": "2025-02-21"
+    }
+  }
+}

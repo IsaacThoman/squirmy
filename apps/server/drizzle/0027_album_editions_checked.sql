@@ -1,0 +1,1 @@
+ALTER TABLE "albums" ADD COLUMN "editions_checked_at" timestamp with time zone;

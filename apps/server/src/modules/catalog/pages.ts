@@ -11,7 +11,7 @@ import { getServerSettings } from '../../lib/settings.js'
 import { ensureAlbumDetail, ensureArtistDetail, ensureLyrics } from '../enrichment/detail.js'
 import { specialPurposeArtists } from '../metadata/musicbrainz.js'
 import { canStartArtistRadio, similarArtists } from '../radio/index.js'
-import { releaseKey } from '../search/keys.js'
+import { labelFreeKey, prefixEnd, releaseKey } from '../search/keys.js'
 import { canonicalRelease, collectionCounts, collectionFile } from './availability.js'
 import { resolveOne } from './redirects.js'
 import { alignedTrackSummaries, albumSummaries, artistSummaries, trackSummaries } from './summaries.js'
@@ -111,16 +111,73 @@ export async function albumTrackList(albumId: string): Promise<AlbumTrack[]> {
     order by part, disc, position, first_path, "recordingId"`)
 }
 
+/** At most this many other versions on an album page. */
+const VERSIONS = 20
+
+type VersionRow = DiscographyRow & { sameGroup: boolean; trackCount: number }
+
+/** Types two rows of one release can have: the same, or either a guess. */
+const sameKind = (a: Pick<DiscographyRow, 'type' | 'typeGuessed'>, b: Pick<DiscographyRow, 'type' | 'typeGuessed'>) =>
+  a.type === b.type || a.typeGuessed || b.typeGuessed
+
+/**
+ * Other versions of an album: the other editions of its release group (edition rows,
+ * `albums.edition_of_id`: "SO CLOSE TO WHAT???" beside "So Close to What", and the group's
+ * own row from one of them), and other rows of its lead artist that are the same release
+ * by `releaseKey` and kind (a deluxe MusicBrainz lists as a group of its own, a store's
+ * deluxe found by search). The artist page shows each release once (`standingRows`), so
+ * clients cannot find these in the discography.
+ *
+ * Each edition once: of rows with the same name (`labelFreeKey`), kind and track count
+ * (or no track list yet), the one that stands for it (`standsBefore`); the album itself
+ * stands for its own. The group's own row first, then by date.
+ */
+export async function albumVersionIds(albumId: string): Promise<string[]> {
+  const [self] = await db.execute<{ group: string; groupTitle: string; title: string; primaryArtistId: string | null }>(sql`
+    select coalesce(g.id, a.id) as group, coalesce(g.title, a.title) as "groupTitle", a.title, a.primary_artist_id as "primaryArtistId"
+    from albums a left join albums g on g.id = a.edition_of_id and g.merged_into_id is null where a.id = ${albumId}`)
+  if (!self) return []
+  const key = releaseKey(self.groupTitle)
+  const byArtist = self.primaryArtistId && key
+    ? sql`or (a.primary_artist_id = ${self.primaryArtistId} and a.title_key collate "C" >= ${key} and a.title_key collate "C" < ${prefixEnd(key)})`
+    : sql``
+  const rows = await db.execute<VersionRow>(sql`
+    select a.id, a.title, g.title as "releaseTitle", a.type, a.type_guessed as "typeGuessed", a.secondary_types as "secondaryTypes",
+      a.mbid is not null as "hasMbid", a.detail_level as "detailLevel", a.year, a.artwork_asset_id is not null as "hasArtwork",
+      exists (select 1 from media_files f where f.album_id = a.id and f.missing_since is null) as owned, true as led, true as "soleCredit",
+      coalesce(a.edition_of_id, a.id) = ${self.group} as "sameGroup",
+      coalesce((select rl.track_count from releases rl where rl.id = ${canonicalRelease('a')}), 0) as "trackCount"
+    from albums a left join albums g on g.id = a.edition_of_id
+    where a.merged_into_id is null and (a.id = ${self.group} or a.edition_of_id = ${self.group} or a.id = ${albumId} ${byArtist})
+    order by coalesce(a.release_date, a.year::text) nulls last, a.title_key, a.id
+    limit 500`)
+  const album = rows.find((row) => row.id === albumId)
+  if (!album) return []
+  const candidates = rows.filter((row) => row.id !== albumId
+    && (row.sameGroup || (releaseKey(row.releaseTitle ?? row.title) === key && sameKind(row, album))))
+  const kept: VersionRow[] = [album]
+  const sameEdition = (a: VersionRow, b: VersionRow) => labelFreeKey(a.title) === labelFreeKey(b.title) && sameKind(a, b)
+    && (a.trackCount === b.trackCount || a.trackCount === 0 || b.trackCount === 0)
+  for (const row of [...candidates].sort(standsBefore)) {
+    if (!kept.some((other) => sameEdition(row, other))) kept.push(row)
+  }
+  const shown = new Set(kept.slice(1).map((row) => row.id))
+  return candidates.filter((row) => shown.has(row.id))
+    .sort((a, b) => Number(b.id === self.group) - Number(a.id === self.group))
+    .slice(0, VERSIONS)
+    .map((row) => row.id)
+}
+
 /**
  * The album page: its summary plus the album's track list (`albumTrackList`) grouped by
- * disc, every track with its own availability, and whether and why the album is in the
- * user's library. Fetches missing detail first.
+ * disc, every track with its own availability, whether and why the album is in the
+ * user's library, and its other versions (`albumVersionIds`). Fetches missing detail first.
  */
 export async function albumDetail(userId: string, id: string): Promise<AlbumDetail> {
   const settled = await ensureAlbumDetail(await resolveOrThrow('albums', id, 'album'))
   // Completing a stub may merge it into the album's existing row.
   const albumId = await resolveOrThrow('albums', id, 'album')
-  const [[summary], [extra], tracks, { wantlistEnabled }] = await Promise.all([
+  const [[summary], [extra], tracks, { wantlistEnabled }, versions] = await Promise.all([
     albumSummaries([albumId]),
     db.execute<{
       releaseDate: string | null; genres: string[]; description: string | null; label: string | null; liked: boolean; wanted: boolean
@@ -139,6 +196,7 @@ export async function albumDetail(userId: string, id: string): Promise<AlbumDeta
       where a.id = ${albumId}`),
     albumTrackList(albumId),
     getServerSettings(),
+    albumVersionIds(albumId).then(albumSummaries),
   ])
   if (!summary || !extra) throw notFound('No such album', 'album_not_found')
 
@@ -158,7 +216,7 @@ export async function albumDetail(userId: string, id: string): Promise<AlbumDeta
   }
   const durationMs = discs.reduce((total, disc) => total + disc.tracks.reduce((sum, track) => sum + track.durationMs, 0), 0)
   // A switched-off wantlist keeps its rows but marks nothing as wanted.
-  return { ...summary, ...extra, wanted: wantlistEnabled && extra.wanted, durationMs, discs, ...(settled ? {} : { detailPending: true as const }) }
+  return { ...summary, ...extra, wanted: wantlistEnabled && extra.wanted, durationMs, discs, versions, ...(settled ? {} : { detailPending: true as const }) }
 }
 
 /** Headings of the artist page's sections, for clients that do not know a key. */

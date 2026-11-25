@@ -262,6 +262,12 @@ export const albums = pgTable('albums', {
   editionOfId: uuid('edition_of_id'),
   detailLevel: smallint('detail_level').notNull().default(0),
   fetchedAt: at('fetched_at'),
+  /**
+   * For a release group's row: when the group's releases were last read for editions with
+   * a title of their own ("SO CLOSE TO WHAT???" beside "So Close to What"), each kept as an
+   * edition row (enrichment/named-editions.ts).
+   */
+  editionsCheckedAt: at('editions_checked_at'),
   /** When enrichment last finished the extras owned albums get: stored cover, description, external ids, lyrics. */
   enrichedAt: at('enriched_at'),
   mergedIntoId: uuid('merged_into_id'),

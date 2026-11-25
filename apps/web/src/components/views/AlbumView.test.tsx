@@ -363,6 +363,17 @@ describe('album page', () => {
     expect(within(more).getByRole('link', { name: 'See all' })).toHaveAttribute('href', `/artist/${mira.id}`)
   })
 
+  it('lists the editions the server names among the other versions, though the artist page lists the album once', async () => {
+    const { services, api } = fakeServices()
+    const deluxe = { ...summary(blueHour), id: '00000000-0000-4000-8200-0000000000ef', title: 'BLUE HOUR???', trackCount: 12 }
+    api.catalog.album.mockResolvedValue({ ...blueHour, versions: [deluxe] })
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    const versions = await screen.findByRole('region', { name: 'Other versions' })
+    expect(within(versions).getByRole('link', { name: 'BLUE HOUR???' })).toHaveAttribute('href', `/album/${deluxe.id}`)
+    const more = screen.getByRole('region', { name: /^More by / })
+    expect(within(more).queryByRole('link', { name: 'BLUE HOUR???' })).toBeNull()
+  })
+
   it('shows no song count in the preview while it knows none', async () => {
     renderWithApp(<AlbumPreview album={{ ...summary(blueHour), trackCount: 0 }} />)
     expect(await screen.findByRole('status', { name: 'Loading Blue Hour' })).toBeInTheDocument()

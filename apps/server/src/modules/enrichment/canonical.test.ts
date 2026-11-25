@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { MbReleaseSummary } from '../metadata/musicbrainz.js'
-import { chooseCanonicalRelease } from './canonical.js'
+import { chooseCanonicalRelease, maxNamedEditions, namedEditions, standardRelease } from './canonical.js'
 
 type Edition = [mbid: string, status: string | null, tracks: number, date: string | null, format: string, disambiguation?: string]
 
@@ -69,5 +69,70 @@ describe('chooseCanonicalRelease', () => {
 
   it('has nothing to pick from an empty group', () => {
     expect(chooseCanonicalRelease([])).toBeNull()
+  })
+})
+
+describe('namedEditions', () => {
+  const titled = (title: string, rows: Edition[]) => editions(rows).map((release) => ({ ...release, title }))
+
+  it('keeps each edition with a title of its own once, as the group would choose it', () => {
+    // So Close to What as MusicBrainz lists it, trimmed: the deluxe is titled apart.
+    const releases = [
+      ...titled('So Close to What', [
+        ['cd', 'official', 13, '2025-02-21', 'CD'],
+        ['vinyl', 'official', 13, '2025-02-21', '12" Vinyl'],
+        ['jp-cd', 'official', 14, '2025-02-26', 'CD'],
+        ['digital-16', 'official', 16, '2025-02-21', 'Digital Media', '16 Track version'],
+        ['exclusive-21', 'official', 21, '2025-03-05', 'Digital Media', 'exclusive 21 track digital download'],
+      ]),
+      ...titled('SO CLOSE TO WHAT???', [
+        ['deluxe-atmos', 'official', 21, '2025-11-21', 'Digital Media', 'Dolby Atmos mix, deluxe'],
+        ['deluxe-clean', 'official', 21, '2025-11-21', 'Digital Media', 'deluxe, clean'],
+        ['deluxe-vinyl', 'official', 21, '2026-03-13', '12" Vinyl+12" Vinyl', 'deluxe'],
+        ['deluxe-digital', 'official', 21, '2025-11-21', 'Digital Media', 'deluxe'],
+        ['deluxe-cd', 'official', 21, '2025-11-21', 'CD', 'deluxe'],
+        ['deluxe-empty', 'official', 0, '2025-11-21', '12" Vinyl', 'deluxe'],
+      ]),
+    ]
+    // More deluxe pressings than standard ones: the album is still the standard edition.
+    expect(chooseCanonicalRelease(releases)!.mbid).toBe('exclusive-21')
+    expect(standardRelease({ title: 'So Close to What', releases })!.mbid).toBe('cd')
+    // A group whose releases are all titled otherwise picks from them all.
+    expect(standardRelease({ title: 'So close to what (album)', releases })!.mbid).toBe('exclusive-21')
+    expect(namedEditions({ title: 'So Close to What', releases }).map((release) => release.mbid)).toEqual(['deluxe-cd'])
+  })
+
+  it('lists several editions by date, and none for a group of one title', () => {
+    const releases = [
+      ...titled('Midnights', [['standard', 'official', 13, '2022-10-21', 'Digital Media']]),
+      ...titled('Midnights (The Til Dawn Edition)', [['til-dawn', 'official', 23, '2023-05-26', 'Digital Media']]),
+      ...titled('Midnights (3am Edition)', [['3am', 'official', 20, '2022-10-21', 'Digital Media']]),
+    ]
+    expect(namedEditions({ title: 'Midnights', releases }).map((release) => release.mbid)).toEqual(['3am', 'til-dawn'])
+    expect(namedEditions({ title: 'Midnights', releases: releases.slice(0, 1) })).toEqual([])
+    expect(namedEditions({ title: 'Midnights', releases: [] })).toEqual([])
+  })
+
+  it('takes no typo, censored pressing, other mix or lesser status for an edition', () => {
+    const releases = [
+      ...titled('Blue Hour', [['standard', 'official', 10, '2020-01-01', 'CD']]),
+      // Another case and quote marks, the same songs: one title.
+      ...titled('BLUE HOUR', [['shouted', 'official', 10, '2020-01-01', 'CD']]),
+      ...titled('Blue Hour (Clean)', [['clean', 'official', 10, '2020-01-01', 'Digital Media']]),
+      ...titled('Blue Hour (Dolby Atmos)', [['atmos', 'official', 10, '2020-01-01', 'Digital Media']]),
+      ...titled('Blue Hour (Demos)', [['bootleg', 'bootleg', 12, '2021-01-01', 'CD']]),
+      // Only case apart, but more songs: an edition.
+      ...titled('BLUE HOUR!', [['loud', 'official', 12, '2021-01-01', 'Digital Media']]),
+      ...titled('Blue Hour (Remastered)', [['remaster', 'official', 10, '2024-01-01', 'Digital Media']]),
+    ]
+    expect(namedEditions({ title: 'Blue Hour', releases }).map((release) => release.mbid)).toEqual(['loud', 'remaster'])
+  })
+
+  it('keeps at most a few', () => {
+    const releases = [
+      ...titled('Live', [['standard', 'official', 10, '2000-01-01', 'CD']]),
+      ...Array.from({ length: maxNamedEditions + 3 }, (_, index) => titled(`Live, Night ${index + 1}`, [[`night-${index + 1}`, 'official', 10 + index, `200${index}-02-01`, 'CD']])).flat(),
+    ]
+    expect(namedEditions({ title: 'Live', releases })).toHaveLength(maxNamedEditions)
   })
 })

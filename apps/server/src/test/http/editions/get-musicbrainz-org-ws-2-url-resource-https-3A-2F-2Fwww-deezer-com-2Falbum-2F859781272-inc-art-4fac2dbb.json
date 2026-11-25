@@ -1,0 +1,65 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/url?resource=https%3A%2F%2Fwww.deezer.com%2Falbum%2F859781272&inc=artist-rels+release-rels+release-group-rels+recording-rels&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "resource": "https://www.deezer.com/album/859781272",
+      "relations": [
+        {
+          "type-id": "08445ccf-7b99-4438-9f9a-fb9ac18099ee",
+          "attribute-ids": {},
+          "end": null,
+          "target-credit": "",
+          "ended": false,
+          "attributes": [],
+          "direction": "backward",
+          "begin": null,
+          "type": "free streaming",
+          "release": {
+            "packaging-id": null,
+            "status": null,
+            "release-events": [
+              {
+                "date": "2025-11-21",
+                "area": {
+                  "sort-name": "[Worldwide]",
+                  "disambiguation": "",
+                  "type-id": null,
+                  "iso-3166-1-codes": [
+                    "XW"
+                  ],
+                  "name": "[Worldwide]",
+                  "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+                  "type": null
+                }
+              }
+            ],
+            "title": "SO CLOSE TO WHAT???",
+            "id": "3a2726ae-34c8-4f49-a50a-c9a96cf762c1",
+            "text-representation": {
+              "language": "eng",
+              "script": "Latn"
+            },
+            "date": "2025-11-21",
+            "disambiguation": "deluxe",
+            "packaging": null,
+            "barcode": "196873763132",
+            "quality": "normal",
+            "status-id": null,
+            "country": "XW"
+          },
+          "source-credit": "",
+          "target-type": "release",
+          "attribute-values": {}
+        }
+      ],
+      "id": "5ad33b72-d953-4597-8bd8-059e794070c6"
+    }
+  }
+}
