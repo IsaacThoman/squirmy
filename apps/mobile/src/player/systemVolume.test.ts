@@ -5,7 +5,7 @@ import { reportIntervalMs, settleMs, syncSystemVolume, type SystemVolumePort } f
 
 const PHONE = 'phone';
 
-function harness({ active = true, system: start = 0.5, session: level }: { active?: boolean; system?: number; session?: number } = {}) {
+function harness({ active = true, system: start = 0.5, session: level, lag = 0 }: { active?: boolean; system?: number; session?: number; lag?: number } = {}) {
   let now = 0;
   let timers: { at: number; run: () => void; id: number }[] = [];
   let serial = 0;
@@ -58,10 +58,15 @@ function harness({ active = true, system: start = 0.5, session: level }: { activ
   const sets: number[] = [];
   const system: SystemVolumePort = {
     get: () => level$,
+    // iOS tells of a level it was set to a little later (`lag`), as KVO does on a phone.
     set: volume => {
       sets.push(volume);
-      level$ = volume;
-      for (const listener of [...systemListeners]) listener(volume);
+      const notify = () => {
+        level$ = volume;
+        for (const listener of [...systemListeners]) listener(volume);
+      };
+      if (lag) clock.setTimeout(notify, lag);
+      else notify();
     },
     subscribe: listener => {
       systemListeners.add(listener);
@@ -118,6 +123,37 @@ describe('syncSystemVolume', () => {
     expect(sets).toEqual([0.25]);
     // The system's own change notice for that move is not sent back.
     expect(levels()).toEqual([]);
+  });
+
+  it('does not send back the system’s late notices of levels another device asked for', () => {
+    // Another device drags this phone's volume: a level every 150 ms, each notice 200 ms late.
+    const { update, advance, sets, levels } = harness({ system: 0.5, session: 0.5, lag: 200 });
+    advance(settleMs);
+    for (const volume of [0.45, 0.4, 0.35, 0.3]) {
+      update({ volume });
+      advance(150);
+    }
+    advance(settleMs);
+    expect(sets).toEqual([0.45, 0.4, 0.35, 0.3]);
+    expect(levels()).toEqual([]);
+  });
+
+  it('keeps following another device after the system tells of the level it asked for', () => {
+    const { update, advance, sets } = harness({ system: 0.5, session: 0.5, lag: 200 });
+    advance(settleMs);
+    update({ volume: 0.4 });
+    advance(300);
+    update({ volume: 0.2 });
+    expect(sets).toEqual([0.4, 0.2]);
+  });
+
+  it('still reports the side buttons pressed just after another device set the volume', () => {
+    const { update, advance, press, levels } = harness({ system: 0.5, session: 0.5, lag: 100 });
+    advance(settleMs);
+    update({ volume: 0.25 });
+    advance(200);
+    press(0.3125);
+    expect(levels()).toEqual([0.3125]);
   });
 
   it('leaves the system volume alone while another device plays, and takes it when the phone becomes the player', () => {
