@@ -13,6 +13,7 @@ import { playbackStatus } from '../player/usePlaybackStatus';
 import { pageHref } from './links';
 import { tabIn } from './tabs';
 import { createStartGuard } from './pending';
+import { confirmQueued } from './queued';
 import { trackActions, type TrackAction, type TrackActionOptions } from './trackActionList';
 
 export { trackActionKey, trackActions, type TrackAction, type TrackActionId, type TrackActionOptions, type TrackActionState } from './trackActionList';
@@ -48,8 +49,10 @@ export function useTrackActionRunner(inSheet = false) {
     switch (action.id) {
       case 'play': return actions.playNow(track);
       case 'resume': return actions.play();
-      case 'next': return actions.enqueue([track], 'next');
-      case 'last': return actions.enqueue([track], 'last');
+      case 'next':
+      case 'last':
+        actions.enqueue([track], action.id);
+        return confirmQueued(action.id);
       case 'like': return setLiked('track', track.id, true, track.title);
       case 'unlike': return setLiked('track', track.id, false, track.title);
       case 'download': return void manager?.addTrack(track);
