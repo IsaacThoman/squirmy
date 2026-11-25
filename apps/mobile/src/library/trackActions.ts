@@ -14,7 +14,7 @@ import { pageHref } from './links';
 import { tabIn } from './tabs';
 import { createStartGuard } from './pending';
 import { confirmQueued } from './queued';
-import { trackActions, type TrackAction, type TrackActionOptions } from './trackActionList';
+import { queuedNotice, radioStartingNotice, trackActions, type TrackAction, type TrackActionOptions } from './trackActionList';
 
 export { trackActionKey, trackActions, type TrackAction, type TrackActionId, type TrackActionOptions, type TrackActionState } from './trackActionList';
 
@@ -52,17 +52,27 @@ export function useTrackActionRunner(inSheet = false) {
       case 'next':
       case 'last':
         actions.enqueue([track], action.id);
+        // The queue isn't on screen: the player's status line, a tap and VoiceOver say it worked.
+        playbackStatus.report(queuedNotice(track.title, action.id));
         return confirmQueued(action.id);
       case 'like': return setLiked('track', track.id, true, track.title);
       case 'unlike': return setLiked('track', track.id, false, track.title);
       case 'download': return void manager?.addTrack(track);
       case 'retryDownload': return void manager?.retry();
       case 'removeDownload': return void manager?.removeTrack(track.id);
-      case 'radio':
-        // The menu has closed by the time the server answers, so a failure shows in the player.
-        if (api) radioStarts.run('radio', () => api.radio.track(track.id).then(actions.playRadio,
-          () => playbackStatus.report({ message: `Couldn’t start a radio from “${track.title}”` })));
+      case 'radio': {
+        // The menu has closed by the time the server answers, so the player says it is on its
+        // way until it plays, and a failure shows there too.
+        if (!api) return undefined;
+        let starting: number | null = null;
+        if (radioStarts.run('radio', () => api.radio.track(track.id).then(radio => {
+          if (starting !== null) playbackStatus.withdraw(starting);
+          actions.playRadio(radio);
+        }, () => playbackStatus.report({ message: `Couldn’t start a radio from “${track.title}”` })))) {
+          starting = playbackStatus.report(radioStartingNotice);
+        }
         return undefined;
+      }
       case 'want': return setWanted('track', track.id, true, track.title);
       case 'unwant': return setWanted('track', track.id, false, track.title);
       case 'remove': return playlist?.onRemove?.(playlist.itemId);

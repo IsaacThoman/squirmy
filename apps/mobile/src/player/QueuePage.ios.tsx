@@ -260,7 +260,9 @@ export default function QueuePage({ selected = true, nowPlaying, nowPlayingShift
         </QueueBand>
       </Sticky>
       <Sticky pin={pins.upNext} scrolling={scrolling}>
-        <QueueHeading title={upNextTitle(context, queue.queue)} detail={upNextDetail(context, queue.queue) ?? 'Songs you queue appear here.'} />
+        {/* As on the web, the queue clears at once: what was in it is still in the album or list it came from. */}
+        <QueueHeading title={upNextTitle(context, queue.queue)} detail={upNextDetail(context, queue.queue) ?? 'Songs you queue appear here.'}
+          action={queue.queue.length > 0 && <TextButton label="Clear" spoken="Clear queue" color={colors.muted} onPress={actions.clearQueue} />} />
       </Sticky>
       <Clipped band="upNextRows" under={pins.upNext} scrolling={scrolling}>
         {queue.queue.length > 0 && <QueueRows entries={upNext} total={queue.queue.length} rows={upNextRows} window={upNextWindow} />}
@@ -337,24 +339,27 @@ function QueueBand({ height, children }: { height: number; children: React.React
 }
 
 /** A list's heading, with a quieter line under it, as Apple Music's "Continue Playing / From …" and "Autoplay / Similar music will keep playing". */
-function QueueHeading({ title, detail, symbol, symbolColor }: {
+function QueueHeading({ title, detail, symbol, symbolColor, action }: {
   title: string; detail?: string | null; symbol?: string; symbolColor?: string;
+  /** A button at the trailing end, as History's Clear. */
+  action?: ReactNode;
 }) {
   const colors = useColors();
+  const heading = <VStack alignment="leading" spacing={1} modifiers={[padding({ top: 10, bottom: 8 })]}>
+    <HStack spacing={6}>
+      {symbol && <Symbol name={symbol} size={16} color={symbolColor} />}
+      <Text modifiers={[headingFont, accessibilityAddTraits(['isHeader'])]}>{title}</Text>
+    </HStack>
+    {detail ? <Text modifiers={[detailFont, foregroundStyle(colors.muted), lineLimit(2)]}>{detail}</Text> : null}
+  </VStack>;
   return <QueueBand height={detail ? 62 : headingHeight}>
-    <VStack alignment="leading" spacing={1} modifiers={[padding({ top: 10, bottom: 8 })]}>
-      <HStack spacing={6}>
-        {symbol && <Symbol name={symbol} size={16} color={symbolColor} />}
-        <Text modifiers={[headingFont, accessibilityAddTraits(['isHeader'])]}>{title}</Text>
-      </HStack>
-      {detail ? <Text modifiers={[detailFont, foregroundStyle(colors.muted), lineLimit(2)]}>{detail}</Text> : null}
-    </VStack>
+    {action ? <HStack>{heading}<Spacer />{action}</HStack> : heading}
   </QueueBand>;
 }
 
 /** A text button the full 44 pt tall, though its label is one short line. */
-function TextButton({ label, color, onPress }: { label: string; color: string; onPress: () => void }) {
-  return <Button onPress={onPress} modifiers={[plainButton, accessibilityLabel(label)]}>
+function TextButton({ label, spoken = label, color, onPress }: { label: string; spoken?: string; color: string; onPress: () => void }) {
+  return <Button onPress={onPress} modifiers={[plainButton, accessibilityLabel(spoken)]}>
     <Text modifiers={[foregroundStyle(color), lineLimit(1), frame({ minWidth: 44, minHeight: 44 }), hitShape]}>{label}</Text>
   </Button>;
 }
