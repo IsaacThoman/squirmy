@@ -1,9 +1,9 @@
 import { ApiError } from '@squirmy/client-core'
 import { queryKeys } from '@squirmy/contracts'
-import { act, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useLocation } from 'react-router'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from '@/App'
 import { users } from '@/fixtures/server'
 import { DOWN_AFTER_MS } from '@/realtime/RealtimeProvider'
@@ -76,6 +76,68 @@ describe('route guards', () => {
     renderWithApp(app, '/admin/jobs', services)
     expect(await screen.findByRole('heading', { name: 'Sign in to Squirmy' })).toBeInTheDocument()
     expect(where()).toBe('/login?next=%2Fadmin%2Fjobs')
+    // Not the visitor's doing, so sign-in says why it is there.
+    expect(screen.getByText('Your session ended. Sign in again to keep listening.').closest('[role=status]')).toBeInTheDocument()
+  })
+
+  it('says nothing on sign-in when the visitor simply is not signed in', async () => {
+    renderWithApp(app, '/admin/jobs', fakeServices({ user: null }).services)
+    expect(await screen.findByRole('heading', { name: 'Sign in to Squirmy' })).toBeInTheDocument()
+    expect(screen.queryByText(/Your session ended/)).toBeNull()
+  })
+})
+
+describe('signing out', () => {
+  afterEach(() => localStorage.clear())
+
+  const logOut = async () => {
+    await userEvent.click(await screen.findByRole('button', { name: 'Account, Alex Rivera' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Log out' }))
+  }
+
+  it('signs this browser out when the server can’t be reached, and ends the session there later', async () => {
+    const first = fakeServices()
+    first.api.auth.logout.mockRejectedValueOnce(new ApiError(0, 'network_error', 'Failed to fetch'))
+    const { unmount } = renderWithApp(app, '/', first.services)
+    await logOut()
+    expect(await screen.findByRole('heading', { name: 'Sign in to Squirmy' })).toBeInTheDocument()
+    expect(screen.getByText('You’re signed out on this browser. The server couldn’t be reached, so it ends the session once it can.').closest('[role=status]')).toBeInTheDocument()
+    expect(first.api.auth.logout).toHaveBeenCalledOnce()
+    unmount()
+
+    // The next visit, the session cookie is still there: the server is told first, and nobody is signed in.
+    const next = fakeServices()
+    next.api.auth.logout.mockRejectedValueOnce(new ApiError(0, 'network_error', 'Failed to fetch'))
+    const again = renderWithApp(app, '/', next.services)
+    expect(await screen.findByRole('heading', { name: 'Sign in to Squirmy' })).toBeInTheDocument()
+    expect(next.api.auth.me).not.toHaveBeenCalled()
+    expect(next.api.auth.logout).toHaveBeenCalledOnce()
+    again.unmount()
+
+    // Once the server has heard, the browser asks it who is signed in again.
+    const reached = fakeServices({ user: null })
+    renderWithApp(app, '/', reached.services)
+    expect(await screen.findByRole('heading', { name: 'Sign in to Squirmy' })).toBeInTheDocument()
+    expect(reached.api.auth.logout).toHaveBeenCalledOnce()
+    await waitFor(() => expect(localStorage.getItem('squirmy.signOutPending')).toBeNull())
+    cleanup()
+    const later = fakeServices({ user: null })
+    renderWithApp(app, '/', later.services)
+    expect(await screen.findByRole('heading', { name: 'Sign in to Squirmy' })).toBeInTheDocument()
+    expect(later.api.auth.me).toHaveBeenCalled()
+    expect(later.api.auth.logout).not.toHaveBeenCalled()
+  }, 15_000)
+
+  it('signs in again after an offline sign-out without asking the server to end the new session', async () => {
+    const { services, api } = fakeServices()
+    api.auth.logout.mockRejectedValueOnce(new ApiError(0, 'network_error', 'Failed to fetch'))
+    renderWithApp(app, '/', services)
+    await logOut()
+    await userEvent.type(await screen.findByLabelText('Username'), 'alex')
+    await userEvent.type(screen.getByLabelText('Password'), 'right password')
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    await waitFor(() => expect(where()).toBe('/'))
+    expect(localStorage.getItem('squirmy.signOutPending')).toBeNull()
   })
 })
 
