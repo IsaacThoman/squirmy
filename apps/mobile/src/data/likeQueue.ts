@@ -1,16 +1,35 @@
 import { ApiError } from '@squirmy/client-core';
 import type { LikeEntityType } from '@squirmy/contracts';
+import { isGatewayStatus } from './reachability';
 
-/** A heart or its removal. `title` names the item where a refusal is shown. */
-export type QueuedLike = { type: LikeEntityType; id: string; liked: boolean; title?: string };
+/**
+ * A heart or its removal. `title` names the item where a refusal is shown. `inLibrary` is
+ * what the item's library mark was before this device changed it, for a refusal to put back.
+ */
+export type QueuedLike = { type: LikeEntityType; id: string; liked: boolean; title?: string; inLibrary?: boolean };
 
 export type LikeQueueStorage = { load(): QueuedLike[]; save(likes: readonly QueuedLike[]): void };
 
 export type FlushResult = { applied: QueuedLike[]; refused: QueuedLike[] };
 
-/** The server never got the request; it can be sent again later. Any other failure is the server saying no. */
+/**
+ * The server never got the request, so it can be sent again later: no answer at all, or a
+ * gateway's (a proxy in front of a server that is down, as `HttpReach` counts it). Any other
+ * answer is the server's, a 500 included: it says no, and the heart goes back.
+ */
 export function isUnsent(error: unknown): boolean {
-  return !(error instanceof ApiError) || error.code === 'network_error' || error.status >= 500;
+  return !(error instanceof ApiError) || error.code === 'network_error' || isGatewayStatus(error.status);
+}
+
+/**
+ * How long to wait before sending again what could not reach the server while the app is
+ * online, by how many tries have failed so far; null once it is time to give up. Offline,
+ * the queue waits for the reconnect instead and these tries do not count.
+ */
+export const likeRetryDelaysMs = [15_000, 30_000, 60_000, 2 * 60_000, 4 * 60_000] as const;
+
+export function likeRetryDelay(failedTries: number): number | null {
+  return likeRetryDelaysMs[failedTries - 1] ?? null;
 }
 
 const sameTarget = (a: QueuedLike, b: QueuedLike) => a.type === b.type && a.id === b.id;
@@ -36,9 +55,20 @@ export class LikeQueue {
     return this.items;
   }
 
+  /** Queues `like`, in place of a change to the same item still waiting, whose `inLibrary` it keeps. */
   add(like: QueuedLike): void {
-    this.items = [...this.items.filter(item => !sameTarget(item, like)), like];
+    const earlier = this.items.find(item => sameTarget(item, like));
+    const queued = earlier?.inLibrary !== undefined ? { ...like, inLibrary: earlier.inLibrary } : like;
+    this.items = [...this.items.filter(item => item !== earlier), queued];
     this.storage.save(this.items);
+  }
+
+  /** Drops everything waiting and returns it, for the hearts to go back: the server could not be reached for too long. */
+  giveUp(): QueuedLike[] {
+    const dropped = this.items;
+    this.items = [];
+    this.storage.save(this.items);
+    return dropped;
   }
 
   /** Sends what is waiting. Calls made during a flush wait for it and then flush again. */
