@@ -29,7 +29,7 @@ describe('a refused library change', () => {
     const failures = new LibraryFailures()
     renderWithApp(
       <LibraryFailuresContext value={failures}>
-        <PlayActions id="glass-city" title="Glass City" wanted={false} onWant={() => {}} />
+        <PlayActions id="glass-city" wanted={false} onWant={() => {}} />
       </LibraryFailuresContext>,
     )
     act(() => failures.fail('want:glass-city', 'Couldn’t add to your Wantlist. Try again.', 'Couldn’t add “Glass City” to your Wantlist. Try again.'))
