@@ -17,19 +17,29 @@ export type TrackMenuOptions = {
   reorder?: { index: number; count: number }
   /** The song is listed on its own album's page, so "Go to album" would lead where it already is. */
   onAlbumPage?: boolean
+  /**
+   * The song's place in Up next, where it is queued already. As in the iOS app, Play next then
+   * moves it to the front and Move to end (for Add to queue) to the end, and a move that would
+   * leave it where it is is left out.
+   */
+  queued?: { index: number; count: number }
 }
 
 /**
  * A song's menu, the same wherever a song is listed (track lists, search results): on a touch
  * screen its whole title and credit, then play next, queue, playlists, radio, saving it (the heart), the Wantlist, its album and artists.
  */
-export function trackMenuEntries(track: TrackSummary, { unavailable, wanted, playlists, act, navigate, extraMenu, reorder, onAlbumPage = false }: TrackMenuOptions): MenuEntry[] {
+export function trackMenuEntries(track: TrackSummary, { unavailable, wanted, playlists, act, navigate, extraMenu, reorder, onAlbumPage = false, queued }: TrackMenuOptions): MenuEntry[] {
+  const playNext: MenuEntry[] = queued && queued.index === 0 ? [] : [{ label: 'Play next', icon: <ListStart />, onSelect: () => act('play-next'), done: 'Playing next', disabled: unavailable }]
+  const toEnd: MenuEntry[] = !queued
+    ? [{ label: 'Add to queue', icon: <ListEnd />, onSelect: () => act('enqueue'), done: 'Added to queue', disabled: unavailable }]
+    : queued.index < queued.count - 1 ? [{ label: 'Move to end', icon: <ListEnd />, onSelect: () => act('enqueue'), done: 'Moved to end', disabled: unavailable }] : []
   return [
     // On a touch screen the menu opens with the song's whole title and credit, which its row cuts short.
     { kind: 'header', label: track.title, detail: track.artistCredit },
     // The queue may be out of sight: the entry says it worked.
-    { label: 'Play next', icon: <ListStart />, onSelect: () => act('play-next'), done: 'Playing next', disabled: unavailable },
-    { label: 'Add to queue', icon: <ListEnd />, onSelect: () => act('enqueue'), done: 'Added to queue', disabled: unavailable },
+    ...playNext,
+    ...toEnd,
     ...(playlists ? [{
       kind: 'submenu' as const,
       label: 'Add to playlist',

@@ -16,6 +16,7 @@ import { DevicesPopover } from './Devices'
 import { LyricsPane } from './Lyrics'
 import { PlayerStatusLine } from './PlayerStatus'
 import { QueueContent } from './Queue'
+import { SongMenuButton } from './SongMenu'
 import { SeekBar, TransportButtons, VolumeControl } from './Transport'
 import { useNowPlayingWheel } from './use-now-playing-wheel'
 import './now-playing.css'
@@ -36,7 +37,7 @@ type NowPlayingProps = {
 const wash = 'linear-gradient(to bottom, color-mix(in srgb, var(--background) 55%, transparent), color-mix(in srgb, var(--background) 80%, transparent) 40%, var(--background))'
 
 /** Mount details on first use, then keep their scroll positions when switching panes. */
-function NowPlayingStage({ player, pane, artwork }: { player: Player; pane: NowPlayingPane; artwork: Artwork | null }) {
+function NowPlayingStage({ player, pane, artwork, onClose }: { player: Player; pane: NowPlayingPane; artwork: Artwork | null; onClose: () => void }) {
   const [visited, setVisited] = useState(() => new Set([pane]))
   if (!visited.has(pane)) setVisited(new Set([...visited, pane]))
   return (
@@ -49,7 +50,7 @@ function NowPlayingStage({ player, pane, artwork }: { player: Player; pane: NowP
           {visited.has('lyrics') && <LyricsPane lyrics={player.state.lyrics} onSeek={player.controls.seek} />}
         </div>
         <div data-now-playing-scroll id="now-playing-queue" inert={pane !== 'queue'} aria-hidden={pane !== 'queue'} className="now-playing-pane now-playing-queue flex flex-col overflow-hidden">
-          {visited.has('queue') && <QueueContent player={player} modes={false} shown={pane === 'queue'} className="h-full" />}
+          {visited.has('queue') && <QueueContent player={player} modes={false} shown={pane === 'queue'} onNavigate={onClose} className="h-full" />}
         </div>
       </div>
     </div>
@@ -147,6 +148,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
               </div>
               {/* Named after the song, as in the player bar: never the page's own heart. */}
               {item && <SaveHeart id={item.track.id} liked={liked} onToggle={onToggleLike} title={item.track.title} size="lg" className="max-md:size-11 pointer-coarse:size-11" />}
+              {item && <SongMenuButton track={item.track} onNavigate={() => onOpenChange(false)} size="lg" className="-ml-2 text-foreground max-md:size-11 pointer-coarse:size-11" />}
             </div>
             <SeekBar stacked durationMs={item?.entry.durationMs ?? 0} onSeek={controls.seek} disabled={!item} />
             <div className="mt-1 flex flex-col items-center gap-3 md:flex-row md:justify-between short-landscape:flex-col!">
@@ -158,7 +160,7 @@ export function NowPlaying({ player, open, onOpenChange, pane, onPaneChange, lik
               <VolumeControl volume={state.volume} deviceId={state.activeDeviceId ?? state.thisDeviceId} onChange={controls.setVolume} fill className="order-3 hidden w-40 md:flex short-landscape:hidden!" />
             </div>
           </div>
-          <NowPlayingStage player={player} pane={pane} artwork={artwork} />
+          <NowPlayingStage player={player} pane={pane} artwork={artwork} onClose={() => onOpenChange(false)} />
 
           </div>
         </DialogPrimitive.Content>

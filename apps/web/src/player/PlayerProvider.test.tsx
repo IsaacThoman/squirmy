@@ -1,7 +1,7 @@
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ApiError } from '@squirmy/client-core'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from '@/App'
 import { album, allTracks } from '@/fixtures/catalog'
 import { fakeServices } from '@/test/fake-services'
@@ -112,5 +112,77 @@ describe('PlayerProvider', () => {
     const player = screen.getByRole('region', { name: 'Player' })
     expect(await within(player).findByText(/^Couldn’t play “.+”\. /)).toBeInTheDocument()
     expect(within(player).getByText(/The server is busy\./)).toBeInTheDocument()
+  })
+})
+
+describe('song menus in the queue and Now Playing', () => {
+  const [first, second, third] = blueHour.discs[0].tracks
+
+  it('moves a song coming up from its menu instead of queueing it again', async () => {
+    const { services, socket } = fakeServices()
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    await userEvent.click(await screen.findByRole('button', { name: 'Play Blue Hour' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Queue' }))
+    const panel = await screen.findByRole('complementary', { name: 'Queue' })
+    const next = within(panel).getByRole('region', { name: 'Continue Playing' })
+
+    // The first song coming up is next already: its menu moves it to the end.
+    await userEvent.click(await within(next).findByRole('button', { name: `More options for ${second!.title}` }))
+    expect(screen.queryByRole('menuitem', { name: 'Play next' })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: 'Add to queue' })).toBeNull()
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Move to end' }))
+    await waitFor(() => expect(socket.session.queue.at(-1)?.trackId).toBe(second!.id))
+    expect(socket.session.queue[0]?.trackId).toBe(third!.id)
+    const length = socket.session.queue.length
+
+    // Now last, it comes back to the front with Play next, and is not queued a second time.
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+    await userEvent.click(within(next).getByRole('button', { name: `More options for ${second!.title}` }))
+    expect(screen.queryByRole('menuitem', { name: 'Move to end' })).toBeNull()
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Play next' }))
+    await waitFor(() => expect(socket.session.queue[0]?.trackId).toBe(second!.id))
+    expect(socket.session.queue).toHaveLength(length)
+  }, 15_000)
+
+  it('has the playing song’s menu in Now Playing, which closes as it goes to the artist', async () => {
+    const { services } = fakeServices()
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    await userEvent.click(await screen.findByRole('button', { name: 'Play Blue Hour' }))
+    const player = await screen.findByRole('region', { name: 'Player' })
+    await userEvent.click(within(player).getByRole('button', { name: 'Now Playing' }))
+    const nowPlaying = await screen.findByRole('dialog', { name: 'Now Playing' })
+    await userEvent.click(await within(nowPlaying).findByRole('button', { name: `More options for ${first!.title}` }))
+    expect(await screen.findByRole('menuitem', { name: 'Start radio' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Add to playlist' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Go to album' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Now Playing' })).toBeNull())
+  })
+})
+
+describe('playing a long list', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    localStorage.clear()
+  })
+
+  it('plays the songs it loaded when a page of the rest fails, and says so', async () => {
+    const { services, api, socket } = fakeServices()
+    const liked = allTracks.filter(track => track.liked && track.availability !== 'none')
+    api.userdata.likes
+      .mockResolvedValueOnce({ items: liked.slice(0, 2), nextCursor: 'more' })
+      .mockRejectedValueOnce(new ApiError(400, 'bad_cursor', 'That page is gone.'))
+    // From Library's row: the Liked Songs page itself loads more as it scrolls.
+    localStorage.setItem('squirmy.library.layout', 'list')
+    // jsdom lays nothing out, so the virtual list would show no rows: every box is a screen's size.
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1024)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(900)
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(220)
+    renderWithApp(<AppRoutes />, '/library?filter=all', services)
+    const list = await screen.findByRole('list', { name: 'Library' })
+    await userEvent.click(await within(list).findByRole('button', { name: 'Play Liked Songs' }))
+    const player = screen.getByRole('region', { name: 'Player' })
+    expect(await within(player).findByText(/^Couldn’t load the whole list\./)).toBeInTheDocument()
+    expect(within(player).getByText(/Playing the songs loaded so far\./)).toBeInTheDocument()
+    await waitFor(() => expect([socket.session.current, ...socket.session.queue].filter(Boolean).map(entry => entry!.trackId)).toEqual(liked.slice(0, 2).map(track => track.id)))
   })
 })
