@@ -14,8 +14,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { formatDuration, formatRemaining } from '@squirmy/client-core';
 import { useArtworkImage } from './data/artwork';
 import { fallbackTint } from './data/color';
-import { useLibraryActions, useLiked, useLikeFailure } from './data/library';
-import { heartButton, heartColor } from './library/heart';
+import { heartColor } from './library/heart';
 import { MiniPlayerContent } from './MiniPlayer';
 import {
   grab, progress, settle, sideInsets, travel, usePlayerTransition, type Bubble, type BubbleVariant, type Motion, type PlayerPage,
@@ -35,6 +34,7 @@ import QueuePage, { queueShowsNowPlaying } from './player/QueuePage';
 import TransportSlider from './player/TransportSlider';
 import { CollapseButton, DeviceButton, PlayerButton, TrackLinksMenu, TrackMenuButton } from './player/Controls';
 import { selectionFeedback } from './player/design';
+import { useCurrentTrackHeart } from './player/useCurrentTrackHeart';
 import { metadataHeight as metadataHeightFor, rhythm as rhythmFor, type Rhythm } from './player/layout';
 import { seekLanded } from './player/scrub';
 import { skipCommits } from './player/skipSwipe';
@@ -106,7 +106,6 @@ export default function Player() {
   const bottom = insets.bottom || initialWindowMetrics?.insets.bottom || 0;
   const { current, track, actions } = usePlaybackState();
   const loading = useLoading();
-  const { setLiked } = useLibraryActions();
   const artwork = track?.album?.artwork;
   const artworkImage = useArtworkImage(artwork, 440);
   const backdropImage = useArtworkImage(artwork, 300);
@@ -123,8 +122,7 @@ export default function Player() {
   const artX = (width - insets.left - insets.right - artSize) / 2;
   const artY = 0;
   const artworkPage = page === 'player';
-  const isFavorite = useLiked('track', track?.id, track?.liked);
-  const heart = heartButton(isFavorite, track?.title ?? '', useLikeFailure('track', track?.id));
+  const { heart, toggle: toggleLiked } = useCurrentTrackHeart();
   const title = track?.title ?? (current ? '' : 'Not Playing');
   const subtitle = loading === 'slow' ? STILL_LOADING_LABEL : track?.artistCredit ?? '';
   // What playback has to say (a skipped song, a pause the server caused) takes the artist's
@@ -336,8 +334,8 @@ export default function Player() {
       {track && <PlayerButton
         icon={heart.icon}
         label={heart.label}
-        selected={isFavorite}
-        onPress={() => { selectionFeedback(); setLiked('track', track.id, !isFavorite, track.title); }}
+        selected={heart.selected}
+        onPress={toggleLiked}
         color={heartColor(heart, colors, colors.text)}
       />}
       {track && <TrackMenuButton track={track} onPress={() => openTrackMenu(track.id, track.album?.id)} />}
