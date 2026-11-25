@@ -1,0 +1,10 @@
+{
+  "platforms": [
+    "apple"
+  ],
+  "apple": {
+    "appDelegateSubscribers": [
+      "ScrollEdgesAppDelegate"
+    ]
+  }
+}

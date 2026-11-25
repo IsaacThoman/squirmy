@@ -82,13 +82,13 @@ export function DeviceButton({ icon, name, highlighted, onPress }: DeviceButtonP
   </Host>;
 }
 
-export function LyricButton({ line, active, onPress, opacity: shown, blur: blurred = 0, delay = 0 }: LyricButtonProps) {
+export function LyricButton({ line, active, onPress, opacity: shown, blur: blurred = 0 }: LyricButtonProps) {
   const colors = useColors();
   // Given a look, the line is drawn in the text color and dimmed by opacity, so a line coming
-  // into song brightens and sharpens in one ease, a moment after the line above it.
+  // into song brightens and sharpens in one ease, with the rest of the lines.
   const look = shown === undefined ? [] : [
     blur(blurred), opacity(shown),
-    animation(Animation.easeInOut({ duration: 0.42 }).delay(delay / 1000), shown * 100 + blurred),
+    animation(Animation.easeInOut({ duration: 0.42 }), shown * 100 + blurred),
   ];
   const text = <Text modifiers={[
     foregroundStyle(active || shown !== undefined ? colors.text : colors.quiet), font({ textStyle: 'largeTitle', weight: 'bold' }),

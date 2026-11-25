@@ -37,3 +37,19 @@ export function rhythm(screenHeight: number): Rhythm {
   const step = (short: number, tall: number) => Math.round(short + (tall - short) * t);
   return { artworkGap: step(8, 16), buttonsTop: step(8, 22), buttonsBottom: step(8, 32), footerTop: step(4, 12) };
 }
+
+/** The pane needs room for lyrics and queue actions alongside the playback controls. */
+export function tabletPaneWidth(width: number, height: number, fontScale: number): number {
+  const playerMinimum = 400;
+  const paneMinimum = Math.round(320 + 70 * Math.min(1, Math.max(0, fontScale - 1)));
+  if (height < 480 || width < playerMinimum + paneMinimum) return 0;
+  return Math.min(680, width - playerMinimum, Math.max(paneMinimum, Math.round(width * 0.46)));
+}
+
+/** The largest the iPad's artwork grows: it fills its column, as in Apple Music, up to about a 13-inch iPad's width. */
+export const tabletArtworkLimit = 1000;
+
+/** The iPad's artwork: as wide as its column allows, and short enough to leave the title room under it. */
+export function tabletArtworkSize(width: number, deckHeight: number, metadata: number): number {
+  return Math.max(1, Math.min(tabletArtworkLimit, width - 48, deckHeight - metadata));
+}

@@ -17,6 +17,8 @@ export type LyricsHandle = { touchControls: () => void };
 export type LyricsProps = {
   selected: boolean;
   ref?: Ref<LyricsHandle>;
+  /** A side pane has its own room, so the transport can stay visible beside it. */
+  keepControls?: boolean;
   /** The page hides the transport while lyrics play untouched, and shows it again; see `lyricsChrome`. */
   onControlsHidden?: (hidden: boolean) => void;
 };

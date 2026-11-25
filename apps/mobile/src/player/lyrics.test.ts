@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  activeLine, blurReach, chromeDeadline, initialChrome, lineDelay, lineInView, lineLook, lyricCredits, lyricLines, lyricsChrome, lyricTiming,
+  activeLine, blurReach, blurReachFor, chromeDeadline, initialChrome, lineInView, lineLook, lyricCredits, lyricLines, lyricsChrome, lyricTiming,
   scrollRun, scrollTurn, springRemaining, waveDuration, type ChromeEvent, type ChromeRules, type LyricsChrome,
 } from './lyrics';
 
@@ -88,6 +88,19 @@ describe('lineLook', () => {
   it('caps the blur and only dims lines past its reach', () => {
     expect(lineLook(blurReach, follow).blur).toBe(lineLook(blurReach - 1, follow).blur);
     expect(lineLook(blurReach + 1, follow)).toEqual({ opacity: lineLook(1, follow).opacity, blur: 0 });
+  });
+
+  it('blurs every line that fits on a tall page', () => {
+    // A 13-inch iPad in portrait with the transport hidden, and an iPhone's lyrics page.
+    for (const viewport of [1300, 760]) {
+      const reach = blurReachFor(viewport);
+      expect(reach * 48).toBeGreaterThan(viewport);
+      expect(lineLook(reach, { ...follow, reach }).blur).toBeGreaterThan(0);
+      expect(lineLook(reach + 1, { ...follow, reach }).blur).toBe(0);
+    }
+    // Before the page is measured, and on a short one, the blur still reaches its usual distance.
+    expect(blurReachFor(0)).toBe(blurReach);
+    expect(blurReachFor(200)).toBe(blurReach);
   });
 
   it('clears the blur while browsing, keeping the sung line brightest', () => {
@@ -218,20 +231,12 @@ describe('line motion', () => {
     expect(springRemaining(0)).toBe(1);
     expect(springRemaining(150)).toBeLessThan(1);
     expect(springRemaining(150)).toBeGreaterThan(0);
-    expect(Math.abs(springRemaining(waveDuration - lineDelay(99, 0)))).toBeLessThan(0.01);
+    expect(Math.abs(springRemaining(waveDuration))).toBeLessThan(0.01);
   });
 
   it('overshoots only a little', () => {
     const samples = Array.from({ length: 100 }, (_, index) => springRemaining(index * 10));
     expect(Math.min(...samples)).toBeGreaterThan(-0.03);
     expect(Math.min(...samples)).toBeLessThan(0);
-  });
-
-  it('starts each line a moment after the one above', () => {
-    expect(lineDelay(3, 5)).toBe(0);
-    expect(lineDelay(5, 5)).toBe(0);
-    expect(lineDelay(6, 5)).toBe(lyricTiming.stagger);
-    expect(lineDelay(8, 5)).toBe(3 * lyricTiming.stagger);
-    expect(lineDelay(500, 5)).toBe(lineDelay(17, 5));
   });
 });
