@@ -8,7 +8,7 @@ import { StorageSection } from '../streamingCache/StorageSection';
 import { createThemedStyles, useColors } from '../theme';
 import {
   lastFmAdminNote, normalizationNote, normalizationOptions, openListenBrainzSettings, qualityNote, qualityOptions, scrobbleDetail,
-  scrobbleFooter, useSettingsScreen,
+  scrobbleFooter, serverMusicLabel, serverMusicNote, useSettingsScreen,
 } from './settings';
 
 export function SettingsScreen() {
@@ -37,6 +37,13 @@ export function SettingsScreen() {
         </SheetRows>
         <Text style={styles.note}>{qualityNote}</Text>
         {screen.errors.playback && <Text style={[styles.note, styles.error]}>{screen.errors.playback}</Text>}
+        <Text style={styles.heading}>Library</Text>
+        <SheetRows>
+          <SheetRow title={serverMusicLabel} icon="square.stack" selected={settings.libraryIncludesServerMusic}
+            onPress={() => screen.setLibraryIncludesServerMusic(!settings.libraryIncludesServerMusic)} />
+        </SheetRows>
+        <Text style={styles.note}>{serverMusicNote}</Text>
+        {screen.errors.library && <Text style={[styles.note, styles.error]}>{screen.errors.library}</Text>}
       </> : screen.settingsFailure ? <SheetRows>
         <SheetRow title="Couldn’t load your settings" subtitle={screen.settingsFailure.description} icon="exclamationmark.circle"
           onPress={screen.settingsFailure.retry ?? (() => {})} />

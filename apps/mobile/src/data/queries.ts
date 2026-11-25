@@ -1,6 +1,6 @@
 import { ApiError } from '@squirmy/client-core';
 import {
-  queryKeys, type ArtistSectionKey, type LibraryItemsSort, type Lyrics, type Page, type SearchKind, type SearchResults, type TrackSummary, type UpdateUserSettings,
+  queryKeys, type ArtistSectionKey, type LibraryItemsSort, type LibrarySort, type Lyrics, type Page, type SearchKind, type SearchResults, type TrackSummary, type UpdateUserSettings,
   type UserSettings,
 } from '@squirmy/contracts';
 import { keepPreviousData, useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSignedInApi, type Api } from '../account/AccountProvider';
 import { albumPlaceholder, awaitsTrackList, findAlbumSummary, trackListPoll } from './albums';
 import { artistPending, artistPlaceholder, findArtistSummary, pendingArtistPollMs } from './artists';
-import { inLibraryOnly, type AlbumMembership } from '../library/librarySearch';
+import type { AlbumMembership } from '../library/librarySearch';
 import { useTrackStore } from './library';
 
 const pageSize = 60;
@@ -51,8 +51,16 @@ export function useHome() {
 }
 
 /** Albums, artists, playlists and Liked Songs in one list, in `sort`'s order. */
-export function useLibraryItems(sort: LibraryItemsSort) {
-  return usePagedQuery([...queryKeys.libraryItems(), sort], (api, cursor) => api.catalog.items({ sort, cursor, limit: pageSize }));
+export function useLibraryItems(sort: LibraryItemsSort, enabled = true) {
+  return usePagedQuery([...queryKeys.libraryItems(), sort], (api, cursor) => api.catalog.items({ sort, cursor, limit: pageSize }), enabled);
+}
+
+/**
+ * The server's albums (its collection), whatever is in the user's library: On this server,
+ * Home's See all. Under `library()`, so what changes the library or the collection reads it again.
+ */
+export function useServerAlbums(sort: LibrarySort, enabled = true) {
+  return usePagedQuery([...queryKeys.collectionAlbums(), sort], (api, cursor) => api.catalog.collectionAlbums({ sort, cursor, limit: pageSize }), enabled);
 }
 
 /** Library albums read in pages of the server's largest size, up to this many, for `useLibraryAlbumIds`. */
@@ -301,8 +309,9 @@ export const libraryMatchLimit = 50;
 export const libraryMatchMinLength = 2;
 
 /**
- * Albums, artists and songs in the library matching `text`, searched on the server once
- * typing pauses, best matches first. Disabled below `libraryMatchMinLength` characters.
+ * Albums, artists and songs with a file on the server (or saved) matching `text`, searched on
+ * the server once typing pauses, best matches first. Disabled below `libraryMatchMinLength`
+ * characters. The Library keeps to its own of them, On this server shows them all (`shownMatches`).
  */
 export function useLibraryMatches(text: string) {
   const q = useDebounced(text.trim(), searchDelayMs);
@@ -310,7 +319,7 @@ export function useLibraryMatches(text: string) {
   const prime = usePrime();
   const query = useQuery({
     queryKey: [...queryKeys.search(), 'library', q, libraryMatchLimit],
-    queryFn: async () => inLibraryOnly(prime(await api!.search.library({ q, limit: libraryMatchLimit }), results => results.tracks)),
+    queryFn: async () => prime(await api!.search.library({ q, limit: libraryMatchLimit }), results => results.tracks),
     enabled: Boolean(api) && [...q].length >= libraryMatchMinLength,
     placeholderData: keepPreviousData,
     staleTime: 60_000,
@@ -337,7 +346,14 @@ export function useUpdateSettings() {
     onError: (_error, _change, context) => {
       if (context?.previous) queryClient.setQueryData(queryKeys.settings(), context.previous);
     },
-    onSuccess: settings => queryClient.setQueryData(queryKeys.settings(), settings),
+    onSuccess: (settings, change) => {
+      queryClient.setQueryData(queryKeys.settings(), settings);
+      // Whether the server's music is in the library changes every list and page that says
+      // what is in it. The server tells this phone too; the Library need not wait for that.
+      if (change.libraryIncludesServerMusic !== undefined) {
+        return Promise.all([queryKeys.library(), queryKeys.home()].map(queryKey => queryClient.invalidateQueries({ queryKey })));
+      }
+    },
   });
 }
 

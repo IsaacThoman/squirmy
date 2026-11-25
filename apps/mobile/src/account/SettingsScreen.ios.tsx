@@ -16,7 +16,7 @@ import { useColors } from '../theme';
 import { serviceNames } from './scrobbling';
 import {
   lastFmAdminNote, normalizationNote, normalizationOptions, openListenBrainzSettings, qualityNote, qualityOptions,
-  scrobbleDetail, scrobbleFooter, useSettingsScreen,
+  scrobbleDetail, scrobbleFooter, serverMusicLabel, serverMusicNote, useSettingsScreen,
 } from './settings';
 
 const clearRow = [listRowBackground('clear'), listRowInsets({ top: 0, leading: 0, bottom: 0, trailing: 0 })];
@@ -45,6 +45,12 @@ export function SettingsScreen() {
             <SheetPickerRow label="Cellular" value={settings.qualityCellular} options={qualityOptions}
               onChange={qualityCellular => update({ qualityCellular })} />
             {screen.errors.playback && <ServiceError message={screen.errors.playback} />}
+          </Section>
+          <Section title="Library" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{serverMusicNote}</Text>}>
+            <Toggle isOn={settings.libraryIncludesServerMusic} onIsOnChange={screen.setLibraryIncludesServerMusic} modifiers={[tint(colors.accent)]}>
+              <Text modifiers={[font({ textStyle: 'body' })]}>{serverMusicLabel}</Text>
+            </Toggle>
+            {screen.errors.library && <ServiceError message={screen.errors.library} />}
           </Section>
         </> : screen.settingsFailure
           ? <LoadFailure title="Couldn’t load your settings" failure={screen.settingsFailure} />

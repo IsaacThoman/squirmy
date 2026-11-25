@@ -55,9 +55,9 @@ const likedTracksKey = [...queryKeys.likes(), 'track'];
  * Shows a heart everywhere at once, as the same `patch` change the server then sends every
  * device of the user (`applyChanges`): every cached answer that carries the item gets the new
  * flag, and Liked Songs gains or loses the track, so nothing has to be fetched again. A
- * hearted track or artist is in the library; an unhearted one may still be (its album, the
- * server's collection), so `inLibrary` waits for the server's patch then (`heartFields`).
- * A refusal passes the `fields` that put the item back as it was.
+ * hearted track or artist is in the library; an unhearted one may still be (its saved album, or the
+ * server's collection for a user who includes it), so `inLibrary` waits for the server's patch then
+ * (`heartFields`). A refusal passes the `fields` that put the item back as it was.
  */
 function patchLike(queryClient: QueryClient, type: LikeEntityType, id: string, liked: boolean, fields = heartFields(type, liked)) {
   applyChanges(queryClient, planChanges([{ kind: 'patch', entity: type, id, fields }]), { own: true });
