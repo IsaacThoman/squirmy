@@ -53,9 +53,16 @@ describe('pages', () => {
     expect(await screen.findByRole('heading', { level: 1, name: heading }, wait)).toBeInTheDocument()
   }, LAZY_DEV_PAGE_MS + 2000)
 
-  it.each([['/', 'Listen now'], ['/imports', 'Add music']])('%s has a page heading without a header bar', async (route, title) => {
-    renderWithApp(<AppRoutes />, route)
-    const heading = await screen.findByRole('heading', { level: 1, name: title })
+  it('shows the Listen now heading on Home without a header bar', async () => {
+    renderWithApp(<AppRoutes />, '/')
+    const heading = await screen.findByRole('heading', { level: 1, name: 'Listen now' })
+    expect(heading).not.toHaveClass('sr-only')
+    expect(screen.getByRole('main').querySelector('[data-page-header]')).toBeNull()
+  })
+
+  it('names Add music for assistive technology without a header bar', async () => {
+    renderWithApp(<AppRoutes />, '/imports')
+    const heading = await screen.findByRole('heading', { level: 1, name: 'Add music' })
     expect(heading).toHaveClass('sr-only')
     expect(heading.closest('header')).not.toHaveClass('sticky')
   })
