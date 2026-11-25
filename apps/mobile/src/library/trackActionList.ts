@@ -1,4 +1,4 @@
-import { isPlayable, librarySave, type Viewer } from '@squirmy/client-core';
+import { isPlayable, librarySave, type PlaybackNotice, type Viewer } from '@squirmy/client-core';
 import type { TrackSummary } from '@squirmy/contracts';
 import type { Href } from 'expo-router';
 import type { TrackDownload } from '../downloads/model';
@@ -52,6 +52,17 @@ export type TrackActionState = {
   /** Who is signed in: a radio starts from what the server plays for them, never from a download alone. */
   viewer?: Viewer | null;
 };
+
+/**
+ * What the player's status line says when a song is queued from a menu or a swipe, where the
+ * queue isn't on screen (the app has no toasts), in the web menu's words.
+ */
+export function queuedNotice(title: string, placement: 'next' | 'last'): PlaybackNotice {
+  return { message: placement === 'next' ? 'Playing next' : 'Added to queue', detail: title };
+}
+
+/** What the status line says while a radio from a menu, which has closed, is on its way, as on the web. */
+export const radioStartingNotice: PlaybackNotice = { message: 'Starting radio…' };
 
 /** A menu entry whose last try the server refused: it says so, and choosing it tries again. */
 const failed = (what: string) => ({ title: `${what}. Try again`, icon: 'exclamationmark.circle' });

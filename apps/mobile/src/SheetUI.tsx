@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { TrackSummary as Track } from '@squirmy/contracts';
+import type { Artwork, TrackSummary as Track } from '@squirmy/contracts';
 import { BrandMark } from './BrandMark';
 import TransportSlider from './player/TransportSlider';
 import { Cover, Icon } from './ui';
@@ -23,7 +23,8 @@ export type SheetInfoProps = { icon: string; title: string; subtitle: string; ad
  * tried was refused, said in the error color where it happened (the app has no toasts).
  */
 export type SheetNoteProps = { mark?: boolean; error?: boolean; children: string };
-export type TrackSummaryProps = { track: Track | undefined; subtitle?: string };
+/** `collection`: an album shown in the track's place, for a sheet about all its songs. */
+export type TrackSummaryProps = { track: Track | undefined; subtitle?: string; collection?: { title: string; artwork: Artwork | null | undefined } };
 export type SheetSliderProps = { label: string; value: number; onChange: (value: number) => void };
 export type SheetFieldProps = {
   label: string; value: string; onChange: (value: string) => void; onSubmit: () => void; autoFocus?: boolean;
@@ -112,14 +113,14 @@ export function SheetPickerRow<T extends string | number>({ label, value, option
   ])} />;
 }
 
-export function TrackSummary({ track, subtitle }: TrackSummaryProps) {
+export function TrackSummary({ track, subtitle, collection }: TrackSummaryProps) {
   const colors = useColors();
   const styles = useStyles();
   return (
     <View style={styles.trackSummary}>
-      <Cover artwork={track?.album?.artwork} size={53} radius={10} />
+      <Cover artwork={collection ? collection.artwork : track?.album?.artwork} size={53} radius={10} />
       <View style={styles.flex}>
-        <Text numberOfLines={1} style={styles.rowTitle}>{track?.title ?? 'Not Playing'}</Text>
+        <Text numberOfLines={1} style={styles.rowTitle}>{collection?.title ?? track?.title ?? 'Not Playing'}</Text>
         <Text numberOfLines={1} style={styles.rowSubtitle}>{subtitle ?? track?.artistCredit ?? ''}</Text>
       </View>
       <Icon name="waveform" size={22} color={colors.accent} />
