@@ -38,6 +38,7 @@ import { refreshWants } from '../userdata/wants.js'
 import { extractArchive, inspectArchive } from './archive.js'
 import { fileKind, numbered } from './paths.js'
 import { hasRoomFor } from './space.js'
+import { saveUploadedAlbums } from './uploads.js'
 import { announceImport, incomingFolder, releaseStaging, type ImportRow, type ImportWork } from './service.js'
 import { TEMP_PREFIX, treeFiles } from './staging.js'
 
@@ -127,7 +128,12 @@ async function advance(row: ImportRow, stats: Stats, work: ImportWork): Promise<
   if (!updated) return null
   await announceImport(updated)
   // A provider's delivery is cache, in no library; placing it announces what it changed.
-  if (!step && updated.kind !== 'acquisition') await invalidate('all', [queryKeys.library(), queryKeys.home()])
+  if (!step && updated.kind !== 'acquisition') {
+    // The uploader's own uploads join their library, which need not include the collection.
+    if (updated.kind === 'upload') await saveUploadedAlbums(updated.id)
+    await invalidate('all', [queryKeys.library(), queryKeys.home()])
+    await announceUploads(updated)
+  }
   return updated
 }
 
@@ -138,6 +144,14 @@ export async function markFailed(importId: string, reason: string) {
   if (!row) return
   await releaseStaging(row)
   await announceImport(row)
+  // What already reached the root is listed among the uploads, to be deleted.
+  if (row.kind !== 'acquisition') await announceUploads(row)
+}
+
+/** A finished import's files are now listed among the uploads (`imports/uploads.ts`). */
+async function announceUploads(row: ImportRow) {
+  if (row.userId) await invalidate({ user: row.userId }, [queryKeys.uploads()])
+  await invalidate('admins', [queryKeys.adminUploads()])
 }
 
 async function targetRoot(row: ImportRow): Promise<Root> {

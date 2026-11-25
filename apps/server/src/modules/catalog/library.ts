@@ -1,12 +1,15 @@
 /**
- * The library lists, keyset-paginated, as one user sees them.
+ * The library lists, keyset-paginated, as one user sees them, and the same lists of the
+ * server's music (`/collection/*`).
  *
- * A user's library is the server's collection plus what they saved (`inLibraryAlbum` and
- * `inLibraryRecording` in availability.ts, docs/architecture.md "Availability"). An album
- * is in it when a collection file is linked to it or the user saved it; a track when a
- * collection file links its recording, the user saved it, or a present file of it belongs
- * to an album the user saved; an artist when the user saved it or it is credited on a
- * library album. Saving is the heart (`likes`). Genres
+ * A user's library is what they saved (`inLibraryAlbum` and `inLibraryRecording` in
+ * availability.ts, docs/architecture.md "Availability"), plus the server's collection when
+ * they turned on `libraryIncludesServerMusic` (`collectionCounts`). An album is in it when
+ * the user saved it, or a collection file is linked to it and the collection counts; a
+ * track when the user saved it, a present file of it belongs to an album the user saved,
+ * or a collection file links it and the collection counts; an artist when the user saved
+ * it or it is credited on a library album. Saving is the heart (`likes`). Every query here
+ * takes `userId: null` for the server's music: the collection alone, nobody's saves. Genres
  * match case-insensitively; a track has the genres of its present files' albums.
  *
  * The title, artist and year orders read the membership set first (collection files by
@@ -20,12 +23,18 @@
 import type { AlbumPage, ArtistPage, GenrePage, GenreSummary, LibraryQuery, LibrarySort, PageQuery, TrackPage } from '@squirmy/contracts'
 import { sql, type SQL } from 'drizzle-orm'
 import { db } from '../../database/client.js'
-import { collectionFile } from './availability.js'
+import { collectionCounts, collectionFile } from './availability.js'
 import { after, cursorKeys, leadingBound, orderBy, toPage, type Ordering } from './pagination.js'
 import { sortKeys } from './sql.js'
 import { albumSummaries, artistSummaries, trackSummaries } from './summaries.js'
 
 type IdRow = { id: string; cursorKeys: string[] }
+
+/**
+ * Whose music a list holds: a user's library (their saves, and the collection when it
+ * counts for them), or with null the server's music (the collection alone).
+ */
+export type Members = string | null
 
 /** Condition: the album (alias) carries the genre, ignoring case; `true` without one. */
 export function hasGenre(album: string, genre: string | undefined): SQL {
@@ -42,74 +51,82 @@ export function hasGenre(album: string, genre: string | undefined): SQL {
 export type LibraryShape = 'small' | 'large'
 const SMALL_LIBRARY = 2000
 
-/** Ids of the albums in the user's library: linked to a collection file, or saved (duplicates possible). */
-export function libraryAlbumIds(userId: string): SQL {
+/**
+ * `union all` and the query when there is a user to read saves of, else nothing: the
+ * server's music has no saves.
+ */
+const withSaves = (userId: Members, query: (userId: string) => SQL): SQL => (userId ? sql`union all ${query(userId)}` : sql``)
+
+/** Ids of the albums in the library: saved, or linked to a collection file that counts (duplicates possible). */
+export function libraryAlbumIds(userId: Members): SQL {
   return sql`
-    select collected.album_id from media_files collected where collected.album_id is not null and ${collectionFile('collected')}
-    union all
-    select saved.entity_id from likes saved where saved.user_id = ${userId} and saved.entity_type = 'album'`
+    select collected.album_id from media_files collected
+    where collected.album_id is not null and ${collectionFile('collected')} and ${collectionCounts(userId)}
+    ${withSaves(userId, (user) => sql`select saved.entity_id from likes saved where saved.user_id = ${user} and saved.entity_type = 'album'`)}`
 }
 
-/** Ids of the recordings in the user's library, by decision 10's three ways in (duplicates possible). */
-function libraryRecordingIds(userId: string): SQL {
+/** Ids of the recordings in the library, by decision 10's three ways in (duplicates possible). */
+function libraryRecordingIds(userId: Members): SQL {
   return sql`
-    select collected.recording_id from media_files collected where collected.recording_id is not null and ${collectionFile('collected')}
-    union all
-    select saved.entity_id from likes saved where saved.user_id = ${userId} and saved.entity_type = 'recording'
-    union all
-    select present.recording_id from likes saved
-      join media_files present on present.album_id = saved.entity_id and present.missing_since is null
-    where saved.user_id = ${userId} and saved.entity_type = 'album' and present.recording_id is not null`
+    select collected.recording_id from media_files collected
+    where collected.recording_id is not null and ${collectionFile('collected')} and ${collectionCounts(userId)}
+    ${withSaves(userId, (user) => sql`
+      select saved.entity_id from likes saved where saved.user_id = ${user} and saved.entity_type = 'recording'
+      union all
+      select present.recording_id from likes saved
+        join media_files present on present.album_id = saved.entity_id and present.missing_since is null
+      where saved.user_id = ${user} and saved.entity_type = 'album' and present.recording_id is not null`)}`
 }
 
 /**
- * Condition: the album (expression) is in the user's library. Written as one EXISTS over a
+ * Condition: the album (expression) is in the library. Written as one EXISTS over a
  * union so the planner probes the indexes row by row: an OR of two EXISTS is planned as
  * hashed subplans that read every collection file before the first row.
  */
-export function albumIsMember(album: string, userId: string): SQL {
+export function albumIsMember(album: string, userId: Members): SQL {
   return sql`exists (
-    select 1 from media_files collected where collected.album_id = ${sql.raw(album)} and ${collectionFile('collected')}
-    union all
-    select 1 from likes saved where saved.user_id = ${userId} and saved.entity_type = 'album' and saved.entity_id = ${sql.raw(album)}
+    select 1 from media_files collected
+    where collected.album_id = ${sql.raw(album)} and ${collectionFile('collected')} and ${collectionCounts(userId)}
+    ${withSaves(userId, (user) => sql`
+      select 1 from likes saved where saved.user_id = ${user} and saved.entity_type = 'album' and saved.entity_id = ${sql.raw(album)}`)}
   )`
 }
 
-/** Condition: the recording (expression) is in the user's library; see `albumIsMember`. */
-function recordingIsMember(recording: string, userId: string): SQL {
+/** Condition: the recording (expression) is in the library; see `albumIsMember`. */
+function recordingIsMember(recording: string, userId: Members): SQL {
   return sql`exists (
-    select 1 from media_files collected where collected.recording_id = ${sql.raw(recording)} and ${collectionFile('collected')}
-    union all
-    select 1 from likes saved where saved.user_id = ${userId} and saved.entity_type = 'recording' and saved.entity_id = ${sql.raw(recording)}
-    union all
-    select 1 from media_files present join likes saved
-      on saved.user_id = ${userId} and saved.entity_type = 'album' and saved.entity_id = present.album_id
-    where present.recording_id = ${sql.raw(recording)} and present.missing_since is null
+    select 1 from media_files collected
+    where collected.recording_id = ${sql.raw(recording)} and ${collectionFile('collected')} and ${collectionCounts(userId)}
+    ${withSaves(userId, (user) => sql`
+      select 1 from likes saved where saved.user_id = ${user} and saved.entity_type = 'recording' and saved.entity_id = ${sql.raw(recording)}
+      union all
+      select 1 from media_files present join likes saved
+        on saved.user_id = ${user} and saved.entity_type = 'album' and saved.entity_id = present.album_id
+      where present.recording_id = ${sql.raw(recording)} and present.missing_since is null`)}
   )`
 }
 
 /** The query behind `libraryShape`: counts members up to the threshold, each source on its own index. Exported for EXPLAIN in tests. */
-export function libraryShapeQuery(userId: string, kind: 'albums' | 'tracks'): SQL {
+export function libraryShapeQuery(userId: Members, kind: 'albums' | 'tracks'): SQL {
   const column = sql.raw(kind === 'albums' ? 'album_id' : 'recording_id')
-  const saves = kind === 'albums'
-    ? sql`select saved.entity_id from likes saved where saved.user_id = ${userId} and saved.entity_type = 'album' limit ${SMALL_LIBRARY}`
-    : sql`(select saved.entity_id from likes saved where saved.user_id = ${userId} and saved.entity_type = 'recording' limit ${SMALL_LIBRARY})
+  const saves = (user: string) => kind === 'albums'
+    ? sql`(select saved.entity_id from likes saved where saved.user_id = ${user} and saved.entity_type = 'album' limit ${SMALL_LIBRARY})`
+    : sql`(select saved.entity_id from likes saved where saved.user_id = ${user} and saved.entity_type = 'recording' limit ${SMALL_LIBRARY})
         union all
         (select present.recording_id from likes saved
           join media_files present on present.album_id = saved.entity_id and present.missing_since is null
-        where saved.user_id = ${userId} and saved.entity_type = 'album' limit ${SMALL_LIBRARY})`
+        where saved.user_id = ${user} and saved.entity_type = 'album' limit ${SMALL_LIBRARY})`
   return sql`
     select count(*)::int as count from (
       (select distinct collected.${column} from media_files collected
-      where collected.${column} is not null and ${collectionFile('collected')}
+      where collected.${column} is not null and ${collectionFile('collected')} and ${collectionCounts(userId)}
       order by collected.${column} limit ${SMALL_LIBRARY})
-      union all
-      (${saves})
+      ${withSaves(userId, saves)}
     ) members`
 }
 
-/** Whether the user's library lists its albums or tracks from the members or from the catalog's index. */
-export async function libraryShape(userId: string, kind: 'albums' | 'tracks'): Promise<LibraryShape> {
+/** Whether the library lists its albums or tracks from the members or from the catalog's index. */
+export async function libraryShape(userId: Members, kind: 'albums' | 'tracks'): Promise<LibraryShape> {
   const [row] = await db.execute<{ count: number }>(libraryShapeQuery(userId, kind))
   return row!.count < SMALL_LIBRARY ? 'small' : 'large'
 }
@@ -176,41 +193,42 @@ export function neverPlayed(type: 'album' | 'artist' | 'playlist' | 'liked', ent
  * `created_at`, whichever is later; each branch below keeps only the albums whose time it
  * holds (the collection on a tie), so every album appears once.
  */
-export function libraryAlbumsQuery(userId: string, query: LibraryQuery, shape: LibraryShape, branch: AlbumBranch = {}): SQL {
+export function libraryAlbumsQuery(userId: Members, query: LibraryQuery, shape: LibraryShape, branch: AlbumBranch = {}): SQL {
   const ordering = { ...albumOrderings[query.sort], name: branch.name ?? albumOrderings[query.sort].name }
   const genre = hasGenre('a', query.genre)
   const limit = query.limit + 1
   if (query.sort === 'recent') {
-    const unplayed = (album: string) => (branch.unplayed ? neverPlayed('album', album, userId) : sql`true`)
+    const unplayed = (album: string) => (branch.unplayed && userId ? neverPlayed('album', album, userId) : sql`true`)
     const collection = byRecency(ordering.name, 'f.added_at', 'f.album_id')
     const saves = byRecency(ordering.name, 's.created_at', 's.entity_id')
+    const counts = collectionCounts(userId)
     return sql`
       select m.id, ${cursorKeys(ordering)} from (
         (select f.album_id as id, f.added_at as at
         from media_files f join albums a on a.id = f.album_id
-        where ${collectionFile('f')} and ${genre}
+        where ${collectionFile('f')} and ${counts} and ${genre}
           and not exists (
             select 1 from media_files newer
             where newer.album_id = f.album_id and ${collectionFile('newer')} and (newer.added_at, newer.id) > (f.added_at, f.id)
           )
-          and not exists (
+          ${userId ? sql`and not exists (
             select 1 from likes later
             where later.user_id = ${userId} and later.entity_type = 'album' and later.entity_id = f.album_id and later.created_at > f.added_at
-          )
+          )` : sql``}
           and ${unplayed('f.album_id')}
           and ${after(collection, query.cursor)}
         order by ${orderBy(collection)} limit ${limit})
-        union all
+        ${withSaves(userId, (user) => sql`
         (select s.entity_id, s.created_at
         from likes s join albums a on a.id = s.entity_id
-        where s.user_id = ${userId} and s.entity_type = 'album' and ${genre}
-          and not exists (
+        where s.user_id = ${user} and s.entity_type = 'album' and ${genre}
+          and not (${counts} and exists (
             select 1 from media_files later
             where later.album_id = s.entity_id and ${collectionFile('later')} and later.added_at >= s.created_at
-          )
+          ))
           and ${unplayed('s.entity_id')}
           and ${after(saves, query.cursor)}
-        order by ${orderBy(saves)} limit ${limit})
+        order by ${orderBy(saves)} limit ${limit})`)}
       ) m
       order by ${orderBy(ordering)} limit ${limit}`
   }
@@ -222,8 +240,8 @@ export function libraryAlbumsQuery(userId: string, query: LibraryQuery, shape: L
     order by ${orderBy(ordering)} limit ${limit}`
 }
 
-/** One page of the user's library albums. */
-export async function listLibraryAlbums(userId: string, query: LibraryQuery): Promise<AlbumPage> {
+/** One page of the library's albums (with null, the server's albums). */
+export async function listLibraryAlbums(userId: Members, query: LibraryQuery): Promise<AlbumPage> {
   const shape = query.sort === 'recent' ? 'large' : await libraryShape(userId, 'albums')
   const rows = await db.execute<IdRow>(libraryAlbumsQuery(userId, query, shape))
   const ids = rows.slice(0, query.limit).map((row) => row.id)
@@ -300,7 +318,7 @@ function recordingHasGenre(recording: string, genre: string | undefined): SQL {
  * `year` places each library track by its newest present file (any source), so a saved
  * track whose file has not arrived yet has no album to sort by and waits for it.
  */
-export function libraryTracksQuery(userId: string, query: LibraryQuery, shape: LibraryShape): SQL {
+export function libraryTracksQuery(userId: Members, query: LibraryQuery, shape: LibraryShape): SQL {
   const ordering = trackOrderings[query.sort]
   const limit = query.limit + 1
   if (query.sort === 'year') {
@@ -316,7 +334,9 @@ export function libraryTracksQuery(userId: string, query: LibraryQuery, shape: L
         and ${member} and ${after(ordering, query.cursor)}
       order by ${orderBy(ordering)} limit ${limit}`
   }
-  if (query.sort === 'recent') {
+  if (query.sort === 'recent' && !userId) return collectionTracksByRecency(query)
+  if (query.sort === 'recent' && userId) {
+    const counts = collectionCounts(userId)
     const collection = byRecencyInTrackOrder(ordering.name, 'f.added_at', 'f.rel_path', 'f.recording_id')
     // A song saved on its own has no place on an album: it sorts before any path.
     const ownSaves = byRecencyInTrackOrder(ordering.name, 's.created_at', "(''::text)", 's.entity_id')
@@ -332,7 +352,7 @@ export function libraryTracksQuery(userId: string, query: LibraryQuery, shape: L
       select m.id, m."albumId", ${cursorKeys(ordering)} from (
         (select f.recording_id as id, f.album_id as "albumId", f.added_at as at, f.rel_path as path
         from media_files f
-        where ${collectionFile('f')} and f.recording_id is not null
+        where ${collectionFile('f')} and ${counts} and f.recording_id is not null
           and not exists (
             select 1 from media_files newer
             where newer.recording_id = f.recording_id and ${collectionFile('newer')} and (newer.added_at, newer.id) > (f.added_at, f.id)
@@ -349,10 +369,10 @@ export function libraryTracksQuery(userId: string, query: LibraryQuery, shape: L
         (select s.entity_id, null::uuid, s.created_at, ''::text
         from likes s join recordings r on r.id = s.entity_id
         where s.user_id = ${userId} and s.entity_type = 'recording'
-          and not exists (
+          and not (${counts} and exists (
             select 1 from media_files later
             where later.recording_id = s.entity_id and ${collectionFile('later')} and later.added_at >= s.created_at
-          )
+          ))
           and not ${albumSavedAfter('s.entity_id', 's.created_at', false)}
           and ${recordingHasGenre('s.entity_id', query.genre)}
           and ${after(ownSaves, query.cursor)}
@@ -373,10 +393,10 @@ export function libraryTracksQuery(userId: string, query: LibraryQuery, shape: L
             where held.recording_id = p.recording_id and held.missing_since is null
               and (album_save.created_at, album_save.entity_id) > (s.created_at, s.entity_id)
           )
-          and not exists (
+          and not (${counts} and exists (
             select 1 from media_files later
             where later.recording_id = p.recording_id and ${collectionFile('later')} and later.added_at >= s.created_at
-          )
+          ))
           and not exists (
             select 1 from likes own
             where own.user_id = ${userId} and own.entity_type = 'recording' and own.entity_id = p.recording_id and own.created_at >= s.created_at
@@ -396,15 +416,38 @@ export function libraryTracksQuery(userId: string, query: LibraryQuery, shape: L
 }
 
 /**
- * One page of the user's library tracks. Sorted by `recent` or `year`, each track is shown
- * in the album that placed it (see `libraryTracksQuery`); otherwise the summary builder picks the album.
+ * The server's songs by `recent`: the collection branch of `libraryTracksQuery` alone, each
+ * song at its newest collection file.
  */
-export async function listLibraryTracks(userId: string, query: LibraryQuery): Promise<TrackPage> {
+function collectionTracksByRecency(query: LibraryQuery): SQL {
+  const ordering = trackOrderings.recent
+  const collection = byRecencyInTrackOrder(ordering.name, 'f.added_at', 'f.rel_path', 'f.recording_id')
+  return sql`
+    select f.recording_id as id, f.album_id as "albumId", ${cursorKeys(collection)}
+    from media_files f
+    where ${collectionFile('f')} and f.recording_id is not null
+      and not exists (
+        select 1 from media_files newer
+        where newer.recording_id = f.recording_id and ${collectionFile('newer')} and (newer.added_at, newer.id) > (f.added_at, f.id)
+      )
+      and ${recordingHasGenre('f.recording_id', query.genre)}
+      and ${after(collection, query.cursor)}
+    order by ${orderBy(collection)} limit ${query.limit + 1}`
+}
+
+/**
+ * One page of the library's tracks (with null, the server's songs), summarized for the
+ * viewer. Sorted by `recent` or `year`, each track is shown in the album that placed it
+ * (see `libraryTracksQuery`); otherwise the summary builder picks the album.
+ */
+export async function listLibraryTracks(userId: Members, query: LibraryQuery, viewerId?: string): Promise<TrackPage> {
+  const viewer = viewerId ?? userId
+  if (!viewer) throw new Error('The server\'s songs are summarized for a viewer')
   const ordering = trackOrderings[query.sort]
   const shape = query.sort === 'recent' ? 'large' : await libraryShape(userId, 'tracks')
   const rows = await db.execute<IdRow & { albumId: string | null }>(libraryTracksQuery(userId, query, shape))
   const refs = rows.slice(0, query.limit).map((row) => ({ id: row.id, albumId: row.albumId }))
-  return toPage(ordering, rows, query.limit, await trackSummaries(userId, refs))
+  return toPage(ordering, rows, query.limit, await trackSummaries(viewer, refs))
 }
 
 const artistOrdering: Ordering = {
@@ -416,12 +459,13 @@ const artistOrdering: Ordering = {
 }
 
 /** The query behind `GET /library/artists`, returning `limit + 1` rows. Exported for EXPLAIN in tests. */
-export function libraryArtistsQuery(userId: string, query: PageQuery, shape: LibraryShape): SQL {
+export function libraryArtistsQuery(userId: Members, query: PageQuery, shape: LibraryShape): SQL {
   // An artist the user saved with the heart is in the library whatever albums it has.
-  const own = sql`select own.entity_id from likes own where own.user_id = ${userId} and own.entity_type = 'artist'`
+  const own = (user: string) => sql`select own.entity_id from likes own where own.user_id = ${user} and own.entity_type = 'artist'`
+  const credited = sql`exists (select 1 from album_artists aa where aa.artist_id = ar.id and ${albumIsMember('aa.album_id', userId)})`
   const member = shape === 'small'
-    ? sql`ar.id = any(array(select aa.artist_id from album_artists aa where aa.album_id = any(array(${libraryAlbumIds(userId)})) union all ${own}))`
-    : sql`(ar.id in (${own}) or exists (select 1 from album_artists aa where aa.artist_id = ar.id and ${albumIsMember('aa.album_id', userId)}))`
+    ? sql`ar.id = any(array(select aa.artist_id from album_artists aa where aa.album_id = any(array(${libraryAlbumIds(userId)})) ${withSaves(userId, own)}))`
+    : userId ? sql`(ar.id in (${own(userId)}) or ${credited})` : credited
   return sql`
     select ar.id, ${cursorKeys(artistOrdering)}
     from artists ar
@@ -431,13 +475,14 @@ export function libraryArtistsQuery(userId: string, query: PageQuery, shape: Lib
 }
 
 /**
- * One page of the user's library artists, by name ignoring a leading article: the artists
- * they saved and those credited on their library albums. The list has this one order and
- * no genre filter. Artists only featured on a track are not library artists.
+ * One page of the library's artists, by name ignoring a leading article: the artists the
+ * user saved and those credited on their library albums (with null, the artists of the
+ * server's albums), summarized for the viewer. The list has this one order and no genre
+ * filter. Artists only featured on a track are not library artists.
  */
-export async function listLibraryArtists(userId: string, query: PageQuery): Promise<ArtistPage> {
+export async function listLibraryArtists(userId: Members, query: PageQuery, viewerId: string | null = userId): Promise<ArtistPage> {
   const rows = await db.execute<IdRow>(libraryArtistsQuery(userId, query, await libraryShape(userId, 'albums')))
-  return toPage(artistOrdering, rows, query.limit, await artistSummaries(rows.slice(0, query.limit).map((row) => row.id), userId))
+  return toPage(artistOrdering, rows, query.limit, await artistSummaries(rows.slice(0, query.limit).map((row) => row.id), viewerId))
 }
 
 // Spellings of one genre that differ only in case are counted together; the key is the
@@ -445,7 +490,7 @@ export async function listLibraryArtists(userId: string, query: PageQuery): Prom
 const genreOrdering: Ordering = { name: 'genres:name', keys: [{ expression: sql.raw('g.key'), type: 'text' }] }
 
 /** The query behind `GET /library/genres`, returning `limit + 1` rows. Exported for EXPLAIN in tests. */
-export function libraryGenresQuery(userId: string, query: PageQuery, shape: LibraryShape): SQL {
+export function libraryGenresQuery(userId: Members, query: PageQuery, shape: LibraryShape): SQL {
   // Every library album is read either way, so a large library is joined as a set.
   const member = shape === 'small' ? sql`a.id = any(array(${libraryAlbumIds(userId)}))` : sql`a.id in (${libraryAlbumIds(userId)})`
   return sql`
@@ -460,8 +505,8 @@ export function libraryGenresQuery(userId: string, query: PageQuery, shape: Libr
     order by ${orderBy(genreOrdering)} limit ${query.limit + 1}`
 }
 
-/** One page of the genres of library albums with how many library albums carry each. */
-export async function listLibraryGenres(userId: string, query: PageQuery): Promise<GenrePage> {
+/** One page of the genres of library albums (with null, the server's) with how many of those albums carry each. */
+export async function listLibraryGenres(userId: Members, query: PageQuery): Promise<GenrePage> {
   const rows = await db.execute<GenreSummary & { cursorKeys: string[] }>(libraryGenresQuery(userId, query, await libraryShape(userId, 'albums')))
   return toPage(genreOrdering, rows, query.limit, rows.map((row) => ({ name: row.name, albumCount: row.albumCount })))
 }

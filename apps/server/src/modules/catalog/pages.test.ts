@@ -28,7 +28,7 @@ describe('catalog pages', () => {
 
   beforeAll(async () => {
     app = await buildApp()
-    user = await signIn()
+    user = await signIn({ settings: { libraryIncludesServerMusic: true } })
   })
   beforeEach(() => vi.mocked(ensureAlbumDetail).mockClear())
   afterAll(async () => {
@@ -285,7 +285,7 @@ describe('catalog pages', () => {
     const fresh = await signIn()
     const homeOf = async () => body(await app.inject({ url: '/api/v1/home', headers: fresh.headers }), HomeResponse).sections
 
-    // Only the shared library has content for a new user.
+    // Only the server's music has content for a new user.
     expect((await homeOf()).map((section) => section.id)).toEqual(['recently-added'])
 
     const played = await createAlbum({ owned: true, title: 'Played' })
@@ -316,9 +316,10 @@ describe('catalog pages', () => {
     expect(sections.map((section) => section.id)).toEqual(['recently-played', 'most-played', 'playlists', 'recently-added', 'wantlist'])
     const byId = Object.fromEntries(sections.map((section) => [section.id, section]))
     expect(byId['recently-added']).toMatchObject({ kind: 'albums', title: 'Recently added' })
-    // A hearted album is a saved one: it is recently added, beside the collection (there is no rail of liked albums).
-    expect(byId['recently-added']!.kind === 'albums' && byId['recently-added']!.albums.map((album) => album.id).sort())
-      .toEqual(expect.arrayContaining([played.albumId, liked.albumId]))
+    // Recently added is the server's music: an album with files, not a hearted one without.
+    const added = byId['recently-added']!.kind === 'albums' ? byId['recently-added']!.albums.map((album) => album.id) : []
+    expect(added).toContain(played.albumId)
+    expect(added).not.toContain(liked.albumId)
     expect(byId['recently-played']).toMatchObject({ kind: 'albums', albums: [{ id: played.albumId }] })
     // The play from 100 days ago is outside the window.
     expect(byId['most-played']).toMatchObject({ kind: 'tracks', tracks: [{ id: played.tracks[1]!.recordingId }, { id: played.tracks[0]!.recordingId }] })

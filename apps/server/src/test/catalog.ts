@@ -27,12 +27,12 @@ export async function createPlay(input: { userId: string; recordingId: string; a
 }
 
 /** Links a new present file to a recording, which makes the recording owned. */
-export async function createFile(input: { rootId: string; recordingId: string; albumId?: string | null; addedAt?: Date; source?: string }) {
+export async function createFile(input: { rootId: string; recordingId: string; albumId?: string | null; addedAt?: Date; source?: string; relPath?: string }) {
   const id = newId()
   await db.insert(mediaFiles).values({
     id,
     rootId: input.rootId,
-    relPath: `extra/${id}.flac`,
+    relPath: input.relPath ?? `extra/${id}.flac`,
     size: 1_000_000,
     mtime: new Date(),
     container: 'flac',

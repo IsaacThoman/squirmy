@@ -11,7 +11,7 @@ import { isoTime, uuidArray } from '../catalog/sql.js'
 import { albumId, artistId, coverArtId } from './ids.js'
 import type { Payload } from './protocol.js'
 import { credits } from './songs.js'
-import { libraryFile, seconds, servableArt } from './sql.js'
+import { libraryFile, seconds, servableArt, type Reach } from './sql.js'
 
 type AlbumRow = {
   id: string
@@ -43,12 +43,16 @@ function itemDate(value: string | null): Payload | undefined {
   return { year: Number(match[1]), month: match[2] ? Number(match[2]) : undefined, day: match[3] ? Number(match[3]) : undefined }
 }
 
-export type AlbumOptions = { rootId?: string | null }
+export type AlbumOptions = {
+  rootId?: string | null
+  /** `server` also takes the server's collection albums: lookups by id and searches with a query. */
+  reach?: Reach
+}
 
 /**
- * AlbumID3 objects for `ids`, in their order. Albums outside the user's library, albums
- * with no library file (in the music folder, when one is given) and ids that do not exist
- * are left out.
+ * AlbumID3 objects for `ids`, in their order. Albums outside the user's library (and,
+ * with the `server` reach, the server's collection), albums with no such file (in the
+ * music folder, when one is given) and ids that do not exist are left out.
  */
 export async function albums(userId: string, ids: readonly string[], options: AlbumOptions = {}): Promise<Payload[]> {
   const unique = [...new Set(ids)]
@@ -65,14 +69,15 @@ export async function albums(userId: string, ids: readonly string[], options: Al
         select count(*)::int as "songCount", coalesce(sum(song.duration_ms), 0)::int8 as "durationMs", min(song.added_at) as created
         from (
           select distinct on (f.recording_id) f.duration_ms, f.added_at from media_files f
-          where f.album_id = a.id and f.recording_id is not null and ${libraryFile('f', userId, options.rootId)}
+          where f.album_id = a.id and f.recording_id is not null and ${libraryFile('f', userId, options.rootId, options.reach)}
           order by f.recording_id, f.added_at
         ) song
       ) stats
       left join releases rel on rel.id = ${canonicalRelease('a')}
       left join likes lk on lk.user_id = ${userId} and lk.entity_type = 'album' and lk.entity_id = a.id
       left join ratings rating on rating.user_id = ${userId} and rating.entity_type = 'album' and rating.entity_id = a.id
-      where a.id = any(${uuidArray(unique)}) and stats."songCount" > 0 and ${inLibraryAlbum('a.id', userId)}`),
+      where a.id = any(${uuidArray(unique)}) and stats."songCount" > 0
+        and ${options.reach === 'server' ? sql`(${inLibraryAlbum('a.id', userId)} or ${inLibraryAlbum('a.id', null)})` : inLibraryAlbum('a.id', userId)}`),
     db.execute<{ id: string; count: number; last: string }>(sql`
       select album_id as id, count(*)::int as count, ${isoTime('max(started_at)')} as last
       from plays where user_id = ${userId} and album_id = any(${uuidArray(unique)})

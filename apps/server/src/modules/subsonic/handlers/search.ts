@@ -1,8 +1,9 @@
 /**
- * search3 and search2 over the user's library (sql.ts). A query goes to the search
- * module's library search, so Subsonic apps get the ranking and typo tolerance of
- * Squirmy's own apps; it ranks every track with a present file, so what it finds is kept
- * to the library here. An empty query (or `""`, which several clients send) returns
+ * search3 and search2 (sql.ts). A query goes to the search module's library search, so
+ * Subsonic apps get the ranking and typo tolerance of Squirmy's own apps; it ranks every
+ * track with a present file, and what it finds is kept to the user's library and the
+ * server's collection here (the `server` reach), so a search finds all of the server's
+ * music as Squirmy's own does, but not music only fetched for playing. An empty query (or `""`, which several clients send) returns
  * everything, which sync clients page through with the offsets: artists and albums in
  * name order, songs in id order straight off the present-file index.
  */
@@ -54,15 +55,15 @@ function listing(kind: Kind, userId: string, rootId?: string): { source: SQL; id
   }
 }
 
-/** Of `ids`, in order, those in the user's library (and the root, when given). */
+/** Of `ids`, in order, those in the user's library or the server's collection (and the root, when given). */
 async function inLibrary(kind: Kind, ids: string[], userId: string, rootId?: string): Promise<string[]> {
   if (ids.length === 0) return []
   const rows = await db.execute<{ id: string }>(kind === 'artist'
     ? sql`select ar.id from artists ar where ar.id = any(${uuidArray(ids)})
-        and exists (select 1 from album_artists aa where aa.artist_id = ar.id and ${libraryAlbum('aa.album_id', userId, rootId)})`
+        and exists (select 1 from album_artists aa where aa.artist_id = ar.id and ${libraryAlbum('aa.album_id', userId, rootId, 'server')})`
     : kind === 'album'
-      ? sql`select t.id from albums t where t.id = any(${uuidArray(ids)}) and ${libraryAlbum('t.id', userId, rootId)}`
-      : sql`select t.id from recordings t where t.id = any(${uuidArray(ids)}) and ${libraryRecording('t.id', userId, rootId)}`)
+      ? sql`select t.id from albums t where t.id = any(${uuidArray(ids)}) and ${libraryAlbum('t.id', userId, rootId, 'server')}`
+      : sql`select t.id from recordings t where t.id = any(${uuidArray(ids)}) and ${libraryRecording('t.id', userId, rootId, 'server')}`)
   const kept = new Set(rows.map((row) => row.id))
   return ids.filter((id) => kept.has(id))
 }
@@ -119,9 +120,10 @@ async function search({ user, params }: Context) {
   const rootId = await rootParam(params)
   const pages = { artist: page(params, 'artist'), album: page(params, 'album'), song: page(params, 'song') }
   const ids = key ? await searchPages(user.id, key, pages, rootId) : await everything(user.id, pages, rootId)
+  const reach = key ? 'server' : 'library'
   const [artistList, albumList, songList] = await Promise.all([
-    artistRows(user.id, ids.artist, rootId),
-    albums(user.id, ids.album, { rootId }),
+    artistRows(user.id, ids.artist, rootId, reach),
+    albums(user.id, ids.album, { rootId, reach }),
     songs(user.id, ids.song.map((id) => ({ id }))),
   ])
   return { artists: artistList, albums: albumList, songs: songList }

@@ -39,7 +39,7 @@ describe('library lists', () => {
 
   beforeAll(async () => {
     app = await buildApp()
-    headers = (await signIn()).headers
+    headers = (await signIn({ settings: { libraryIncludesServerMusic: true } })).headers
     const zed = await createArtist({ name: 'Zed' })
     const theAbc = await createArtist({ name: 'The Abc' })
     const moss = await createArtist({ name: 'Moss' })
