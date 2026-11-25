@@ -16,6 +16,8 @@ export type SongRowItem = {
   showArtist: boolean;
   /** The album whose page the row is on. */
   album?: string;
+  /** The artist whose page the row is on. */
+  artist?: string;
   /** Said before the artist, where songs are listed among other kinds ("Song · MGMT"). */
   kind?: string;
   /** Pressed while it can't play, the row opens the song's album (`SongListProps.onUnavailable`). */
@@ -38,7 +40,7 @@ export type SongListItems = {
   rowHeight: number;
 };
 
-export function songRows({ tracks, numbered, playlist, album, kind, opens = false }: Pick<SongListProps, 'tracks' | 'numbered' | 'playlist' | 'album' | 'kind'> & {
+export function songRows({ tracks, numbered, playlist, album, artist, kind, opens = false }: Pick<SongListProps, 'tracks' | 'numbered' | 'playlist' | 'album' | 'artist' | 'kind'> & {
   /** The list has `onUnavailable`. */
   opens?: boolean;
 }): SongRowItem[] {
@@ -53,6 +55,7 @@ export function songRows({ tracks, numbered, playlist, album, kind, opens = fals
       // On an album page only a song by someone else (a feature, a various-artists album) says who.
       showArtist: !album || track.artistCredit !== album.artistCredit,
       album: album?.id,
+      artist,
       kind,
       opens: opens && Boolean(track.album),
     };
@@ -99,6 +102,6 @@ export function pressVerb(current: 'playing' | 'paused' | null): string {
 /** Whether two rows show the same thing. */
 export function sameRow(a: SongRowItem, b: SongRowItem) {
   return a === b || (a.key === b.key && a.track === b.track && a.index === b.index && a.number === b.number
-    && a.playlist?.itemId === b.playlist?.itemId && a.playlist?.id === b.playlist?.id && a.showArtist === b.showArtist && a.album === b.album && a.kind === b.kind
+    && a.playlist?.itemId === b.playlist?.itemId && a.playlist?.id === b.playlist?.id && a.showArtist === b.showArtist && a.album === b.album && a.artist === b.artist && a.kind === b.kind
     && a.opens === b.opens);
 }

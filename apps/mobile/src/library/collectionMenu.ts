@@ -16,6 +16,12 @@ export type CollectionRunners = {
   pin: (item: Collection, pinned: boolean) => void;
 };
 
+/** An album tile on an artist's page: its menu goes to the album's other artists only. */
+export function besideArtist(collection: Collection, artistId: string): Collection {
+  const artists = collection.artists?.filter(artist => artist.id !== artistId);
+  return artists && artists.length !== collection.artists?.length ? { ...collection, artists, otherArtists: true } : collection;
+}
+
 /** The kind and id that pin a collection to the top of the Library (`PUT /me/pins/:kind/:id`); null for what cannot be pinned. */
 export function pinTarget(item: Collection): [LibraryPinKind, string] | null {
   switch (item.kind) {
@@ -45,7 +51,7 @@ function ownActions(item: Collection, { offline, viewer }: { offline: boolean; v
   if (item.kind === 'album') {
     const plays = !offline && !item.dim && (!item.availability || albumPresentation({ availability: item.availability }, viewer) === 'normal');
     const artists = item.artists ?? [];
-    const entries = albumActions({ plays, offline, artists }, {
+    const entries = albumActions({ plays, offline, artists, named: item.otherArtists }, {
       play: shuffle => run.playAlbum(item.key, shuffle),
       enqueue: placement => run.enqueueAlbum(item, placement),
       addToPlaylist: () => run.addAlbumToPlaylist(item.key),
