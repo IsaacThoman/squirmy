@@ -68,6 +68,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 
 - [x] Imports: upload API, inbox folder, staging, zip extraction, duplicates, filing into a managed root (server)
 - [x] Upload screen in the web app: folders, files and zips with progress, pause and cancel; the imports list and detail; import settings
+- [x] A personal library: the library is what you heart (uploads hearted for their uploader), the server's music on Home and On this server, an opt-in to include all of it; Your uploads and Admin → Uploads to delete uploaded music (web; iOS next)
 - [x] Fingerprinting for untagged files
 - [x] Offline downloads on mobile
 
