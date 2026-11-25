@@ -98,6 +98,46 @@ describe('scrobble', () => {
       expect(service(removed, 'lastfm')).toMatchObject({ connected: false, enabled: false })
     })
 
+    it('returns an app that started the Last.fm approval to its own address', async () => {
+      await updateServerSettings(lastFmKeys)
+      const user = await signIn()
+      const start = (returnTo: string) => app.inject({ method: 'POST', url: '/api/v1/me/scrobbling/lastfm/start', headers: user.headers, payload: { returnTo } })
+      const { url } = body(await start('squirmy://settings'), LastFmConnectStart)
+      const callback = new URL(new URL(url).searchParams.get('cb')!)
+      expect(callback.searchParams.get('return')).toBe('squirmy://settings')
+      const state = callback.searchParams.get('state')!
+      const land = (query: string) => app.inject({ method: 'GET', url: `/api/v1/scrobbling/lastfm/callback?${query}` })
+      const returning = `state=${encodeURIComponent(state)}&return=${encodeURIComponent('squirmy://settings')}`
+
+      expect((await land(`${returning}&token=unauthorized-token`)).headers.location).toBe('squirmy://settings?lastfm=denied')
+      // Only the address the state signs is followed: dropped or swapped, the browser goes to the web app.
+      expect((await land(`state=${encodeURIComponent(state)}&token=authorized-token`)).headers.location).toBe('/settings?lastfm=invalid_state')
+      expect((await land(`state=${encodeURIComponent(state)}&return=${encodeURIComponent('squirmy-dev://settings')}&token=authorized-token`)).headers.location)
+        .toBe('/settings?lastfm=invalid_state')
+      expect((await land(`state=${encodeURIComponent(state)}&return=${encodeURIComponent('https://evil.example.test/')}&token=authorized-token`)).headers.location)
+        .toBe('/settings?lastfm=invalid_state')
+      expect((await loadScrobbling(user.id)).connections).toEqual({})
+
+      const connected = await land(`${returning}&token=authorized-token`)
+      expect(connected.statusCode).toBe(302)
+      expect(connected.headers.location).toBe('squirmy://settings?lastfm=connected')
+      expect(service(await status(user.headers), 'lastfm')).toMatchObject({ connected: true, account: 'squirmy-test' })
+
+      // An expired state still returns to the app that signed it, to say so there.
+      const expired = lastFmState(user.id, Date.now() - 11 * 60_000, 'squirmy-dev://settings')
+      expect((await land(`state=${encodeURIComponent(expired)}&return=${encodeURIComponent('squirmy-dev://settings')}&token=authorized-token`)).headers.location)
+        .toBe('squirmy-dev://settings?lastfm=invalid_state')
+    })
+
+    it('refuses to return a Last.fm approval anywhere but the app', async () => {
+      await updateServerSettings(lastFmKeys)
+      const user = await signIn()
+      for (const returnTo of ['https://evil.example.test/settings', 'javascript://alert(1)', '//evil.example.test', 'squirmy', 'squirmy:/settings', 'squirmy://set tings', `squirmy://${'a'.repeat(200)}`]) {
+        const response = await app.inject({ method: 'POST', url: '/api/v1/me/scrobbling/lastfm/start', headers: user.headers, payload: { returnTo } })
+        expect(response.statusCode, returnTo).toBe(400)
+      }
+    })
+
     it('refuses a Last.fm callback whose state is forged, expired or for another purpose', async () => {
       const user = await createUser()
       const other = await createUser()
