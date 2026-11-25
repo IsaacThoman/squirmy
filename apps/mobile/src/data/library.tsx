@@ -323,7 +323,7 @@ export function useWanted(id: string | undefined, fromServer?: boolean): boolean
 
 type AddChange = { id: string; tracks: readonly TrackSummary[]; anyway?: boolean };
 
-/** What adding answered: `skipped` when the playlist already had the songs, so the server left them out. */
+/** What adding answered: `skipped` when the playlist already had some of the songs, so the server left them out. */
 export type AddResult = { skipped: boolean };
 
 /**
@@ -335,7 +335,7 @@ export type AddResult = { skipped: boolean };
 export function usePlaylistActions() {
   const api = useSignedInApi();
   const queryClient = useQueryClient();
-  const { failPlaylist } = useLibrary();
+  const { failPlaylist, tracks: trackStore } = useLibrary();
   const settle = (playlist: PlaylistDetail | PlaylistSummary) => {
     if ('items' in playlist) queryClient.setQueryData(queryKeys.playlist(playlist.id), playlist);
     void queryClient.invalidateQueries({ queryKey: [...queryKeys.playlists(), 'list'] });
@@ -408,6 +408,21 @@ export function usePlaylistActions() {
      */
     has: (id: string, trackId: string) => cached(id)?.items.some(item => item.track.id === trackId),
     /**
+     * The tracks the playlist has already, from its page, which is loaded first when it is not
+     * cached (as on web, a minute-old copy is current enough: the server's invalidations refresh
+     * it). Empty when it can't be loaded: the server still leaves duplicates out.
+     */
+    repeated: async (id: string, tracks: readonly TrackSummary[]): Promise<TrackSummary[]> => {
+      const detail = api ? await queryClient.fetchQuery({ queryKey: queryKeys.playlist(id), queryFn: async () => {
+        const playlist = await api.userdata.playlist(id);
+        trackStore.prime(playlist.items.map(item => item.track));
+        return playlist;
+      }, staleTime: 60_000 })
+        .catch(() => undefined) : cached(id);
+      const there = new Set(detail?.items.map(item => item.track.id));
+      return tracks.filter(track => there.has(track.id));
+    },
+    /**
      * Adds the tracks, leaving out ones the playlist has unless `anyway` (the person chose to
      * add them again). Resolves once the server has answered; rejects when it refused.
      */
@@ -415,8 +430,8 @@ export function usePlaylistActions() {
       options: { anyway?: boolean } = {}): Promise<AddResult> => {
       const before = cached(playlist.id)?.items.length ?? playlist.trackCount;
       const answer = await add.mutateAsync({ id: playlist.id, tracks, anyway: options.anyway });
-      // The answer is the whole playlist, so an unchanged length is how a skipped duplicate shows.
-      return { skipped: !options.anyway && before !== undefined && answer.items.length === before };
+      // The answer is the whole playlist, so fewer new items than songs sent is how a skipped duplicate shows.
+      return { skipped: !options.anyway && before !== undefined && answer.items.length < before + tracks.length };
     },
     move: (id: string, itemId: string, toIndex: number) => edit.mutate({ id, itemId, toIndex }),
     /** Removes the item at once, with no Undo: the song can be added again from its menu. */
