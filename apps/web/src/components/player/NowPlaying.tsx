@@ -49,7 +49,7 @@ function NowPlayingStage({ player, pane, artwork }: { player: Player; pane: NowP
           {visited.has('lyrics') && <LyricsPane lyrics={player.state.lyrics} onSeek={player.controls.seek} />}
         </div>
         <div data-now-playing-scroll id="now-playing-queue" inert={pane !== 'queue'} aria-hidden={pane !== 'queue'} className="now-playing-pane now-playing-queue overflow-y-auto">
-          {visited.has('queue') && <QueueContent player={player} modes={false} />}
+          {visited.has('queue') && <QueueContent player={player} modes={false} shown={pane === 'queue'} overArtwork />}
         </div>
       </div>
     </div>

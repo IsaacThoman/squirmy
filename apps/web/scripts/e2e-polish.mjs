@@ -285,7 +285,7 @@ await step('the queue shows fetching as loading, on the current song only', asyn
   await button(`Play ${album.title}`).click()
   await button('Queue').click()
   const queue = page.getByRole('complementary', { name: 'Queue' })
-  const upNext = queue.getByRole('region', { name: 'Up next' })
+  const upNext = queue.getByRole('region', { name: /^(Continue Playing|Up Next)$/ })
   await queue.getByRole('region', { name: 'Now playing' }).getByRole('status', { name: 'Loading' }).waitFor({ timeout: 30_000 })
   const rows = await upNext.getByRole('listitem').count()
   check('the current song shows the loading spinner', true)
