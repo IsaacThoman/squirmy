@@ -18,6 +18,7 @@ import { invalidate, publishChanges } from '../../realtime/index.js'
 import { after, cursorKeys, orderBy, toPage, type Ordering } from '../catalog/pagination.js'
 import { isoTime, uuidArray } from '../catalog/sql.js'
 import { alignedTrackSummaries, servable } from '../catalog/summaries.js'
+import { recordCollectionAdd } from '../sessions/collection-plays.js'
 
 const playlistNotFound = () => notFound('No such playlist', 'playlist_not_found')
 /** Thrown by every path that would grow a playlist past `PLAYLIST_ITEM_LIMIT`. */
@@ -142,6 +143,8 @@ export async function createPlaylist(userId: string, input: CreatePlaylistReques
     }).returning()
     return row!
   })
+  // A new playlist heads the Library's Recently played, as a play would.
+  await recordCollectionAdd(userId, { type: 'playlist', id: row.id })
   await invalidatePlaylist(userId, row.isPublic)
   return (await playlistSummaries([row.id]))[0]!
 }
