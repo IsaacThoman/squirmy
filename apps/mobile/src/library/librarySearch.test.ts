@@ -1,6 +1,6 @@
 import type { AlbumSummary, SearchResults, TrackSummary } from '@squirmy/contracts';
 import { describe, expect, it } from 'vitest';
-import { inLibraryOnly, libraryAlbumMatches } from './librarySearch';
+import { inLibraryOnly, libraryAlbumMatches, shownMatches } from './librarySearch';
 
 const track = (id: string, inLibrary?: boolean) => ({ id, inLibrary }) as TrackSummary;
 
@@ -30,5 +30,25 @@ describe('libraryAlbumMatches', () => {
   it('shows none until the list is in, and all when it could not be read to its end', () => {
     expect(libraryAlbumMatches(found, undefined)).toEqual([]);
     expect(libraryAlbumMatches(found, { ids: ['listed'], complete: false })).toEqual(found);
+  });
+});
+
+describe('shownMatches', () => {
+  const results = {
+    artists: [{ id: 'saved', inLibrary: true }, { id: 'server', inLibrary: false }],
+    albums: [{ id: 'hearted', liked: true }, { id: 'server', liked: false }],
+    tracks: [track('saved', true), track('server', false)],
+    provider: null,
+  } as SearchResults;
+
+  it('keeps the Library to what is in it: a fresh library finds only its saves', () => {
+    const shown = shownMatches(results, 'library', { ids: [], complete: true });
+    expect(shown.artists.map(item => item.id)).toEqual(['saved']);
+    expect(shown.albums.map(item => item.id)).toEqual(['hearted']);
+    expect(shown.tracks.map(item => item.id)).toEqual(['saved']);
+  });
+
+  it('shows On this server everything the server found', () => {
+    expect(shownMatches(results, 'server', undefined)).toBe(results);
   });
 });

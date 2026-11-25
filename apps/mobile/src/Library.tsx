@@ -9,7 +9,7 @@ import { useAccount, useSignedInApi, useWantlistEnabled } from './account/Accoun
 import { shade } from './data/color';
 import {
   libraryMatchLimit, libraryMatchMinLength, useGenreCovers, useGenres, useHome, useLibraryAlbumIds,
-  useLibraryItems, useLibraryMatches, usePlaylists,
+  useLibraryItems, useLibraryMatches, usePlaylists, useServerAlbums,
 } from './data/queries';
 import { useLibraryActions, useLikeFailures } from './data/library';
 import { useAvailability, useViewer } from './downloads/DownloadsProvider';
@@ -18,14 +18,16 @@ import {
   type RowAction, type SearchHandle,
 } from './library/BrowseControls';
 import { libraryRows, type LibraryRow } from './library/libraryRows';
-import { libraryAlbumMatches } from './library/librarySearch';
+import { emptyLibrary, emptyServer, listsNothing } from './library/libraryEmpty';
+import { shownMatches } from './library/librarySearch';
 import { searchFilterLabels } from './library/search';
 import { useRecentSearches, useSearchList } from './library/useSearchList';
 import { useBriefFailures } from './inlineFeedback';
 import { radioFailure } from './library/failures';
 import { playbackStatus } from './player/usePlaybackStatus';
-import { defaultSort, sortNames, sortOptions, type SortName } from './library/sorting';
-import type { Page } from './library/links';
+import { defaultSort, serverDefaultSort, serverSort, serverSortNames, sortNames, sortOptions, type ServerSortName, type SortName } from './library/sorting';
+import { serverMusicHref, type Page } from './library/links';
+import { BrowseBackButton } from './library/AlbumButtons';
 import { useAlbumPlayer, useCollectionActions } from './library/collectionActions';
 import { scrollEdgeFade } from './edgeFade';
 import { displayFontScale, isAccessibilitySize } from './fontScale';
@@ -50,6 +52,8 @@ export type BrowseProps = {
   onOpenDevices?: () => void;
   onOpenAccount?: () => void;
   onOpenDownloads?: () => void;
+  /** A page pushed over the tab's own: its back button. */
+  onBack?: () => void;
   bottomInset?: number;
 };
 
@@ -68,8 +72,10 @@ function HomeRail({ section, link, onOpen, onTrackMenu }: { section: HomeSection
   const styles = useStyles();
   const actions = usePlaybackActions();
   // A song row shows its first five; the rest are a page away, since Play plays them all.
+  // New on this server (`recently-added`) is the server's music, all of it On this server.
   const seeAll = section.id === 'recently-played' ? () => onOpen(link('playlist', 'recent'))
-    : section.kind === 'tracks' && section.tracks.length > homeSongLimit ? () => onOpen(link('songs', `home~${section.id}`)) : undefined;
+    : section.id === 'recently-added' ? () => { tapFeedback(); onOpen(serverMusicHref('home')); }
+      : section.kind === 'tracks' && section.tracks.length > homeSongLimit ? () => onOpen(link('songs', `home~${section.id}`)) : undefined;
   return <View style={styles.homeSection}>
     <SectionTitle title={section.title} onPress={seeAll} />
     {section.kind === 'albums' && <CollectionRail items={section.albums.map(album => albumCollection(album, link))}
@@ -138,17 +144,15 @@ const libraryWindow = 7;
 
 const libraryRowKey = (row: LibraryRow) => row.key;
 
-/**
- * What an empty Library says. The library is what this user hearted plus the music the
- * server's owner brought, not everything that was ever played, so it starts out empty for
- * someone who only streams; Home's Recently played and Most played carry what they listened to.
- */
-const emptyLibrary = {
-  icon: 'square.stack', title: 'Add music to your library',
-  description: 'Albums and songs you save show up here, with the music stored on your server. Find something you love and tap the heart.',
-} as const;
+/** The space a pushed page keeps over its title for the floating back button (`albumNavSize` on the other pages). */
+const backButtonSpace = 8 + 44;
 
-export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bottomInset = 155 }: BrowseProps) {
+/**
+ * The Library: the user's albums, artists, playlists and Liked Songs. With `server`, On this
+ * server (Home's See all): the server's albums, whatever is in the library, with the same
+ * grid or list, sorts (but Recently played) and search, and no pins or playlists, as web's.
+ */
+export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, onBack, server = false, bottomInset = 155 }: BrowseProps & { server?: boolean }) {
   const styles = useStyles();
   const collectionDim = useCollectionDim();
   const collectionActions = useCollectionActions();
@@ -161,59 +165,63 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
   const list = useAnimatedRef<Animated.FlatList<LibraryRow>>();
   const scrollOffset = useScrollOffset(list);
   useTabRetap(() => list.current?.scrollToOffset({ offset: 0, animated: true }));
-  const [sortName, setSortName] = useState<SortName>(defaultSort);
+  const [sortName, setSortName] = useState<SortName>(server ? serverDefaultSort : defaultSort);
   const [grid, setGrid] = useState(true);
   const [showSearch, setShowSearch] = useState(false);
   const [query, setQuery] = useState('');
   const sort = sortOptions[sortName];
   const columns = gridColumns(width, fontScale);
   const size = Math.floor((width - gutter * 2 - (columns - 1) * 12) / columns);
-  const library = useLibraryItems(sort);
+  const libraryItems = useLibraryItems(sort, !server);
+  const serverAlbums = useServerAlbums(server && sort !== 'played' ? sort : serverSort(serverDefaultSort), server);
+  const library = server ? serverAlbums : libraryItems;
   // A single character narrows what is loaded. Longer queries search the server's library.
   const searching = [...query.trim()].length >= libraryMatchMinLength;
   const libraryFound = useLibraryMatches(query);
-  const playlists = usePlaylists(searching);
+  const playlists = usePlaylists(searching && !server);
   // The search finds albums with any file on the server; the Albums list's own membership
-  // decides which of them are in the library (`libraryAlbumMatches`).
-  const albumIds = useLibraryAlbumIds(searching);
+  // decides which of them are in the library (`libraryAlbumMatches`). On this server keeps them all.
+  const albumIds = useLibraryAlbumIds(searching && !server);
   // A list that could not be read cannot rule a match out.
   const membership = useMemo(() => albumIds.data ?? (albumIds.isError ? { ids: [], complete: false } : undefined), [albumIds.data, albumIds.isError]);
-  const pending = libraryFound.pending || (albumIds.isPending && !albumIds.isError);
-  const matched = useMemo(() => libraryFound.data && { ...libraryFound.data, albums: libraryAlbumMatches(libraryFound.data.albums, membership) },
-    [libraryFound.data, membership]);
+  const pending = libraryFound.pending || (!server && albumIds.isPending && !albumIds.isError);
+  const matched = useMemo(() => libraryFound.data && shownMatches(libraryFound.data, server ? 'server' : 'library', membership),
+    [libraryFound.data, membership, server]);
   const active = searching ? libraryFound : library;
 
   // Sorted by year, the year says why an album is where it is.
   const albumSubtitle = useCallback((album: AlbumSummary) => sort === 'year' && album.year ? `${album.artistCredit} · ${album.year}` : album.artistCredit, [sort]);
   // The server lists the pins first; whether each item is pinned is known here, not in a search.
-  const allItems = useMemo(() => library.items.map((item: LibraryItem): Collection => {
-    const pinned = { pinned: item.pinned };
-    switch (item.kind) {
-      case 'liked': return { ...likedCollection(link), ...pinned };
-      case 'playlist': return { ...playlistCollection(item.playlist, link), ...pinned };
-      case 'album': return { ...albumCollection(item.album, link, albumSubtitle(item.album)), ...pinned };
-      case 'artist': return { ...artistCollection(item.artist, link), ...pinned };
-    }
-  }), [albumSubtitle, library.items, link]);
+  // The server's albums have no pins: `pinned` stays unknown, so their menus offer none.
+  const allItems = useMemo(() => server ? serverAlbums.items.map(album => albumCollection(album, link, albumSubtitle(album)))
+    : libraryItems.items.map((item: LibraryItem): Collection => {
+      const pinned = { pinned: item.pinned };
+      switch (item.kind) {
+        case 'liked': return { ...likedCollection(link), ...pinned };
+        case 'playlist': return { ...playlistCollection(item.playlist, link), ...pinned };
+        case 'album': return { ...albumCollection(item.album, link, albumSubtitle(item.album)), ...pinned };
+        case 'artist': return { ...artistCollection(item.artist, link), ...pinned };
+      }
+    }), [albumSubtitle, libraryItems.items, link, server, serverAlbums.items]);
   const items = useMemo(() => {
     if (!searching) return allItems.filter(item => matches(query, item.title, item.subtitle)).map(collectionDim);
-    const matchingPlaylists = [likedCollection(link), ...playlists.items.map(playlist => playlistCollection(playlist, link))]
+    const matchingPlaylists = server ? [] : [likedCollection(link), ...playlists.items.map(playlist => playlistCollection(playlist, link))]
       .filter(item => matches(query, item.title, item.subtitle));
     return [
       ...matchingPlaylists,
       ...(matched?.albums ?? []).map(album => albumCollection(album, link)),
       ...(matched?.artists ?? []).map(artist => artistCollection(artist, link)),
     ].map(collectionDim);
-  }, [allItems, link, matched, collectionDim, playlists.items, query, searching]);
+  }, [allItems, link, matched, collectionDim, playlists.items, query, searching, server]);
   const tracks = useMemo(() => searching ? matched?.tracks ?? [] : [], [matched, searching]);
   const songItems = useSongListItems({
     tracks, onTrackMenu: track => onTrackMenu(track),
     onPlay: start => actions.playTracks(tracks, { start, context: { type: 'other', id: null, title: 'Songs' } }),
   });
   const empty = !items.length && !tracks.length;
-  // The server always includes Liked Songs, even for a new library.
-  const libraryEmpty = !query && library.data && !library.hasNextPage && library.items.every(item => item.kind === 'liked');
-  // Counted before albums outside the library are left out: the server stopped at the limit either way.
+  const libraryEmpty = !query && library.data && !library.hasNextPage
+    && listsNothing(server ? { server, items: serverAlbums.items } : { server, items: libraryItems.items });
+  // Counted before what is outside the library is left out: the server stopped at the limit either way.
   const answered = libraryFound.data;
   const capped = searching && answered && Math.max(answered.albums.length, answered.tracks.length, answered.artists.length) >= libraryMatchLimit;
 
@@ -233,8 +241,14 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
         cover={<CollectionCover item={row.item} size={50} radius={9} />} href={row.item.href} actions={collectionActions(row.item)} />;
     }
   }, [collectionActions, renderSong, size, styles]);
-  // An empty library is an invitation: Search is where music is found and added.
-  const findMusic = { title: 'Find music', onPress: () => { tapFeedback(); router.navigate('/(tabs)/(search)'); } };
+  // An empty library is an invitation: the server's music is a page away, and Search finds the rest.
+  const emptyActions = [
+    { title: 'Browse this server', onPress: () => { tapFeedback(); onOpen(serverMusicHref('library')); } },
+    { title: 'Find music', onPress: () => { tapFeedback(); router.navigate('/(tabs)/(search)'); } },
+  ];
+  const title = server ? 'On this server' : 'Library';
+  // A pushed page keeps the top for its floating back button, as the other pages do.
+  const contentTop = top + (onBack ? backButtonSpace : contentGap);
 
   const newPlaylist = () => {
     tapFeedback();
@@ -247,30 +261,35 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
       keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
       onEndReached={searching ? undefined : library.loadMore} onEndReachedThreshold={1.5}
       contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false}
-      contentContainerStyle={[styles.libraryBody, { paddingTop: top + contentGap, paddingBottom: bottomInset }]}
+      contentContainerStyle={[styles.libraryBody, { paddingTop: contentTop, paddingBottom: bottomInset }]}
       ListHeaderComponent={<>
         <View style={[styles.pageHeader, styles.libraryHeader]}>
-          <Text accessibilityRole="header" maxFontSizeMultiplier={displayFontScale} style={[styles.pageTitle, styles.flex]}>Library</Text>
+          <Text accessibilityRole="header" maxFontSizeMultiplier={displayFontScale} style={[styles.pageTitle, styles.flex]}>{title}</Text>
           <OfflineBadge />
-          {onOpenDownloads && <BrowseButton glass icon="arrow.down.circle" label="Downloads" onPress={() => { tapFeedback(); onOpenDownloads(); }} />}
-          <BrowseButton glass icon={showSearch ? 'xmark' : 'magnifyingglass'} label={showSearch ? 'Close library search' : 'Search library'} onPress={() => {
+          {onOpenDownloads && !server && <BrowseButton glass icon="arrow.down.circle" label="Downloads" onPress={() => { tapFeedback(); onOpenDownloads(); }} />}
+          <BrowseButton glass icon={showSearch ? 'xmark' : 'magnifyingglass'}
+            label={showSearch ? `Close ${server ? 'search of this server' : 'library search'}` : server ? 'Search this server' : 'Search library'} onPress={() => {
             tapFeedback();
             if (showSearch) setQuery('');
             setShowSearch(!showSearch);
           }} />
         </View>
-        {showSearch && <View style={styles.librarySearch}><SearchField value={query} onChange={setQuery} placeholder="Find in your library" autoFocus /></View>}
+        {showSearch && <View style={styles.librarySearch}>
+          <SearchField value={query} onChange={setQuery} placeholder={server ? 'Find on this server' : 'Find in your library'} autoFocus />
+        </View>}
         <View style={styles.sortRow}>
           {/* Matches from the server come best first, whatever the sort. */}
-          {!searching && <LibrarySort options={sortNames} value={sortName} onChange={setSortName} />}
+          {!searching && (server
+            ? <LibrarySort<ServerSortName> options={serverSortNames} value={sortName === 'Recently played' ? serverDefaultSort : sortName} onChange={setSortName} />
+            : <LibrarySort options={sortNames} value={sortName} onChange={setSortName} />)}
           <View style={styles.libraryActions}>
-            {!offline && <BrowseButton label="New playlist" icon="plus" onPress={newPlaylist} />}
+            {!offline && !server && <BrowseButton label="New playlist" icon="plus" onPress={newPlaylist} />}
             <BrowseButton label={grid ? 'Show list view' : 'Show grid view'} icon={grid ? 'list.bullet' : 'square.grid.2x2'}
               onPress={() => { tapFeedback(); setGrid(!grid); }} />
           </View>
         </View>
-        {!active.data && <QueryState query={active} what="your library" />}
-        {libraryEmpty && <EmptyState {...emptyLibrary} action={findMusic} />}
+        {!active.data && <QueryState query={active} what={server ? 'this server’s music' : 'your library'} />}
+        {libraryEmpty && (server ? <EmptyState {...emptyServer} /> : <EmptyState {...emptyLibrary} actions={emptyActions} />)}
         {query && active.data && empty && !(searching && pending) && <EmptyState icon="magnifyingglass" title="Nothing found"
           description="Try another search." />}
       </>}
@@ -278,7 +297,8 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, bott
         {(searching ? pending && !empty : library.isFetchingNextPage) && <ActivityIndicator style={styles.more} />}
         {capped && <Text style={styles.matchNote}>Showing the best {libraryMatchLimit} matches. Type more to narrow them down.</Text>}
       </>} />
-    <ScrollEdge solid={top} fade={scrollEdgeFade} scrollOffset={scrollOffset} contentGap={contentGap} />
+    <ScrollEdge solid={top} fade={scrollEdgeFade} scrollOffset={scrollOffset} contentGap={contentTop - top} />
+    {onBack && <View pointerEvents="box-none" style={[styles.nav, { top: top + 8 }]}><BrowseBackButton onPress={onBack} /></View>}
   </View>;
 }
 
@@ -485,6 +505,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   homeOffline: { marginLeft: gutter, marginTop: -9, marginBottom: 19, alignSelf: 'flex-start' },
   pageTitle: { color: colors.text, fontSize: 37, letterSpacing: -1.65, fontWeight: '800' },
   pageHeader: { marginHorizontal: gutter, flexDirection: 'row', alignItems: 'center', minHeight: 48, gap: 12 },
+  nav: { position: 'absolute', left: 0, right: 0, zIndex: 2, flexDirection: 'row', alignItems: 'center', paddingHorizontal: gutter },
   homeSection: { marginTop: 26 },
   libraryHeader: { marginHorizontal: 0, marginBottom: 10 },
   librarySearch: { paddingBottom: 8 },

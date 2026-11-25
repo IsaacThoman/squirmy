@@ -37,3 +37,14 @@ export function libraryAlbumMatches(albums: readonly AlbumSummary[], membership:
   const listed = new Set(membership.ids);
   return albums.filter(album => album.liked === true || listed.has(album.id));
 }
+
+/**
+ * What a search shows of the server's answer: the Library its own matches (`inLibraryOnly`,
+ * `libraryAlbumMatches`); On this server (`server`) all of them, as web's does, since the
+ * server's music is no longer in every library.
+ */
+export function shownMatches(results: SearchResults, scope: 'library' | 'server', membership: AlbumMembership | undefined): SearchResults {
+  if (scope === 'server') return results;
+  const kept = inLibraryOnly(results);
+  return { ...kept, albums: libraryAlbumMatches(kept.albums, membership) };
+}

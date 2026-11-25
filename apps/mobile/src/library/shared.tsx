@@ -217,9 +217,14 @@ export function SectionTitle({ title, detail, onPress, style }: { title: string;
   </View>;
 }
 
-/** `action.busy`: it has started and not finished; a spinner stands in for it, so one tap asks once. */
-export function EmptyState({ icon, title, description, action }: {
-  icon: string; title: string; description: string; action?: { title: string; onPress: () => void; busy?: boolean };
+type EmptyAction = { title: string; onPress: () => void; busy?: boolean };
+
+/**
+ * `action.busy`: it has started and not finished; a spinner stands in for it, so one tap asks
+ * once. `actions`: more than one way on, one under the other.
+ */
+export function EmptyState({ icon, title, description, action, actions = action ? [action] : [] }: {
+  icon: string; title: string; description: string; action?: EmptyAction; actions?: readonly EmptyAction[];
 }) {
   const colors = useColors();
   const styles = useStyles();
@@ -227,9 +232,9 @@ export function EmptyState({ icon, title, description, action }: {
     <Icon name={icon} size={30} color={colors.accent} />
     <Text style={styles.emptyTitle}>{title}</Text>
     <Text style={styles.emptyDescription}>{description}</Text>
-    {action && <View style={styles.emptyAction}>{action.busy
-      ? <ActivityIndicator accessibilityLabel={`${action.title}…`} color={colors.muted} style={styles.emptyBusy} />
-      : <BrowseButton label={action.title} title={action.title} onPress={action.onPress} />}</View>}
+    {actions.length > 0 && <View style={styles.emptyAction}>{actions.map(item => item.busy
+      ? <ActivityIndicator key={item.title} accessibilityLabel={`${item.title}…`} color={colors.muted} style={styles.emptyBusy} />
+      : <BrowseButton key={item.title} label={item.title} title={item.title} onPress={item.onPress} />)}</View>}
   </View>;
 }
 
@@ -296,7 +301,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   empty: { alignItems: 'center', gap: 7, padding: 28, marginTop: 22 },
   emptyTitle: { color: colors.text, fontSize: 19, fontWeight: '700', textAlign: 'center', marginTop: 6 },
   emptyDescription: { color: colors.muted, fontSize: 14, textAlign: 'center', lineHeight: 21 },
-  emptyAction: { marginTop: 4 },
+  emptyAction: { marginTop: 4, alignItems: 'center' },
   emptyBusy: { width: 44, height: 44 },
   loading: { paddingVertical: 60, alignItems: 'center' },
   // At least 28 tall, taller when the text is large, so the word is never cut.
