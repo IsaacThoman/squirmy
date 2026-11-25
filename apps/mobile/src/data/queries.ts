@@ -93,6 +93,20 @@ export function usePlaylists(enabled = true) {
   return usePagedQuery([...queryKeys.playlists(), 'list'], (api, cursor) => api.userdata.playlists({ cursor, limit: pageSize }), enabled);
 }
 
+/**
+ * Every one of the user's playlists, for finding one by name: the pages after the first are
+ * asked for at once rather than as a list scrolls. A page that fails stops there; `complete`
+ * says whether the list is whole.
+ */
+export function useAllPlaylists(enabled = true) {
+  const list = usePlaylists(enabled);
+  const { hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage } = list;
+  useEffect(() => {
+    if (enabled && hasNextPage && !isFetchingNextPage && !isFetchNextPageError) void fetchNextPage();
+  }, [enabled, hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage]);
+  return { ...list, complete: Boolean(list.data) && !hasNextPage };
+}
+
 /** `enabled: false` for a screen that may not need the album, such as a song's add-to-playlist sheet. */
 export function useAlbum(id: string, { enabled = true }: { enabled?: boolean } = {}) {
   const prime = usePrime();

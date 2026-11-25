@@ -1,22 +1,7 @@
 import { formatReleaseDate } from '@squirmy/client-core'
 
 // One set of formatters for both apps, so a length reads the same on the web and on iOS.
-export { formatDuration, formatReleaseDate, formatRemaining, formatTotalDuration } from '@squirmy/client-core'
-
-export function plural(count: number, one: string, many = `${one}s`): string {
-  return `${count.toLocaleString()} ${count === 1 ? one : many}`
-}
-
-export function formatBytes(bytes: number): string {
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  let value = bytes
-  let unit = 0
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024
-    unit++
-  }
-  return `${value.toFixed(value < 10 && unit > 0 ? 1 : 0)} ${units[unit]}`
-}
+export { formatBytes, formatDuration, formatReleaseDate, formatRemaining, formatTotalDuration, plural } from '@squirmy/client-core'
 
 const relative = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
 const steps: [Intl.RelativeTimeFormatUnit, number][] = [

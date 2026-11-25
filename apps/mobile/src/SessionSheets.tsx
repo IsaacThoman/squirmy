@@ -1,4 +1,4 @@
-import type { SessionMoveResult } from '@squirmy/client-core';
+import { plural, type SessionMoveResult } from '@squirmy/client-core';
 import { PLAYLIST_NAME_MAX_LENGTH, type DeviceInfo, type PlaylistSummary, type TrackSummary as Track } from '@squirmy/contracts';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
@@ -11,7 +11,7 @@ import { useRealtime } from './data/realtime';
 import { useCanPlay, useViewer } from './downloads/DownloadsProvider';
 import { unavailableReason } from './downloads/model';
 import { awaitsTrackList } from './data/albums';
-import { useAlbum, usePlaylists } from './data/queries';
+import { useAlbum, useAllPlaylists } from './data/queries';
 import { usePageLinks } from './library/links';
 import { matches } from './library/shared';
 import { trackActionKey, useRunTrackAction, useTrackActions } from './library/trackActions';
@@ -182,7 +182,7 @@ export function AddToPlaylistSheet({ trackId, albumId }: { trackId?: string; alb
   const { songs, track, album } = useSongsToAdd(trackId, albumId);
   const { state } = useAccount();
   const userId = state.status === 'signedIn' ? state.user.id : null;
-  const list = usePlaylists();
+  const list = useAllPlaylists();
   const owned = list.items.filter(playlist => playlist.ownerId === userId);
   const [query, setQuery] = useState('');
   const playlists = usePlaylistActions();
@@ -192,9 +192,6 @@ export function AddToPlaylistSheet({ trackId, albumId }: { trackId?: string; alb
   const sending = useRef(false);
   const [failed, setFailed] = useState<string | null>(null);
   const open = useOpenRef();
-  useEffect(() => {
-    if (list.hasNextPage) list.loadMore();
-  }, [list.hasNextPage, list.items.length]);
   // As in Apple Music, songs the playlist already has are added again only when asked to; for
   // an album, as on web, Skip adds only the others. The sheet stays open while it asks, so
   // another playlist can be chosen instead.
@@ -255,7 +252,7 @@ export function AddToPlaylistSheet({ trackId, albumId }: { trackId?: string; alb
   };
   const rows = (items: readonly PlaylistSummary[]) => items.map(playlist => (
     <SheetRow key={playlist.id} title={playlist.name} icon="music.note.list" busy={adding === playlist.id}
-      subtitle={`${playlist.trackCount} ${playlist.trackCount === 1 ? 'song' : 'songs'}`} onPress={() => add(playlist)} />
+      subtitle={plural(playlist.trackCount, 'song')} onPress={() => add(playlist)} />
   ));
   const many = owned.length > fittingPlaylists;
   return (

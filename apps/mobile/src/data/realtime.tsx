@@ -1,6 +1,6 @@
 import { planChanges, RealtimeBatch, type ChangePlan } from '@squirmy/client-core';
 import type { SquirmySocket } from '@squirmy/client-core/socket';
-import { HEARTBEAT_INTERVAL_MS, HEARTBEAT_TIMEOUT_MS, queryKeys, type EntityChange } from '@squirmy/contracts';
+import { HEARTBEAT_INTERVAL_MS, HEARTBEAT_TIMEOUT_MS, queryKeys, type EntityChange, type ServerEvent } from '@squirmy/contracts';
 import { useQueryClient } from '@tanstack/react-query';
 import * as Network from 'expo-network';
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
@@ -13,6 +13,7 @@ import { Echoes } from './echoes';
 import { BackgroundPresence } from './presence';
 import { offlineAt, type SocketLink } from './reachability';
 import { refreshAfterReconnect } from './reconnect';
+import { scanRoots, scanTotal, type ScanProgress, type ScanRoots } from './scanProgress';
 
 type Keys = readonly (readonly unknown[])[];
 /** `own`: the echo of a change this device made, whose result it already shows. */
@@ -222,4 +223,22 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
 
 export function useRealtime(): Realtime {
   return useContext(RealtimeContext);
+}
+
+/**
+ * How far the server's scan of its library folders has come, as web's Home shows it. The
+ * server tells only admins, so for anyone else this stays null.
+ */
+export function useScanProgress(): ScanProgress | null {
+  const { socket } = useContext(RealtimeContext);
+  const [roots, setRoots] = useState<ScanRoots>({});
+  useEffect(() => {
+    if (!socket) return;
+    const onEvent = (event: ServerEvent) => {
+      if (event.type === 'scan.progress') setRoots(current => scanRoots(current, event));
+    };
+    socket.on('event', onEvent);
+    return () => { socket.off('event', onEvent); };
+  }, [socket]);
+  return scanTotal(roots);
 }

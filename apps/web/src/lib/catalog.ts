@@ -2,7 +2,7 @@ import { ARTIST_SECTION_KEYS, type AlbumDetail, type ArtistSectionKey, type User
 
 // What plays and how it looks is one rule shared with the iOS app, so the two cannot drift.
 export {
-  albumNote, albumPresentation, albumTitleKey, albumTypeLabel, canFetch, isPlayable, librarySave, relatedAlbums, releaseSubtitle, UNAVAILABLE_LABEL, type Viewer,
+  albumNote, albumPresentation, albumTitleKey, albumTypeLabel, artistAvailabilityNote, artistReleaseCounts, canFetch, isPlayable, librarySave, relatedAlbums, releaseSubtitle, UNAVAILABLE_LABEL, type Viewer,
 } from '@squirmy/client-core'
 
 /** The headings of an artist page's sections. */

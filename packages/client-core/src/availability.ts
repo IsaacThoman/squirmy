@@ -1,4 +1,5 @@
-import type { AlbumSummary, TrackSummary, User } from '@squirmy/contracts'
+import type { AlbumSummary, ArtistDetail, TrackSummary, User } from '@squirmy/contracts'
+import { plural } from './format.js'
 
 /**
  * The parts of a user that decide what they can play. Null or undefined (signed out, or
@@ -68,4 +69,27 @@ export type LibrarySave = { saved: boolean; label: string }
 export function librarySave(item: { liked: boolean }, saved?: boolean): LibrarySave {
   const value = saved ?? item.liked
   return { saved: value, label: value ? 'Remove from library' : 'Save to library' }
+}
+
+/**
+ * How many of an artist's releases there are, and how many play for a viewer who may not
+ * fetch music. A server that predates the counts sends every release in `albums`, so they
+ * are counted there.
+ */
+export function artistReleaseCounts(
+  artist: Pick<ArtistDetail, 'albums' | 'releaseCount' | 'ownedReleaseCount'>, viewer: Viewer | null | undefined,
+): { total: number; playing: number } {
+  if (artist.releaseCount !== undefined && artist.ownedReleaseCount !== undefined) return { total: artist.releaseCount, playing: artist.ownedReleaseCount }
+  return { total: artist.albums.length, playing: artist.albums.filter(album => albumPresentation(album, viewer) === 'normal').length }
+}
+
+/**
+ * Only someone who may not fetch music is told how much of a discography plays: `3 of
+ * 12 releases available`. Null when everything plays for this viewer.
+ */
+export function artistAvailabilityNote(
+  artist: Pick<ArtistDetail, 'albums' | 'releaseCount' | 'ownedReleaseCount'>, viewer: Viewer | null | undefined,
+): string | null {
+  const { total, playing } = artistReleaseCounts(artist, viewer)
+  return canFetch(viewer) || playing >= total ? null : `${playing.toLocaleString()} of ${plural(total, 'release')} available`
 }

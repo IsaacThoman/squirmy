@@ -1,6 +1,6 @@
 import { useContext, useSyncExternalStore } from 'react';
 import { Alert, Platform } from 'react-native';
-import { formatBytes } from '../downloads/model';
+import { formatBytes, plural } from '@squirmy/client-core';
 import { tapFeedback } from '../library/shared';
 import { StreamingCacheContext } from './context';
 import { clearCacheMessage } from './model';
@@ -23,7 +23,7 @@ export function useStorageSection() {
   return {
     limitBytes,
     setLimit,
-    used: summary.count ? `${summary.count} ${summary.count === 1 ? 'song' : 'songs'} · ${formatBytes(summary.usedBytes)}` : 'Nothing yet',
+    used: summary.count ? `${plural(summary.count, 'song')} · ${formatBytes(summary.usedBytes)}` : 'Nothing yet',
     empty: !summary.count,
     // One tap would empty what plays offline, so it asks first, as Sign out does.
     clear: () => {

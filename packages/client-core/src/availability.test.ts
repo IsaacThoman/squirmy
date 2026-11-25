@@ -1,6 +1,6 @@
 import type { AlbumSummary, TrackAvailability } from '@squirmy/contracts'
 import { describe, expect, it } from 'vitest'
-import { albumNote, albumPresentation, canFetch, isPlayable, librarySave, UNAVAILABLE_LABEL, type Viewer } from './availability.js'
+import { albumNote, albumPresentation, artistAvailabilityNote, artistReleaseCounts, canFetch, isPlayable, librarySave, UNAVAILABLE_LABEL, type Viewer } from './availability.js'
 
 const admin: Viewer = { role: 'admin', canAcquire: false }
 const fetcher: Viewer = { role: 'member', canAcquire: true }
@@ -65,5 +65,28 @@ describe('librarySave', () => {
   it('follows what the user just did ahead of the server', () => {
     expect(librarySave({ liked: false }, true)).toEqual({ saved: true, label: 'Remove from library' })
     expect(librarySave({ liked: true }, false)).toEqual({ saved: false, label: 'Save to library' })
+  })
+})
+
+describe('artistAvailabilityNote', () => {
+  const release = (availability: AlbumSummary['availability']) => ({ availability, trackCount: 10, ownedTrackCount: 0 }) as AlbumSummary
+  const counted = { albums: [], releaseCount: 1200, ownedReleaseCount: 3 }
+
+  it('tells someone who may not fetch how much of the discography plays', () => {
+    expect(artistAvailabilityNote(counted, member)).toBe('3 of 1,200 releases available')
+    expect(artistAvailabilityNote(counted, null)).toBe('3 of 1,200 releases available')
+  })
+
+  it('says nothing to a requester, or when everything plays', () => {
+    expect(artistAvailabilityNote(counted, admin)).toBeNull()
+    expect(artistAvailabilityNote(counted, fetcher)).toBeNull()
+    expect(artistAvailabilityNote({ albums: [], releaseCount: 4, ownedReleaseCount: 4 }, member)).toBeNull()
+  })
+
+  it('counts the albums sent when an older server leaves the counts out', () => {
+    const artist = { albums: [release('full'), release('on_demand'), release('none')] }
+    expect(artistReleaseCounts(artist, member)).toEqual({ total: 3, playing: 1 })
+    expect(artistReleaseCounts(artist, fetcher)).toEqual({ total: 3, playing: 2 })
+    expect(artistAvailabilityNote(artist, member)).toBe('1 of 3 releases available')
   })
 })
