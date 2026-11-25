@@ -12,6 +12,7 @@ import { DownloadsProvider } from '../src/downloads/DownloadsProvider';
 import Player from '../src/Player';
 import { PlayerTransitionProvider } from '../src/player/transition';
 import { PlaybackProvider } from '../src/playback';
+import { noScrollEdgeEffects } from '../src/scrollEdgeEffects';
 import { StreamingCacheProvider } from '../src/streamingCache/StreamingCacheProvider';
 import { useAppearance, useColors } from '../src/theme';
 
@@ -68,7 +69,7 @@ function Routes() {
 
   if (restoring) return null;
   return <>
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background }, scrollEdgeEffects: noScrollEdgeEffects }}>
       <Stack.Protected guard={state.status === 'connect'}>
         <Stack.Screen name="connect" options={authOptions} />
       </Stack.Protected>
