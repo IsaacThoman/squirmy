@@ -8,6 +8,8 @@ import { Cover, Icon } from '../ui';
 import { miniCoverSize, usePlayerTransition } from './transition';
 import { createThemedStyles, useColors } from '../theme';
 import { usePlaybackStatus } from './usePlaybackStatus';
+import { useCurrentTrackHeart } from './useCurrentTrackHeart';
+import { heartColor } from '../library/heart';
 import { usePlayerShown } from './visibility';
 import { skipActions, SwipeTitles, useSkipNeighbours, type SkipSwipe } from './SwipeTitles';
 
@@ -32,6 +34,7 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
   const { previous, next } = useSkipNeighbours(session, queue);
   const loading = useLoading();
   const status = usePlaybackStatus();
+  const { heart, toggle: toggleLiked } = useCurrentTrackHeart();
   // Until the current song's details load, say nothing rather than claim nothing is playing.
   const title = track?.title ?? (current ? '' : 'Not Playing');
   // What playback has to say comes first, for its few seconds or for as long as the pause it explains.
@@ -65,6 +68,10 @@ export function MiniPlayerContent({ compact = false, native = false, containerRe
         {!compact && <Pressable accessibilityRole="button" accessibilityLabel={deviceLabel}
           style={styles.control} onPress={onDevices}>
           <Icon name={detached ? DETACHED_SYMBOL : 'laptopcomputer.and.iphone'} size={21} color={remote || detached ? colors.accent : colors.muted} />
+        </Pressable>}
+        {!compact && track && <Pressable accessibilityRole="button" accessibilityLabel={heart.label} accessibilityState={{ selected: heart.selected }}
+          style={styles.control} onPress={preview ? undefined : toggleLiked}>
+          <Icon name={heart.icon} size={21} color={heartColor(heart, colors, colors.muted)} />
         </Pressable>}
         <Pressable accessibilityRole="button" accessibilityLabel={playPauseLabel(session.playing, loading)}
           accessibilityState={{ busy: loading !== 'none' }} onPress={preview ? undefined : actions.playPause} style={styles.control}>

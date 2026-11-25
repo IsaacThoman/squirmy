@@ -51,7 +51,7 @@ type Wave = { shift: SharedValue<number>; clock: SharedValue<number>; from: Shar
  * or scrolling back up, brings it back. Scrolling by hand clears the blur, and a few seconds after the scroll rests
  * the page goes back to the sung line. The rules are `lyricsChrome`'s.
  */
-export default function LyricsPage({ selected, ref, onControlsHidden }: LyricsProps) {
+export default function LyricsPage({ selected, ref, onControlsHidden, keepControls }: LyricsProps) {
   const shown = usePlayerShown();
   const visible = selected && shown;
   const { height: screenHeight, fontScale } = useWindowDimensions();
@@ -70,7 +70,7 @@ export default function LyricsPage({ selected, ref, onControlsHidden }: LyricsPr
 
   // Plain lyrics have no sung line to keep up with, so the transport stays for them, and while
   // paused, and while VoiceOver runs: its users find the controls where they left them.
-  const rules: ChromeRules = { canHide: visible && timed && session.playing && !screenReader, synced: timed };
+  const rules: ChromeRules = { canHide: visible && timed && session.playing && !screenReader && !keepControls, synced: timed };
   const rulesRef = useRef(rules);
   rulesRef.current = rules;
   const [chrome, setChrome] = useState(initialChrome);
@@ -92,7 +92,7 @@ export default function LyricsPage({ selected, ref, onControlsHidden }: LyricsPr
     const timer = setTimeout(() => dispatch({ type: 'tick' }), Math.max(0, deadline - Date.now()));
     return () => clearTimeout(timer);
   }, [chrome, dispatch]);
-  const controlsHidden = visible && !chrome.controls;
+  const controlsHidden = visible && !keepControls && !chrome.controls;
   useEffect(() => onControlsHidden?.(controlsHidden), [controlsHidden, onControlsHidden]);
   useEffect(() => () => onControlsHidden?.(false), [onControlsHidden]);
 
