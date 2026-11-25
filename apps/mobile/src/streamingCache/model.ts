@@ -1,6 +1,6 @@
-import { reduceSession, type Session } from '@squirmy/client-core';
+import { formatBytes, GIGABYTE, plural, reduceSession, type Session } from '@squirmy/client-core';
 import type { PlaybackDescriptor, QueueEntry, StreamQuality, TrackSummary } from '@squirmy/contracts';
-import { checkIntervalMs, formatBytes, type NetworkKind } from '../downloads/model';
+import { checkIntervalMs, type NetworkKind } from '../downloads/model';
 
 /**
  * One recording kept by the streaming cache, in one quality. Unlike a download nobody
@@ -30,12 +30,11 @@ export type CacheRow = {
   checkedAt: number;
 };
 
-const gigabyte = 1000 ** 3;
-export const defaultLimitBytes = 2 * gigabyte;
+export const defaultLimitBytes = 2 * GIGABYTE;
 /** The sizes Settings offers. Zero turns the cache off. */
 export const limitOptions: readonly { value: number; label: string }[] = [
   { value: 0, label: 'Off' },
-  ...[1, 2, 5, 10].map(size => ({ value: size * gigabyte, label: `${size} GB` })),
+  ...[1, 2, 5, 10].map(size => ({ value: size * GIGABYTE, label: `${size} GB` })),
 ];
 
 /** Queue entries fetched ahead of the one playing. */
@@ -43,7 +42,7 @@ export const aheadCount = 2;
 /** How far past the current entry the queue is read: far enough to find two ready entries behind ones still being prepared. */
 export const lookahead = 5;
 /** Nothing is fetched with less room than this on the device. */
-export const minFreeBytes = 500 * 1000 ** 2;
+export const minFreeBytes = 500 * 1024 ** 2;
 /** Tries before a fetch is left alone until the track comes round again. */
 export const maxAttempts = 3;
 
@@ -271,5 +270,5 @@ export function plan(input: PlanInput): Plan {
  * offline. Downloads are kept apart and stay.
  */
 export function clearCacheMessage({ count, usedBytes }: { count: number; usedBytes: number }, device: string): string {
-  return `The ${count} ${count === 1 ? 'song' : 'songs'} (${formatBytes(usedBytes)}) kept from streaming will be removed from this ${device} and won’t play without a connection until you play them again. Downloads stay.`;
+  return `The ${plural(count, 'song')} (${formatBytes(usedBytes)}) kept from streaming will be removed from this ${device} and won’t play without a connection until you play them again. Downloads stay.`;
 }
