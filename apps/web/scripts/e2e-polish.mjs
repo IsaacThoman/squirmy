@@ -282,7 +282,9 @@ await step('the queue shows fetching as loading, on the current song only', asyn
   }
   if (!album) throw new Error('no on-demand album with five tracks')
   await page.goto(`${base}/album/${album.id}`)
-  await button(`Play ${album.title}`).click()
+  // The album as a whole plays from its ⋯ menu.
+  await button('More options', page.getByRole('main')).click()
+  await page.getByRole('menuitem', { name: 'Play', exact: true }).click()
   await button('Queue').click()
   const queue = page.getByRole('complementary', { name: 'Queue' })
   const upNext = queue.getByRole('region', { name: /^(Continue Playing|Up Next)$/ })

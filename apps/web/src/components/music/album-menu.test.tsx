@@ -15,7 +15,7 @@ const member = users[1]!
 const entries = () => screen.getAllByRole('menuitem').map(item => item.textContent)
 
 describe('album menu', () => {
-  it('is the album page’s on its cards, with Play and Shuffle, which the page has as buttons', async () => {
+  it('is the album page’s on its cards, Play and Shuffle included', async () => {
     const { services } = fakeServices({ user: member })
     const page = renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
     await userEvent.click(await screen.findByRole('button', { name: 'More options' }))
@@ -25,7 +25,8 @@ describe('album menu', () => {
     renderWithApp(<AlbumCard album={summary(blueHour)} onPlay={() => {}} />, '/', services)
     await userEvent.click(screen.getByRole('button', { name: 'More options for Blue Hour' }))
     await screen.findByRole('menuitem', { name: 'Remove from library' })
-    expect(entries()).toEqual(['Play', 'Shuffle', ...onPage])
+    expect(onPage.slice(0, 2)).toEqual(['Play', 'Shuffle'])
+    expect(entries()).toEqual(onPage)
   })
 
   it('shuffles the album from a card’s Shuffle', async () => {

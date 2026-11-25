@@ -10,6 +10,12 @@ import { renderWithApp } from '@/test/render'
 const blueHour = album('blue-hour')
 const availability = (trackId: string) => allTracks.find(track => track.id === trackId)?.availability
 
+/** Plays the album on the page as a whole, from its ⋯ menu. */
+async function playAlbum() {
+  await userEvent.click(await screen.findByRole('button', { name: 'More options' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Play' }))
+}
+
 describe('PlayerProvider', () => {
   it('says on the player that a radio is starting, and why one did not, with no second request meanwhile', async () => {
     const { services, api } = fakeServices()
@@ -33,7 +39,7 @@ describe('PlayerProvider', () => {
   it('plays an album through the session, never sending what cannot play', async () => {
     const { services, socket } = fakeServices()
     renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
-    await userEvent.click(await screen.findByRole('button', { name: 'Play Blue Hour' }))
+    await playAlbum()
 
     await waitFor(() => expect(socket.session.current).not.toBeNull())
     const { current, queue, context } = socket.session
@@ -49,7 +55,7 @@ describe('PlayerProvider', () => {
   it('shows the queue hydrated from track summaries, and edits it', async () => {
     const { services, socket } = fakeServices()
     renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
-    await userEvent.click(await screen.findByRole('button', { name: 'Play Blue Hour' }))
+    await playAlbum()
     await userEvent.click(screen.getByRole('button', { name: 'Queue' }))
 
     const panel = await screen.findByRole('complementary', { name: 'Queue' })
@@ -65,7 +71,7 @@ describe('PlayerProvider', () => {
     const first = blueHour.discs[0].tracks[0]
     expect(first.liked).toBe(true)
     renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
-    await userEvent.click(await screen.findByRole('button', { name: 'Play Blue Hour' }))
+    await playAlbum()
     const player = await screen.findByRole('region', { name: 'Player' })
     await userEvent.click(await within(player).findByRole('button', { name: `Remove ${first.title} from library` }))
     expect(api.userdata.unlike).toHaveBeenCalledWith('track', first.id)
@@ -77,7 +83,7 @@ describe('PlayerProvider', () => {
   it('asks before clearing the history, then clears it at once and says so on the status line', async () => {
     const { services, socket } = fakeServices()
     renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
-    await userEvent.click(await screen.findByRole('button', { name: 'Play Blue Hour' }))
+    await playAlbum()
     await userEvent.click(screen.getAllByRole('button', { name: 'Next' })[0]!)
     await waitFor(() => expect(socket.session.history).toHaveLength(1))
     await userEvent.click(screen.getByRole('button', { name: 'Queue' }))
@@ -102,7 +108,7 @@ describe('PlayerProvider', () => {
   it('says what a command from elsewhere told it on the status line, under the song', async () => {
     const { services, api } = fakeServices()
     renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
-    await userEvent.click(await screen.findByRole('button', { name: 'Play Blue Hour' }))
+    await playAlbum()
     // A card's Play whose album does not load says so where playback is told.
     api.catalog.album.mockRejectedValue(new ApiError(503, 'unavailable', 'The server is busy.'))
     await userEvent.click(screen.getByRole('link', { name: 'Home' }))
@@ -121,7 +127,7 @@ describe('song menus in the queue and Now Playing', () => {
   it('moves a song coming up from its menu instead of queueing it again', async () => {
     const { services, socket } = fakeServices()
     renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
-    await userEvent.click(await screen.findByRole('button', { name: 'Play Blue Hour' }))
+    await playAlbum()
     await userEvent.click(screen.getByRole('button', { name: 'Queue' }))
     const panel = await screen.findByRole('complementary', { name: 'Queue' })
     const next = within(panel).getByRole('region', { name: 'Continue Playing' })
@@ -147,7 +153,7 @@ describe('song menus in the queue and Now Playing', () => {
   it('has the playing song’s menu in Now Playing, which closes as it goes to the artist', async () => {
     const { services } = fakeServices()
     renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
-    await userEvent.click(await screen.findByRole('button', { name: 'Play Blue Hour' }))
+    await playAlbum()
     const player = await screen.findByRole('region', { name: 'Player' })
     await userEvent.click(within(player).getByRole('button', { name: 'Now Playing' }))
     const nowPlaying = await screen.findByRole('dialog', { name: 'Now Playing' })

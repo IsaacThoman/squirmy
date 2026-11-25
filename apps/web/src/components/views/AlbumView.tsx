@@ -44,8 +44,8 @@ type AlbumViewProps = {
 }
 
 /**
- * One layout for every album, wherever its music is: the header, Play, Shuffle, the heart (which
- * saves it to the library), and the full track list. Nothing says what is on the server; a member who may not
+ * One layout for every album, wherever its music is: the header, the heart (which saves it to
+ * the library), the menu (which plays or shuffles it), and the full track list. Nothing says what is on the server; a member who may not
  * fetch music sees gray rows and, for a partial album, one line of how much plays.
  */
 export function AlbumView({ album, artist, onPlayAlbum, onRefresh }: AlbumViewProps) {
@@ -74,22 +74,10 @@ export function AlbumView({ album, artist, onPlayAlbum, onRefresh }: AlbumViewPr
     }
   }
   const listing = awaiting && !overdue
-  const waiting = listing && !dimmed
   const { versions, more } = relatedAlbums(album, artist)
-  const [queued, setQueued] = useState<'play' | 'shuffle' | null>(null)
   const owned = album.availability === 'full' || album.availability === 'partial'
 
-  const play = (shuffle: boolean) => {
-    if (playable.length) controls.playTracks(tracks, 0, context, { shuffle, collection: true })
-    else setQueued(shuffle ? 'shuffle' : 'play')
-  }
-  // Pressed while the songs were on their way: it plays once, when they arrive.
-  const arrived = playable.length > 0
-  const pending = queued !== null && !arrived
-  useEffect(() => {
-    if (queued && arrived) controls.playTracks(tracks, 0, context, { shuffle: queued === 'shuffle', collection: true })
-    // oxlint-disable-next-line react-hooks/exhaustive-deps -- only the arrival plays; later changes to the list do not
-  }, [queued, arrived])
+  const play = (shuffle: boolean) => controls.playTracks(tracks, 0, context, { shuffle, collection: true })
 
   // The header's buttons show the change; the menu's entries wait for the server and say it worked.
   const want = () => library.setWanted({ type: 'album', album }, !wanted)
@@ -114,10 +102,6 @@ export function AlbumView({ album, artist, onPlayAlbum, onRefresh }: AlbumViewPr
         actions={(
           <PlayActions
             id={album.id}
-            title={album.title}
-            onPlay={playable.length || waiting ? () => play(false) : undefined}
-            onShuffle={playable.length > 1 || waiting ? () => play(true) : undefined}
-            pending={pending}
             liked={album.liked}
             onLike={toggleSaved}
             wanted={wanted}
@@ -129,6 +113,8 @@ export function AlbumView({ album, artist, onPlayAlbum, onRefresh }: AlbumViewPr
                 ...albumMenuEntries({
                   artists: album.artists,
                   playable: playable.length > 0,
+                  onPlay: () => play(false),
+                  onShuffle: () => play(true),
                   onEnqueue: enqueue,
                   playlists: library.playlists,
                   onAddToPlaylist: playlist => (playlist ? library.addToPlaylist(playlist, tracks) : library.newPlaylist(tracks)),

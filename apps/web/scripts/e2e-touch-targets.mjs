@@ -316,7 +316,9 @@ for (const [viewport, size] of [['small phone', { width: 320, height: 640 }], ['
   // Playing: the player, Devices, Now Playing with its queue and lyrics.
   await step(`${viewport}: player`, async () => {
     await visit(`/album/${album.id}`, () => main.getByRole('list', { name: `${album.title} tracks` }).waitFor())
-    await tapButton(`Play ${album.title}`, main)
+    // The album as a whole plays from its ⋯ menu.
+    await tapButton('More options', main)
+    await page.getByRole('menuitem', { name: 'Play', exact: true }).tap()
     await page.getByRole('button', { name: /^Pause/ }).first().waitFor()
     await audited(page, 'playing', viewport)
     await tapButton('Devices')

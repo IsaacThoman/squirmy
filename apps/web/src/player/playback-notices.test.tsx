@@ -10,6 +10,12 @@ import { renderWithApp } from '@/test/render'
 /** What the player's status line says, wherever it shows (the bar, Now Playing). */
 const lines = () => [...new Set([...document.querySelectorAll('p[data-tone]')].map(line => line.textContent ?? ''))]
 
+/** Plays the album on the page as a whole, from its ⋯ menu. */
+async function playAlbum() {
+  await userEvent.click(await screen.findByRole('button', { name: 'More options' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Play' }))
+}
+
 describe('telling failures', () => {
   const lowTide = album('low-tide')
   const [song, edit] = lowTide.discs[0].tracks
@@ -18,8 +24,7 @@ describe('telling failures', () => {
   async function playLowTide() {
     const fake = fakeServices()
     renderWithApp(<AppRoutes />, `/album/${lowTide.id}`, fake.services)
-    // The album's play button comes first; its first song has the same name.
-    await userEvent.click((await screen.findAllByRole('button', { name: 'Play Low Tide' }))[0]!)
+    await playAlbum()
     await waitFor(() => expect(fake.socket.session.current?.state).toBe('preparing'))
     return fake
   }
@@ -107,7 +112,7 @@ describe('telling failures', () => {
     const blueHour = album('blue-hour')
     const tracks = blueHour.discs[0].tracks
     renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, fake.services)
-    await userEvent.click((await screen.findAllByRole('button', { name: 'Play Blue Hour' }))[0]!)
+    await playAlbum()
     await waitFor(() => expect(fake.socket.session.current).not.toBeNull())
     // Seeded as on demand, so each is still to be fetched.
     act(() => fake.socket.serverSet(session => ({ ...session, current: session.current && { ...session.current, state: 'preparing' }, queue: session.queue.map(entry => ({ ...entry, state: 'preparing' as const })) })))
@@ -133,7 +138,7 @@ describe('fresh track details', () => {
     const lowTide = album('low-tide')
     const [song, edit] = lowTide.discs[0].tracks
     renderWithApp(<AppRoutes />, `/album/${lowTide.id}`, services)
-    await userEvent.click((await screen.findAllByRole('button', { name: 'Play Low Tide' }))[0]!)
+    await playAlbum()
     await waitFor(() => expect(socket.session.current?.state).toBe('preparing'))
     const asked = () => api.catalog.trackSummaries.mock.calls.flatMap(([request]) => request.tracks.map(track => track.id))
     const before = asked().length
@@ -159,13 +164,13 @@ describe('a track the server refuses to stream', () => {
     expect(lines().join(' ')).not.toMatch(/Skipped/)
   })
 
-  it('moves on past a first song it cannot have when the album is played from its header', async () => {
+  it('moves on past a first song it cannot have when the album is played as a whole', async () => {
     const { services, socket, api } = fakeServices()
     const blueHour = album('blue-hour')
     const [first] = blueHour.discs[0].tracks
     api.streaming.playback.mockRejectedValueOnce(new ApiError(404, 'not_found', 'Not found'))
     renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
-    await userEvent.click((await screen.findAllByRole('button', { name: 'Play Blue Hour' }))[0]!)
+    await playAlbum()
     // Played as a whole, as streaming apps play a list with a grayed-out first song.
     await waitFor(() => expect(socket.session.current?.trackId).not.toBe(first.id))
     expect(lines().join(' ')).not.toMatch(/Couldn’t play “.*”\. It isn’t available/)
@@ -183,7 +188,7 @@ describe('a track the server refuses to stream', () => {
       throw trackId === refused.id ? new ApiError(404, 'not_found', 'Not found') : new Error('No audio in tests')
     })
     renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
-    await userEvent.click((await screen.findAllByRole('button', { name: 'Play Blue Hour' }))[0]!)
+    await playAlbum()
     await waitFor(() => expect(socket.session.current?.trackId).toBe(first.id))
     await userEvent.click(screen.getAllByRole('button', { name: 'Next' })[0]!)
     expect(await screen.findByText(`Couldn’t play “${refused.title}”. Skipped.`)).toBeInTheDocument()
