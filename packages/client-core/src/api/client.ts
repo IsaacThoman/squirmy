@@ -48,6 +48,7 @@ import {
   Invite,
   InviteList,
   JobQueueStats,
+  type LastFmConnectRequest,
   LastFmConnectStart,
   LibraryItemPage,
   type LibraryItemsQuery,
@@ -451,8 +452,11 @@ export function createApiClient(options: ApiClientOptions) {
       status: () => get('/me/scrobbling', ScrobblingStatus),
       connectListenBrainz: (body: ConnectListenBrainzRequest) => send('PUT', '/me/scrobbling/listenbrainz', ScrobblingStatus, body),
       disconnectListenBrainz: () => send('DELETE', '/me/scrobbling/listenbrainz', ScrobblingStatus),
-      /** Open the returned `url` in a browser; the server finishes the connection and redirects to `/settings`. */
-      startLastFm: () => send('POST', '/me/scrobbling/lastfm/start', LastFmConnectStart),
+      /**
+       * Open the returned `url` in a browser; the server finishes the connection and redirects to
+       * `/settings`, or to `returnTo` (an app address, see `lastFmReturnSchemes`).
+       */
+      startLastFm: (body: LastFmConnectRequest = {}) => send('POST', '/me/scrobbling/lastfm/start', LastFmConnectStart, body),
       disconnectLastFm: () => send('DELETE', '/me/scrobbling/lastfm', ScrobblingStatus),
     },
     radio: {

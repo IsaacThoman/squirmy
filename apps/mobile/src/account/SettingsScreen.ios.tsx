@@ -1,5 +1,5 @@
 import {
-  Button, Form, Host, HStack, ProgressView, Section, Spacer, Text, TextField, VStack, useNativeState,
+  Button, Form, Host, HStack, ProgressView, Section, Spacer, Text, TextField, Toggle, VStack, useNativeState,
 } from '@expo/ui/swift-ui';
 import {
   accessibilityLabel, autocorrectionDisabled, disabled, font, foregroundStyle, listRowBackground,
@@ -13,9 +13,10 @@ import { closeSheet } from '../closeSheet';
 import { SheetFormHeader, SheetPickerRow } from '../SheetUI';
 import { StorageSection } from '../streamingCache/StorageSection';
 import { useColors } from '../theme';
+import { serviceNames } from './scrobbling';
 import {
-  lastFmAdminNote, lastFmNote, normalizationNote, normalizationOptions, openListenBrainzSettings, qualityNote, qualityOptions,
-  scrobbleDetail, useSettingsScreen,
+  lastFmAdminNote, normalizationNote, normalizationOptions, openListenBrainzSettings, qualityNote, qualityOptions,
+  scrobbleDetail, scrobbleFooter, useSettingsScreen,
 } from './settings';
 
 const clearRow = [listRowBackground('clear'), listRowInsets({ top: 0, leading: 0, bottom: 0, trailing: 0 })];
@@ -36,21 +37,29 @@ export function SettingsScreen() {
         <Form modifiers={[scrollDismissesKeyboard('interactively'), scrollContentBackground('hidden'), tint(colors.accent)]}>
         {settings ? <>
           <Section title="Playback" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{normalizationNote}</Text>}>
-            <SheetPickerRow label="Normalize Volume" value={settings.normalization} options={normalizationOptions}
+            <SheetPickerRow label="Volume Normalization" value={settings.normalization} options={normalizationOptions}
               onChange={normalization => update({ normalization })} />
           </Section>
           <Section title="Streaming Quality" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{qualityNote}</Text>}>
             <SheetPickerRow label="Wi-Fi" value={settings.qualityWifi} options={qualityOptions} onChange={qualityWifi => update({ qualityWifi })} />
             <SheetPickerRow label="Cellular" value={settings.qualityCellular} options={qualityOptions}
               onChange={qualityCellular => update({ qualityCellular })} />
+            {screen.errors.playback && <ServiceError message={screen.errors.playback} />}
           </Section>
-        </> : <Section modifiers={clearRow}><HStack><Spacer /><ProgressView /><Spacer /></HStack></Section>}
+        </> : screen.settingsFailure
+          ? <LoadFailure title="Couldn’t load your settings" failure={screen.settingsFailure} />
+          : <Section modifiers={clearRow}><HStack><Spacer /><ProgressView /><Spacer /></HStack></Section>}
         <StorageSection />
-        {screen.listenBrainz && <ListenBrainzSection service={screen.listenBrainz} busy={screen.connectingListenBrainz}
-          error={screen.errors.listenbrainz} onConnect={screen.connectListenBrainz} onDisconnect={() => screen.disconnect('listenbrainz')} />}
+        {/* Settings' own failure says it already; the connections have one only when they fail alone. */}
+        {screen.scrobblingFailure && !screen.settingsFailure
+          && <LoadFailure title="Couldn’t load scrobbling" failure={screen.scrobblingFailure} />}
+        {screen.listenBrainz && <ListenBrainzSection service={screen.listenBrainz} enabled={screen.scrobbleEnabled(screen.listenBrainz)}
+          busy={screen.connectingListenBrainz} error={screen.errors.listenbrainz} onConnect={screen.connectListenBrainz}
+          onToggle={enabled => screen.setScrobbling('listenbrainz', enabled)} onDisconnect={() => screen.disconnect('listenbrainz')} />}
         {/* Without the server's Last.fm key there is nothing to connect; only an admin can add one. */}
-        {lastFm?.available && <Section title="Last.fm" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{lastFmNote}</Text>}>
-          <ServiceStatus service={lastFm} />
+        {lastFm?.available && <Section title="Last.fm"
+          footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{scrobbleFooter(lastFm, screen.scrobbleEnabled(lastFm))}</Text>}>
+          <ServiceStatus service={lastFm} enabled={screen.scrobbleEnabled(lastFm)} onToggle={enabled => screen.setScrobbling('lastfm', enabled)} />
           {lastFm.connected && !lastFm.needsAttention
             ? <Button label="Disconnect" role="destructive" onPress={() => screen.disconnect('lastfm')} />
             : <Button label={lastFm.connected ? 'Connect Again' : 'Connect'} onPress={screen.connectLastFm}
@@ -64,13 +73,35 @@ export function SettingsScreen() {
   </KeyboardAvoidingView>;
 }
 
-function ServiceStatus({ service }: { service: ScrobbleService }) {
+/**
+ * Who a service is connected as, or what is wrong. While connected it is the service's switch,
+ * as on the web: off, plays are kept from the service without disconnecting it.
+ */
+function ServiceStatus({ service, enabled, onToggle }: { service: ScrobbleService; enabled: boolean; onToggle: (enabled: boolean) => void }) {
   const colors = useColors();
   const warning = service.needsAttention || Boolean(service.lastError);
-  return <VStack alignment="leading" spacing={2}>
-    <Text modifiers={[font({ textStyle: 'body' })]}>Scrobbling</Text>
-    <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(warning ? colors.danger : colors.muted)]}>{scrobbleDetail(service)}</Text>
-  </VStack>;
+  const title = <Text modifiers={[font({ textStyle: 'body' })]}>Scrobbling</Text>;
+  const detail = <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(warning ? colors.danger : colors.muted)]}>{scrobbleDetail(service)}</Text>;
+  if (!service.connected) return <VStack alignment="leading" spacing={2}>{title}{detail}</VStack>;
+  return <Toggle isOn={enabled} onIsOnChange={onToggle} modifiers={[tint(colors.accent), accessibilityLabel(`Scrobble to ${serviceNames[service.target]}`)]}>
+    {title}
+    {detail}
+  </Toggle>;
+}
+
+/** A section that didn't load: why, and a way to try again when trying can help. */
+function LoadFailure({ title, failure }: { title: string; failure: { description: string; retry: (() => void) | null } }) {
+  const colors = useColors();
+  return <Section>
+    <HStack>
+      <VStack alignment="leading" spacing={2}>
+        <Text modifiers={[font({ textStyle: 'body' })]}>{title}</Text>
+        <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(colors.muted)]}>{failure.description}</Text>
+      </VStack>
+      <Spacer />
+      {failure.retry && <Button label="Try Again" onPress={failure.retry} modifiers={[tint(colors.accent)]} />}
+    </HStack>
+  </Section>;
 }
 
 /** A refusal, in the error color, under the control that was refused (the app has no toasts). */
@@ -79,17 +110,16 @@ function ServiceError({ message }: { message: string }) {
   return <Text modifiers={[font({ textStyle: 'footnote', weight: 'semibold' }), foregroundStyle(colors.danger)]}>{message}</Text>;
 }
 
-function ListenBrainzSection({ service, busy, error, onConnect, onDisconnect }: {
-  service: ScrobbleService; busy: boolean; error?: string; onConnect: (token: string) => void; onDisconnect: () => void;
+function ListenBrainzSection({ service, enabled, busy, error, onConnect, onToggle, onDisconnect }: {
+  service: ScrobbleService; enabled: boolean; busy: boolean; error?: string;
+  onConnect: (token: string) => void; onToggle: (enabled: boolean) => void; onDisconnect: () => void;
 }) {
   const colors = useColors();
   const [token, setToken] = useState('');
   const text = useNativeState('');
   const connected = service.connected && !service.needsAttention;
-  return <Section title="ListenBrainz" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{connected
-    ? 'Your plays are sent to ListenBrainz.'
-    : 'Paste the user token from your ListenBrainz settings page.'}</Text>}>
-    <ServiceStatus service={service} />
+  return <Section title="ListenBrainz" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{scrobbleFooter(service, enabled)}</Text>}>
+    <ServiceStatus service={service} enabled={enabled} onToggle={onToggle} />
     {connected ? <Button label="Disconnect" role="destructive" onPress={onDisconnect} /> : <>
       <Button label="Get Your Token" systemImage="arrow.up.forward.square" onPress={openListenBrainzSettings} modifiers={[tint(colors.accent)]} />
       <TextField text={text} onTextChange={setToken} placeholder="User token"
