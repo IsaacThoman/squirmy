@@ -122,4 +122,49 @@ describe('QueueContent', () => {
     const title = screen.getByText('Amber')
     for (let node: HTMLElement | null = title; node; node = node.parentElement) expect(node.className).not.toMatch(/(^|\s)opacity-/)
   })
+
+  const queueState = (overrides: Partial<PlayerState>) => ({
+    current: null, playing: false, waiting: false, queue: [], history: [], autoplayQueue: [], autoplay: false, shuffle: false, repeat: 'off', context: null, outage: null, ...overrides,
+  }) as unknown as PlayerState
+  const render = (state: PlayerState, props: { modes?: boolean } = {}) => {
+    const controls = new Proxy({}, { get: () => vi.fn() }) as PlayerControls
+    renderWithApp(<QueueContent player={{ state, controls }} {...props} />)
+  }
+
+  it('lists the history first, oldest at the top, then the song playing, then up next and autoplay, as the iOS app does', () => {
+    const [first, second, third] = items
+    render(queueState({ history: [first, second], current: third, queue: [{ ...first, entry: { ...first.entry, id: 'q0' } }] }))
+    const headings = screen.getAllByRole('heading').map(heading => heading.textContent)
+    expect(headings).toEqual(['History', 'Up Next', 'Autoplay'])
+    const titles = screen.getAllByText(/^(Soft Signal|Amber|Passing Glass)$/).map(node => node.textContent)
+    expect(titles).toEqual(['Soft Signal', 'Amber', 'Passing Glass', 'Soft Signal'])
+    const history = screen.getByRole('heading', { name: 'History' })
+    const playing = screen.getByRole('region', { name: 'Now playing' })
+    expect(history.compareDocumentPosition(playing) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('says “Continue Playing” and where the songs are from while all of them come from what is playing', () => {
+    render(queueState({ context: { type: 'album', id: 'a1', title: 'Night Drives' }, queue: items }))
+    expect(screen.getByRole('heading', { name: 'Continue Playing' })).toBeInTheDocument()
+    expect(screen.getByText('From Night Drives')).toBeInTheDocument()
+  })
+
+  it('says “Up Next” and how many songs once some were queued by hand', () => {
+    const queued = items.map((item, index) => ({ ...item, entry: { ...item.entry, queued: index === 0 } }))
+    render(queueState({ context: { type: 'album', id: 'a1', title: 'Night Drives' }, queue: queued }))
+    expect(screen.getByRole('heading', { name: 'Up Next' })).toBeInTheDocument()
+    expect(screen.getByText('3 songs')).toBeInTheDocument()
+  })
+
+  it('has Autoplay among the toggles', () => {
+    render(queueState({}))
+    expect(screen.getByRole('button', { name: 'Autoplay', pressed: false })).toBeInTheDocument()
+    expect(screen.queryByRole('switch', { name: 'Autoplay' })).toBeNull()
+  })
+
+  it('keeps the switch beside the Autoplay heading without the toggles', () => {
+    render(queueState({ autoplay: true }), { modes: false })
+    expect(screen.getByRole('switch', { name: 'Autoplay' })).toBeChecked()
+    expect(screen.queryByRole('button', { name: 'Shuffle' })).toBeNull()
+  })
 })
