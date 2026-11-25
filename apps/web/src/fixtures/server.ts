@@ -40,6 +40,7 @@ export const userSettings: UserSettings = {
   downloadOnWifiOnly: true,
   scrobbleListenBrainz: true,
   scrobbleLastFm: false,
+  libraryIncludesServerMusic: false,
 }
 
 export const serverSettings: ServerSettings = {

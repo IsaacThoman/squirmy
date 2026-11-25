@@ -47,8 +47,8 @@ export function HomeView({ sections, empty, canAddMusic, canFindMusic = false, s
             case 'albums':
               if (!section.albums.length) return null
               return (
-                // Only what was added is in the library; played albums have no page of their own.
-                <Rail key={section.id} title={section.title} href={section.id === 'recently-added' ? '/library?filter=albums' : undefined}>
+                // What was added is the server's music, all of it on its page; played albums have no page of their own.
+                <Rail key={section.id} title={section.title} href={section.id === 'recently-added' ? '/collection?filter=albums' : undefined}>
                   {section.albums.map(album => <RailItem key={album.id}><AlbumCard album={album} onPlay={() => onPlayAlbum(album)} /></RailItem>)}
                 </Rail>
               )

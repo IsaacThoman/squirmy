@@ -5,7 +5,7 @@
 import { ApiError } from '@squirmy/client-core'
 import { queryKeys, type Import } from '@squirmy/contracts'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronLeft, Upload as UploadIcon } from 'lucide-react'
+import { ChevronLeft, FolderUp, Upload as UploadIcon } from 'lucide-react'
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { Link, useParams } from 'react-router'
 import { importsKey, isNotFound } from '@/api/queries'
@@ -143,7 +143,10 @@ function AddMusic() {
     <>
       <PageHeader title="Add music" />
       <Page className="flex max-w-4xl flex-col gap-8">
-        <p className="max-w-2xl text-sm text-muted-foreground">Upload albums from this computer. The server identifies them and files them into the library, and anything it cannot place waits for review.</p>
+        <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
+          <p className="max-w-2xl flex-1 text-sm text-muted-foreground">Upload albums from this computer. The server identifies them and files them for everyone, adds them to your library, and anything it cannot place waits for review.</p>
+          <Button asChild variant="outline" size="sm"><Link to="/uploads"><FolderUp />Your uploads</Link></Button>
+        </div>
 
         {committed && live.item.data ? (
           <section aria-label="Upload" className="flex flex-col gap-4">

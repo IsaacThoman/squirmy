@@ -81,12 +81,13 @@ afterEach(() => {
 describe('SettingsDialog', () => {
   it('lists its sections and opens on the one it is given', () => {
     renderSettings()
-    expect(sections().getAllByRole('button').map(button => button.textContent)).toEqual(['Playback', 'Appearance', 'Account', 'Scrobbling', 'App passwords', 'About'])
+    expect(sections().getAllByRole('button').map(button => button.textContent)).toEqual(['Playback', 'Library', 'Appearance', 'Account', 'Scrobbling', 'App passwords', 'About'])
     expect(sections().getByRole('button', { name: 'Playback' })).toHaveAttribute('aria-current', 'page')
     expect(panelTitles()).toEqual(['Settings', 'Playback'])
   })
 
   it.each([
+    ['Library', 'library'],
     ['Appearance', 'appearance'],
     ['Account', 'account'],
     ['Scrobbling', 'scrobbling'],
@@ -111,6 +112,24 @@ describe('SettingsDialog', () => {
   it('shows nothing while closed', () => {
     renderSettings({ open: false })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  describe('Library', () => {
+    it('switches all of the server’s music into the library, and links to Your uploads', async () => {
+      const onOpenUploads = vi.fn()
+      const { onSettingsChange } = renderSettings({ section: 'library', onOpenUploads })
+      const toggle = within(settings()).getByRole('switch', { name: 'Show all of this server’s music in your library' })
+      expect(toggle).not.toBeChecked()
+      await userEvent.click(toggle)
+      expect(onSettingsChange).toHaveBeenCalledWith({ libraryIncludesServerMusic: true })
+      await userEvent.click(within(settings()).getByRole('button', { name: 'Manage' }))
+      expect(onOpenUploads).toHaveBeenCalled()
+    })
+
+    it('leaves out Your uploads for someone who may not upload', () => {
+      renderSettings({ section: 'library' })
+      expect(within(settings()).queryByRole('button', { name: 'Manage' })).toBeNull()
+    })
   })
 
   describe('Admin panel', () => {

@@ -1,4 +1,4 @@
-import type { Import, ImportKind, ImportStep } from '@squirmy/contracts'
+import type { Import, ImportKind, ImportStep, UploadAlbum } from '@squirmy/contracts'
 import { formatBytes, plural } from '@/lib/format'
 import type { UploadRejection } from '@/lib/upload'
 
@@ -45,3 +45,6 @@ export const rejectionLabels: Record<UploadRejection, string> = {
   file_too_large: 'Too large',
   import_too_large: 'Over the upload limit',
 }
+
+/** How an album of uploads is told apart: the same album can be listed once per uploader. */
+export const uploadKey = (item: Pick<UploadAlbum, 'album' | 'uploader'>) => `${item.uploader?.id ?? 'inbox'}:${item.album.id}`

@@ -151,10 +151,10 @@ describe('Sidebar', () => {
       return within(await screen.findByRole('menu'))
     }
 
-    it('offers Settings, Admin panel and Log out to an admin', async () => {
+    it('offers Settings, Your uploads, Admin panel and Log out to an admin', async () => {
       renderSidebar()
       const menu = await openMenu('Alex Rivera')
-      expect(menu.getAllByRole('menuitem').map(item => item.textContent)).toEqual([expect.stringMatching(/^Settings/), 'Admin panel', 'Log out'])
+      expect(menu.getAllByRole('menuitem').map(item => item.textContent)).toEqual([expect.stringMatching(/^Settings/), 'Your uploads', 'Admin panel', 'Log out'])
       expect(menu.getByRole('menuitem', { name: 'Settings' })).toBeInTheDocument()
       expect(menu.getByText('Alex Rivera · Admin')).toBeInTheDocument()
     })
@@ -162,7 +162,8 @@ describe('Sidebar', () => {
     it('offers Admin panel only to admins', async () => {
       renderSidebar({ user: sam })
       const menu = await openMenu('Sam Okafor')
-      expect(menu.getAllByRole('menuitem').map(item => item.textContent)).toEqual([expect.stringMatching(/^Settings/), 'Log out'])
+      // Sam may upload, so Your uploads is there.
+      expect(menu.getAllByRole('menuitem').map(item => item.textContent)).toEqual([expect.stringMatching(/^Settings/), 'Your uploads', 'Log out'])
       expect(menu.getByText('Sam Okafor · Member')).toBeInTheDocument()
     })
 

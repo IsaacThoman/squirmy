@@ -315,7 +315,7 @@ describe('catalog pages', () => {
     const sections = await homeOf()
     expect(sections.map((section) => section.id)).toEqual(['recently-played', 'most-played', 'playlists', 'recently-added', 'wantlist'])
     const byId = Object.fromEntries(sections.map((section) => [section.id, section]))
-    expect(byId['recently-added']).toMatchObject({ kind: 'albums', title: 'Recently added' })
+    expect(byId['recently-added']).toMatchObject({ kind: 'albums', title: 'New on this server' })
     // Recently added is the server's music: an album with files, not a hearted one without.
     const added = byId['recently-added']!.kind === 'albums' ? byId['recently-added']!.albums.map((album) => album.id) : []
     expect(added).toContain(played.albumId)

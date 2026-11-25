@@ -50,7 +50,7 @@ export async function home(userId: string): Promise<HomeResponse> {
     { kind: 'albums', id: 'recently-played', title: 'Recently played', albums: recentlyPlayed },
     { kind: 'tracks', id: 'most-played', title: 'Most played', tracks: mostPlayed },
     { kind: 'playlists', id: 'playlists', title: 'Your playlists', playlists: playlists.items },
-    { kind: 'albums', id: 'recently-added', title: 'Recently added', albums: recentlyAdded.items },
+    { kind: 'albums', id: 'recently-added', title: 'New on this server', albums: recentlyAdded.items },
     { kind: 'albums', id: 'new-releases', title: 'New releases', albums: newReleases },
     { kind: 'albums', id: 'wantlist', title: 'Wantlist', albums: wanted },
   ]
