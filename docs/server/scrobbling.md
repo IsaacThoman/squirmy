@@ -35,8 +35,8 @@ Until the key is set, users see "An admin of this server has to add a Last.fm AP
 
 1. In the web app, open **Settings → Scrobbling** and choose **Connect** next to Last.fm. In the iOS app, open the account sheet, then **Settings**, then **Connect** under **Last.fm**.
 2. Approve Squirmy on Last.fm's page.
-3. You land back in the web app, with **Settings** open on **Scrobbling** and a confirmation. The approval link is valid for 10 minutes.
+3. From the web app, you land back in it, with **Settings** open on **Scrobbling** and a confirmation. From the iOS app, Last.fm's page closes and **Last.fm** in Settings shows the account, or why it didn't connect. The approval link is valid for 10 minutes.
 
 ## Status and problems
 
-**Settings → Scrobbling** shows each connected service with the account name, how many plays are waiting and how many could not be sent, and a switch to stop sending to that service without disconnecting (plays made while it is off are never sent). When a service stops accepting the connection (a revoked token, a removed app), it says "… no longer accepts this connection. Connect again to keep scrobbling." with **Reconnect**, and plays wait until you do. A play that fails 10 times is given up on and counted as could not be sent.
+**Settings → Scrobbling** shows each connected service with the account name, how many plays are waiting and how many could not be sent, and a switch to stop sending to that service without disconnecting (plays made while it is off are never sent). The iOS app shows the same switch as **Scrobbling** under each connected service. Disconnecting asks first: plays still waiting to be sent are dropped. When a service stops accepting the connection (a revoked token, a removed app), it says "… no longer accepts this connection. Connect again to keep scrobbling." with **Reconnect**, and plays wait until you do. A play that fails 10 times is given up on and counted as could not be sent.
