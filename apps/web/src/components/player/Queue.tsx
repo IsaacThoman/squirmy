@@ -273,6 +273,9 @@ const AUTOSCROLL_SPEED = 14
  * pane. Unless `overflowing` is false, only one with more to scroll than it shows.
  */
 function scrollParent(element: HTMLElement | null, { overflowing = true } = {}): HTMLElement | null {
+  // A scroll area says it scrolls only once its scrollbar has mounted, after the queue's first layout.
+  const viewport = element?.closest<HTMLElement>('[data-radix-scroll-area-viewport], [data-now-playing-scroll]')
+  if (viewport && (!overflowing || viewport.scrollHeight > viewport.clientHeight)) return viewport
   for (let node = element?.parentElement; node; node = node.parentElement) {
     const { overflowY } = getComputedStyle(node)
     if ((overflowY === 'auto' || overflowY === 'scroll') && (!overflowing || node.scrollHeight > node.clientHeight)) return node
