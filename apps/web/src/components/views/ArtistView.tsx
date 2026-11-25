@@ -14,7 +14,7 @@ import { VirtualGrid } from '@/components/music/VirtualGrid'
 import { Button } from '@/components/ui/button'
 import { Badge, EmptyState, Spinner } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
-import { albumPresentation, artistReleasesPath, artistSectionTitle, canFetch, isArtistSectionKey, isPlayable } from '@/lib/catalog'
+import { artistAvailabilityNote, artistReleaseCounts, artistReleasesPath, artistSectionTitle, canFetch, isArtistSectionKey, isPlayable } from '@/lib/catalog'
 import { plural } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useLibrary } from '@/player/library-context'
@@ -36,15 +36,6 @@ function sectionsOf(artist: ArtistDetail): ArtistSection[] {
   ].filter(section => section.items.length).map(section => ({ ...section, title: '', total: section.items.length }))
 }
 
-/**
- * How many of the artist's releases there are, and how many play for a viewer who may not fetch.
- * A server that predates the counts sends every release in `albums`, so they are counted there.
- */
-function releaseCounts(artist: ArtistDetail, viewer: ReturnType<typeof useViewer>) {
-  if (artist.releaseCount !== undefined && artist.ownedReleaseCount !== undefined) return { total: artist.releaseCount, playing: artist.ownedReleaseCount }
-  return { total: artist.albums.length, playing: artist.albums.filter(album => albumPresentation(album, viewer) === 'normal').length }
-}
-
 export function ArtistView({ artist, onPlayAlbum }: { artist: ArtistDetail; onPlayAlbum: (album: AlbumSummary) => void }) {
   const library = useLibrary()
   const viewer = useViewer()
@@ -54,7 +45,8 @@ export function ArtistView({ artist, onPlayAlbum }: { artist: ArtistDetail; onPl
   const actions = useTrackActions(artist.topTracks, context)
   const wants = useAlbumWants()
   // A requester plays everything here, so only someone who may not fetch music is told how much plays.
-  const { total, playing } = releaseCounts(artist, viewer)
+  const { total } = artistReleaseCounts(artist, viewer)
+  const note = artistAvailabilityNote(artist, viewer)
   const playable = artist.topTracks.some(track => isPlayable(track, viewer))
   const sections = sectionsOf(artist)
   const hasTop = artist.topTracks.length > 0
@@ -64,7 +56,7 @@ export function ArtistView({ artist, onPlayAlbum }: { artist: ArtistDetail; onPl
     <div>
       <ArtistHeader
         artist={artist}
-        line={canFetch(viewer) || playing === total ? plural(total, 'release') : `${playing} of ${plural(total, 'release')} available`}
+        line={note ?? plural(total, 'release')}
         actions={(
           <PlayActions
             id={artist.id}
