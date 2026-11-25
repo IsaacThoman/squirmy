@@ -11,7 +11,7 @@ import { getServerSettings } from '../../lib/settings.js'
 import { ensureAlbumDetail, ensureArtistDetail, ensureLyrics } from '../enrichment/detail.js'
 import { specialPurposeArtists } from '../metadata/musicbrainz.js'
 import { canStartArtistRadio, similarArtists } from '../radio/index.js'
-import { labelFreeKey, prefixEnd, releaseKey } from '../search/keys.js'
+import { editionFreeTitle, labelFreeKey, prefixEnd, printedTitleKey, releaseKey } from '../search/keys.js'
 import { canonicalRelease, collectionCounts, collectionFile } from './availability.js'
 import { resolveOne } from './redirects.js'
 import { alignedTrackSummaries, albumSummaries, artistSummaries, trackSummaries } from './summaries.js'
@@ -129,8 +129,9 @@ const sameKind = (a: Pick<DiscographyRow, 'type' | 'typeGuessed'>, b: Pick<Disco
  * clients cannot find these in the discography.
  *
  * Each edition once: of rows with the same name (`labelFreeKey`), kind and track count
- * (or no track list yet), the one that stands for it (`standsBefore`); the album itself
- * stands for its own. The group's own row first, then by date.
+ * (or no track list yet), the one that stands for it (`standsBefore`), and a row with no
+ * track list yet gives way to an edition row titled as it is without edition words; the
+ * album itself stands for its own. The group's own row first, then by date.
  */
 export async function albumVersionIds(albumId: string): Promise<string[]> {
   const [self] = await db.execute<{ group: string; groupTitle: string; title: string; primaryArtistId: string | null }>(sql`
@@ -156,8 +157,12 @@ export async function albumVersionIds(albumId: string): Promise<string[]> {
   const candidates = rows.filter((row) => row.id !== albumId
     && (row.sameGroup || (releaseKey(row.releaseTitle ?? row.title) === key && sameKind(row, album))))
   const kept: VersionRow[] = [album]
-  const sameEdition = (a: VersionRow, b: VersionRow) => labelFreeKey(a.title) === labelFreeKey(b.title) && sameKind(a, b)
-    && (a.trackCount === b.trackCount || a.trackCount === 0 || b.trackCount === 0)
+  // A row with no track list yet is the edition row of its title less edition words: a
+  // store's "SO CLOSE TO WHAT??? (deluxe)" found by search is "SO CLOSE TO WHAT???".
+  const editionTitle = (row: VersionRow) => printedTitleKey(editionFreeTitle(row.title))
+  const sameEdition = (row: VersionRow, kept: VersionRow) => sameKind(row, kept) && (
+    (labelFreeKey(row.title) === labelFreeKey(kept.title) && (row.trackCount === kept.trackCount || row.trackCount === 0 || kept.trackCount === 0))
+    || (row.trackCount === 0 && kept.releaseTitle != null && editionTitle(row) === editionTitle(kept)))
   for (const row of [...candidates].sort(standsBefore)) {
     if (!kept.some((other) => sameEdition(row, other))) kept.push(row)
   }

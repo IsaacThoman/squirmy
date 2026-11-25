@@ -98,6 +98,10 @@ describe('catalog pages', () => {
     const stub = await createAlbum({ artist, title: 'So Close To What', year: 2025, tracks: [] })
     await db.update(albums).set({ detailLevel: 0, canonicalReleaseId: null }).where(eq(albums.id, stub.albumId))
 
+    // A store's deluxe found by search, with no track list yet, is the deluxe edition row.
+    const storeDeluxe = await createAlbum({ artist, title: 'SO CLOSE TO WHAT??? (deluxe)', year: 2025, tracks: [] })
+    await db.update(albums).set({ detailLevel: 0, canonicalReleaseId: null }).where(eq(albums.id, storeDeluxe.albumId))
+
     const page = body(await get(`/albums/${standard.albumId}`), AlbumDetail)
     expect(page.versions?.map((album) => album.title)).toEqual(['SO CLOSE TO WHAT???', 'So Close to What (Expanded Edition)'])
     expect(page.versions?.[0]).toMatchObject({ id: deluxe.albumId, trackCount: 21, type: 'album' })

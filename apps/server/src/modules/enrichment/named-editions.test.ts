@@ -69,8 +69,10 @@ describe('editions with a title of their own', () => {
     await queueEditionCheck(albumId)
     const [after] = await db.execute<{ queued: number }>(sql`select count(*)::int as queued from pgboss.job where name = 'enrichment.editions'`)
     expect(after?.queued).toBe(0)
-    // An edition row is not checked for editions of its own.
+    // An edition row's editions are its group's, checked already.
     await queueEditionCheck(deluxeId!)
+    const [afterEdition] = await db.execute<{ queued: number }>(sql`select count(*)::int as queued from pgboss.job where name = 'enrichment.editions'`)
+    expect(afterEdition?.queued).toBe(0)
     expect(await keepNamedEditions(deluxeId!)).toEqual([])
     expect(await db.select({ id: releases.id }).from(releases).where(eq(releases.albumId, deluxeId!))).toHaveLength(1)
     expect((await db.select({ id: albums.id }).from(albums).where(eq(albums.editionOfId, albumId)))).toHaveLength(1)

@@ -7,8 +7,8 @@
  * row a store album of another edition becomes (`album.ts`, `asEdition`). Artist pages show
  * the group once; album pages list the others as versions (`catalog/pages.ts`).
  *
- * Checked when a group's row is opened and was not checked in the last 30 days, in a job,
- * so the page does not wait for the release lookups.
+ * Checked when a group's row or one of its editions is opened and the group was not checked
+ * in the last 30 days, in a job, so the page does not wait for the release lookups.
  */
 import { queryKeys } from '@squirmy/contracts'
 import { sql } from 'drizzle-orm'
@@ -30,18 +30,18 @@ import { warn } from './runner.js'
 /** Payload of `enrichment.editions`. */
 export type EditionsJob = { albumId: string }
 
-/** SQL condition: the group row `a` is due an edition check. */
-const due = sql`a.mbid is not null and a.edition_of_id is null and a.merged_into_id is null and a.detail_level >= 2
-  and (a.editions_checked_at is null or a.editions_checked_at < now() - interval '30 days')`
-
 /**
- * Queues `enrichment.editions` for a release group's row that has its track list and was
+ * Queues `enrichment.editions` for the release group of an album that was opened (the
+ * album's own row, or for an edition row its group's) when the group has an MBID and was
  * not checked in the last 30 days. Never throws: the page that asked renders regardless.
  */
 export async function queueEditionCheck(albumId: string): Promise<void> {
   try {
-    const [row] = await db.execute<{ due: boolean }>(sql`select ${due} as due from albums a where a.id = ${albumId}`)
-    if (row?.due) await enqueue('enrichment.editions', { albumId } satisfies EditionsJob, { singletonKey: albumId, priority: -1 })
+    const [group] = await db.execute<{ id: string }>(sql`
+      select g.id from albums a join albums g on g.id = coalesce(a.edition_of_id, a.id)
+      where a.id = ${albumId} and g.mbid is not null and g.edition_of_id is null and g.merged_into_id is null
+        and (g.editions_checked_at is null or g.editions_checked_at < now() - interval '30 days')`)
+    if (group) await enqueue('enrichment.editions', { albumId: group.id } satisfies EditionsJob, { singletonKey: group.id, priority: -1 })
   } catch (error) {
     warn(`Could not queue the edition check of album ${albumId}`, error)
   }
@@ -50,7 +50,8 @@ export async function queueEditionCheck(albumId: string): Promise<void> {
 type GroupRow = { id: string; mbid: string; artistCredit: string; primaryArtistId: string | null; type: string }
 
 /**
- * Writes an edition row for each edition of the group with a title of its own that the
+ * Writes an edition row for each edition of the album's group (the album's own row, or an
+ * edition row's group) with a title of its own that the
  * catalog does not hold yet: no edition row of the group shows that release or one of its
  * track count (a store album of that edition, kept by `asEdition`), and no row holds the
  * release at all. Returns the ids of the rows written. Provider failures propagate, and
@@ -59,9 +60,11 @@ type GroupRow = { id: string; mbid: string; artistCredit: string; primaryArtistI
 export async function keepNamedEditions(albumId: string): Promise<string[]> {
   const id = await currentId('album', albumId)
   if (!id) return []
+  // An edition row's editions are its group's.
   const [group] = await db.execute<GroupRow>(sql`
-    select a.id, a.mbid, a.artist_credit as "artistCredit", a.primary_artist_id as "primaryArtistId", a.type
-    from albums a where a.id = ${id} and a.mbid is not null and a.edition_of_id is null and a.merged_into_id is null`)
+    select g.id, g.mbid, g.artist_credit as "artistCredit", g.primary_artist_id as "primaryArtistId", g.type
+    from albums a join albums g on g.id = coalesce(a.edition_of_id, a.id)
+    where a.id = ${id} and g.mbid is not null and g.edition_of_id is null and g.merged_into_id is null`)
   if (!group) return []
   const releaseGroup = await musicbrainz.getReleaseGroup(group.mbid)
   const known = await db.execute<{ id: string; releaseMbid: string | null; trackCount: number | null }>(sql`

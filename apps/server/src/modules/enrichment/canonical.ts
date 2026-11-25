@@ -1,4 +1,5 @@
 import { matchKey } from '../../lib/text.js'
+import { printedTitleKey } from '../search/keys.js'
 import type { MbReleaseSummary } from '../metadata/musicbrainz.js'
 import { dateOrder, preferredFormat } from '../matching/score.js'
 
@@ -106,13 +107,7 @@ export function chooseCanonicalRelease(releases: readonly MbReleaseSummary[], hi
 /** At most this many editions of one group are kept apart: each costs a MusicBrainz request. */
 export const maxNamedEditions = 6
 
-/**
- * A title as the cover prints it, give or take case, spacing, quote marks and dashes:
- * "SO CLOSE TO WHAT???" and "So Close to What" are two titles, "Don’t Stop" and
- * "DON'T STOP" one.
- */
-const printedTitle = (title: string) => title.normalize('NFKC').toLocaleLowerCase()
-  .replace(/[‘’`´]/gu, "'").replace(/[“”]/gu, '"').replace(/[‐‑‒–—―]/gu, '-').replace(/\s+/gu, ' ').trim()
+const printedTitle = printedTitleKey
 
 type Group = { title: string; releases: readonly MbReleaseSummary[] }
 

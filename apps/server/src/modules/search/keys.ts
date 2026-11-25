@@ -58,6 +58,16 @@ export function editionFreeQuery(query: string): string {
   return dropped.some((word) => strongEditionWords.has(word)) ? words.slice(0, end).join(' ') : query
 }
 
+/**
+ * A title as the cover prints it, give or take case, spacing, quote marks and dashes:
+ * "SO CLOSE TO WHAT???" and "So Close to What" are two titles, where `matchKey` has one,
+ * and "Don’t Stop" and "DON'T STOP" one. For telling editions of one release group apart.
+ */
+export function printedTitleKey(title: string): string {
+  return title.normalize('NFKC').toLocaleLowerCase()
+    .replace(/[‘’`´]/gu, "'").replace(/[“”]/gu, '"').replace(/[‐‑‒–—―]/gu, '-').replace(/\s+/gu, ' ').trim()
+}
+
 /** `matchKey` of `editionFreeTitle`: the key two editions of one album or song share. */
 export function editionFreeKey(title: string): string {
   return matchKey(editionFreeTitle(title))
