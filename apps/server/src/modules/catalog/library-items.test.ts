@@ -160,4 +160,33 @@ describe('the Library\'s All', () => {
     expect(rows.find((row) => row.entityId === quiet.albumId)?.playedAt).toEqual(day(60))
     expect((await walk('', 1))[0]).toBe('Quiet')
   })
+
+  it('puts what was just added at the top of Recently played, as a play would', async () => {
+    const fresh = await createAlbum({ artist: zed, title: 'Fresh' })
+    const restored = await createAlbum({ artist: zed, title: 'Restored' })
+    names.set(fresh.albumId, 'Fresh').set(restored.albumId, 'Restored')
+    const heart = (type: string, id: string, query = '') =>
+      app.inject({ method: 'PUT', url: `/api/v1/me/likes/${type}/${id}${query}`, headers: user.headers })
+
+    expect((await heart('album', fresh.albumId)).statusCode).toBe(200)
+    expect((await walk('', 2))[0]).toBe('Fresh')
+    expect((await page('?limit=1')).items[0]).toMatchObject({ kind: 'album', album: { id: fresh.albumId }, playedAt: expect.any(String) })
+
+    // Undo puts a save back where it was, so it does not move to the top.
+    expect((await heart('album', restored.albumId, `?savedAt=${day(3).toISOString()}`)).statusCode).toBe(200)
+    expect((await walk('', 2))[0]).toBe('Fresh')
+
+    // A liked song adds to Liked Songs.
+    expect((await heart('track', fresh.tracks[0]!.recordingId)).statusCode).toBe(200)
+    expect((await walk('', 2))[0]).toBe('Liked Songs')
+
+    // Hearting what is already saved changes nothing.
+    expect((await heart('album', fresh.albumId)).statusCode).toBe(200)
+    expect((await walk('', 2))[0]).toBe('Liked Songs')
+
+    const created = await app.inject({ method: 'POST', url: '/api/v1/playlists', headers: user.headers, payload: { name: 'New mix' } })
+    expect(created.statusCode).toBe(201)
+    names.set(created.json<{ id: string }>().id, 'New mix')
+    expect((await walk('', 2)).slice(0, 3)).toEqual(['New mix', 'Liked Songs', 'Fresh'])
+  })
 })
