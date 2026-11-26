@@ -10,6 +10,7 @@ export function deviceIcon(kind: DeviceInfo['kind']): string {
   switch (kind) {
     case 'ios':
     case 'android': return 'iphone';
+    case 'tv': return 'appletv.fill';
     case 'web':
     case 'desktop': return 'laptopcomputer';
     case 'other': return 'hifispeaker.fill';
@@ -41,7 +42,7 @@ export type DeviceRow = {
  */
 export function deviceRows(
   devices: readonly DeviceInfo[], thisDevice: DeviceInfo,
-  { activeDeviceId, playing, away = null }: Pick<SessionState, 'activeDeviceId' | 'playing'> & { away?: AwayDevice | null }, now = Date.now(),
+  { activeDeviceId, playing, away = null, onTv = false }: Pick<SessionState, 'activeDeviceId' | 'playing'> & { away?: AwayDevice | null; onTv?: boolean }, now = Date.now(),
 ): DeviceRow[] {
   const listed = listedDevices(devices, thisDevice.id);
   const others = listed.filter(device => device.id !== thisDevice.id && device.canPlay);
@@ -51,7 +52,7 @@ export function deviceRows(
   // connected). Without a row of its own the output would fall back to this phone, and the
   // sheet would say "Playing on This iPhone" while the phone is silent.
   if (!known) others.push({ ...(waiting?.device ?? { name: 'Another device', kind: 'other' as const }), id: activeDeviceId, canPlay: !waiting, isActive: true });
-  const thisName = `This ${thisDevice.kind === 'ios' ? 'iPhone' : 'phone'}`;
+  const thisName = `This ${onTv ? 'Apple TV' : thisDevice.kind === 'ios' ? 'iPhone' : 'phone'}`;
   return [thisDevice, ...others].map(device => {
     const active = device.id === activeDeviceId;
     const isThisDevice = device.id === thisDevice.id;
@@ -62,7 +63,7 @@ export function deviceRows(
       name: reconnecting && !waiting?.device ? 'Playing device' : label.name,
       // The active device keeps the session while paused, so its row says which it is, as the web app's device menu does.
       subtitle: reconnecting ? 'Reconnecting…' : active ? playing ? 'Playing' : 'Paused' : isThisDevice ? 'This device' : [kindName(device.kind), idleHint(device.lastSeenAt, now), label.hint].filter(Boolean).join(' · '),
-      icon: deviceIcon(device.kind),
+      icon: isThisDevice && onTv ? 'appletv.fill' : deviceIcon(device.kind),
       active,
       canPlay: device.canPlay,
       isThisDevice,
@@ -80,6 +81,7 @@ function kindName(kind: DeviceInfo['kind']): string {
   switch (kind) {
     case 'ios': return 'iPhone';
     case 'android': return 'Android';
+    case 'tv': return 'Apple TV';
     case 'web': return 'Web browser';
     case 'desktop': return 'Computer';
     case 'other': return 'Speaker';

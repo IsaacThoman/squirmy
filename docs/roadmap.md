@@ -85,6 +85,13 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Documentation site ([docs/](./index.md), built with VitePress)
 - [x] Docker health check on `/ready`, and the image reports its source version
 
+## 9. Apple TV
+
+- [x] tvOS target and TestFlight upload pipeline under the existing Squirmy bundle ID
+- [x] Typed server connection and sign-in, remote navigation and library browsing
+- [x] Now Playing, lyrics, queue and Connect playback transfer
+- [ ] First tvOS TestFlight distribution
+
 ## Deferred
 
 - Purchasing through acquisition providers (priced offers, caps, budgets)

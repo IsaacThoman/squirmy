@@ -2,6 +2,12 @@
 set -euo pipefail
 umask 077
 
+case "${1:-ios}" in
+  ios) platform=iOS ;;
+  tvos) platform=tvOS; export EXPO_TV=1 ;;
+  *) echo 'Usage: upload-testflight.sh [ios|tvos]' >&2; exit 2 ;;
+esac
+
 for variable in \
   APPLE_TEAM_ID \
   APP_STORE_CONNECT_API_ISSUER_ID \
@@ -50,15 +56,15 @@ authentication=(
   -authenticationKeyID "$APP_STORE_CONNECT_API_KEY_ID"
   -authenticationKeyIssuerID "$APP_STORE_CONNECT_API_ISSUER_ID"
 )
-archive_path="$RUNNER_TEMP/Squirmy.xcarchive"
+archive_path="$RUNNER_TEMP/Squirmy-$platform.xcarchive"
 export_options_path="$signing_dir/ExportOptions.plist"
 
-echo "Archiving Squirmy $SQUIRMY_IOS_VERSION ($SQUIRMY_IOS_BUILD_NUMBER)."
+echo "Archiving Squirmy for $platform $SQUIRMY_IOS_VERSION ($SQUIRMY_IOS_BUILD_NUMBER)."
 xcodebuild \
   -workspace ios/Squirmy.xcworkspace \
   -scheme Squirmy \
   -configuration Release \
-  -destination 'generic/platform=iOS' \
+  -destination "generic/platform=$platform" \
   -archivePath "$archive_path" \
   "${authentication[@]}" \
   DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \

@@ -11,7 +11,7 @@ import {
   createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PropsWithChildren,
 } from 'react';
 import { AppState, Platform } from 'react-native';
-import { useAccountKey, useServerUrl, useSignedInApi } from './account/AccountProvider';
+import { useAccount, useAccountKey, useServerUrl, useSignedInApi } from './account/AccountProvider';
 import { clientDevice } from './account/storage';
 import { useLibraryActions, useLikeChanges, useTrack, useTrackStore } from './data/library';
 import { useUserSettings } from './data/queries';
@@ -68,6 +68,8 @@ const RuntimeContext = createContext<Runtime | null>(null);
  * server). Offline, an entry that is neither downloaded nor cached is skipped.
  */
 export function PlaybackProvider({ children }: PropsWithChildren) {
+  const { state } = useAccount();
+  const supportsTvDevices = Platform.isTV && state.status === 'signedIn' && state.server.supportsTvDevices === true;
   const api = useSignedInApi();
   const account = useAccountKey();
   const serverUrl = useServerUrl();
@@ -100,7 +102,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
     const report = (notice: PlaybackNotice, lasting = false) => playbackStatus.report(notice, { lasting });
     let cancelled = false;
     let teardown: (() => void) | undefined;
-    void clientDevice().then(device => {
+    void clientDevice(supportsTvDevices).then(device => {
       if (cancelled) return;
       const send = (command: SessionCommand) => client.dispatch(command);
       const engine = createPlayerEngine({
@@ -118,9 +120,12 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         transport: createSocketTransport(socket),
         device,
         restore: saved?.session,
-        onDetachedEnded: reason => report({ message: reason === 'expired'
-          ? 'This phone was away for over a week, so it’s playing with your other devices again.'
-          : 'This phone is playing with your other devices again.' }),
+        onDetachedEnded: reason => {
+          const here = Platform.isTV ? 'This Apple TV' : 'This phone';
+          report({ message: reason === 'expired'
+            ? `${here} was away for over a week, so it’s playing with your other devices again.`
+            : `${here} is playing with your other devices again.` });
+        },
         player: {
           engine,
           baseUrl: serverUrl,
@@ -359,7 +364,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       teardown?.();
       setRuntime(null);
     };
-  }, [account, serverUrl, setPlayingHere, socket]);
+  }, [account, serverUrl, setPlayingHere, socket, supportsTvDevices]);
 
   // Where a track plays from changed: resolve entries again.
   useEffect(() => {
@@ -479,8 +484,11 @@ export function usePlaybackState() {
   const actions = useMemo(() => createActions(runtime, canPlay), [canPlay, runtime]);
   const device = runtime?.device;
   const rows = useMemo(() => {
-    const self: DeviceInfo = { id: device?.id ?? '', name: device?.name ?? 'iPhone', kind: device?.kind ?? 'ios', canPlay: true, isActive: false };
-    return deviceRows(devices, self, { activeDeviceId: session.activeDeviceId, playing: session.playing, away });
+    const self: DeviceInfo = {
+      id: device?.id ?? '', name: device?.name ?? (Platform.isTV ? 'Apple TV' : 'iPhone'),
+      kind: device?.kind ?? (Platform.isTV ? 'other' : 'ios'), canPlay: true, isActive: false,
+    };
+    return deviceRows(devices, self, { activeDeviceId: session.activeDeviceId, playing: session.playing, away, onTv: Platform.isTV });
   }, [away, device, devices, session.activeDeviceId, session.playing]);
   const output = outputDevice(rows);
   return {
