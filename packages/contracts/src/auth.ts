@@ -34,6 +34,8 @@ export const SetupStatus = z.object({
   serverName: z.string(),
   registrationRequiresInvite: z.boolean(),
   wantlistEnabled: z.boolean().default(false),
+  /** Older servers omit this and accept TVs that identify as `other`. */
+  supportsTvDevices: z.literal(true).optional(),
 })
 export type SetupStatus = z.infer<typeof SetupStatus>
 
@@ -41,7 +43,7 @@ export type SetupStatus = z.infer<typeof SetupStatus>
 export const ClientDevice = z.object({
   id: z.string().min(8).max(80),
   name: z.string().min(1).max(80),
-  kind: z.enum(['ios', 'android', 'web', 'desktop', 'other']),
+  kind: z.enum(['ios', 'android', 'tv', 'web', 'desktop', 'other']),
 })
 export type ClientDevice = z.infer<typeof ClientDevice>
 

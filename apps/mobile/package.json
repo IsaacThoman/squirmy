@@ -2,7 +2,7 @@
   "name": "@squirmy/mobile",
   "version": "1.0.0",
   "private": true,
-  "main": "expo-router/entry",
+  "main": "index.js",
   "scripts": {
     "start": "expo start",
     "ios": "expo run:ios",
@@ -41,7 +41,7 @@
     "expo-web-browser": "~58.1.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "react-native": "0.88.1",
+    "react-native": "npm:react-native-tvos@0.88.1-0",
     "react-native-gesture-handler": "~3.3.0",
     "react-native-reanimated": "4.7.1",
     "react-native-safe-area-context": "~5.11.1",
@@ -51,6 +51,7 @@
     "socket.io-client": "^4.8.4"
   },
   "devDependencies": {
+    "@react-native-tvos/config-tv": "0.1.7",
     "@types/react": "~19.3.0",
     "typescript": "~6.0.3",
     "vitest": "^4.1.12"

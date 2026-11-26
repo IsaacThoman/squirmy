@@ -1,7 +1,7 @@
 import { listedDevices, reconnectingText, type SessionMoveResult } from '@squirmy/client-core'
 import { queryKeys, type DeviceInfo } from '@squirmy/contracts'
 import { useQuery } from '@tanstack/react-query'
-import { AppWindow, Laptop, ListPlus, MonitorSpeaker, Smartphone, Speaker, Split, Unlink2, Users } from 'lucide-react'
+import { AppWindow, Laptop, ListPlus, MonitorSpeaker, Smartphone, Speaker, Split, Tv, Unlink2, Users } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { useApi } from '@/api/services'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -11,7 +11,7 @@ import { labelDevice, type Player } from '@/player/player-context'
 import { VolumeControl } from './Transport'
 
 export function DeviceIcon({ kind, className }: { kind: DeviceInfo['kind']; className?: string }) {
-  const Icon = kind === 'web' ? AppWindow : kind === 'desktop' ? Laptop : kind === 'ios' || kind === 'android' ? Smartphone : Speaker
+  const Icon = kind === 'web' ? AppWindow : kind === 'desktop' ? Laptop : kind === 'tv' ? Tv : kind === 'ios' || kind === 'android' ? Smartphone : Speaker
   return <Icon aria-hidden className={className} />
 }
 
@@ -255,5 +255,5 @@ function deviceDetail(player: Player, device: DeviceInfo) {
 }
 
 function deviceKind(kind: DeviceInfo['kind']) {
-  return { ios: 'iPhone app', android: 'Android app', web: 'Web browser', desktop: 'Computer', other: 'Speaker' }[kind]
+  return { ios: 'iPhone app', android: 'Android app', tv: 'Apple TV', web: 'Web browser', desktop: 'Computer', other: 'Speaker' }[kind]
 }

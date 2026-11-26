@@ -40,6 +40,7 @@ const sidebar = [
     items: [
       { text: 'The web app', link: '/use/web' },
       { text: 'The iOS app', link: '/use/ios' },
+      { text: 'The Apple TV app', link: '/use/apple-tv' },
       { text: 'Keyboard shortcuts', link: '/use/keyboard-shortcuts' },
       { text: 'The wantlist', link: '/use/wantlist' },
     ],
@@ -62,7 +63,7 @@ export default defineConfig({
   lang: 'en-US',
   title: 'Squirmy',
   titleTemplate: ':title · Squirmy',
-  description: 'Squirmy is a self-hosted music server with a web app and an iOS app.',
+  description: 'Squirmy is a self-hosted music server with web, iOS and Apple TV apps.',
   base,
   cleanUrls: true,
   lastUpdated: true,

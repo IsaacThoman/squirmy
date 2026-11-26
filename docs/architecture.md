@@ -550,6 +550,7 @@ apps/mobile/
   src/playback.tsx       PlaybackProvider: the SessionClient, its hooks (usePlaybackState, usePosition)
   src/*.tsx              the tab shell's screens and parts: Now Playing, Library, mini-player, sheets, theme, shared UI
   src/native/            SwiftUI controls (buttons, menus) for the .ios screens
+  src/tv/                Apple TV shell, typed sign-in, browse pages and Now Playing
   src/dev/               development-only screens (the engine bench at /dev/engine)
   modules/now-playing/   local Expo module: Now Playing info and remote commands as JS events
   modules/scroll-edges/  local Expo module: turns off iOS 26's scroll edge effects in every scroll view
@@ -582,6 +583,14 @@ apps/mobile/
 - **CarPlay.** The local Expo module in `apps/mobile/modules/carplay` renders system CarPlay templates from the list descriptions in `src/carplay`. The config plugin registers a CarPlay scene and Siri media intents when `SQUIRMY_IOS_CARPLAY=1`. When the car connects first, its scene delegate starts the React Native root without a phone window. The phone scene attaches that root if it opens later. Both scenes use the same account, query cache, downloads, and session player. A visible CarPlay scene keeps the realtime socket open while the phone is locked. A pending Siri media request can also keep it open while it looks up a song or collection.
 - **CarPlay browsing and transport.** Home uses artwork rows where the head unit supports them. Library, Downloads and collections use capped lists with paging. The display reports list and artwork limits and handles focus, touch and rotary input. With the `play-here` session capability, the server changes the session output and starts the selected music in one command. With older servers, the phone sends a paused transfer followed by the play command when another device is active. An unsolicited Play from the car resumes a paused session on the phone and leaves another device’s running session alone. Now Playing uses the same MediaPlayer metadata and remote commands as the lock screen, adding the queue position and CarPlay’s shuffle, repeat, heart and Up Next controls. The iPhone keeps its own session if it was already playing separately.
 
+**Apple TV**
+
+- `EXPO_TV=1` selects the TV entry in Metro and configures the generated `ios/` directory as a tvOS project. Regenerate the project with `--clean` to switch between iOS and tvOS. The Apple TV app uses the same bundle ID as iOS.
+- `src/tv/` owns the TV routes and directional focus. It shares the account, query, realtime and playback providers. The native Now Playing module feeds remote commands through the shared session. tvOS uses the session volume for playback gain.
+- Servers advertise `supportsTvDevices` in `GET /setup/status`. A TV identifies itself as `tv` on those servers and `other` on older ones.
+- The TV build streams music, with storage treated as disposable caches. The Keychain holds credentials. See the [Apple TV guide](./use/apple-tv.md) for building the app and installing a TestFlight build.
+- The config plugin builds the tvOS icon stack and Top Shelf image sets from `apps/mobile/assets/tv/`. After changing the iOS mascot layers, run `swift apps/mobile/assets/tv/render.swift` to regenerate the TV artwork.
+
 ## Testing
 
 - `vitest` everywhere. A test file sits next to the code it tests as `*.test.ts`.
@@ -600,14 +609,14 @@ apps/mobile/
 
 ### TestFlight
 
-After semantic-release publishes a version on `main`, CI builds the tagged iOS app on macOS and uploads it to App Store Connect. The app uses the release version and a UTC Unix timestamp as its build number. If the upload job fails, rerun that job from the release's CI run.
+After semantic-release publishes a version on `main`, CI builds and uploads iOS and tvOS from the release tag in separate jobs. Each build uses the release version and a UTC Unix timestamp as its build number. If an upload fails, rerun the failed job from the release's CI run. The Apple TV workflow compiles the unsigned tvOS app on pull requests that change the mobile app or its shared dependencies.
 
-Register the Squirmy iOS app in App Store Connect with bundle ID `com.isaacthoman.squirmy`. In the repository's `testflight` GitHub Actions environment, allow deployments from `main` and set the `APPLE_TEAM_ID` variable to the Apple Developer team ID. Add these environment secrets:
+Use the Squirmy app record in App Store Connect with bundle ID `com.isaacthoman.squirmy`. In the app's sidebar, choose **Add Platform → tvOS** for the Apple TV build. In the repository's `testflight` GitHub Actions environment, allow deployments from `main` and set the `APPLE_TEAM_ID` variable to the Apple Developer team ID. Add these environment secrets:
 
 - `APP_STORE_CONNECT_API_KEY_ID` and `APP_STORE_CONNECT_API_ISSUER_ID` for a team API key with access to automatic signing and TestFlight uploads.
 - `APP_STORE_CONNECT_API_PRIVATE_KEY` with the complete contents of that key's `.p8` file.
 - `IOS_DEVELOPMENT_CERTIFICATE_P12_BASE64` with a base64-encoded PKCS#12 export of the team's Apple Development certificate and private key, and `IOS_DEVELOPMENT_CERTIFICATE_PASSWORD` with its export password.
 
-App Store Connect processes the upload before the build is available to testers. Manage tester groups and any export compliance questions there.
+App Store Connect processes each upload before the build is available to testers. In the **TestFlight** tab, choose **tvOS** and add the build to the intended tester group. External testers receive access after Apple completes TestFlight App Review. Manage tester groups and any export compliance questions in App Store Connect.
 
 To enable CarPlay in TestFlight builds, add the Apple-approved CarPlay Audio and Siri capabilities to the production app ID (`com.isaacthoman.squirmy`), then set the `SQUIRMY_IOS_CARPLAY` variable to `1` in the `testflight` GitHub Actions environment. Automatic signing must choose a provisioning profile with both capabilities. Squirmy Dev can use a separate entitled profile for device testing.

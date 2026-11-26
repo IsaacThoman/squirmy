@@ -5,7 +5,7 @@ titleTemplate: false
 hero:
   name: Squirmy
   text: Your music server
-  tagline: A self-hosted music server with a web app and an iOS app. It identifies and organizes your files, searches all music, and keeps one playback session in step across your devices.
+  tagline: A self-hosted music server with web, iOS and Apple TV apps. It identifies and organizes your files, searches all music, and keeps one playback session in step across your devices.
   actions:
     - theme: brand
       text: Quick start
@@ -50,5 +50,5 @@ Open `http://localhost:4747`, create the admin account, and choose **Continue** 
 
 - **Running a server:** [Quick start](/server/quick-start), [Configuration](/server/configuration), [Reverse proxies and HTTPS](/server/reverse-proxy), [Backup](/server/backup), [Troubleshooting](/server/troubleshooting).
 - **Your music:** [Your library](/server/library), [Organizing files](/server/organizing), [Adding music](/server/adding-music), [Metadata and privacy](/server/metadata-and-privacy).
-- **Using it:** [The web app](/use/web), [The iOS app](/use/ios), [Subsonic clients](/server/subsonic).
+- **Using it:** [The web app](/use/web), [The iOS app](/use/ios), [The Apple TV app](/use/apple-tv), [Subsonic clients](/server/subsonic).
 - **Status:** Squirmy is young. The [roadmap](/roadmap) lists what works today and what does not yet.
