@@ -1,0 +1,74 @@
+import type { ScrobbleService, UserSettings } from '@squirmy/contracts';
+import { describe, expect, it } from 'vitest';
+import {
+  appVersion, canToggleScrobbling, choiceSpec, isChoice, onOff, optionLabel, scrobbleValue, serverVersionValue,
+} from './settingsModel';
+
+const normalization = [{ value: 'auto', label: 'Automatic' }, { value: 'off', label: 'Off' }] as const;
+const quality = [{ value: 'original', label: 'Original' }, { value: 'high', label: 'High' }] as const;
+
+const service = (patch: Partial<ScrobbleService> = {}): ScrobbleService => ({
+  target: 'listenbrainz', available: true, connected: true, needsAttention: false, enabled: true,
+  account: 'squirm', pending: 0, failed: 0, lastError: null, ...patch,
+} as ScrobbleService);
+
+describe('choiceSpec', () => {
+  const settings = { normalization: 'off', qualityWifi: 'high', qualityCellular: 'original' } as UserSettings;
+
+  it('reads and changes normalization', () => {
+    const spec = choiceSpec('normalization', normalization, quality, 'note');
+    expect(spec.title).toBe('Volume Normalization');
+    expect(spec.note).toBe('note');
+    expect(spec.current(settings)).toBe('off');
+    expect(spec.change('auto')).toEqual({ normalization: 'auto' });
+  });
+
+  it('uses the Wi-Fi quality, which the TV plays at on Ethernet too', () => {
+    const spec = choiceSpec('quality', normalization, quality, 'note');
+    expect(spec.current(settings)).toBe('high');
+    expect(spec.change('original')).toEqual({ qualityWifi: 'original' });
+  });
+});
+
+describe('isChoice', () => {
+  it('knows only the settings it can open', () => {
+    expect(isChoice('quality')).toBe(true);
+    expect(isChoice('normalization')).toBe(true);
+    expect(isChoice('volume')).toBe(false);
+    expect(isChoice(undefined)).toBe(false);
+  });
+});
+
+describe('row values', () => {
+  it('labels the chosen option', () => {
+    expect(optionLabel(quality, 'high')).toBe('High');
+    expect(optionLabel(quality, 'lossless')).toBe('');
+  });
+
+  it('shows switches as On and Off', () => {
+    expect(onOff(true)).toBe('On');
+    expect(onOff(false)).toBe('Off');
+  });
+
+  it('shows a service’s switch once connected, or what it needs', () => {
+    expect(scrobbleValue(service(), true)).toBe('On');
+    expect(scrobbleValue(service(), false)).toBe('Off');
+    expect(scrobbleValue(service({ needsAttention: true }), true)).toBe('Connect Again');
+    expect(scrobbleValue(service({ connected: false }), true)).toBe('Not Connected');
+    expect(scrobbleValue(service({ connected: false, available: false }), true)).toBe('Not Set Up');
+  });
+
+  it('toggles only a working connection', () => {
+    expect(canToggleScrobbling(service())).toBe(true);
+    expect(canToggleScrobbling(service({ needsAttention: true }))).toBe(false);
+    expect(canToggleScrobbling(service({ connected: false }))).toBe(false);
+  });
+
+  it('says the app and server versions', () => {
+    expect(appVersion('1.2.0', '34')).toBe('1.2.0 (34)');
+    expect(appVersion('1.2.0', null)).toBe('1.2.0');
+    expect(appVersion(undefined, undefined)).toBe('');
+    expect(serverVersionValue('1.4.0')).toBe('1.4.0');
+    expect(serverVersionValue('dev')).toBe('Development Build');
+  });
+});

@@ -4,7 +4,6 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import * as Linking from 'expo-linking';
-import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { Alert } from 'react-native';
 import { loadFailure } from '../data/errors';
@@ -34,8 +33,14 @@ export const lastFmAdminNote = 'Last.fm scrobbling isn’t set up on this server
 /** Where a ListenBrainz user finds the token to paste. */
 export const listenBrainzSettingsUrl = 'https://listenbrainz.org/settings/';
 
+/**
+ * Loaded when it is used: the Apple TV build has no web browser module, and its settings screen
+ * uses the rest of this file.
+ */
+const webBrowser = () => import('expo-web-browser');
+
 export function openListenBrainzSettings() {
-  void WebBrowser.openBrowserAsync(listenBrainzSettingsUrl);
+  void webBrowser().then(browser => browser.openBrowserAsync(listenBrainzSettingsUrl));
 }
 
 /** The library's switch (`libraryIncludesServerMusic`), worded as on web. */
@@ -107,6 +112,7 @@ export function useSettingsScreen() {
   });
   const connectLastFm = useMutation({
     mutationFn: async () => {
+      const WebBrowser = await webBrowser();
       const returnTo = Linking.createURL('settings');
       // The server finishes the connection, then sends the browser back to the app, which closes
       // it and says how it went. A build whose scheme the server doesn't know (Expo Go) can only

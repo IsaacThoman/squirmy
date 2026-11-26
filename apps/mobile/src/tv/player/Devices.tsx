@@ -1,124 +1,175 @@
 import type { SessionMoveResult } from '@squirmy/client-core';
 import type { DeviceInfo } from '@squirmy/contracts';
-import { SymbolView, type SymbolViewProps } from 'expo-symbols';
-import { useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import NowPlaying from '../../../modules/now-playing';
+import { BlurView } from 'expo-blur';
+import { useIsFocused, useRouter } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useTrack } from '../../data/library';
 import { usePlaybackState } from '../../playback';
-import { hasQueueToBring, moveFailure, separateRows } from '../../player/detach';
-import { TvButton, tvColors } from '../ui';
-import { PlayerIconButton, PlayerRow } from './Primitives';
+import { DETACHED_SYMBOL, detachedHeader, hasQueueToBring, moveFailure, separateRows } from '../../player/detach';
+import { whereItPlays } from '../../player/session';
+import { Icon } from '../../ui';
+import { Button } from '../Button';
+import { Focusable } from '../Focusable';
+import { colors, type } from '../theme';
+import { useMenuKey } from './useMenuKey';
 
-export function TvDevices() {
-  const { actions, allDevices, canDetach, connection, detached, devices, output, queue, session, thisDeviceId, volume } = usePlaybackState();
-  const [moving, setMoving] = useState(false);
-  const moveInFlight = useRef(false);
+const panelWidth = 760;
+
+/**
+ * Where the music plays, in a glass panel at the side of the screen as the system's own audio
+ * picker opens: this Apple TV first, then the user's other devices that can play, the one
+ * playing marked. Selecting one moves the music there; it carries on from where it was. From
+ * here this Apple TV can also play on its own, apart from the other devices, and rejoin them.
+ */
+export function DevicesScreen() {
+  const { track, devices, output, volume, session, queue, actions, detached, canDetach, allDevices, thisDeviceId, connection } = usePlaybackState();
+  const [moving, setMoving] = useState<'detach' | 'attach' | 'bring' | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
-  const separate = allDevices.filter(device => device.detached && device.id !== thisDeviceId);
+  const router = useRouter();
+  // Menu closes the panel, back to Now Playing.
+  useMenuKey(useIsFocused(), () => router.back());
+  const appear = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.spring(appear, { toValue: 1, speed: 14, bounciness: 0, useNativeDriver: true }).start();
+  }, [appear]);
+  // The panel turns to the other way of playing: what failed in the last one no longer applies.
+  useEffect(() => setFailure(null), [detached]);
   const online = connection === 'online';
-
-  const changeSession = (move: 'attach' | 'detach', run: () => Promise<SessionMoveResult>) => {
-    if (moveInFlight.current) return;
-    moveInFlight.current = true;
-    setMoving(true);
+  const separate = allDevices.filter(device => device.detached && device.id !== thisDeviceId);
+  const move = (run: () => Promise<SessionMoveResult>, kind: 'detach' | 'attach' | 'bring') => {
+    if (moving) return;
+    setMoving(kind);
     setFailure(null);
     void run().then(result => {
-      if (!result.ok) setFailure(moveFailure(move, result.error));
-    }, () => setFailure(moveFailure(move, 'internal_error'))).finally(() => {
-      moveInFlight.current = false;
-      setMoving(false);
+      setMoving(null);
+      if (!result.ok) setFailure(moveFailure(kind === 'detach' ? 'detach' : 'attach', result.error));
+    }, () => {
+      setMoving(null);
+      setFailure(moveFailure(kind === 'detach' ? 'detach' : 'attach', 'internal_error'));
     });
   };
+  const header = detached ? detachedHeader(track, session.playing)
+    : { title: 'Playback device', subtitle: session.activeDeviceId ? whereItPlays(output, session.playing ? 'Playing' : 'Paused') : 'Nothing playing' };
+  const remoteVolume = !detached && session.activeDeviceId && !output.reconnecting && !output.isThisDevice && online;
+  const preferred = devices.find(device => device.active) ?? devices[0];
 
-  return (
-    <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      {detached ? (
-        <>
-          <Text style={styles.detail}>Playing separately on this Apple TV.</Text>
-          <PlayerRow title="Rejoin your devices" detail="Return to the shared playback session" disabled={moving || !online}
-            onPress={() => changeSession('attach', () => actions.attach())} />
-          {hasQueueToBring(session, queue) && (
-            <PlayerRow title="Rejoin and bring this queue" detail="Your other devices switch to this queue" disabled={moving || !online}
-              onPress={() => changeSession('attach', () => actions.attach({ bringQueue: true }))} />
-          )}
-        </>
-      ) : (
-        <>
-          {devices.map(device => (
-            <PlayerRow key={device.id} title={device.name} detail={device.subtitle}
-              active={device.active}
-              leading={<DeviceSymbol icon={device.icon as SymbolViewProps['name']} />}
-              disabled={!device.id || !device.canPlay || (!online && !device.active)}
-              onPress={() => { if (!device.active) actions.transfer(device.id); }} />
-          ))}
-          {canDetach && (
-            <PlayerRow title="Play separately" detail="Your other devices keep their own queue" disabled={moving || !online}
-              onPress={() => changeSession('detach', actions.detach)} />
-          )}
-        </>
-      )}
-      {session.activeDeviceId && !output.reconnecting && (online || output.isThisDevice) && (
-        <View style={styles.volume}>
-          <View style={styles.volumeCopy}>
-            <Text style={styles.title}>Volume</Text>
-            <Text style={styles.detail}>{output.name}</Text>
-          </View>
-          <PlayerIconButton icon="speaker.wave.1" label="Lower volume" onPress={() => actions.setVolume(output.id, volume - 0.1)} />
-          <Text style={styles.percentage}>{Math.round(volume * 100)}%</Text>
-          <PlayerIconButton icon="speaker.wave.3" label="Raise volume" onPress={() => actions.setVolume(output.id, volume + 0.1)} />
+  return <View style={styles.screen}>
+    <Animated.View style={[styles.dim, { opacity: appear }]} />
+    <Animated.View style={[styles.panel, { opacity: appear, transform: [{ translateX: appear.interpolate({ inputRange: [0, 1], outputRange: [80, 0] }) }] }]}>
+      <BlurView tint="dark" intensity={90} style={StyleSheet.absoluteFill} />
+      <View style={styles.wash} />
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <Text accessibilityRole="header" style={styles.title}>{header.title}</Text>
+        <Text numberOfLines={2} style={styles.subtitle}>{header.subtitle}</Text>
+        <View style={styles.rows}>
+          {detached ? <>
+            <Row title="Rejoin your other devices" subtitle="This Apple TV’s queue is cleared." icon="arrow.uturn.backward"
+              busy={moving === 'attach'} disabled={!online} preferred onPress={() => move(() => actions.attach(), 'attach')} />
+            {hasQueueToBring(session, queue) && <Row title="Bring this queue with me" icon="arrow.triangle.merge"
+              subtitle="Your other devices switch to what’s playing here" busy={moving === 'bring'} disabled={!online}
+              onPress={() => move(() => actions.attach({ bringQueue: true }), 'bring')} />}
+          </> : <>
+            {devices.map(device => <Row key={device.id || 'this'} title={device.name} subtitle={device.subtitle} icon={device.icon}
+              active={device.active} preferred={device === preferred}
+              disabled={!device.id || !device.canPlay || Boolean(device.reconnecting) || (!online && !device.active)}
+              onPress={() => { if (!device.active) actions.transfer(device.id); }} />)}
+            {canDetach && <Row title="Play separately on this Apple TV" subtitle="Your other devices keep their own queue."
+              icon={DETACHED_SYMBOL} busy={moving === 'detach'} disabled={!online} onPress={() => move(() => actions.detach(), 'detach')} />}
+          </>}
         </View>
-      )}
-      {output.isThisDevice && NowPlaying?.showRoutePicker && (
-        <TvButton label="AirPlay and Bluetooth" onPress={() => {
-          setFailure(null);
-          void NowPlaying?.showRoutePicker?.().catch(() => setFailure('Couldn’t open the audio output picker.'));
-        }} />
-      )}
-      {separate.length > 0 && <Text accessibilityRole="header" style={styles.heading}>Playing separately</Text>}
-      {separate.map(device => <SeparateDevice key={device.id} device={device} />)}
-      {!online && <Text style={styles.detail}>Connect to your server to switch playback devices.</Text>}
-      {failure && <Text accessibilityRole="alert" style={styles.failure}>{failure}</Text>}
-    </ScrollView>
-  );
+        {remoteVolume && <View style={styles.volume}>
+          <View style={styles.volumeWords}>
+            <Text style={styles.rowTitle}>Volume</Text>
+            <Text numberOfLines={1} style={styles.rowSubtitle}>{output.name}</Text>
+          </View>
+          <Button icon="speaker.minus.fill" accessibilityLabel={`Lower the volume on ${output.name}`}
+            onPress={() => actions.setVolume(output.id, volume - 0.1)} />
+          <Text style={styles.percent}>{`${Math.round(volume * 100)}%`}</Text>
+          <Button icon="speaker.plus.fill" accessibilityLabel={`Raise the volume on ${output.name}`}
+            onPress={() => actions.setVolume(output.id, volume + 0.1)} />
+        </View>}
+        {failure && <Text accessibilityRole="alert" style={styles.failure}>{failure}</Text>}
+        {!online && <Text style={styles.note}>Connect to your server to switch playback devices.</Text>}
+        {separate.length > 0 && <>
+          <Text accessibilityRole="header" style={styles.section}>Playing separately</Text>
+          {separate.map(device => <SeparateDevice key={device.id} device={device} />)}
+        </>}
+      </ScrollView>
+    </Animated.View>
+  </View>;
 }
 
-function DeviceSymbol({ icon }: { icon: SymbolViewProps['name'] }) {
-  return (
-    <View style={styles.icon}>
-      <SymbolView name={icon} size={26} tintColor={tvColors.accent} accessible={false} />
-    </View>
-  );
+function Row({ title, subtitle, icon, active, busy, disabled, preferred, onPress }: {
+  title: string;
+  subtitle?: string;
+  icon: string;
+  active?: boolean;
+  busy?: boolean;
+  disabled?: boolean;
+  preferred?: boolean;
+  onPress: () => void;
+}) {
+  return <Focusable
+    accessibilityLabel={[title, subtitle, active ? 'Selected' : null].filter(Boolean).join(', ')}
+    accessibilityState={{ selected: active, disabled, busy }}
+    onPress={disabled || busy ? undefined : onPress}
+    hasTVPreferredFocus={preferred}
+    scale={1.03}
+    liftStyle={({ focused }) => [styles.row, focused && styles.rowFocused]}
+  >
+    {({ focused }) => {
+      const ink = focused ? colors.onFocused : disabled ? colors.tertiary : colors.text;
+      return <>
+        <View style={[styles.icon, focused && styles.iconFocused, active && !focused && styles.iconActive]}>
+          <Icon name={icon} size={34} color={active && !focused ? colors.onFocused : ink} />
+        </View>
+        <View style={styles.words}>
+          <Text numberOfLines={1} style={[styles.rowTitle, { color: ink }]}>{title}</Text>
+          {subtitle ? <Text numberOfLines={2} style={[styles.rowSubtitle, focused && styles.rowSubtitleFocused]}>{busy ? 'One moment…' : subtitle}</Text> : null}
+        </View>
+        {active && <Icon name="checkmark" size={30} color={focused ? colors.onFocused : colors.accent} />}
+      </>;
+    }}
+  </Focusable>;
 }
 
 function SeparateDevice({ device }: { device: DeviceInfo }) {
   const track = useTrack(device.detached?.trackId, device.detached?.albumId);
   const [row] = separateRows([device], '', () => track?.title);
   if (!row) return null;
-  return (
-    <View style={styles.separate}>
-      <DeviceSymbol icon={row.icon as SymbolViewProps['name']} />
-      <View style={styles.volumeCopy}>
-        <Text numberOfLines={1} style={styles.title}>{row.name}</Text>
-        <Text numberOfLines={1} style={styles.detail}>{row.subtitle}</Text>
-      </View>
+  return <View style={styles.separate}>
+    <View style={styles.icon}><Icon name={row.icon} size={34} color={colors.secondary} /></View>
+    <View style={styles.words}>
+      <Text numberOfLines={1} style={styles.rowTitle}>{row.name}</Text>
+      <Text numberOfLines={1} style={styles.rowSubtitle}>{row.subtitle}</Text>
     </View>
-  );
+  </View>;
 }
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1, minHeight: 0 },
-  content: { paddingRight: 16, paddingBottom: 20, gap: 8 },
-  heading: { color: tvColors.text, fontSize: 26, fontWeight: '600', paddingTop: 20 },
-  title: { color: tvColors.text, fontSize: 23, fontWeight: '600' },
-  detail: { color: tvColors.muted, fontSize: 20 },
-  failure: { color: tvColors.danger, fontSize: 22 },
-  percentage: { color: tvColors.text, fontSize: 20, fontVariant: ['tabular-nums'], minWidth: 58, textAlign: 'center' },
-  volume: {
-    flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, paddingVertical: 12,
-    marginTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderColor: tvColors.border,
-  },
-  volumeCopy: { flex: 1, minWidth: 0, gap: 3 },
-  icon: { backgroundColor: '#302743', width: 52, height: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 11 },
-  separate: { flexDirection: 'row', alignItems: 'center', gap: 15, paddingHorizontal: 18, paddingVertical: 9 },
+  screen: { flex: 1 },
+  dim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.45)' },
+  panel: { position: 'absolute', top: 60, bottom: 60, right: 60, width: panelWidth, borderRadius: 44, overflow: 'hidden' },
+  wash: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(40,36,54,0.35)' },
+  content: { padding: 44, paddingBottom: 60 },
+  title: { ...type.title2 },
+  subtitle: { ...type.body, color: colors.secondary, marginTop: 6 },
+  rows: { marginTop: 34, marginHorizontal: -20, gap: 6 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 24, paddingHorizontal: 20, paddingVertical: 16, borderRadius: 22 },
+  rowFocused: { backgroundColor: colors.focused },
+  icon: { width: 68, height: 68, borderRadius: 34, backgroundColor: colors.platter, alignItems: 'center', justifyContent: 'center' },
+  iconFocused: { backgroundColor: 'rgba(0,0,0,0.08)' },
+  iconActive: { backgroundColor: colors.accent },
+  words: { flex: 1, gap: 2 },
+  rowTitle: { ...type.callout, fontWeight: '600', color: colors.text },
+  rowSubtitle: { ...type.caption, color: colors.secondary },
+  rowSubtitleFocused: { color: 'rgba(17,16,24,0.62)' },
+  volume: { flexDirection: 'row', alignItems: 'center', gap: 20, marginTop: 30, paddingTop: 30, borderTopWidth: 1, borderColor: colors.hairline },
+  volumeWords: { flex: 1, gap: 2 },
+  percent: { ...type.callout, fontVariant: ['tabular-nums'], minWidth: 80, textAlign: 'center' },
+  failure: { ...type.body, color: colors.danger, marginTop: 24 },
+  note: { ...type.body, color: colors.secondary, marginTop: 24 },
+  section: { ...type.headline, color: colors.secondary, marginTop: 40, marginBottom: 12 },
+  separate: { flexDirection: 'row', alignItems: 'center', gap: 24, paddingVertical: 12 },
 });
