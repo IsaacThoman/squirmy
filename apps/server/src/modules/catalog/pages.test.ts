@@ -82,6 +82,37 @@ describe('catalog pages', () => {
     expect(library.items.map((track) => track.id)).toEqual(expect.arrayContaining(bonus.tracks.map((track) => track.recordingId)))
   })
 
+  it('lists an album’s other versions that the artist page shows as one release', async () => {
+    const artist = await createArtist({ name: 'Tate McRae' })
+    const tracks = (count: number) => Array.from({ length: count }, (_, index) => ({ title: `Song ${index + 1}` }))
+    const standard = await createAlbum({ artist, title: 'So Close to What', year: 2025, mbid: newId(), tracks: tracks(13) })
+    // The deluxe, kept as an edition of the group (named-editions.ts), and a separate group of its own.
+    const deluxe = await createAlbum({ artist, title: 'SO CLOSE TO WHAT???', year: 2025, tracks: tracks(21) })
+    await db.update(albums).set({ editionOfId: standard.albumId, mbid: null }).where(eq(albums.id, deluxe.albumId))
+    const expanded = await createAlbum({ artist, title: 'So Close to What (Expanded Edition)', year: 2026, mbid: newId(), tracks: tracks(24) })
+    // Not versions: the title track's single, another album, and another artist's album of the title.
+    await createAlbum({ artist, title: 'So Close to What', type: 'single', year: 2024, mbid: newId(), tracks: tracks(1) })
+    await createAlbum({ artist, title: 'So Close', year: 2023, mbid: newId() })
+    await createAlbum({ artist: await createArtist({ name: 'Mira Vale' }), title: 'So Close to What', year: 2025 })
+    // A search stub of the standard edition with no track list yet is that edition, not a version.
+    const stub = await createAlbum({ artist, title: 'So Close To What', year: 2025, tracks: [] })
+    await db.update(albums).set({ detailLevel: 0, canonicalReleaseId: null }).where(eq(albums.id, stub.albumId))
+
+    // A store's deluxe found by search, with no track list yet, is the deluxe edition row.
+    const storeDeluxe = await createAlbum({ artist, title: 'SO CLOSE TO WHAT??? (deluxe)', year: 2025, tracks: [] })
+    await db.update(albums).set({ detailLevel: 0, canonicalReleaseId: null }).where(eq(albums.id, storeDeluxe.albumId))
+
+    const page = body(await get(`/albums/${standard.albumId}`), AlbumDetail)
+    expect(page.versions?.map((album) => album.title)).toEqual(['SO CLOSE TO WHAT???', 'So Close to What (Expanded Edition)'])
+    expect(page.versions?.[0]).toMatchObject({ id: deluxe.albumId, trackCount: 21, type: 'album' })
+    // From the deluxe, the standard edition comes first.
+    expect(body(await get(`/albums/${deluxe.albumId}`), AlbumDetail).versions?.map((album) => album.id))
+      .toEqual([standard.albumId, expanded.albumId])
+    // The artist page lists the release once, as the standard edition.
+    const artistPage = body(await get(`/artists/${artist.id}`), ArtistDetail)
+    expect(artistPage.sections!.find((section) => section.key === 'album')!.items.map((album) => album.title)).toEqual(['So Close to What', 'So Close'])
+  })
+
   it('answers 404 with stable codes and 400 for malformed ids', async () => {
     expect(errorCode(await get(`/albums/${newId()}`), 404)).toBe('album_not_found')
     expect(errorCode(await get(`/artists/${newId()}`), 404)).toBe('artist_not_found')

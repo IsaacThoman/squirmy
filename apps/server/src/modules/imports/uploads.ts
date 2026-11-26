@@ -26,6 +26,7 @@ import { resolveMerged } from '../catalog/redirects.js'
 import { isoTime, uuidArray } from '../catalog/sql.js'
 import { albumSummaries, alignedTrackSummaries } from '../catalog/summaries.js'
 import { deleteLibraryFile, type DeletedFile } from '../library/delete.js'
+import { recordCollectionAdd } from '../sessions/collection-plays.js'
 import { announceUserChange } from '../userdata/changes.js'
 
 /**
@@ -233,6 +234,7 @@ export async function deleteUploadFile(scope: UploadScope, fileId: string): Prom
  * When an upload import finishes: saves (hearts) its albums for the uploader, so their own
  * uploads are in their library whether or not it includes the server's music. Inbox imports
  * have no user. An existing save keeps its time. Nothing is fetched: the upload is the music.
+ * A newly saved album heads the uploader's Recently played, as a heart would.
  */
 export async function saveUploadedAlbums(importId: string): Promise<void> {
   const saved = await db.execute<{ userId: string; albumId: string }>(sql`
@@ -243,5 +245,8 @@ export async function saveUploadedAlbums(importId: string): Promise<void> {
       and f.album_id is not null and f.missing_since is null
     on conflict do nothing
     returning user_id as "userId", entity_id as "albumId"`)
-  for (const row of saved) await announceUserChange(row.userId, 'album', row.albumId)
+  for (const row of saved) {
+    await recordCollectionAdd(row.userId, { type: 'album', id: row.albumId })
+    await announceUserChange(row.userId, 'album', row.albumId)
+  }
 }

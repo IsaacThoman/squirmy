@@ -16,6 +16,8 @@ export type AlbumMenuState = {
   /** For music that does not play, while the server has the wantlist on. */
   want?: { wanted: boolean; failed?: boolean };
   artists: readonly { name: string }[];
+  /** `artists` leaves out the artist whose page the album is shown on, so each one left is named. */
+  named?: boolean;
   /** Share, on the album's page. */
   share?: boolean;
 };
@@ -38,7 +40,7 @@ export type AlbumMenuRunners = {
  * and adds every song the album lists, as web does; a gray album can be added too.
  */
 export function albumActions(state: AlbumMenuState, run: AlbumMenuRunners): RowAction[] {
-  const { plays, offline, songsKnown = true, saved, want, artists, share } = state;
+  const { plays, offline, songsKnown = true, saved, want, artists, named = false, share } = state;
   const items: (RowAction | false)[] = [
     plays && { title: 'Play', icon: 'play.fill', onPress: () => run.play(false) },
     plays && { title: 'Shuffle', icon: 'shuffle', onPress: () => run.play(true) },
@@ -49,7 +51,7 @@ export function albumActions(state: AlbumMenuState, run: AlbumMenuRunners): RowA
     saved !== undefined && run.setSaved !== undefined && libraryEntry(saved, run.setSaved),
     want !== undefined && !offline && run.setWanted !== undefined && wantEntry(want, run.setWanted),
     ...artists.map((artist, index) => ({
-      title: artists.length > 1 ? `Go to ${artist.name}` : 'Go to artist', icon: 'music.mic', onPress: () => run.goToArtist(index),
+      title: artists.length > 1 || named ? `Go to ${artist.name}` : 'Go to artist', icon: 'music.mic', onPress: () => run.goToArtist(index),
     })),
     share === true && run.share !== undefined && { title: 'Share', icon: 'square.and.arrow.up', onPress: run.share },
   ];

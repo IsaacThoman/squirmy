@@ -177,7 +177,9 @@ await step('album playback', async () => {
     }
     tick()
   }))
-  await page.getByRole('button', { name: 'Play Blue Hour' }).click()
+  // The album as a whole plays from its ⋯ menu.
+  await page.getByRole('main').getByRole('button', { name: 'More options', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Play', exact: true }).click()
   await page.getByRole('link', { name: 'Night Swimming', exact: true }).waitFor()
   check('playing an album starts its first track', true, await page.title())
   const start = await watched
@@ -350,7 +352,8 @@ await step('playlists', async () => {
   const moved = await until(rows, value => value[0] === 'Underwater Light')
   const saved = await until(() => api(a.context, 'GET', `/playlists/${page.url().split('/').pop()}`), detail => detail.items[0].track.title === 'Underwater Light')
   check('reordering sticks', moved[0] === 'Underwater Light' && saved.items[0].track.title === 'Underwater Light', moved.join(' / '))
-  await page.getByRole('button', { name: 'Play E2E Mix' }).click()
+  // A playlist plays from its songs' rows: the first, now Underwater Light.
+  await page.getByRole('list', { name: 'E2E Mix tracks' }).getByRole('button', { name: 'Play Underwater Light', exact: true }).click()
   await page.getByRole('link', { name: 'Underwater Light', exact: true }).waitFor()
   const playing = await advancing(page)
   const session = await api(a.context, 'GET', '/me/session')

@@ -24,21 +24,32 @@ export function albumTitleKey(title: string): string {
 const kindOrder: AlbumSummary['type'][] = ['album', 'ep', 'live', 'compilation', 'soundtrack', 'other', 'single']
 
 /**
- * What an album page shows after its songs, from its lead artist's discography: other
- * versions of the album (deluxe, remastered, live), then more of the artist's releases, albums
- * and EPs before singles, newest first within each, at most `limit`. "More" shows each of
- * the other albums once, by its plainest title ("Random Access Memories" rather than its
- * drumless edition). Nothing for Various Artists.
+ * What an album page shows after its songs, from the album and its lead artist's
+ * discography: other versions of the album, then more of the artist's releases, albums
+ * and EPs before singles, newest first within each, at most `limit`.
+ *
+ * Versions are the ones the server names (`AlbumDetail.versions`: other editions such as a
+ * deluxe, which the discography lists once as the album), then the discography's releases
+ * of the same title key (deluxe, remastered, live). "More" shows each of the other albums
+ * once, by its plainest title ("Random Access Memories" rather than its drumless edition).
+ * Nothing from Various Artists' discography.
  */
-export function relatedAlbums(album: Pick<AlbumSummary, 'id' | 'title'>, artist: Pick<ArtistDetail, 'mbid' | 'albums'> | undefined, limit = 12): { versions: AlbumSummary[]; more: AlbumSummary[] } {
-  if (!artist || artist.mbid === VARIOUS_ARTISTS_MBID) return { versions: [], more: [] }
+export function relatedAlbums(
+  album: Pick<AlbumSummary, 'id' | 'title'> & { versions?: readonly AlbumSummary[] },
+  artist: Pick<ArtistDetail, 'mbid' | 'albums'> | undefined,
+  limit = 12,
+): { versions: AlbumSummary[]; more: AlbumSummary[] } {
+  const named = (album.versions ?? []).filter(other => other.id !== album.id)
+  if (!artist || artist.mbid === VARIOUS_ARTISTS_MBID) return { versions: named, more: [] }
   const key = albumTitleKey(album.title)
-  const others = artist.albums.filter(other => other.id !== album.id)
-  const versions = others.filter(other => albumTitleKey(other.title) === key)
+  const keys = new Set([key, ...named.map(other => albumTitleKey(other.title))])
+  const seen = new Set([album.id, ...named.map(other => other.id)])
+  const others = artist.albums.filter(other => !seen.has(other.id))
+  const versions = [...named, ...others.filter(other => albumTitleKey(other.title) === key)]
   const plainest = new Map<string, { other: AlbumSummary; index: number }>()
   others.forEach((other, index) => {
     const otherKey = albumTitleKey(other.title)
-    if (otherKey === key) return
+    if (keys.has(otherKey)) return
     const kept = plainest.get(otherKey)
     if (!kept || other.title.length < kept.other.title.length) plainest.set(otherKey, { other, index })
   })
@@ -48,4 +59,3 @@ export function relatedAlbums(album: Pick<AlbumSummary, 'id' | 'title'>, artist:
     .map(({ other }) => other)
   return { versions, more }
 }
-

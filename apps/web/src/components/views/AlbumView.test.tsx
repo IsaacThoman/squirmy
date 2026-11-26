@@ -18,6 +18,11 @@ const robin = users[2]!
 const machinery = /on demand|library yet|get this album|preparing|not on the server|in your library|fetch/i
 /** What the heart says beside itself when the server refused it. */
 const heartSays = async () => (await screen.findByRole('tooltip')).textContent
+/** Opens the album's ⋯ menu, which plays and shuffles the album as a whole, and finds an entry in it. */
+const albumMenuItem = async (name: string) => {
+  await userEvent.click(await screen.findByRole('button', { name: 'More options' }))
+  return screen.findByRole('menuitem', { name })
+}
 
 describe('album page', () => {
   describe('for someone the server fetches music for', () => {
@@ -25,9 +30,9 @@ describe('album page', () => {
       renderWithApp(<AppRoutes />, `/album/${lowTide.id}`)
       const tracks = await screen.findByRole('list', { name: 'Low Tide tracks' })
       expect(document.body.textContent).not.toMatch(machinery)
-      expect(screen.getAllByRole('button', { name: 'Play Low Tide' })[0]).toBeEnabled()
       expect(within(tracks).getAllByRole('listitem').filter(row => row.getAttribute('aria-disabled'))).toHaveLength(0)
       expect(screen.queryByRole('button', { name: /Wantlist/ })).toBeNull()
+      expect(await albumMenuItem('Play')).not.toHaveAttribute('aria-disabled', 'true')
     })
 
     it('plays a song that is not on the server yet after the spinner any song shows while it loads', async () => {
@@ -225,18 +230,14 @@ describe('album page', () => {
       expect(await screen.findByRole('menuitem', { name: 'Add to playlist' })).toHaveAttribute('aria-disabled', 'true')
     })
 
-    it('can be played before its songs are known, and plays once they arrive', async () => {
-      const { services, api, socket } = fakeServices()
-      const bare: AlbumDetail = { ...lowTide, discs: [], trackCount: 0, ownedTrackCount: 0, durationMs: 0, detailPending: true }
-      api.catalog.album.mockResolvedValueOnce(bare)
-      const { queryClient } = renderWithApp(<AppRoutes />, `/album/${lowTide.id}`, services)
-      expect(await screen.findByRole('status', { name: 'Loading songs' })).toBeInTheDocument()
-      const play = screen.getAllByRole('button', { name: 'Play Low Tide' })[0]!
-      await userEvent.click(play)
-      expect(play).toHaveAttribute('aria-busy', 'true')
-      expect(socket.session.current).toBeNull()
-      await act(() => queryClient.invalidateQueries({ queryKey: ['album', lowTide.id] }))
-      await waitFor(() => expect(socket.session.current?.trackId).toBe(lowTide.discs[0].tracks[0].id))
+    it('cannot be played before its songs are known, and has no Play or Shuffle button', async () => {
+      const { services, api } = fakeServices()
+      api.catalog.album.mockResolvedValue({ ...lowTide, discs: [], trackCount: 0, ownedTrackCount: 0, durationMs: 0, detailPending: true })
+      renderWithApp(<AppRoutes />, `/album/${lowTide.id}`, services)
+      await screen.findByRole('status', { name: 'Loading songs' })
+      expect(screen.queryByRole('button', { name: /^(Play|Shuffle) Low Tide$/ })).toBeNull()
+      expect(await albumMenuItem('Play')).toHaveAttribute('aria-disabled', 'true')
+      expect(screen.getByRole('menuitem', { name: 'Shuffle' })).toHaveAttribute('aria-disabled', 'true')
     })
   })
 
@@ -249,8 +250,8 @@ describe('album page', () => {
       renderWithApp(<AppRoutes />, `/album/${lowTide.id}`, services)
       expect(await screen.findByText('No songs listed')).toBeInTheDocument()
       expect(screen.queryByRole('status', { name: 'Loading songs' })).toBeNull()
-      expect(screen.getAllByRole('button', { name: 'Play Low Tide' })[0]).toBeDisabled()
       expect(screen.queryByText(/0 songs/)).toBeNull()
+      expect(await albumMenuItem('Play')).toHaveAttribute('aria-disabled', 'true')
     })
 
     it('stops showing the list as loading after a minute, and can check again', async () => {
@@ -290,16 +291,17 @@ describe('album page', () => {
     expect(screen.queryByText('Artist', { selector: 'span' })).toBeNull()
   })
 
-  it('plays the album as a whole from its header, and a song by name from its row', async () => {
+  it('plays the album as a whole from its menu, and a song by name from its row', async () => {
     const { services, socket } = fakeServices()
     renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
     await screen.findByRole('list', { name: 'Blue Hour tracks' })
     const startedFrom = () => socket.commands.filter(command => command.type === 'playTracks').map(command => command.type === 'playTracks' && command.startedFrom)
     // A row: that song, which stays put if it cannot be had.
     await userEvent.click(screen.getByRole('button', { name: `Play ${blueHour.discs[0].tracks[2]!.title}` }))
-    // The header: past a first song that cannot be had, as streaming apps do.
-    await userEvent.click(screen.getAllByRole('button', { name: 'Play Blue Hour' })[0]!)
-    await userEvent.click(screen.getByRole('button', { name: 'Shuffle Blue Hour' }))
+    // The menu: past a first song that cannot be had, as streaming apps do.
+    expect(screen.queryByRole('button', { name: /^(Play|Shuffle) Blue Hour$/ })).toBeNull()
+    await userEvent.click(await albumMenuItem('Play'))
+    await userEvent.click(await albumMenuItem('Shuffle'))
     await waitFor(() => expect(startedFrom()).toEqual(['song', 'collection', 'collection']))
   })
 
@@ -363,6 +365,17 @@ describe('album page', () => {
     expect(within(more).getByRole('link', { name: 'See all' })).toHaveAttribute('href', `/artist/${mira.id}`)
   })
 
+  it('lists the editions the server names among the other versions, though the artist page lists the album once', async () => {
+    const { services, api } = fakeServices()
+    const deluxe = { ...summary(blueHour), id: '00000000-0000-4000-8200-0000000000ef', title: 'BLUE HOUR???', trackCount: 12 }
+    api.catalog.album.mockResolvedValue({ ...blueHour, versions: [deluxe] })
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    const versions = await screen.findByRole('region', { name: 'Other versions' })
+    expect(within(versions).getByRole('link', { name: 'BLUE HOUR???' })).toHaveAttribute('href', `/album/${deluxe.id}`)
+    const more = screen.getByRole('region', { name: /^More by / })
+    expect(within(more).queryByRole('link', { name: 'BLUE HOUR???' })).toBeNull()
+  })
+
   it('shows no song count in the preview while it knows none', async () => {
     renderWithApp(<AlbumPreview album={{ ...summary(blueHour), trackCount: 0 }} />)
     expect(await screen.findByRole('status', { name: 'Loading Blue Hour' })).toBeInTheDocument()
@@ -381,9 +394,9 @@ describe('album page', () => {
     it('cannot play an album nothing of which plays, and offers it to the Wantlist', async () => {
       renderWithApp(<AppRoutes />, `/album/${lowTide.id}`, fakeServices({ user: robin }).services)
       await screen.findByRole('list', { name: 'Low Tide tracks' })
-      expect(screen.getAllByRole('button', { name: 'Play Low Tide' })[0]).toBeDisabled()
       expect(screen.getByRole('button', { name: /Wantlist/ })).toBeInTheDocument()
       expect(document.body.textContent).not.toMatch(machinery)
+      expect(await albumMenuItem('Play')).toHaveAttribute('aria-disabled', 'true')
     })
 
     it('says nothing of the Wantlist while the server has it off', async () => {

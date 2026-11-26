@@ -64,8 +64,8 @@ type SearchViewProps = {
   /** Null while they load. */
   genres: string[] | null
   onBrowseGenre: (genre: string) => void
-  /** Opens an artist, album or playlist; plays a song (with the songs listed after it), or opens the album of one that does not play. */
-  onChoose: (item: SearchItem, list: readonly SearchItem[]) => void
+  /** Opens an artist, album or playlist; plays a song (on its own, so autoplay follows it), or opens the album of one that does not play. */
+  onChoose: (item: SearchItem) => void
 }
 
 /** How many recently viewed results the page offers. */
@@ -103,7 +103,7 @@ export function SearchView(props: SearchViewProps) {
       const best = term && !list.stale ? list.items?.[0] : undefined
       if (!best) return
       event.preventDefault()
-      onChoose(best, list.items ?? [])
+      onChoose(best)
     }
   }
   // Up and Down move between the rows, Up from the first back to the field; Home and End go to either end.
@@ -146,7 +146,7 @@ export function SearchView(props: SearchViewProps) {
           ) : hasRecents && (
             <RecentlyViewed
               items={recentItems}
-              onChoose={item => onChoose(item, [item])}
+              onChoose={onChoose}
               onRemove={onRemoveRecent}
               onClear={onClearRecents}
             />
@@ -197,7 +197,7 @@ type ResultsProps = {
   term: string
   filter: SearchFilter
   list: SearchList
-  onChoose: (item: SearchItem, list: readonly SearchItem[]) => void
+  onChoose: (item: SearchItem) => void
 }
 
 function Results({ term, filter, list, onChoose }: ResultsProps) {
@@ -252,7 +252,7 @@ function Results({ term, filter, list, onChoose }: ResultsProps) {
               key={searchItemKey(item)}
               item={item}
               stale={stale}
-              onChoose={() => onChoose(item, items)}
+              onChoose={() => onChoose(item)}
               trackMenu={item.type === 'track' ? track => trackMenuEntries(track, {
                 unavailable: !isPlayable(track, viewer),
                 wanted: actions.isWanted?.(track),

@@ -16,7 +16,7 @@ import { deezer, musicbrainz } from '../metadata/index.js'
 import type { DeezerAlbum } from '../metadata/deezer.js'
 import type { MbReleaseGroup } from '../metadata/musicbrainz.js'
 import { bridgeAlbum, type BridgedAlbum } from './bridge.js'
-import { chooseCanonicalRelease, type EditionHint } from './canonical.js'
+import { chooseCanonicalRelease, standardRelease, type EditionHint } from './canonical.js'
 import { buildFromDeezer, creditDeezerTracks, linkDeezerAlbum } from './deezer-rows.js'
 import { fitStrayRecordings, standInsFor } from './fit.js'
 import { adoptMbid, albumOwned, attempt, changed, currentId, day, linkExternalId } from './rows.js'
@@ -188,7 +188,7 @@ async function keepsCanonical(albumId: string, executor: Executor = db): Promise
  * copy that only lacks a track (a song not licensed there) is the group's own edition.
  */
 async function fromMusicBrainz(albumId: string, group: MbReleaseGroup, edition: (EditionHint & { title: string }) | null): Promise<string> {
-  const standard = chooseCanonicalRelease(group.releases)
+  const standard = standardRelease(group)
   if (edition?.trackCount && standard && edition.trackCount !== standard.trackCount) {
     const own = chooseCanonicalRelease(group.releases, edition)
     const counted = own && own.trackCount === edition.trackCount ? own : null
@@ -259,6 +259,16 @@ async function asEdition(albumId: string, group: MbReleaseGroup, releaseMbid: st
     await lockUpserts(tx)
     const parent = await groupRow(tx, group)
     await tx.update(albums).set({ editionOfId: parent, updatedAt: new Date() }).where(eq(albums.id, albumId))
+    // An edition row made from MusicBrainz's titles (named-editions.ts) of this release or
+    // its track count is this edition: it joins the store album, which shows the release,
+    // rather than staying beside it, or being left without a track list.
+    const made = release ? await tx.execute<{ id: string }>(sql`
+      select a.id from albums a join releases rl on rl.id = a.canonical_release_id and rl.mbid is not null
+      where a.id <> ${albumId} and a.edition_of_id = ${parent} and a.merged_into_id is null
+        and (rl.mbid = ${release.mbid} or rl.track_count = ${release.trackCount})
+        and not exists (select 1 from media_files f where f.album_id = a.id)
+        and not exists (select 1 from external_ids e where e.provider = 'deezer' and e.entity_type = 'album' and e.entity_id = a.id)`) : []
+    for (const row of made) await mergeAlbum(row.id, albumId, tx)
     const [filedElsewhere] = release ? await tx.execute<{ found: boolean }>(sql`
       select exists (select 1 from releases rl join media_files f on f.release_id = rl.id
         where rl.mbid = ${release.mbid} and f.album_id is distinct from ${albumId}) as found`) : []

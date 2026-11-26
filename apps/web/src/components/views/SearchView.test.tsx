@@ -54,14 +54,18 @@ describe('search page', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Mira Vale' })).toBeInTheDocument()
   })
 
-  it('plays a song with the songs found after it, and pauses it once it is the current track', async () => {
+  it('plays a song on its own, for autoplay to follow, and pauses it once it is the current track', async () => {
     const { services, socket } = fakeServices()
     renderWithApp(<AppRoutes />, '/search?q=blue', services)
     await results()
     const songs = rows().filter(row => row.includes('Song ·')).map(row => row.split(' — ')[0])
+    // Other songs were found; none of them is queued after the one played.
     expect(songs.length).toBeGreaterThan(1)
     await userEvent.click(screen.getByRole('button', { name: `Play ${songs[0]}` }))
-    await waitFor(() => expect(socket.session.queue.length).toBeGreaterThan(1))
+    await waitFor(() => expect(socket.session.current).not.toBeNull())
+    expect(socket.session.queue).toEqual([])
+    expect(socket.session.playedInCycle).toEqual([])
+    expect(socket.session.context).toMatchObject({ type: 'search', title: 'blue' })
     await userEvent.click(await screen.findByRole('button', { name: `Pause ${songs[0]}` }))
     expect(await screen.findByRole('button', { name: `Play ${songs[0]}` })).toBeInTheDocument()
   })

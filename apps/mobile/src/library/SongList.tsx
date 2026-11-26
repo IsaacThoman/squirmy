@@ -45,6 +45,8 @@ export type SongListProps = {
   };
   /** The album whose page the list is: rows name only artists other than the album's, and its menu has no "Go to album". */
   album?: { id: string; artistCredit: string };
+  /** The artist whose page the list is on: its menu has no "Go to artist" for them. */
+  artist?: string;
 };
 
 const rowHeight = 58;
@@ -57,11 +59,11 @@ export function SongList(props: SongListProps) {
 
 /** The rows of a long list, for a virtualized list to render. */
 export function useSongListItems(props: SongListProps): SongListItems {
-  const { tracks, numbered, playlist, album, kind, onUnavailable } = props;
+  const { tracks, numbered, playlist, album, artist, kind, onUnavailable } = props;
   const handlers = useSongRowHandlers(props, usePlaybackActions().toggleIfCurrent);
   const { run } = useTrackActionRunner();
   const opens = Boolean(onUnavailable);
-  const data = useMemo(() => songRows({ tracks, numbered, playlist, album, kind, opens }), [album, numbered, playlist, tracks, kind, opens]);
+  const data = useMemo(() => songRows({ tracks, numbered, playlist, album, artist, kind, opens }), [album, artist, numbered, playlist, tracks, kind, opens]);
   const renderItem = useCallback(({ item }: { item: SongRowItem }) => <SongRow item={item} handlers={handlers} run={run} />, [handlers, run]);
   return { data, renderItem, keyExtractor: songRowKey, rowHeight };
 }

@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Badge, EmptyState, Spinner } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
 import { LoadError } from '@/components/ui/query-state'
-import { artistAvailabilityNote, artistReleaseCounts, artistReleasesPath, artistSectionTitle, canFetch, isArtistSectionKey, isPlayable } from '@/lib/catalog'
+import { artistAvailabilityNote, artistReleaseCounts, artistReleasesPath, artistSectionTitle, canFetch, isArtistSectionKey } from '@/lib/catalog'
 import { plural } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useLibrary } from '@/player/library-context'
@@ -49,7 +49,6 @@ export function ArtistView({ artist, onPlayAlbum }: { artist: ArtistDetail; onPl
   // A requester plays everything here, so only someone who may not fetch music is told how much plays.
   const { total } = artistReleaseCounts(artist, viewer)
   const note = artistAvailabilityNote(artist, viewer)
-  const playable = artist.topTracks.some(track => isPlayable(track, viewer))
   const sections = sectionsOf(artist)
   const hasTop = artist.topTracks.length > 0
   const hasAbout = Boolean(artist.bio) || artist.genres.length > 0
@@ -62,9 +61,6 @@ export function ArtistView({ artist, onPlayAlbum }: { artist: ArtistDetail; onPl
         actions={(
           <PlayActions
             id={artist.id}
-            title={artist.name}
-            onPlay={playable ? () => controls.playTracks(artist.topTracks, 0, context, { collection: true }) : undefined}
-            onShuffle={playable ? () => controls.playTracks(artist.topTracks, 0, context, { shuffle: true, collection: true }) : undefined}
             liked={artist.liked}
             onLike={() => library.setSaved({ type: 'artist', id: artist.id, title: artist.name }, !artist.liked)}
           >

@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { collectionActions, pinTarget } from './collectionMenu';
+import { besideArtist, collectionActions, pinTarget } from './collectionMenu';
 import type { Collection } from './shared';
 
 const album: Collection = {
   key: 'a1', kind: 'album', title: 'Kid A', subtitle: 'Radiohead', href: '/album/a1', availability: 'full',
-  artists: [{ name: 'Radiohead', href: '/artist/r1' }],
+  artists: [{ id: 'r1', name: 'Radiohead', href: '/artist/r1' }],
 };
 const online = { offline: false, viewer: null };
 const runners = () => ({ playAlbum: vi.fn(), enqueueAlbum: vi.fn(), addAlbumToPlaylist: vi.fn(), open: vi.fn(), pin: vi.fn() });
@@ -22,8 +22,20 @@ describe('collectionActions', () => {
     expect(run.open).toHaveBeenCalledWith('/artist/r1');
   });
 
+  it('leaves the page\'s own artist out on an artist\'s page, naming any other', () => {
+    expect(collectionActions(besideArtist(album, 'r1'), online, runners()).map(action => action.title))
+      .toEqual(['Play', 'Shuffle', ...queueAndPlaylist]);
+    const duet = { ...album, artists: [{ id: 'a', name: 'A', href: '/artist/a' }, { id: 'b', name: 'B', href: '/artist/b' }] };
+    const run = runners();
+    const actions = collectionActions(besideArtist(duet, 'a'), online, run);
+    expect(actions.map(action => action.title)).toEqual(['Play', 'Shuffle', ...queueAndPlaylist, 'Go to B']);
+    actions.at(-1)!.onPress();
+    expect(run.open).toHaveBeenCalledWith('/artist/b');
+    expect(besideArtist(album, 'elsewhere')).toBe(album);
+  });
+
   it('names each artist of an album with several', () => {
-    const titles = collectionActions({ ...album, artists: [{ name: 'A', href: '/artist/a' }, { name: 'B', href: '/artist/b' }] }, online,
+    const titles = collectionActions({ ...album, artists: [{ id: 'a', name: 'A', href: '/artist/a' }, { id: 'b', name: 'B', href: '/artist/b' }] }, online,
       runners()).map(action => action.title);
     expect(titles).toEqual(['Play', 'Shuffle', ...queueAndPlaylist, 'Go to A', 'Go to B']);
   });

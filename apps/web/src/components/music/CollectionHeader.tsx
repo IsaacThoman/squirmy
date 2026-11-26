@@ -1,6 +1,5 @@
-import { BookmarkCheck, BookmarkPlus, Play, Shuffle } from 'lucide-react'
+import { BookmarkCheck, BookmarkPlus } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
-import { Spinner } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
 import { headerTints } from '@/lib/color-themes'
 import { cn } from '@/lib/utils'
@@ -52,11 +51,6 @@ export function CollectionHeader({ kind, title, art, byline, meta, description, 
 }
 
 type PlayActionsProps = {
-  title: string
-  onPlay?: () => void
-  onShuffle?: () => void
-  /** Play was pressed and waits for the track list. */
-  pending?: boolean
   /** The heart: saved to the user's library. */
   liked?: boolean
   onLike?: () => void
@@ -67,15 +61,14 @@ type PlayActionsProps = {
   children?: ReactNode
 }
 
-/** Play, Shuffle, the heart and Want, with room for an overflow menu. */
-export function PlayActions({ title, onPlay, onShuffle, pending, liked = false, onLike, wanted, onWant, id, children }: PlayActionsProps) {
+/**
+ * The heart and Want, with room for an overflow menu. No Play or Shuffle: a song plays from
+ * its row, and an album as a whole from its menu.
+ */
+export function PlayActions({ liked = false, onLike, wanted, onWant, id, children }: PlayActionsProps) {
   const wantFailure = useLibraryFailure(id === undefined ? undefined : `want:${id}`)
   return (
     <>
-      <IconButton label={`Play ${title}`} variant="primary" size="xl" shape="round" disabled={!onPlay} aria-busy={pending || undefined} onClick={onPlay} className="mr-2">
-        {pending ? <Spinner label={null} className="text-current" /> : <Play className="translate-x-0.5" fill="currentColor" />}
-      </IconButton>
-      {onShuffle && <IconButton label={`Shuffle ${title}`} size="lg" onClick={onShuffle}><Shuffle /></IconButton>}
       {onLike && <SaveHeart id={id} liked={liked} onToggle={onLike} size="lg" />}
       {onWant && (
         <IconButton label={wanted ? 'Remove from Wantlist' : 'Add to Wantlist'} size="lg" onClick={onWant} failure={wantFailure} className={cn(wanted && 'text-primary hover:text-primary')}>
