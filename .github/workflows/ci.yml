@@ -256,12 +256,22 @@ jobs:
           cache-to: type=gha,mode=max
 
   testflight:
-    name: Build and submit iOS to TestFlight
+    name: Build and submit ${{ matrix.name }} to TestFlight
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.release.outputs.version != ''
     needs: release
     runs-on: xcode-27
     timeout-minutes: 60
     environment: testflight
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: iOS
+            platform: ios
+          - name: tvOS
+            platform: tvos
+    env:
+      EXPO_TV: ${{ matrix.platform == 'tvos' && '1' || '0' }}
     steps:
       - name: Check out the release tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -280,7 +290,7 @@ jobs:
           npm clean-install
           npm run build:packages
 
-      - name: Set iOS version
+      - name: Set Apple app version
         env:
           RELEASE_VERSION: ${{ needs.release.outputs.version }}
         run: |
@@ -293,7 +303,7 @@ jobs:
             echo "SQUIRMY_IOS_BUILD_NUMBER=$(date -u +%s)"
           } >> "$GITHUB_ENV"
 
-      - name: Generate the native iOS project
+      - name: Generate the native ${{ matrix.name }} project
         working-directory: apps/mobile
         run: npx expo prebuild --platform ios --clean
 
@@ -307,4 +317,4 @@ jobs:
           APP_STORE_CONNECT_API_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}
           IOS_DEVELOPMENT_CERTIFICATE_P12_BASE64: ${{ secrets.IOS_DEVELOPMENT_CERTIFICATE_P12_BASE64 }}
           IOS_DEVELOPMENT_CERTIFICATE_PASSWORD: ${{ secrets.IOS_DEVELOPMENT_CERTIFICATE_PASSWORD }}
-        run: bash scripts/upload-testflight.sh
+        run: bash scripts/upload-testflight.sh "${{ matrix.platform }}"

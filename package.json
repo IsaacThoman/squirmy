@@ -40,6 +40,7 @@
     "@semantic-release/release-notes-generator": "^14.1.1",
     "oxlint": "^1.94.0",
     "patch-package": "^8.0.1",
+    "react-native": "npm:react-native-tvos@0.88.1-0",
     "semantic-release": "^25.0.8",
     "vitepress": "1.6.4"
   },
@@ -48,7 +49,8 @@
     "react-dom": "19.3.0",
     "vitepress@1.6.4": {
       "vite": "6.4.3"
-    }
+    },
+    "react-native": "$react-native"
   },
   "allowScripts": {
     "esbuild": true,

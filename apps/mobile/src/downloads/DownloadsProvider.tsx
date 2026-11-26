@@ -103,7 +103,7 @@ export function DownloadsProvider({ children }: PropsWithChildren) {
 
   // Built once per account: rebuilding would cancel the downloads in flight and start them over.
   useEffect(() => {
-    if (!apiRef.current || !account) return;
+    if (Platform.isTV || !apiRef.current || !account) return;
     const network = downloadNetwork();
     const next = new DownloadManager({
       index: downloadIndex(account), files: downloadFiles(), network, source: source(() => {

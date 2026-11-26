@@ -1,3 +1,4 @@
+#if os(iOS)
 import AVFoundation
 import ExpoModulesCore
 import MediaPlayer
@@ -263,3 +264,14 @@ extension MPVolumeView {
     subviews.lazy.compactMap { $0 as? UISlider }.first
   }
 }
+#else
+import ExpoModulesCore
+
+// Expo registers this class on Apple platforms. The JavaScript system-volume bridge
+// stays absent on Apple TV, where the session controls player volume instead.
+public class SystemVolumeModule: Module {
+  public func definition() -> ModuleDefinition {
+    Name("SquirmySystemVolumeUnavailable")
+  }
+}
+#endif

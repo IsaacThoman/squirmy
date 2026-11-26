@@ -550,6 +550,7 @@ apps/mobile/
   src/playback.tsx       PlaybackProvider: the SessionClient, its hooks (usePlaybackState, usePosition)
   src/*.tsx              the tab shell's screens and parts: Now Playing, Library, mini-player, sheets, theme, shared UI
   src/native/            SwiftUI controls (buttons, menus) for the .ios screens
+  src/tv/                Apple TV shell, typed sign-in, browse pages and Now Playing
   src/dev/               development-only screens (the engine bench at /dev/engine)
   modules/now-playing/   local Expo module: Now Playing info and remote commands as JS events
   modules/scroll-edges/  local Expo module: turns off iOS 26's scroll edge effects in every scroll view
@@ -579,6 +580,14 @@ apps/mobile/
 - **Offline.** `resolvePlayback` returns a downloaded file's descriptor (with its normalization) before asking the server, so downloads never stream; `SessionClient.forgetPlayback()` runs when a download arrives or goes, and `forgetPlayback(trackId)` when a cached file does. Offline, only downloads and cached tracks are playable (`canPlay`): other tracks are gray, as are albums, artists and playlists with nothing downloaded, actions that need the server are hidden, and a current entry that is neither downloaded nor cached is skipped. The session is saved (`SessionClient.save()`) with the summaries of its entries, and a relaunch restores it paused; commands made offline reach the server on reconnect. The **Offline** badge (`OfflineBadge`) shows beside the title of Home, Library and Search, beside the back button on every other page, and at the top of Now Playing.
 - **Errors.** A page or sheet that throws while rendering shows a fallback in its place and leaves the rest of the app as it was: every route exports an `ErrorBoundary` (expo-router's), `PageError` for pages (the back button when there is somewhere to go back to, and Try again, as a page that failed to load shows) and `SheetError` for sheets (its close button and Try again); the root layout's `AppError` catches what fails outside them. Now Playing has its own (`PlayerErrorBoundary`): the music and the mini-player go on, and opening the player shows the error with Try again. React Native reports the error itself; `logRenderError` adds a warning saying which part of the app it replaced (`src/ScreenError.tsx`).
 
+**Apple TV**
+
+- `EXPO_TV=1` selects the TV entry in Metro and configures the generated `ios/` directory as a tvOS project. Regenerate the project with `--clean` to switch between iOS and tvOS. The Apple TV app uses the same bundle ID as iOS.
+- `src/tv/` owns the TV routes and directional focus. It shares the account, query, realtime and playback providers. The native Now Playing module feeds remote commands through the shared session. tvOS uses the session volume for playback gain.
+- Servers advertise `supportsTvDevices` in `GET /setup/status`. A TV identifies itself as `tv` on those servers and `other` on older ones.
+- The TV build streams music, with storage treated as disposable caches. The Keychain holds credentials. See the [Apple TV guide](./use/apple-tv.md) for building the app and installing a TestFlight build.
+- The config plugin builds the tvOS icon stack and Top Shelf image sets from `apps/mobile/assets/tv/`. After changing the iOS mascot layers, run `swift apps/mobile/assets/tv/render.swift` to regenerate the TV artwork.
+
 ## Testing
 
 - `vitest` everywhere. A test file sits next to the code it tests as `*.test.ts`.
@@ -597,12 +606,12 @@ apps/mobile/
 
 ### TestFlight
 
-After semantic-release publishes a version on `main`, CI builds the tagged iOS app on macOS and uploads it to App Store Connect. The app uses the release version and a UTC Unix timestamp as its build number. If the upload job fails, rerun that job from the release's CI run.
+After semantic-release publishes a version on `main`, CI builds and uploads iOS and tvOS from the release tag in separate jobs. Each build uses the release version and a UTC Unix timestamp as its build number. If an upload fails, rerun the failed job from the release's CI run. The Apple TV workflow compiles the unsigned tvOS app on pull requests that change the mobile app or its shared dependencies.
 
-Register the Squirmy iOS app in App Store Connect with bundle ID `com.isaacthoman.squirmy`. In the repository's `testflight` GitHub Actions environment, allow deployments from `main` and set the `APPLE_TEAM_ID` variable to the Apple Developer team ID. Add these environment secrets:
+Use the Squirmy app record in App Store Connect with bundle ID `com.isaacthoman.squirmy`. In the app's sidebar, choose **Add Platform → tvOS** for the Apple TV build. In the repository's `testflight` GitHub Actions environment, allow deployments from `main` and set the `APPLE_TEAM_ID` variable to the Apple Developer team ID. Add these environment secrets:
 
 - `APP_STORE_CONNECT_API_KEY_ID` and `APP_STORE_CONNECT_API_ISSUER_ID` for a team API key with access to automatic signing and TestFlight uploads.
 - `APP_STORE_CONNECT_API_PRIVATE_KEY` with the complete contents of that key's `.p8` file.
 - `IOS_DEVELOPMENT_CERTIFICATE_P12_BASE64` with a base64-encoded PKCS#12 export of the team's Apple Development certificate and private key, and `IOS_DEVELOPMENT_CERTIFICATE_PASSWORD` with its export password.
 
-App Store Connect processes the upload before the build is available to testers. Manage tester groups and any export compliance questions there.
+App Store Connect processes each upload before the build is available to testers. In the **TestFlight** tab, choose **tvOS** and add the build to the intended tester group. External testers receive access after Apple completes TestFlight App Review. Manage tester groups and any export compliance questions in App Store Connect.

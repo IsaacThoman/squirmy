@@ -1,3 +1,4 @@
+#if os(iOS)
 import ExpoModulesCore
 import UIKit
 
@@ -165,3 +166,5 @@ enum SliderTrack {
     return image.resizableImage(withCapInsets: insets, resizingMode: .stretch).imageFlippedForRightToLeftLayoutDirection()
   }
 }
+
+#endif

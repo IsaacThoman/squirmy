@@ -18,7 +18,7 @@ export type Api = ReturnType<typeof createApiClient>;
 
 const requestTimeoutMs = 15_000;
 /** Said on the account sheet (and sign-in) while the keychain refuses to keep the session. */
-export const unsavedSignIn = `This ${Platform.OS === 'ios' ? 'iPhone' : 'phone'} couldn’t save your sign-in. You’ll need to sign in again next time.`;
+export const unsavedSignIn = `This ${Platform.isTV ? 'Apple TV' : Platform.OS === 'ios' ? 'iPhone' : 'phone'} couldn’t save your sign-in. You’ll need to sign in again next time.`;
 
 // The app in the background counts as unfocused, so interval refetches pause there.
 focusManager.setEventListener(setFocused => {
@@ -172,14 +172,14 @@ export function AccountProvider({ children }: PropsWithChildren) {
       unsaved,
       connect: next => dispatch({ type: 'connected', server: next }),
       signIn: async (username, password) => {
-        const response = await api!.auth.login({ username: username.trim(), password, device: await clientDevice() });
+        const response = await api!.auth.login({ username: username.trim(), password, device: await clientDevice(server?.supportsTvDevices) });
         // Whatever is cached may belong to whoever signed in before.
         queryClient.clear();
         dispatch({ type: 'signedIn', token: response.token, user: response.user });
       },
       register: async (inviteCode, username, password) => {
         const response = await api!.auth.register({
-          inviteCode: inviteCode.trim() || undefined, username: username.trim(), password, device: await clientDevice(),
+          inviteCode: inviteCode.trim() || undefined, username: username.trim(), password, device: await clientDevice(server?.supportsTvDevices),
         });
         queryClient.clear();
         dispatch({ type: 'signedIn', token: response.token, user: response.user });
@@ -187,7 +187,7 @@ export function AccountProvider({ children }: PropsWithChildren) {
       signOut: () => leave({ type: 'signedOut' }),
       switchServer: () => leave({ type: 'switchServer' }),
     };
-  }, [api, buster, queryClient, reach, state, token, unsaved]);
+  }, [api, buster, queryClient, reach, server, state, token, unsaved]);
 
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>;
 }
