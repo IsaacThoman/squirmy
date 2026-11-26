@@ -182,9 +182,10 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         };
       }, {
         onPlay: () => {
-          const { session } = client.getSnapshot();
+          const { session, connection, isActiveDevice } = client.getSnapshot();
           if (!getCarPlayState().connected) return send({ type: 'play' });
-          if (client.getSnapshot().connection === 'online' || live.current.offline) {
+          // Resuming this phone can wake a parked socket, just as it can on the lock screen.
+          if (isActiveDevice || connection === 'online' || live.current.offline) {
             carPlayResume(session, device.id, client.supportsPlayHere()).forEach(send);
           }
         },
