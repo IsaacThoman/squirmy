@@ -67,6 +67,18 @@ describe('BackgroundPresence', () => {
     expect(socket.disconnect).toHaveBeenCalledTimes(1);
   });
 
+  it('reopens for a visible CarPlay scene and parks when the car leaves the app', () => {
+    const { socket, presence } = setup(false);
+    vi.advanceTimersByTime(PARK_DELAY_MS);
+    presence.setCarPlayActive(true);
+    expect(socket.connect).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(PARK_DELAY_MS);
+    expect(socket.disconnect).toHaveBeenCalledTimes(1);
+    presence.setCarPlayActive(false);
+    vi.advanceTimersByTime(PARK_DELAY_MS);
+    expect(socket.disconnect).toHaveBeenCalledTimes(2);
+  });
+
   it('never opens a socket it did not close', () => {
     const { socket, presence } = setup();
     presence.setForeground(true);

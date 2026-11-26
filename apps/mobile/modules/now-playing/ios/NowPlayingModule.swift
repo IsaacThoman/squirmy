@@ -27,6 +27,8 @@ struct Favorite {
  * (headphones unplugged), which the player could only guess at from its own state.
  */
 public class NowPlayingModule: Module {
+  private var carPlayConnected = false
+  private var idlePlayTarget: Any?
   private var targets: [(command: MPRemoteCommand, target: Any)] = []
   private var artworkUrl: URL?
   private var artwork: MPMediaItemArtwork?
@@ -102,6 +104,19 @@ public class NowPlayingModule: Module {
       MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }.runOnQueue(.main)
 
+    AsyncFunction("setQueuePosition") { (index: Int?, count: Int?) in
+      let center = MPNowPlayingInfoCenter.default()
+      guard var info = center.nowPlayingInfo else { return }
+      info[MPNowPlayingInfoPropertyPlaybackQueueIndex] = index
+      info[MPNowPlayingInfoPropertyPlaybackQueueCount] = count
+      center.nowPlayingInfo = info
+    }.runOnQueue(.main)
+
+    AsyncFunction("setCarPlayConnected") { (connected: Bool) in
+      self.carPlayConnected = connected
+      self.updateIdlePlay()
+    }.runOnQueue(.main)
+
     // Only the command's state: rewriting the now playing info here would set the elapsed
     // time back to what it was when the track was last shown.
     AsyncFunction("setFavorite") { (available: Bool, active: Bool, label: String) in
@@ -138,6 +153,7 @@ public class NowPlayingModule: Module {
       self.observers.forEach { NotificationCenter.default.removeObserver($0) }
       self.observers.removeAll()
       DispatchQueue.main.async {
+        self.carPlayConnected = false
         self.clear()
         self.routePicker?.removeFromSuperview()
         self.routePicker = nil
@@ -232,6 +248,24 @@ public class NowPlayingModule: Module {
     artworkUrl = nil
     artwork = nil
     MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+    updateIdlePlay()
+  }
+
+  private func updateIdlePlay() {
+    let play = MPRemoteCommandCenter.shared().playCommand
+    if carPlayConnected && targets.isEmpty {
+      guard idlePlayTarget == nil else { return }
+      idlePlayTarget = play.addTarget { [weak self] _ in
+        guard let self else { return .commandFailed }
+        self.sendEvent("onRemoteCommand", ["command": "play"])
+        return .success
+      }
+      play.isEnabled = true
+    } else if let target = idlePlayTarget {
+      play.removeTarget(target)
+      idlePlayTarget = nil
+      play.isEnabled = !targets.isEmpty
+    }
   }
 
   private func enableCommands() {
@@ -240,6 +274,7 @@ public class NowPlayingModule: Module {
     }
     let center = MPRemoteCommandCenter.shared()
     forward(center.playCommand, as: "play")
+    updateIdlePlay()
     forward(center.pauseCommand, as: "pause")
     forward(center.togglePlayPauseCommand, as: "togglePlayPause")
     forward(center.nextTrackCommand, as: "next")

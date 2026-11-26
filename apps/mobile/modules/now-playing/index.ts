@@ -27,6 +27,8 @@ export type AudioRouteChange = { reason: 'oldDeviceUnavailable' | 'other' };
 type NowPlayingModule = {
   setItem(item: NowPlayingItem): Promise<void>;
   setPlayback(playing: boolean, positionMs: number): Promise<void>;
+  setQueuePosition?: (index: number | null, count: number | null) => Promise<void>;
+  setCarPlayConnected?: (connected: boolean) => Promise<void>;
   /**
    * The star beside the transport controls: shown while `available`, filled while `active`.
    * `label` is what VoiceOver and the long-press menu call it. Leaves the elapsed time alone.

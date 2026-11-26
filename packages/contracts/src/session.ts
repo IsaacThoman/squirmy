@@ -211,7 +211,8 @@ const seeds = z.array(QueueSeed).min(1).max(COMMAND_TRACK_LIMIT)
  *   on, the queue's new order becomes the order shuffle-off restores.
  */
 export const SessionCommand = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('play') }),
+  // Resume on the sending device if playHere is set and another device isn't already playing.
+  z.object({ type: z.literal('play'), playHere: z.literal(true).optional() }),
   z.object({ type: z.literal('pause') }),
   z.object({ type: z.literal('next') }),
   z.object({ type: z.literal('previous'), restart: z.boolean().optional() }),
@@ -227,9 +228,11 @@ export const SessionCommand = z.discriminatedUnion('type', [
     seed: z.number().int(),
     context: PlaybackContext.nullable().optional(),
     startedFrom: z.enum(['song', 'collection']).optional(),
+    // Make the sending device the output in the same operation as starting the new queue.
+    playHere: z.literal(true).optional(),
   }),
   z.object({ type: z.literal('enqueue'), tracks: seeds, placement: z.enum(['next', 'last']) }),
-  z.object({ type: z.literal('playQueueEntry'), entryId: z.string() }),
+  z.object({ type: z.literal('playQueueEntry'), entryId: z.string(), playHere: z.literal(true).optional() }),
   z.object({ type: z.literal('removeFromQueue'), entryId: z.string() }),
   z.object({ type: z.literal('moveInQueue'), entryId: z.string(), toIndex: z.number().int().min(0) }),
   z.object({ type: z.literal('clearQueue') }),
@@ -412,8 +415,9 @@ export const SessionHello = z.object({
 })
 export type SessionHello = z.infer<typeof SessionHello>
 
-/** What a server can do beyond the base protocol. `detach`: `session:detach`, `session:attach` and all they imply. */
-export const SessionCapability = z.enum(['detach'])
+/** What a server can do beyond the base protocol. `play-here` starts audio on the sending
+ * device in one command. `detach` supports separate queues and rejoining the shared session. */
+export const SessionCapability = z.enum(['detach', 'play-here'])
 export type SessionCapability = z.infer<typeof SessionCapability>
 
 export const SessionHelloAck = z.object({

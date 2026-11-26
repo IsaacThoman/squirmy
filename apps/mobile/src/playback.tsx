@@ -13,6 +13,8 @@ import {
 import { AppState, Platform } from 'react-native';
 import { useAccountKey, useServerUrl, useSignedInApi } from './account/AccountProvider';
 import { clientDevice } from './account/storage';
+import { getCarPlayState, subscribeCarPlay } from './carplay/bridge';
+import { carPlayResume, carPlayStart, type CarPlayStartCommand } from './carplay/playback';
 import { useLibraryActions, useLikeChanges, useTrack, useTrackStore } from './data/library';
 import { useUserSettings } from './data/queries';
 import { useRealtime } from './data/realtime';
@@ -37,7 +39,7 @@ import { followSession } from './streamingCache/session';
 export type { QueueEntry };
 
 type Runtime = { client: SessionClient; device: ClientDevice; loading: LoadingWatch; seeks: PendingSeek };
-type PlayOptions = { start?: number; shuffle?: boolean; context?: PlaybackContext };
+export type PlayOptions = { start?: number; shuffle?: boolean; context?: PlaybackContext };
 
 const defaultQuality: Pick<UserSettings, 'qualityWifi' | 'qualityCellular'> = { qualityWifi: 'original', qualityCellular: 'high' };
 /** Two failures this close together mean the server, not the file, is the problem. */
@@ -156,6 +158,12 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         const entry = findEntry({ ...session, ...queue }, entryId);
         return (entry && tracks.peek(entry.trackId, entry.albumId)) ?? (shown?.entryId === entryId ? shown.track : undefined);
       };
+      // CarPlay and the phone's player share metadata and remote commands. A car can ask
+      // for Play on connection even when this phone has yet to load an entry.
+      const ownsTransport = () => {
+        const { session } = client.getSnapshot();
+        return !getCarPlayState().connected || !session.activeDeviceId || session.activeDeviceId === device.id;
+      };
       const nowPlaying = connectNowPlaying(engine, entryId => {
         const { session, queue } = client.getSnapshot();
         const entry = findEntry({ ...session, ...queue }, entryId);
@@ -173,11 +181,22 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
           durationMs: entry.durationMs || track.durationMs,
         };
       }, {
-        onPlay: () => send({ type: 'play' }),
-        onPause: () => send({ type: 'pause' }),
-        onNext: () => send({ type: 'next' }),
-        onPrevious: () => send({ type: 'previous' }),
-        onSeek: positionMs => seeks.seek(positionMs),
+        onPlay: () => {
+          const { session } = client.getSnapshot();
+          if (!getCarPlayState().connected) return send({ type: 'play' });
+          if (client.getSnapshot().connection === 'online' || live.current.offline) {
+            carPlayResume(session, device.id, client.supportsPlayHere()).forEach(send);
+          }
+        },
+        onPause: () => { if (ownsTransport()) send({ type: 'pause' }); },
+        onNext: () => { if (ownsTransport()) send({ type: 'next' }); },
+        onPrevious: () => { if (ownsTransport()) send({ type: 'previous' }); },
+        onSeek: positionMs => { if (ownsTransport()) seeks.seek(positionMs); },
+        queueFor: entryId => {
+          const { session, queue } = client.getSnapshot();
+          if (session.current?.id !== entryId) return null;
+          return { index: queue.playedInCycle.length, count: queue.playedInCycle.length + queue.queue.length + 1 };
+        },
         favoriteFor: entryId => favoriteState(trackOf(entryId), live.current.likes),
         // The in-app heart's path: shown at once, sent (or queued offline), set back with a
         // failure on the heart if the server refuses. The app may be in the background; it still runs.
@@ -186,6 +205,10 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
           if (track) live.current.setLiked('track', track.id, saved, track.title);
         },
       });
+      const followCarPlay = () => nowPlaying.setCarPlayConnected(getCarPlayState().connected);
+      const stopCarPlay = subscribeCarPlay(followCarPlay);
+      followCarPlay();
+      const stopQueueMetadata = client.subscribe(nowPlaying.refreshQueue);
       onLikes.current = nowPlaying.refreshFavorite;
       const stopWaiting = tracks.subscribe(() => {
         if (waitingForItem) return nowPlaying.refresh();
@@ -350,6 +373,8 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         loading.dispose();
         stopVolume();
         stopWaiting();
+        stopCarPlay();
+        stopQueueMetadata();
         nowPlaying.disconnect();
         client.dispose();
       };
@@ -397,6 +422,24 @@ function createActions(runtime: Runtime | null, canPlay: (track: TrackSummary) =
     const { seeds } = playableSeeds(tracks, 0, canPlay);
     if (seeds.length) send({ type: 'enqueue', tracks: seeds, placement });
   };
+  const startHere = (command: CarPlayStartCommand) => {
+    if (!runtime) return false;
+    carPlayStart(session(), runtime.device.id, command, runtime.client.supportsPlayHere()).forEach(send);
+    return true;
+  };
+  const tracksCommand = (tracks: readonly TrackSummary[], { start, shuffle, context }: PlayOptions) => {
+    const { seeds, startIndex } = playableSeeds(tracks, start, canPlay);
+    if (!seeds.length) return null;
+    return {
+      type: 'playTracks', tracks: seeds, seed: randomSeed(), shuffle, context: context ?? null,
+      startIndex: shuffle && start === undefined ? undefined : startIndex,
+      // A row names its song; a header's Play or Shuffle can skip an unavailable first song.
+      startedFrom: start === undefined || shuffle ? 'collection' : 'song',
+    } satisfies SessionCommand;
+  };
+  const radioCommand = ({ tracks, context }: RadioResponse, shuffle?: boolean): CarPlayStartCommand => ({
+    type: 'playTracks', tracks, context, startIndex: shuffle ? undefined : 0, shuffle, seed: randomSeed(), startedFrom: 'collection',
+  });
   return {
     playPause: () => send({ type: session().playing ? 'pause' : 'play' }),
     play: () => send({ type: 'play' }),
@@ -421,18 +464,33 @@ function createActions(runtime: Runtime | null, canPlay: (track: TrackSummary) =
      * Replaces the queue with the playable tracks of a list, starting at `start` (an
      * index into `tracks`). `shuffle` left out keeps the session's shuffle setting.
      */
-    playTracks: (tracks: readonly TrackSummary[], { start, shuffle, context }: PlayOptions = {}) => {
-      const { seeds, startIndex } = playableSeeds(tracks, start, canPlay);
-      if (!seeds.length) return;
-      send({
-        type: 'playTracks', tracks: seeds, seed: randomSeed(), shuffle, context: context ?? null,
-        startIndex: shuffle && start === undefined ? undefined : startIndex,
-        // A row names its song (`start`); a header's Play or Shuffle plays the list, past a first
-        // song that cannot be had.
-        startedFrom: start === undefined || shuffle ? 'collection' : 'song',
-      });
+    playTracks: (tracks: readonly TrackSummary[], options: PlayOptions = {}) => {
+      const command = tracksCommand(tracks, options);
+      if (command) send(command);
     },
-    playRadio: ({ tracks, context }: RadioResponse) => send({ type: 'playTracks', tracks, context, startIndex: 0, seed: randomSeed(), startedFrom: 'collection' }),
+    playRadio: (radio: RadioResponse) => send(radioCommand(radio)),
+    /** Explicit selections in the car or through Siri belong on this phone. */
+    playHere: (tracks: readonly TrackSummary[], options: PlayOptions = {}) => {
+      const command = tracksCommand(tracks, options);
+      return Boolean(command && startHere(command));
+    },
+    playRadioHere: (radio: RadioResponse, shuffle?: boolean) => startHere(radioCommand(radio, shuffle)),
+    playQueueEntryHere: (entryId: string) => {
+      if (!runtime) return false;
+      const { queue, session: current } = runtime.client.getSnapshot();
+      const entry = [...queue.queue, ...queue.autoplayQueue].find(entry => entry.id === entryId);
+      return Boolean(entry && entry.state !== 'failed' && (current.autoplay || queue.queue.includes(entry))
+        && startHere({ type: 'playQueueEntry', entryId }));
+    },
+    resumeHere: () => {
+      if (!runtime) return false;
+      const { session: current, queue } = runtime.client.getSnapshot();
+      if (!current.current && !queue.queue.length && !(current.autoplay && queue.autoplayQueue.length)) return false;
+      if (current.playing && current.activeDeviceId !== runtime.device.id) return false;
+      const commands = carPlayResume(current, runtime.device.id, runtime.client.supportsPlayHere());
+      commands.forEach(send);
+      return commands.length > 0;
+    },
     /** Plays one track now and keeps the queue: it goes to the front, then playback moves to it. */
     playNow: (track: TrackSummary) => {
       enqueue([track], 'next');

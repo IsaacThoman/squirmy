@@ -1,7 +1,11 @@
 module.exports = ({ config }) => {
   const variant = process.env.SQUIRMY_APP_VARIANT;
   const development = variant === 'development';
-  const plugins = [...config.plugins, ['expo-dev-client', { addGeneratedScheme: false }]];
+  const plugins = [
+    ...config.plugins,
+    ['expo-dev-client', { addGeneratedScheme: false }],
+    ['./modules/carplay/app.plugin.js', { enabled: process.env.SQUIRMY_IOS_CARPLAY === '1' }],
+  ];
 
   if (!development) {
     return {

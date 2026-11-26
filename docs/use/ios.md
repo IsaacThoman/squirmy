@@ -79,6 +79,21 @@ The app has Home, Library (playlists, albums, artists and songs: what you hearte
 - **Now Playing on iPad.** The artwork fills the width of the window, with the song's title and the playback controls right under it. In a wide enough window, **Lyrics** and **Queue** slide in as a pane on the right, and the artwork and controls move over beside it. Tap **Lyrics** or **Queue** again, or swipe the pane to the right, to put it away. In a narrow window, such as a small Split View, Lyrics and Queue look as they do on iPhone.
 - **Larger text.** The app follows the system text size. Sheets that grow taller than the screen scroll, so **Sign out** and the device actions stay in reach. Song rows grow with the text (on iOS 18 and later), and at the accessibility sizes a song's title and artist wrap and an album song's length moves under its title; queue rows grow the same way. At the accessibility sizes, rows of covers on Home and artist pages show wider covers so titles wrap into whole words, grids of covers have two columns, and one from the third accessibility size. At the accessibility sizes, Settings puts each choice under its name and sign-in stacks the server's name and address; a server address stays on one line, shrunk to fit. From **xxLarge** up, the mini-player shows the song's title alone, larger, instead of two smaller lines, except when it needs to show a playback notice.
 
+## CarPlay
+
+Connect your iPhone to CarPlay, then open **Squirmy** on the car’s display. Connect to your server and sign in on the iPhone first. The car shows **Home**, **Library**, and **Downloads** when you have downloaded songs. Open an album, playlist or Liked Songs to play it in order, shuffle it, or start at a song. Artist pages show top songs, releases and a station when available. Songs on the phone can play offline, and other songs show **Not downloaded**.
+
+Picking music in the car plays it through your iPhone, moving the shared session there if another device was playing. A car that sends Play on connection leaves music running on your other device. Open **Now Playing** for playback controls, shuffle, repeat, the heart, the current album and **Up Next**. The heart saves or removes the song from your library. You can also ask Siri to play a song, album, artist or playlist on Squirmy.
+
+CarPlay is available in builds signed with an Apple-approved CarPlay Audio capability. To build one yourself, get the capability for your app ID and enable it in the provisioning profile. Then run these commands from `apps/mobile`:
+
+```sh
+SQUIRMY_IOS_CARPLAY=1 npx expo prebuild --platform ios --clean
+SQUIRMY_IOS_CARPLAY=1 npx expo run:ios --device --configuration Release
+```
+
+The separate Squirmy Dev app (`com.isaacthoman.music.dev`) needs its own entitled profile only if you want to run CarPlay from that build on an iPhone. During development, use Apple’s CarPlay Simulator with that iPhone, then verify in a vehicle or with an aftermarket CarPlay system. [Apple’s CarPlay Simulator guide](https://developer.apple.com/documentation/carplay/testing-your-app-in-carplay-simulator)
+
 ## Playing separately on one device
 
 To have the phone play its own music while your other devices play something else (two people on one account, or two rooms), open **Playback device** and choose **Play separately on this iPhone**. It happens at once: if the phone was playing it carries on and your other devices pause where they were; otherwise it starts from a paused copy of the queue. While it plays separately, the highlighted device button uses a crossed-out link. In Now Playing it is labeled **Only on this device**. Open **Playback device** to see:

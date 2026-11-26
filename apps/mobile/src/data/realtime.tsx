@@ -8,6 +8,7 @@ import { AppState } from 'react-native';
 import { io } from 'socket.io-client';
 import { useAccount } from '../account/AccountProvider';
 import { socketAddress } from '../account/address';
+import { getCarPlayState, subscribeCarPlay } from '../carplay/bridge';
 import { applyChanges } from './changes';
 import { Echoes } from './echoes';
 import { BackgroundPresence } from './presence';
@@ -43,6 +44,7 @@ type Realtime = {
    * while it does (see `BackgroundPresence`).
    */
   setPlayingHere: (playing: boolean) => void;
+  setMediaRequest: (active: boolean) => void;
 };
 
 /** Retry delay after the server refused the handshake, which socket.io does not retry itself. */
@@ -51,7 +53,7 @@ const refusedRetryMs = 5000;
 const staleAfterMs = HEARTBEAT_INTERVAL_MS + HEARTBEAT_TIMEOUT_MS;
 
 const RealtimeContext = createContext<Realtime>({
-  socket: null, offline: false, onInvalidate: () => () => undefined, onChanges: () => () => undefined, expectEcho: () => undefined, setPlayingHere: () => undefined,
+  socket: null, offline: false, onInvalidate: () => () => undefined, onChanges: () => () => undefined, expectEcho: () => undefined, setPlayingHere: () => undefined, setMediaRequest: () => undefined,
 });
 
 /** How long invalidations are collected, so a burst refetches each query once. */
@@ -83,6 +85,12 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
   const [setPlayingHere] = useState(() => (playing: boolean) => {
     playingHere.current = playing;
     presence.current?.setPlaying(playing);
+  });
+
+  const mediaRequest = useRef(false);
+  const [setMediaRequest] = useState(() => (active: boolean) => {
+    mediaRequest.current = active;
+    presence.current?.setMediaRequest(active);
   });
 
   useEffect(() => {
@@ -120,6 +128,7 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
     };
     const parking = new BackgroundPresence(next, AppState.currentState !== 'background');
     parking.setPlaying(playingHere.current);
+    parking.setMediaRequest(mediaRequest.current);
     presence.current = parking;
 
     next.on('connect', () => {
@@ -163,6 +172,20 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
     });
     next.io.on('ping', heard);
 
+    let carPlayActive = false;
+    const followCarPlay = () => {
+      const active = getCarPlayState().active;
+      if (carPlayActive === active) return;
+      carPlayActive = active;
+      const wasParked = parking.parked;
+      parking.setCarPlayActive(active);
+      if (!active || wasParked) return;
+      if (!next.connected) next.connect();
+      else if (Date.now() - lastHeard > staleAfterMs) renew();
+    };
+    const stopCarPlay = subscribeCarPlay(followCarPlay);
+    followCarPlay();
+
     const app = AppState.addEventListener('change', status => {
       if (status === 'background') return parking.setForeground(false);
       if (status !== 'active') return;
@@ -192,6 +215,7 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
       setOffline(false);
       answers();
       batch.clear();
+      stopCarPlay();
       parking.dispose();
       presence.current = null;
       app.remove();
@@ -216,7 +240,8 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
     },
     expectEcho: echoes.expect,
     setPlayingHere,
-  }), [changeListeners, echoes, listeners, offline, setPlayingHere, socket]);
+    setMediaRequest,
+  }), [changeListeners, echoes, listeners, offline, setMediaRequest, setPlayingHere, socket]);
 
   return <RealtimeContext.Provider value={value}>{children}</RealtimeContext.Provider>;
 }

@@ -44,10 +44,10 @@ function usePrime() {
   };
 }
 
-export function useHome() {
+export function useHome(enabled = true) {
   const prime = usePrime();
   return useApiQuery(queryKeys.home(), async api => prime(await api.catalog.home(),
-    home => home.sections.flatMap(section => section.kind === 'tracks' ? section.tracks : [])));
+    home => home.sections.flatMap(section => section.kind === 'tracks' ? section.tracks : [])), { enabled });
 }
 
 /** Albums, artists, playlists and Liked Songs in one list, in `sort`'s order. */
@@ -85,10 +85,10 @@ export function useLibraryAlbumIds(enabled: boolean) {
   }, { enabled });
 }
 
-export function useLikedTracks() {
+export function useLikedTracks(enabled = true) {
   const prime = usePrime();
   return usePagedQuery([...queryKeys.likes(), 'track'],
-    async (api, cursor) => prime(await api.userdata.likes('track', { cursor, limit: pageSize }), page => page.items));
+    async (api, cursor) => prime(await api.userdata.likes('track', { cursor, limit: pageSize }), page => page.items), enabled);
 }
 
 export function useHistory() {
@@ -116,33 +116,35 @@ export function useAllPlaylists(enabled = true) {
 }
 
 /** `enabled: false` for a screen that may not need the album, such as a song's add-to-playlist sheet. */
-export function useAlbum(id: string, { enabled = true }: { enabled?: boolean } = {}) {
+export function useAlbum(id: string, { enabled = true, background = false }: { enabled?: boolean; background?: boolean } = {}) {
   const prime = usePrime();
   const api = useSignedInApi();
   const queryClient = useQueryClient();
   // Looked up once per page: the header can draw from the tile that opened it.
-  const [placeholder] = useState(() => {
-    const summary = findAlbumSummary(queryClient.getQueryCache().getAll().map(query => query.state.data), id);
-    return summary && albumPlaceholder(summary);
+  const [initial] = useState(() => {
+    const summary = id && findAlbumSummary(queryClient.getQueryCache().getAll().map(query => query.state.data), id);
+    return { id, placeholder: summary ? albumPlaceholder(summary) : undefined };
   });
   // When this page began waiting for the album's songs; `checkAgain` starts a new wait.
-  const waitingSince = useRef<number | null>(null);
+  const waiting = useRef<{ id: string; since: number | null }>({ id, since: null });
+  if (waiting.current.id !== id) waiting.current = { id, since: null };
   const query = useQuery({
     queryKey: queryKeys.album(id),
     queryFn: async () => prime(await api!.catalog.album(id), album => album.discs.flatMap(disc => disc.tracks)),
     enabled: Boolean(api) && enabled,
-    placeholderData: placeholder,
+    placeholderData: initial.id === id ? initial.placeholder : undefined,
+    refetchIntervalInBackground: background,
     // An album the server has only heard of (from search or an artist's discography) comes
     // back without tracks while the server looks them up; a later answer has them.
     refetchInterval: ({ state }) => {
       const awaiting = awaitsTrackList(state.data);
-      if (awaiting) waitingSince.current ??= Date.now();
-      return trackListPoll(Date.now() - (waitingSince.current ?? Date.now()), awaiting);
+      if (awaiting) waiting.current.since ??= Date.now();
+      return trackListPoll(Date.now() - (waiting.current.since ?? Date.now()), awaiting);
     },
   });
   const { refetch } = query;
   const checkAgain = useCallback(() => {
-    waitingSince.current = Date.now();
+    waiting.current.since = Date.now();
     return refetch();
   }, [refetch]);
   return { query, checkAgain };
@@ -152,29 +154,32 @@ export function useAlbum(id: string, { enabled = true }: { enabled?: boolean } =
  * `enabled: false` until the page knows which artist. `poll: false` for a page that only
  * borrows the artist, such as an album page's rails: the invalidations are enough there, as on web.
  */
-export function useArtist(id: string, { enabled = true, poll = true }: { enabled?: boolean; poll?: boolean } = {}) {
+export function useArtist(id: string, { enabled = true, poll = true, background = false }: {
+  enabled?: boolean; poll?: boolean; background?: boolean;
+} = {}) {
   const prime = usePrime();
   const api = useSignedInApi();
   const queryClient = useQueryClient();
   // As for albums: the header draws at once from the tile or row that opened the page.
-  const [placeholder] = useState(() => {
-    const summary = findArtistSummary(queryClient.getQueryCache().getAll().map(query => query.state.data), id);
-    return summary && artistPlaceholder(summary);
+  const [initial] = useState(() => {
+    const summary = id && findArtistSummary(queryClient.getQueryCache().getAll().map(query => query.state.data), id);
+    return { id, placeholder: summary ? artistPlaceholder(summary) : undefined };
   });
   return useQuery({
     queryKey: queryKeys.artist(id),
     queryFn: async () => prime(await api!.catalog.artist(id), artist => artist.topTracks),
     enabled: Boolean(api) && enabled,
-    placeholderData: placeholder,
+    placeholderData: initial.id === id ? initial.placeholder : undefined,
+    refetchIntervalInBackground: background,
     // A page answered while the server still fetches the profile and discography is not
     // final; the realtime invalidation that follows can be missed, so it is asked for again.
     refetchInterval: query => poll && artistPending(query.state.data, query.state.dataUpdateCount) ? pendingArtistPollMs : false,
   });
 }
 
-export function usePlaylist(id: string) {
+export function usePlaylist(id: string, enabled = true) {
   const prime = usePrime();
-  return useApiQuery(queryKeys.playlist(id), async api => prime(await api.userdata.playlist(id), playlist => playlist.items.map(item => item.track)));
+  return useApiQuery(queryKeys.playlist(id), async api => prime(await api.userdata.playlist(id), playlist => playlist.items.map(item => item.track)), { enabled });
 }
 
 /** Genres with the most albums first. */

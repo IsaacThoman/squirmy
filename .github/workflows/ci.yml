@@ -295,6 +295,8 @@ jobs:
 
       - name: Generate the native iOS project
         working-directory: apps/mobile
+        env:
+          SQUIRMY_IOS_CARPLAY: ${{ vars.SQUIRMY_IOS_CARPLAY }}
         run: npx expo prebuild --platform ios --clean
 
       # Keep signing credentials out of npm, Expo prebuild and CocoaPods.

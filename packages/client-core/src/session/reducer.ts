@@ -126,10 +126,15 @@ export function reduceParsedSession(session: Session, input: SessionInput): Sess
   if (!Number.isFinite(input.now)) return session
   let serial = 0
   const context: Context = { now: input.now, deviceId: input.deviceId, nextId: () => `${input.commandId}.${(serial++).toString(36)}` }
-  let next = apply(session, input.command, context)
+  const command = input.command
+  const playHere = 'playHere' in command && command.playHere
+  if (playHere && (!input.deviceId || (command.type === 'play' && session.playing
+    && session.activeDeviceId !== null && session.activeDeviceId !== input.deviceId))) return session
+  let next = apply(session, command, context)
   if (next === session) return session
   if (next.playOrder.length > next.queue.length + next.playedInCycle.length + 1 + PLAY_ORDER_SLACK) next = prunePlayOrder(next)
-  if (next.playing && next.activeDeviceId === null && input.deviceId) return { ...next, activeDeviceId: input.deviceId }
+  if (next.playing && input.deviceId && next.activeDeviceId !== input.deviceId
+    && (next.activeDeviceId === null || playHere)) return { ...next, activeDeviceId: input.deviceId }
   return next
 }
 
