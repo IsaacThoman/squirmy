@@ -54,6 +54,7 @@ public class NowPlayingModule: Module {
       ]
     }
 
+    #if os(iOS)
     View(SliderBarView.self) {
       Prop("value") { (view: SliderBarView, value: Double) in
         view.value = Float(min(1, max(0, value)))
@@ -71,6 +72,7 @@ public class NowPlayingModule: Module {
         view.trackTint = color
       }
     }
+    #endif
 
     // Squirmy's device list chooses which device plays; this chooses where this phone's own
     // sound goes: AirPlay, Bluetooth or the speaker. The system's picker opens from its own
@@ -173,7 +175,11 @@ public class NowPlayingModule: Module {
     routePicker = picker
     picker.layoutIfNeeded()
     let button = NowPlayingModule.button(in: picker)
+    #if os(tvOS)
+    button?.sendActions(for: .primaryActionTriggered)
+    #else
     button?.sendActions(for: .touchUpInside)
+    #endif
   }
 
   private static func button(in view: UIView) -> UIButton? {
@@ -241,7 +247,12 @@ public class NowPlayingModule: Module {
     let center = MPRemoteCommandCenter.shared()
     forward(center.playCommand, as: "play")
     forward(center.pauseCommand, as: "pause")
+    #if os(tvOS)
+    // The foreground app handles the Siri Remote press. System playback controls use Play and Pause.
+    center.togglePlayPauseCommand.isEnabled = false
+    #else
     forward(center.togglePlayPauseCommand, as: "togglePlayPause")
+    #endif
     forward(center.nextTrackCommand, as: "next")
     forward(center.previousTrackCommand, as: "previous")
     forward(center.changePlaybackPositionCommand, as: "seek") { event in

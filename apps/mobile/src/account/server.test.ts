@@ -67,6 +67,12 @@ describe('findServer', () => {
     expect(serverFrom('https://old.example.com', status as SetupStatus).wantlistEnabled).toBe(false);
   });
 
+  it('recognizes Apple TV device support when the server advertises it', async () => {
+    const { fetch } = serve({ 'https://music.example.com': { status: 200, body: { ...status, supportsTvDevices: true } } });
+    await expect(findServer('music.example.com', fetch)).resolves.toMatchObject({ supportsTvDevices: true });
+    expect(serverFrom('https://old.example.com', status as SetupStatus).supportsTvDevices).toBeUndefined();
+  });
+
   it('falls back to http when https is unreachable', async () => {
     const { asked, fetch } = serve({ 'http://192.168.1.20:4747': { status: 200, body: status } });
     await expect(findServer('192.168.1.20:4747', fetch)).resolves.toMatchObject({ url: 'http://192.168.1.20:4747' });

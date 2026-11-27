@@ -1,0 +1,70 @@
+name: Apple apps
+
+on:
+  pull_request:
+    paths:
+      - 'apps/mobile/**'
+      - 'packages/client-core/**'
+      - 'packages/contracts/**'
+      - 'patches/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/apple.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apple-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # Both apps share apps/mobile and its native modules, so a change to one can break the other.
+    name: Compile ${{ matrix.name }}
+    runs-on: xcode-27
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: iOS
+            platform: iOS
+            tv: '0'
+          - name: tvOS
+            platform: tvOS
+            tv: '1'
+    env:
+      EXPO_TV: ${{ matrix.tv }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.18.1
+          cache: npm
+
+      - name: Install dependencies and build shared packages
+        run: |
+          npm ci
+          npm run build:packages
+
+      - name: Generate the native ${{ matrix.name }} project
+        working-directory: apps/mobile
+        run: npx expo prebuild --platform ios --clean
+
+      - name: Compile and bundle the app
+        working-directory: apps/mobile
+        run: |
+          xcodebuild \
+            -workspace ios/Squirmy.xcworkspace \
+            -scheme Squirmy \
+            -configuration Release \
+            -destination "generic/platform=${{ matrix.platform }}" \
+            CODE_SIGNING_ALLOWED=NO \
+            build

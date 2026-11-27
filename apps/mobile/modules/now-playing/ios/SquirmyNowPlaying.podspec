@@ -6,7 +6,7 @@ Pod::Spec.new do |s|
   s.license        = 'GPL-3.0-or-later'
   s.author         = 'Squirmy'
   s.homepage       = 'https://github.com/IsaacThoman/squirmy'
-  s.platforms      = { :ios => '16.4' }
+  s.platforms      = { :ios => '16.4', :tvos => '16.4' }
   s.swift_version  = '5.9'
   s.source         = { git: '' }
   s.static_framework = true

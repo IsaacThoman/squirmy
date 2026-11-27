@@ -102,6 +102,7 @@ export async function authRoutes(app: FastifyInstance) {
       serverName: settings.serverName,
       registrationRequiresInvite: settings.registrationRequiresInvite,
       wantlistEnabled: settings.wantlistEnabled,
+      supportsTvDevices: true,
     }
   })
 

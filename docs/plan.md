@@ -1,6 +1,6 @@
 # Squirmy product plan
 
-Squirmy is a self-hosted music server, a web app, and an iOS app. Other people run their own copies.
+Squirmy is a self-hosted music server with web, iOS and Apple TV apps. Other people run their own copies.
 
 - Your files are identified and organized by the server.
 - Search covers all music, and anything you don't have shows gray.
@@ -21,7 +21,7 @@ The technical conventions that implement this plan live in [architecture.md](./a
 ## Stack and repo
 
 ```
-apps/mobile            Expo app (iOS first)
+apps/mobile            Expo app (iOS and tvOS)
 apps/web               Vite, React, Tailwind, Radix, TanStack Query
 apps/server            Fastify, Drizzle, Postgres, pg-boss, socket.io
 packages/contracts     zod schemas shared by all three
@@ -179,6 +179,14 @@ Purchasing (priced offers, caps, budgets) is deferred. The protocol reserves an 
 - Offline downloads: files through `expo-file-system`, an index in `expo-sqlite`, and a Wi-Fi-only option.
 - Android keeps compiling through the existing fallbacks but is not a focus. Subsonic clients cover it.
 
+**Apple TV**
+
+- Typed server address and account sign-in with the tvOS keyboard.
+- Laid out and moving like the system's music app: the sidebar, shelves of covers that lift with focus, long-press menus, tvOS 17 and later.
+- Remote-first browsing, search and Now Playing with lyrics, queue and playback transfer.
+- Settings for the account, playback and the library; scrobbling services are connected from the phone or the web.
+- Shares the iOS app record in TestFlight. Streams from the same Squirmy server and joins the same playback session.
+
 **Web**
 
 - Layout: a sidebar that folds to icons and is a drawer on phones, the main view, a player bar along the bottom, a queue panel beside the page.
@@ -215,3 +223,4 @@ Purchasing (priced offers, caps, budgets) is deferred. The protocol reserves an 
 6. **Search everything.** Library search, Deezer and MusicBrainz search providers, gray-out, artist and album pages, wantlist.
 7. **Add and take.** Web upload, inbox folder, fingerprinting, offline downloads.
 8. **Providers and extras.** Acquisition protocol and reference adapters, external scrobbling, radio from similar-artist data, local search index, docs site.
+9. **Apple TV.** A remote-first streaming client, backed by Squirmy Connect, with a tvOS TestFlight build.

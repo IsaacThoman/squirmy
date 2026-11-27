@@ -2,6 +2,12 @@
 set -euo pipefail
 umask 077
 
+case "${1:-ios}" in
+  ios) platform=iOS ;;
+  tvos) platform=tvOS; export EXPO_TV=1 ;;
+  *) echo 'Usage: upload-testflight.sh [ios|tvos]' >&2; exit 2 ;;
+esac
+
 for variable in \
   APPLE_TEAM_ID \
   APP_STORE_CONNECT_API_ISSUER_ID \
@@ -16,6 +22,14 @@ for variable in \
     exit 1
   fi
 done
+
+# One project folder serves both apps, so make sure prebuild made the one asked for: the TV
+# project needs EXPO_TV=1 at prebuild, and an iOS one must not have it.
+if grep -q '^platform :tvos' ios/Podfile; then prebuilt=tvOS; else prebuilt=iOS; fi
+if [[ "$prebuilt" != "$platform" ]]; then
+  echo "ios/ holds the $prebuilt project; run prebuild again$([[ $platform == tvOS ]] && echo ' with EXPO_TV=1' || echo ' without EXPO_TV') before uploading $platform." >&2
+  exit 1
+fi
 
 signing_dir="$(mktemp -d "${RUNNER_TEMP:?}/squirmy-testflight.XXXXXX")"
 key_path="$signing_dir/AuthKey.p8"
@@ -50,15 +64,15 @@ authentication=(
   -authenticationKeyID "$APP_STORE_CONNECT_API_KEY_ID"
   -authenticationKeyIssuerID "$APP_STORE_CONNECT_API_ISSUER_ID"
 )
-archive_path="$RUNNER_TEMP/Squirmy.xcarchive"
+archive_path="$RUNNER_TEMP/Squirmy-$platform.xcarchive"
 export_options_path="$signing_dir/ExportOptions.plist"
 
-echo "Archiving Squirmy $SQUIRMY_IOS_VERSION ($SQUIRMY_IOS_BUILD_NUMBER)."
+echo "Archiving Squirmy for $platform $SQUIRMY_IOS_VERSION ($SQUIRMY_IOS_BUILD_NUMBER)."
 xcodebuild \
   -workspace ios/Squirmy.xcworkspace \
   -scheme Squirmy \
   -configuration Release \
-  -destination 'generic/platform=iOS' \
+  -destination "generic/platform=$platform" \
   -archivePath "$archive_path" \
   "${authentication[@]}" \
   DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \

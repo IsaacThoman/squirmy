@@ -14,6 +14,7 @@ type Saved = { server: Server; user: User | null };
 const savedKey = 'squirmy.account.v1';
 const tokenKey = 'squirmy.token';
 const deviceKey = 'squirmy.device-id';
+const tvAccountKey = 'squirmy.tv.account.v1';
 // Readable while the phone is locked, so background playback can keep talking to the server.
 const access = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY };
 
@@ -27,6 +28,19 @@ export const keychain = new Keychain({
 export type StoredAccount = { server: Server | null; token: string | null; user: User | null };
 
 export async function loadAccount(): Promise<StoredAccount> {
+  if (Platform.isTV) {
+    // tvOS may purge the SQLite cache, so the server and token live together in the keychain.
+    const json = await keychain.get(tvAccountKey);
+    if (json) {
+      try {
+        const stored = JSON.parse(json) as StoredAccount;
+        if (stored.server?.url) return stored;
+      } catch {
+        // A damaged record is treated as a fresh connection.
+      }
+    }
+    return { server: null, token: null, user: null };
+  }
   const saved = readSaved();
   // The keychain outlives an uninstall. Without the saved server this is a fresh install,
   // so a token found there belongs to an earlier one.
@@ -40,6 +54,11 @@ export async function loadAccount(): Promise<StoredAccount> {
 
 /** Saves `server`, and the session when there is one; clears whatever is not given. */
 export async function saveAccount(server: Server | null, session?: { token: string; user: User }): Promise<void> {
+  if (Platform.isTV) {
+    if (server) await keychain.set(tvAccountKey, JSON.stringify({ server, token: session?.token ?? null, user: session?.user ?? null } satisfies StoredAccount));
+    else await keychain.remove(tvAccountKey);
+    return;
+  }
   try {
     if (server) globalThis.localStorage?.setItem(savedKey, JSON.stringify({ server, user: session?.user ?? null } satisfies Saved));
     else globalThis.localStorage?.removeItem(savedKey);
@@ -72,18 +91,20 @@ function readSaved(): Saved | null {
 let device: Promise<ClientDevice> | undefined;
 
 /** This install as the server sees it. The id is generated once and kept in the keychain. */
-export function clientDevice(): Promise<ClientDevice> {
+export async function clientDevice(supportsTvDevices = false): Promise<ClientDevice> {
   device ??= (async () => {
     let id = await keychain.get(deviceKey);
     if (!id) {
       id = uuid.v4();
       await keychain.set(deviceKey, id);
     }
-    const name = (Device.deviceName || Device.modelName || (Platform.OS === 'ios' ? 'iPhone' : 'Phone')).slice(0, 80);
-    const kind = Platform.OS === 'ios' || Platform.OS === 'android' ? Platform.OS : 'other';
+    const name = (Device.deviceName || Device.modelName || (Platform.isTV ? 'Apple TV' : Platform.OS === 'ios' ? 'iPhone' : 'Phone')).slice(0, 80);
+    // Older servers validate this enum during login and already accept `other`.
+    const kind = Platform.isTV ? 'other' : Platform.OS === 'ios' || Platform.OS === 'android' ? Platform.OS : 'other';
     return { id, name, kind };
   })();
-  return device;
+  const identity = await device;
+  return Platform.isTV && supportsTvDevices ? { ...identity, kind: 'tv' } : identity;
 }
 
 
