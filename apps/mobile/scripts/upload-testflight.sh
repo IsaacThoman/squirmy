@@ -23,6 +23,14 @@ for variable in \
   fi
 done
 
+# One project folder serves both apps, so make sure prebuild made the one asked for: the TV
+# project needs EXPO_TV=1 at prebuild, and an iOS one must not have it.
+if grep -q '^platform :tvos' ios/Podfile; then prebuilt=tvOS; else prebuilt=iOS; fi
+if [[ "$prebuilt" != "$platform" ]]; then
+  echo "ios/ holds the $prebuilt project; run prebuild again$([[ $platform == tvOS ]] && echo ' with EXPO_TV=1' || echo ' without EXPO_TV') before uploading $platform." >&2
+  exit 1
+fi
+
 signing_dir="$(mktemp -d "${RUNNER_TEMP:?}/squirmy-testflight.XXXXXX")"
 key_path="$signing_dir/AuthKey.p8"
 certificate_path="$signing_dir/signing.p12"

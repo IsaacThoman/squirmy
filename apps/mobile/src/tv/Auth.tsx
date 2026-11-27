@@ -1,107 +1,178 @@
+import { ApiError } from '@squirmy/client-core';
 import { useMutation } from '@tanstack/react-query';
-import { useEffect, useRef, useState, type ComponentRef, type PropsWithChildren, type Ref } from 'react';
-import { StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { useRef, useState, type ComponentRef, type ReactNode } from 'react';
+import { ActivityIndicator, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 import { BrandMark } from '../BrandMark';
 import { displayAddress, isExposedHttp } from '../account/address';
 import { unsavedSignIn, useAccount } from '../account/AccountProvider';
 import { signInErrorMessage } from '../account/auth';
-import { findServer, type Server } from '../account/server';
+import { ConnectError, findServer } from '../account/server';
 import { lastUsername, rememberUsername } from '../account/storage';
-import { TvButton, tvColors } from './ui';
+import { Button } from './Button';
+import { Focusable } from './Focusable';
+import { Backdrop } from './Page';
+import { colors, type } from './theme';
 
-function AuthLayout({ title, message, children }: PropsWithChildren<{ title: string; message: string }>) {
-  return <LinearGradient colors={['#251B40', '#12101C', '#100F17']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.page}>
-    <View style={styles.intro}>
-      <BrandMark size={134} />
-      <Text style={styles.wordmark}>Squirmy</Text>
-      <Text style={styles.introText}>Your music library, on Apple TV.</Text>
-    </View>
-    <View style={styles.form}>
+const addressHint = 'For example music.example.com or http://192.168.1.20:4747.';
+
+/** A centred card over the backdrop, as the system's sign-in screens are. */
+function AuthCard({ title, message, children }: { title: string; message: string; children: ReactNode }) {
+  return <View style={styles.page}>
+    <Backdrop />
+    <View style={styles.card}>
+      <BrandMark size={120} />
       <Text accessibilityRole="header" style={styles.title}>{title}</Text>
       <Text style={styles.message}>{message}</Text>
-      {children}
+      <View style={styles.fields}>{children}</View>
     </View>
-  </LinearGradient>;
-}
-
-function Field({ label, inputRef, ...props }: TextInputProps & { label: string; inputRef?: Ref<ComponentRef<typeof TextInput>> }) {
-  const [focused, setFocused] = useState(false);
-  return <View style={styles.field}>
-    <Text style={styles.fieldLabel}>{label}</Text>
-    <TextInput {...props} ref={inputRef} accessibilityLabel={label} placeholderTextColor={tvColors.muted}
-      selectionColor={tvColors.accent} keyboardAppearance="dark" autoCapitalize="none" autoCorrect={false}
-      onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} style={[styles.input, focused && styles.focusedInput]} />
   </View>;
 }
 
-export function TvConnect() {
+type FieldProps = {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  onSubmit?: () => void;
+  secure?: boolean;
+  kind?: TextInputProps['textContentType'];
+  keyboard?: TextInputProps['keyboardType'];
+  hasTVPreferredFocus?: boolean;
+};
+
+/**
+ * A text field as a focusable row. Selecting it opens the system keyboard, where the phone's
+ * keyboard can type too; the row shows what was typed.
+ */
+function Field({ label, value, onChange, onSubmit, secure, kind, keyboard, hasTVPreferredFocus }: FieldProps) {
+  const input = useRef<ComponentRef<typeof TextInput>>(null);
+  const shown = secure ? '•'.repeat(value.length) : value;
+  return <Focusable
+    accessibilityLabel={label}
+    accessibilityValue={{ text: secure ? undefined : value }}
+    hasTVPreferredFocus={hasTVPreferredFocus}
+    onPress={() => input.current?.focus()}
+    scale={1.04}
+    liftStyle={({ focused }) => [styles.field, focused && styles.fieldFocused]}
+  >
+    {({ focused }) => <>
+      <Text style={[styles.fieldLabel, focused && styles.inkFocused]}>{label}</Text>
+      <Text numberOfLines={1} style={[styles.fieldValue, focused && styles.inkFocused, !value && (focused ? styles.placeholderFocused : styles.placeholder)]}>{shown || 'Not entered'}</Text>
+      {/* The system keyboard edits this; it is not drawn. */}
+      <TextInput ref={input} value={value} onChangeText={onChange} onSubmitEditing={onSubmit} secureTextEntry={secure}
+        textContentType={kind} keyboardType={keyboard} autoCapitalize="none" autoCorrect={false} placeholder={label}
+        style={styles.hiddenInput} accessible={false} focusable={false} />
+    </>}
+  </Focusable>;
+}
+
+function Note({ text, error }: { text: string | null | undefined; error?: boolean }) {
+  if (!text) return null;
+  return <Text style={[styles.note, error && styles.error]}>{text}</Text>;
+}
+
+export function TvConnectScreen() {
   const { state, connect } = useAccount();
   const previous = state.status === 'connect' ? state.previous : null;
   const [address, setAddress] = useState(previous ? displayAddress(previous.url) : '');
   const search = useRef<AbortController | null>(null);
-  useEffect(() => () => search.current?.abort(), []);
   const lookup = useMutation({
     mutationFn: (input: string) => {
-      search.current?.abort();
       search.current = new AbortController();
       return findServer(input, undefined, search.current.signal);
     },
-    onSuccess: connect,
+    onSuccess: server => connect(server),
   });
-  const cancel = () => { search.current?.abort(); lookup.reset(); };
-  const submit = () => { if (address.trim() && !lookup.isPending) lookup.mutate(address); };
-  return <AuthLayout title="Connect to your server" message="Enter the address of your Squirmy server.">
-    <Field label="Server address" value={address} onChangeText={value => { setAddress(value); cancel(); }}
-      placeholder="music.example.com" autoComplete="url" keyboardType="url" returnKeyType="go" onSubmitEditing={submit} />
-    {lookup.error && <Text accessibilityRole="alert" style={styles.problem}>{lookup.error.message}</Text>}
-    <View style={styles.buttons}>
-      <TvButton label={lookup.isPending ? 'Connecting…' : 'Continue'} onPress={submit} disabled={lookup.isPending || !address.trim()} tone="primary" />
-      {lookup.isPending && <TvButton label="Cancel" onPress={cancel} />}
+  const problem = lookup.error instanceof ConnectError && lookup.error.problem !== 'cancelled' ? lookup.error : null;
+  const submit = (value = address) => {
+    if (value.trim() && !lookup.isPending) lookup.mutate(value);
+  };
+  return <AuthCard title="Connect to your server" message="Squirmy plays the music on your own server. Enter its address to get started.">
+    <Field label="Server address" value={address} keyboard="url" kind="URL" hasTVPreferredFocus
+      onChange={value => {
+        setAddress(value);
+        if (lookup.isPending) search.current?.abort();
+        lookup.reset();
+      }}
+      onSubmit={() => submit()} />
+    <Note text={problem ? problem.url ? `${problem.message} Setup runs in the web app at ${problem.url}.` : problem.message : addressHint} error={Boolean(problem)} />
+    <View style={styles.actions}>
+      {lookup.isPending
+        ? <><ActivityIndicator color={colors.secondary} /><Button label="Cancel" onPress={() => { search.current?.abort(); lookup.reset(); }} /></>
+        : <Button label="Continue" prominent disabled={!address.trim()} onPress={() => submit()} />}
     </View>
-  </AuthLayout>;
+  </AuthCard>;
 }
 
-export function TvSignIn({ server, notice }: { server: Server; notice: string | null }) {
-  const { signIn, switchServer, unsaved } = useAccount();
-  const [username, setUsername] = useState(() => lastUsername(server.url));
+type Mode = 'signIn' | 'register';
+
+export function TvSignInScreen() {
+  const { state, unsaved, signIn, register, switchServer } = useAccount();
+  const [mode, setMode] = useState<Mode>('signIn');
+  const serverUrl = state.status === 'signIn' ? state.server.url : '';
+  const [remembered] = useState(() => lastUsername(serverUrl));
+  const [inviteCode, setInviteCode] = useState('');
+  const [username, setUsername] = useState(remembered);
   const [password, setPassword] = useState('');
-  const passwordField = useRef<ComponentRef<typeof TextInput>>(null);
   const attempt = useMutation({
-    mutationFn: () => signIn(username, password),
-    onSuccess: () => rememberUsername(server.url, username.trim()),
+    mutationFn: () => mode === 'signIn' ? signIn(username, password) : register(inviteCode, username, password),
+    onSuccess: () => rememberUsername(serverUrl, username.trim()),
+    onError: error => {
+      if (error instanceof ApiError && error.code === 'invalid_credentials') setPassword('');
+    },
   });
+  if (state.status !== 'signIn') return null;
+  const { server, notice } = state;
+  const registering = mode === 'register';
+  const inviteRequired = server.registrationRequiresInvite;
+  const ready = Boolean(username.trim() && password && (!registering || !inviteRequired || inviteCode.trim()));
+  const error = attempt.error ? signInErrorMessage(attempt.error, server.name) : null;
+  const warning = isExposedHttp(server.url) ? 'This server doesn’t use HTTPS, so your password is sent unencrypted.' : null;
   const submit = () => {
-    if (username.trim() && password && !attempt.isPending) attempt.mutate();
+    if (ready && !attempt.isPending) attempt.mutate();
   };
-  return <AuthLayout title="Sign in" message={`${server.name} · ${displayAddress(server.url)}`}>
-    {notice && <Text style={styles.message}>{notice}</Text>}
-    {isExposedHttp(server.url) && <Text style={styles.problem}>This server uses HTTP. Your sign-in travels over the internet without encryption.</Text>}
-    <Field label="Username" value={username} onChangeText={setUsername} autoComplete="username" returnKeyType="next"
-      onSubmitEditing={() => passwordField.current?.focus()} editable={!attempt.isPending} />
-    <Field label="Password" value={password} onChangeText={setPassword} inputRef={passwordField} autoComplete="current-password"
-      secureTextEntry returnKeyType="go" onSubmitEditing={submit} editable={!attempt.isPending} />
-    {attempt.error && <Text accessibilityRole="alert" style={styles.problem}>{signInErrorMessage(attempt.error, server.name)}</Text>}
-    {unsaved && <Text style={styles.problem}>{unsavedSignIn}</Text>}
-    <View style={styles.buttons}>
-      <TvButton label={attempt.isPending ? 'Signing in…' : 'Sign in'} tone="primary" onPress={submit} disabled={!username.trim() || !password || attempt.isPending} />
-      <TvButton label="Change server" onPress={switchServer} disabled={attempt.isPending} />
+  return <AuthCard title={registering ? 'Create an account' : 'Sign in'}
+    message={notice ?? (unsaved ? unsavedSignIn : registering
+      ? inviteRequired ? `Use the invite code you were given to join ${server.name}.` : `Create an account on ${server.name}.`
+      : `Sign in to listen to ${server.name} at ${displayAddress(server.url)}.`)}>
+    {registering && <Field label={inviteRequired ? 'Invite code' : 'Invite code (optional)'} value={inviteCode} onChange={setInviteCode} hasTVPreferredFocus />}
+    <Field label="Username" value={username} onChange={setUsername} kind="username" hasTVPreferredFocus={!registering && !remembered} />
+    <Field label="Password" value={password} onChange={setPassword} secure kind={registering ? 'newPassword' : 'password'}
+      hasTVPreferredFocus={!registering && Boolean(remembered)} onSubmit={submit} />
+    <Note text={error ?? warning} error={Boolean(error)} />
+    {/* The main action straight under the fields, so moving down from the password reaches it. */}
+    <View style={styles.actions}>
+      {attempt.isPending
+        ? <ActivityIndicator color={colors.secondary} />
+        : <Button label={registering ? 'Create Account' : 'Sign In'} prominent disabled={!ready} onPress={submit} style={styles.primary} />}
     </View>
-  </AuthLayout>;
+    <View style={styles.secondary}>
+      <Button label={registering ? 'I Have an Account' : inviteRequired ? 'Join with Invite' : 'Create Account'} onPress={() => {
+        attempt.reset();
+        setPassword('');
+        setMode(registering ? 'signIn' : 'register');
+      }} />
+      <Button label="Change Server" onPress={switchServer} />
+    </View>
+  </AuthCard>;
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 115, padding: 74 },
-  intro: { minWidth: 318, gap: 18 },
-  wordmark: { color: tvColors.text, fontSize: 84, fontWeight: '800', letterSpacing: -5 },
-  introText: { color: tvColors.muted, fontSize: 30 },
-  form: { width: 640, maxWidth: '54%', gap: 19, padding: 38, backgroundColor: '#1E1A2B', borderWidth: 1, borderColor: tvColors.border, borderRadius: 34 },
-  title: { color: tvColors.text, fontSize: 49, fontWeight: '700', letterSpacing: -1 },
-  message: { color: tvColors.muted, fontSize: 25 },
-  problem: { color: tvColors.danger, fontSize: 23 },
-  field: { gap: 7 },
-  fieldLabel: { color: tvColors.muted, fontWeight: '600', fontSize: 22 },
-  input: { minHeight: 58, paddingHorizontal: 18, color: tvColors.text, fontSize: 27, borderWidth: 2, borderColor: tvColors.border, borderRadius: 15, backgroundColor: '#100E19' },
-  focusedInput: { borderColor: tvColors.accent },
-  buttons: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 16, paddingTop: 8 },
+  page: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  card: { width: 1000, alignItems: 'center' },
+  title: { ...type.title1, marginTop: 36, textAlign: 'center' },
+  message: { ...type.body, color: colors.secondary, textAlign: 'center', marginTop: 14, maxWidth: 900 },
+  fields: { alignSelf: 'stretch', marginTop: 56, gap: 22 },
+  field: { flexDirection: 'row', alignItems: 'center', height: 96, paddingHorizontal: 40, borderRadius: 20, backgroundColor: colors.platter, gap: 24 },
+  fieldFocused: { backgroundColor: colors.focused },
+  fieldLabel: { ...type.body, fontWeight: '600', width: 260 },
+  fieldValue: { ...type.body, flex: 1, textAlign: 'right', color: colors.secondary },
+  placeholder: { color: colors.tertiary },
+  inkFocused: { color: colors.onFocused },
+  hiddenInput: { position: 'absolute', width: 1, height: 1, opacity: 0 },
+  note: { ...type.caption, color: colors.secondary, textAlign: 'center', marginTop: 4 },
+  error: { color: colors.danger },
+  actions: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 28, marginTop: 30 },
+  primary: { minWidth: 420 },
+  secondary: { flexDirection: 'row', justifyContent: 'center', gap: 28, marginTop: 40 },
+  placeholderFocused: { color: 'rgba(17,16,24,0.45)' },
 });

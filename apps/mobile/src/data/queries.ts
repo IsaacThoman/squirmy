@@ -1,6 +1,6 @@
 import { ApiError } from '@squirmy/client-core';
 import {
-  queryKeys, type ArtistSectionKey, type LibraryItemsSort, type LibrarySort, type Lyrics, type Page, type SearchKind, type SearchResults, type TrackSummary, type UpdateUserSettings,
+  queryKeys, type AlbumSummary, type ArtistSectionKey, type ArtistSummary, type LibraryItemsSort, type LibrarySort, type Lyrics, type Page, type SearchKind, type SearchResults, type TrackSummary, type UpdateUserSettings,
   type UserSettings,
 } from '@squirmy/contracts';
 import { keepPreviousData, useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -61,6 +61,26 @@ export function useLibraryItems(sort: LibraryItemsSort, enabled = true) {
  */
 export function useServerAlbums(sort: LibrarySort, enabled = true) {
   return usePagedQuery([...queryKeys.collectionAlbums(), sort], (api, cursor) => api.catalog.collectionAlbums({ sort, cursor, limit: pageSize }), enabled);
+}
+
+/** What each of the Library's own lists holds. */
+type LibraryLists = { albums: AlbumSummary; artists: ArtistSummary; tracks: TrackSummary };
+
+/**
+ * One of the Library's lists of a kind (`GET /library/albums`, `/artists`, `/tracks`), a page
+ * at a time, in `sort`'s order: the Apple TV Library's categories, as web's filters.
+ */
+export function useLibraryList<K extends keyof LibraryLists>(kind: K, sort: LibrarySort, enabled = true) {
+  const prime = usePrime();
+  const keys = { albums: queryKeys.libraryAlbums, artists: queryKeys.libraryArtists, tracks: queryKeys.libraryTracks };
+  return usePagedQuery<LibraryLists[K]>([...keys[kind](), 'list', sort], async (api, cursor) => {
+    const query = { sort, cursor, limit: pageSize };
+    switch (kind) {
+      case 'albums': return await api.catalog.albums(query) as Page<LibraryLists[K]>;
+      case 'artists': return await api.catalog.artists(query) as Page<LibraryLists[K]>;
+      default: return prime(await api.catalog.tracks(query), page => page.items) as Page<LibraryLists[K]>;
+    }
+  }, enabled);
 }
 
 /** Library albums read in pages of the server's largest size, up to this many, for `useLibraryAlbumIds`. */

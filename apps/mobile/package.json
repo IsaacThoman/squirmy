@@ -2,14 +2,19 @@
   "name": "@squirmy/mobile",
   "version": "1.0.0",
   "private": true,
-  "main": "index.js",
+  "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
     "ios": "expo run:ios",
+    "ios:prebuild": "expo prebuild --platform ios --clean",
+    "tv": "EXPO_TV=1 expo run:ios",
+    "tv:prebuild": "EXPO_TV=1 expo prebuild --platform ios --clean",
+    "tv:start": "EXPO_TV=1 expo start",
     "android": "expo run:android",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "export": "expo export --platform ios",
+    "tv:export": "EXPO_TV=1 expo export --platform ios",
     "test": "vitest run"
   },
   "dependencies": {
