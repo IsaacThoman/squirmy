@@ -159,7 +159,7 @@ export function useSearchPages(typed: string, kind: SearchKind | null) {
     enabled: kind !== null && term.length > 0,
     initialPageParam: 0,
     queryFn: async ({ pageParam: offset, signal }): Promise<Page> => {
-      const params = { q: term, limit: SEARCH_PAGE_SIZE, type: kind!, offset }
+      const params = { q: term, limit: SEARCH_PAGE_SIZE, type: kind!, offset, scope: 'server' as const }
       const [library, catalog] = await Promise.allSettled([api.search.library(params, { signal }), api.search.catalog(params, { signal })])
       if (library.status === 'rejected' && catalog.status === 'rejected') throw library.reason
       const value = (result: PromiseSettledResult<SearchResults>) => (result.status === 'fulfilled' ? result.value : null)

@@ -40,6 +40,7 @@ type Compute = () => Promise<unknown>
 type Entry = {
   userId: string
   tags: readonly CacheTag[]
+  artistId?: string
   body: string
   etag: string
   expiresAt: number
@@ -53,7 +54,9 @@ let storedBytes = 0
 /** Bumped by every drop, so a read that overlapped one knows not to store its result. */
 let globalGeneration = 0
 const userGenerations = new Map<string, number>()
-const inFlight = new Map<string, Promise<{ body: string; etag: string }>>()
+export type CatalogStubChanges = { entities: Set<string>; discographies: Set<string> }
+type Flight = { pending: Promise<{ body: string; etag: string }>; catalogChanges: CatalogStubChanges }
+const inFlight = new Map<string, Flight>()
 const rewarmTimers = new Map<string, NodeJS.Timeout>()
 
 function maxBytes() {
@@ -62,6 +65,7 @@ function maxBytes() {
 }
 
 const generationOf = (userId: string) => `${globalGeneration}:${userGenerations.get(userId) ?? 0}`
+const artistRead = /\|\/api\/v1\/artists\/([^/?]+)(\/releases)?(?:\?|$)/
 
 function remove(key: string) {
   const entry = entries.get(key)
@@ -85,19 +89,23 @@ function store(key: string, entry: Entry) {
 async function load(key: string, userId: string, tags: readonly CacheTag[], compute: Compute, rewarm: boolean) {
   const generation = generationOf(userId)
   const flightKey = `${generation}|${key}`
-  let pending = inFlight.get(flightKey)
-  if (!pending) {
-    pending = (async () => {
-      const body = JSON.stringify(await compute())
-      const etag = weakEtag(body)
-      if (generationOf(userId) === generation) {
-        const now = Date.now()
-        store(key, { userId, tags, body, etag, expiresAt: now + ttlMs, readAt: now, rewarm: rewarm ? compute : undefined })
-      }
-      return { body, etag }
-    })().finally(() => inFlight.delete(flightKey))
-    inFlight.set(flightKey, pending)
-  }
+  const existing = inFlight.get(flightKey)
+  if (existing) return existing.pending
+  const catalogChanges: CatalogStubChanges = { entities: new Set(), discographies: new Set() }
+  const pending = (async () => {
+    const result = await compute()
+    const body = JSON.stringify(result)
+    const etag = weakEtag(body)
+    const artist = artistRead.exec(key)
+    // Artist detail supplies the resolved id when the URL named a redirect.
+    const artistId = artist && !artist[2] ? (result as { id: string }).id : artist?.[1]
+    if (generationOf(userId) === generation && !showsCatalogChanges(body, artistId, catalogChanges)) {
+      const now = Date.now()
+      store(key, { userId, tags, artistId, body, etag, expiresAt: now + ttlMs, readAt: now, rewarm: rewarm ? compute : undefined })
+    }
+    return { body, etag }
+  })().finally(() => inFlight.delete(flightKey))
+  inFlight.set(flightKey, { pending, catalogChanges })
   return pending
 }
 
@@ -144,6 +152,27 @@ function scheduleRewarm(key: string, entry: Entry) {
       .then(() => { const stored = entries.get(key); if (stored) stored.readAt = entry.readAt })
       .catch(() => {})
   }, rewarmDelayMs).unref())
+}
+
+function showsCatalogChanges(body: string, artistId: string | undefined, { entities, discographies }: CatalogStubChanges) {
+  if (artistId && discographies.has(artistId)) return true
+  for (const id of entities) if (body.includes(`"${id}"`)) return true
+  return false
+}
+
+/** Drops reads that show an edited entity or list new/changed releases for a credited artist. */
+export function dropCatalogStubReads(changes: CatalogStubChanges) {
+  const { entities, discographies } = changes
+  if (entities.size + discographies.size === 0) return
+  for (const { catalogChanges } of inFlight.values()) {
+    for (const id of entities) catalogChanges.entities.add(id)
+    for (const id of discographies) catalogChanges.discographies.add(id)
+  }
+  for (const [key, entry] of entries) {
+    if (!showsCatalogChanges(entry.body, entry.artistId, changes)) continue
+    remove(key)
+    scheduleRewarm(key, entry)
+  }
 }
 
 /**
