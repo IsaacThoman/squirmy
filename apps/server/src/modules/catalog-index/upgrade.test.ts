@@ -53,7 +53,6 @@ describe('search index upgrades', () => {
     expect(freshLibrary).toHaveLength(4)
     expect(await catalogDefinitions()).toHaveLength(4)
     await migrateBeforeUniversalSearch()
-    const user = await createUser()
     const album = await createAlbum({ owned: true, tracks: [{ title: '宇多田ヒカル' }, { title: 'Lantern Song' }] })
     const recording = album.tracks[0]!
     await db.insert(lyrics).values({ recordingId: recording.recordingId, source: 'embedded', plain: 'lantern harbor' })
@@ -64,6 +63,8 @@ describe('search index upgrades', () => {
       ('recording', gen_random_uuid(), '宇多田ヒカル', null, null, '宇多田ヒカル', 1, true)`
     await sql`insert into catalog_index_imports (id, state, recordings) values (gen_random_uuid(), 'active', 2)`
     await runMigrations()
+    // Made once the schema is current: the factory writes every column of today's users table.
+    const user = await createUser()
     expect(await catalogDefinitions()).toHaveLength(4)
     expect(await definitions(librarySearchIndexNames)).toEqual([])
     expect(await isCatalogIndexReady()).toBe(true)
