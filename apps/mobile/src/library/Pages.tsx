@@ -47,9 +47,9 @@ import { useStartGuard } from './pending';
 import { displayFontScale, secondaryFontScale } from '../fontScale';
 import { scrollEdgeFade } from '../edgeFade';
 import { ScrollEdge } from '../ScrollEdge';
-import { SongList, useSongListItems, type SongListProps } from './SongList';
+import { LongSongList, SongList, type SongListProps } from './SongList';
 import { besideArtist } from './collectionMenu';
-import { chunk, type SongListItems, type SongRowItem } from './rows';
+import { chunk } from './rows';
 import { usePlayAll } from './usePlayAll';
 import { ZoomTarget } from './ZoomLink';
 
@@ -82,10 +82,10 @@ type DetailProps = {
   onBack: () => void;
   onEndReached?: () => void;
   bottomInset: number;
-  /** Shown under the header; with `list`, above its rows. */
+  /** Shown under the header; with `songs`, above its rows. */
   children?: ReactNode;
-  /** A long list of songs, drawn as it scrolls into view rather than all at once. */
-  list?: SongListItems & { footer?: ReactElement | false };
+  /** A long list of songs (`LongSongList`), drawn as it scrolls into view rather than all at once. */
+  songs?: { props: SongListProps; footer?: ReactElement | false };
 };
 
 /**
@@ -94,7 +94,7 @@ type DetailProps = {
  * the content scrolls on under the floating buttons, with no bar behind them.
  */
 function DetailPage({
-  item, tint, title, artist, artistLinks, info, buttons, nav, status, description, onBack, onEndReached, bottomInset, children, list,
+  item, tint, title, artist, artistLinks, info, buttons, nav, status, description, onBack, onEndReached, bottomInset, children, songs,
 }: DetailProps) {
   const colors = useColors();
   const styles = useStyles();
@@ -118,8 +118,6 @@ function DetailPage({
   const artSize = Math.min(238, Math.floor(width * 0.60));
   const artRadius = item.round ? artSize / 2 : 17;
   const headerColor = tint ? interpolateColor(colors.albumTint, [0, 1], [colors.background, tint], 'RGB', { gamma: 1 }) : colors.background;
-  const renderRow = list?.renderItem;
-  const renderItem = useCallback((info: { item: SongRowItem }) => <View style={styles.trackList}>{renderRow!(info)}</View>, [renderRow, styles]);
   const header = <>
     <View style={[styles.header, { paddingTop: top + albumNavSize + 12 }]}>
       {tint && <LinearGradient pointerEvents="none" colors={[headerColor, colors.background]}
@@ -136,12 +134,9 @@ function DetailPage({
 
   return <View style={styles.page}>
     {/* The native stack finds its content scroll view through the first child. */}
-    {list ? (
-      <Animated.FlatList data={list.data} renderItem={renderItem} keyExtractor={list.keyExtractor}
-        ListHeaderComponent={header} ListFooterComponent={list.footer || undefined}
-        initialNumToRender={listBatch} maxToRenderPerBatch={listBatch} windowSize={listWindow}
-        contentInsetAdjustmentBehavior="never" onScroll={onScroll} scrollEventThrottle={16}
-        contentContainerStyle={{ paddingBottom: bottomInset }} showsVerticalScrollIndicator={false} />
+    {songs ? (
+      <LongSongList songs={songs.props} header={header} footer={songs.footer} onEndReached={onEndReached} scrollOffset={scrollOffset}
+        bottomInset={bottomInset} inset={gutter - 4} />
     ) : (
       <Animated.ScrollView contentInsetAdjustmentBehavior="never" onScroll={onScroll} scrollEventThrottle={16}
         contentContainerStyle={{ paddingBottom: bottomInset }} showsVerticalScrollIndicator={false}>
@@ -458,8 +453,8 @@ function TrackListPage({ item, title, info, tracks, complete = true, playAll, co
     tapFeedback();
     withAll(Boolean(shuffle), start, all => actions.playTracks(all, { start, shuffle, context }));
   };
-  const songs = useSongListItems({ tracks, artist: context.type === 'artist' ? context.id ?? undefined : undefined,
-    onPlay: start => play(undefined, start), onTrackMenu: track => props.onTrackMenu(track) });
+  const songs: SongListProps = { tracks, artist: context.type === 'artist' ? context.id ?? undefined : undefined,
+    onPlay: start => play(undefined, start), onTrackMenu: track => props.onTrackMenu(track) };
   // The ⋯ menu plays the whole list, as an album's does.
   const menu = playActions(tracks.some(canPlay), {
     play: shuffle => play(shuffle),
@@ -475,7 +470,7 @@ function TrackListPage({ item, title, info, tracks, complete = true, playAll, co
       menu.length > 0 && { icon: 'ellipsis', label: playAll?.busy ? `Loading ${title}` : `More options for ${title}`, busy: Boolean(playAll?.busy), menu },
     ]} status={<>{playAll?.failed && <FailureLine message={playAllFailure} />}{download?.status}</>}
     onBack={props.onBack} onEndReached={loadMore} bottomInset={props.bottomInset ?? 155}
-    list={tracks.length ? { ...songs, footer: loadingMore && <ActivityIndicator style={{ marginVertical: 20 }} /> } : undefined}>
+    songs={tracks.length ? { props: songs, footer: loadingMore && <ActivityIndicator style={{ marginVertical: 20 }} /> } : undefined}>
     {tracks.length ? <TrackSection title="Songs" detail={songCount(tracks, undefined, complete)} />
       : <EmptyState icon={item.special === 'liked' ? 'heart' : 'clock.arrow.circlepath'} {...empty} />}
   </DetailPage>;
@@ -558,7 +553,6 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
       onRemove: itemId => edits.removeItem(id, itemId),
     } : undefined,
   };
-  const songs = useSongListItems(songListProps);
   if (!data) return <PageFallback query={playlist} what="this playlist" onBack={onBack} />;
   const rename = () => onOpen({ pathname: '/name-playlist', params: { mode: 'rename', id: data.id, name: data.name } });
   const remove = () => Alert.alert(`Delete “${data.name}”?`, 'This can’t be undone.', [
@@ -599,11 +593,8 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
         : menu.length > 0 && { icon: 'ellipsis', label: `More options for ${data.name}`, menu },
       (mine || data.isPublic) && { icon: 'square.and.arrow.up', label: `Share ${data.name}`, onPress: () => sharePlaylist({ kind: 'playlist', id: data.id, title: data.name }, data.name) },
     ]}
-    // Reordering drags rows within one native list, so while editing every row is drawn.
-    onBack={onBack} bottomInset={bottomInset} list={tracks.length && !editing ? songs : undefined}>
-    {tracks.length ? <TrackSection title="Songs" detail={songCount(tracks, data.durationMs)}>
-      {editing && <SongList {...songListProps} />}
-    </TrackSection> : smart ? <EmptyState icon="music.note.list" title="No songs match yet"
+    onBack={onBack} bottomInset={bottomInset} songs={tracks.length ? { props: songListProps } : undefined}>
+    {tracks.length ? <TrackSection title="Songs" detail={songCount(tracks, data.durationMs)} /> : smart ? <EmptyState icon="music.note.list" title="No songs match yet"
       description="Songs show up here as soon as music that fits its rules arrives." /> : <EmptyState icon="music.note.list" title="No songs yet"
       description="Add songs from any song’s menu with Add to playlist." />}
   </DetailPage>;

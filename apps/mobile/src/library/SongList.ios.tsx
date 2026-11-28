@@ -1,12 +1,14 @@
-import { Button, ContextMenu, Host, HStack, Image, List, ProgressView, Spacer, SwipeActions, Text, VStack, ZStack } from '@expo/ui/swift-ui';
+import { Button, ContextMenu, Host, HStack, Image, List, ProgressView, RNHostView, Spacer, SwipeActions, Text, VStack, ZStack } from '@expo/ui/swift-ui';
 import {
-  accessibilityHidden, accessibilityLabel, background, buttonStyle, clipShape, controlSize, dynamicTypeSize, environment, font, foregroundStyle, frame,
-  labelStyle, lineLimit, listRowBackground, listRowInsets, listRowSeparator, listRowSeparatorTint, listStyle, monospacedDigit, opacity, padding,
-  scrollContentBackground, scrollDisabled, tint, useScrollGeometryChange,
+  accessibilityHidden, accessibilityLabel, alignmentGuide, background, buttonStyle, clipShape, controlSize, dynamicTypeSize, environment, font, foregroundStyle, frame,
+  labelStyle, lineLimit, listRowBackground, listRowInsets, listRowSeparator, listRowSeparatorTint, listStyle, monospacedDigit, onAppear, opacity, padding,
+  scrollContentBackground, scrollDisabled, scrollIndicators, tint, useScrollGeometryChange,
 } from '@expo/ui/swift-ui/modifiers';
 import { librarySave } from '@squirmy/client-core';
-import { memo, useCallback, useMemo, useState } from 'react';
-import { Platform, useWindowDimensions } from 'react-native';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import { Platform, useWindowDimensions, View } from 'react-native';
+import { useSharedValue } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import { useSharingEnabled, useWantlistEnabled } from '../account/AccountProvider';
 import { useLiked, useLikeFailure, useWanted, useWantFailure } from '../data/library';
 import { useRatingsEnabled } from '../data/queries';
@@ -21,13 +23,16 @@ import { spokenDuration, trackDuration } from './duration';
 import type { SongListProps } from './SongList';
 import { heartButton, heartColor } from './heart';
 import {
-  pressVerb, sameRow, songRowKey, songRows, useSongRowHandlers, type SongListItems, type SongRowHandlers, type SongRowItem,
+  nearListEnd, pressVerb, sameRow, songRowKey, songRows, useSongRowHandlers, type LongSongListProps, type SongListItems, type SongRowHandlers,
+  type SongRowItem,
 } from './rows';
 import { trackActions, useDownloadedOnItsOwn, useTrackActionRunner, type TrackAction } from './trackActions';
 import { unavailableOpacity, useColors } from '../theme';
 
 export type { SongListProps } from './SongList';
 
+/** How far before a row's trailing edge a short list's separator ends. */
+const separatorEnd = 16;
 /** The height of a row at the usual text sizes, and the least it gets; larger text makes it taller. */
 const rowHeight = 58;
 /**
@@ -49,7 +54,10 @@ const quick = {
 } satisfies Record<string, TrackAction>;
 
 type Run = ReturnType<typeof useTrackActionRunner>['run'];
-type RowProps = { item: SongRowItem; run: Run; handlers: SongRowHandlers };
+/** `inset`: the row's distance from each side of the list, which its swipe actions reach past. */
+type RowProps = { item: SongRowItem; run: Run; handlers: SongRowHandlers; inset?: number };
+/** A row of the list that is not a song: the page's header, the footer. */
+const plainRow = [listRowInsets({ top: 0, bottom: 0, leading: 0, trailing: 0 }), listRowBackground('clear'), listRowSeparator('hidden')];
 
 /**
  * The height for the host of a native list of `rows` rows: what the list's content measures,
@@ -74,12 +82,7 @@ export function SongList(props: SongListProps) {
   const handlers = useSongRowHandlers(props, usePlaybackActions().toggleIfCurrent);
   const opens = Boolean(onUnavailable);
   const rows = useMemo(() => songRows({ tracks, numbered, playlist, album, artist, kind, addedByNames, opens }), [album, artist, numbered, playlist, tracks, kind, addedByNames, opens]);
-  const onMove = ([source]: number[], destination: number) => {
-    const itemId = source === undefined ? undefined : playlist?.itemIds[source];
-    if (!playlist || !itemId) return;
-    const index = destination > source! ? destination - 1 : destination;
-    if (index !== source) playlist.onMove(itemId, index);
-  };
+  const onMove = moveHandler(playlist);
   const list = useListHeight(tracks.length);
   // React Native handles screen insets; the list keeps every row while its host scrolls through them.
   return (
@@ -89,6 +92,68 @@ export function SongList(props: SongListProps) {
           onMove={playlist && tracks.length > 1 ? onMove : undefined}>
           {({ item }) => <SongRow item={item} run={run} handlers={handlers} />}
         </List.ForEach>
+      </List>
+    </Host>
+  );
+}
+
+/** Moves a playlist's dragged row, from `List.ForEach`'s indices (which count the row before it is taken out). */
+function moveHandler(playlist: SongListProps['playlist']) {
+  return ([source]: number[], destination: number) => {
+    const itemId = source === undefined ? undefined : playlist?.itemIds[source];
+    if (!playlist || !itemId) return;
+    const index = destination > source! ? destination - 1 : destination;
+    if (index !== source) playlist.onMove(itemId, index);
+  };
+}
+
+/**
+ * A page that is mostly a long list of songs, as one native list that scrolls the whole page.
+ * The list recycles its rows: only those near the screen are drawn, and scrolling hands them
+ * other songs, where a React Native list made (and threw away) a native list for every row.
+ * The page's header (React Native) is the list's first row. A playlist being reordered stays
+ * this one list, which drags its rows natively: drawing all of a long playlist's rows at once
+ * to reorder them ran SwiftUI out of memory.
+ */
+export function LongSongList({ songs, header, footer, onEndReached, scrollOffset, bottomInset, inset }: LongSongListProps) {
+  const { tracks, numbered, playlist, album, artist, kind, addedByNames, onUnavailable } = songs;
+  const { run } = useTrackActionRunner();
+  const handlers = useSongRowHandlers(songs, usePlaybackActions().toggleIfCurrent);
+  const opens = Boolean(onUnavailable);
+  const rows = useMemo(() => songRows({ tracks, numbered, playlist, album, artist, kind, addedByNames, opens }), [album, artist, numbered, playlist, tracks, kind, addedByNames, opens]);
+  const renderRow = useCallback(({ item }: { item: SongRowItem }) => <SongRow item={item} run={run} handlers={handlers} inset={inset} />, [handlers, inset, run]);
+  const endReached = useRef(onEndReached);
+  endReached.current = onEndReached;
+  const loadMore = useCallback(() => endReached.current?.(), []);
+  // Asked once per length of the list, not on every frame near its end.
+  const askedAt = useSharedValue(-1);
+  // On the UI thread, as a React Native list's scroll handler is (iOS 18 and later; before
+  // that the status bar edge stays clear, and the footer's appearance loads the next page).
+  const geometry = useScrollGeometryChange(g => {
+    'worklet';
+    scrollOffset.value = g.contentOffsetY;
+    if (askedAt.value !== g.contentHeight && g.contentHeight > g.containerHeight
+      && nearListEnd(g.contentOffsetY, g.containerHeight, g.contentHeight)) {
+      askedAt.value = g.contentHeight;
+      scheduleOnRN(loadMore);
+    }
+  });
+  const editing = Boolean(playlist?.editing);
+  // React Native lays out the screen's insets: the header starts under the status bar itself.
+  return (
+    <Host ignoreSafeArea="container" style={{ flex: 1 }}>
+      <List modifiers={[listStyle('plain'), scrollContentBackground('hidden'), scrollIndicators('hidden'), ...(geometry ? [geometry] : []),
+        ...(measuresRows ? [] : [dynamicTypeSize({ max: 'xxLarge' })]), environment({ key: 'editMode', value: editing ? 'active' : 'inactive' })]}>
+        <VStack modifiers={[...plainRow, frame({ maxWidth: Infinity })]}>
+          <RNHostView matchContents={{ vertical: true }}><View collapsable={false}>{header}</View></RNHostView>
+        </VStack>
+        <List.ForEach data={rows} keyExtractor={songRowKey} estimatedItemSize={rowHeight}
+          onMove={playlist && tracks.length > 1 ? moveHandler(playlist) : undefined}>
+          {renderRow}
+        </List.ForEach>
+        <VStack modifiers={[...plainRow, frame({ maxWidth: Infinity, minHeight: bottomInset, alignment: 'top' }), onAppear(loadMore)]}>
+          {footer ? <RNHostView matchContents={{ vertical: true }}><View collapsable={false}>{footer}</View></RNHostView> : <Spacer />}
+        </VStack>
       </List>
     </Host>
   );
@@ -116,7 +181,7 @@ const SongListItem = memo(function SongListItem(props: RowProps) {
   </Host>;
 }, sameRowProps);
 
-const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
+const SongRow = memo(function SongRow({ item, run, handlers, inset = 0 }: RowProps) {
   const { track, number, playlist, showArtist, album, artist } = item;
   const colors = useColors();
   const liked = useLiked('track', track.id, track.liked);
@@ -136,7 +201,8 @@ const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
   const wantFailure = useWantFailure(track.id);
   const viewer = useViewer();
   // At accessibility sizes titles and credits take more lines, and the length moves under the title.
-  const large = isAccessibilitySize(useWindowDimensions().fontScale);
+  const { fontScale, width } = useWindowDimensions();
+  const large = isAccessibilitySize(fontScale);
   // Only an album's track list shows each song's length. Web shows it on every song row, as its rows have the width.
   const duration = number !== undefined ? trackDuration(track.durationMs) : null;
   const spoken = number !== undefined ? spokenDuration(track.durationMs) : null;
@@ -151,13 +217,15 @@ const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
 
   return (
     <SwipeActions modifiers={[
-      listRowInsets({ top: 0, bottom: 0, leading: 0, trailing: 0 }),
+      listRowInsets({ top: 0, bottom: 0, leading: inset, trailing: inset }),
       listRowBackground('clear'),
       listRowSeparator(current ? 'hidden' : 'visible', 'bottom'),
       listRowSeparatorTint(colors.stroke, 'bottom'),
     ]}>
       <HStack spacing={0} modifiers={[
         padding({ leading: 5, trailing: 2 }), rowFrame,
+        // Inset from the screen's edges, the separator still ends under the menu button, as in a short list.
+        ...(inset ? [alignmentGuide('listRowSeparatorTrailing', width - inset * 2 - separatorEnd)] : []),
         background(current ? colors.selection : 'clear'), clipShape('roundedRectangle', 11),
       ]}>
         <ContextMenu>
@@ -222,6 +290,6 @@ const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
 }, sameRowProps);
 
 function sameRowProps(a: RowProps, b: RowProps) {
-  return a.run === b.run && a.handlers === b.handlers && sameRow(a.item, b.item);
+  return a.run === b.run && a.handlers === b.handlers && a.inset === b.inset && sameRow(a.item, b.item);
 }
 
