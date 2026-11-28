@@ -45,6 +45,7 @@ The Apple TV is one of your devices, like your phone and your browser, and they 
 - **Move the music to the TV.** In Now Playing, choose the playback device button at the bottom left and select this Apple TV in the list. It carries on from where it was. From your phone or the web app you can also choose the Apple TV under **Playback device** or **Devices**.
 - **Use your phone as a remote.** While the TV plays, Squirmy on your phone or in a browser controls it: play, pause, skip, change the queue or the volume.
 - **Use the TV as a remote.** While another device plays, the TV's Now Playing says where and controls it.
+- **AirPlay.** While the Apple TV plays, the playback device panel has **AirPlay**, which opens the system's picker to send the TV's sound to AirPlay speakers, as the system's music app does. Choosing which of your devices plays is the list above it.
 - **Play separately.** In the playback device panel, **Play separately on this Apple TV** gives the TV its own queue while your other devices keep theirs, and **Rejoin your other devices** brings it back. [Devices and transferring playback](../server/playback.md#devices-and-transferring-playback)
 
 ## Settings

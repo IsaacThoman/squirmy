@@ -42,10 +42,7 @@ export type AlbumMenuRunners = {
 export function albumActions(state: AlbumMenuState, run: AlbumMenuRunners): RowAction[] {
   const { plays, offline, songsKnown = true, saved, want, artists, named = false, share } = state;
   const items: (RowAction | false)[] = [
-    plays && { title: 'Play', icon: 'play.fill', onPress: () => run.play(false) },
-    plays && { title: 'Shuffle', icon: 'shuffle', onPress: () => run.play(true) },
-    plays && { title: 'Play next', icon: 'text.line.first.and.arrowtriangle.forward', onPress: () => run.enqueue('next') },
-    plays && { title: 'Add to queue', icon: 'text.line.last.and.arrowtriangle.forward', onPress: () => run.enqueue('last') },
+    ...playActions(plays, run),
     !offline && songsKnown && { title: 'Add to playlist', icon: 'text.badge.plus', onPress: run.addToPlaylist },
     // A refused change was set back, so the entry that would make it again says it failed (as the track menu does).
     saved !== undefined && run.setSaved !== undefined && libraryEntry(saved, run.setSaved),
@@ -56,6 +53,20 @@ export function albumActions(state: AlbumMenuState, run: AlbumMenuRunners): RowA
     share === true && run.share !== undefined && { title: 'Share', icon: 'square.and.arrow.up', onPress: run.share },
   ];
   return items.filter((item): item is RowAction => Boolean(item));
+}
+
+/**
+ * Play, Shuffle, Play next and Add to queue for a list of songs, while something on it plays:
+ * the head of an album's menu, and of a playlist's or Liked Songs' on their pages.
+ */
+export function playActions(plays: boolean, run: Pick<AlbumMenuRunners, 'play' | 'enqueue'>): RowAction[] {
+  if (!plays) return [];
+  return [
+    { title: 'Play', icon: 'play.fill', onPress: () => run.play(false) },
+    { title: 'Shuffle', icon: 'shuffle', onPress: () => run.play(true) },
+    { title: 'Play next', icon: 'text.line.first.and.arrowtriangle.forward', onPress: () => run.enqueue('next') },
+    { title: 'Add to queue', icon: 'text.line.last.and.arrowtriangle.forward', onPress: () => run.enqueue('last') },
+  ];
 }
 
 function libraryEntry({ liked, failed }: { liked: boolean; failed?: boolean }, setSaved: (saved: boolean) => void): RowAction {
