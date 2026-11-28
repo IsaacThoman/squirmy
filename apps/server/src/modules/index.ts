@@ -19,6 +19,7 @@ import { acquisitionModule } from './acquisition/index.js'
 import { scrobbleModule } from './scrobble/index.js'
 import { radioModule } from './radio/index.js'
 import { catalogIndexModule } from './catalog-index/index.js'
+import { shareModule } from './share/index.js'
 
 /** Every module, in registration order. A module only edits files inside its own folder. */
 export const modules: ServerModule[] = [
@@ -42,4 +43,5 @@ export const modules: ServerModule[] = [
   scrobbleModule,
   radioModule,
   catalogIndexModule,
+  shareModule,
 ]

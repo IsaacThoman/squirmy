@@ -34,6 +34,8 @@ export const SetupStatus = z.object({
   serverName: z.string(),
   registrationRequiresInvite: z.boolean(),
   wantlistEnabled: z.boolean().default(false),
+  /** Whether members can make public share links. Older servers have none. */
+  sharingEnabled: z.boolean().default(false),
   /** Older servers omit this and accept TVs that identify as `other`. */
   supportsTvDevices: z.literal(true).optional(),
 })

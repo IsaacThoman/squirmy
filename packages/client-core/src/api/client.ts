@@ -32,6 +32,7 @@ import {
   CreateInviteRequest,
   CreateLibraryRootRequest,
   type CreatePlaylistRequest,
+  type CreateShareRequest,
   CreateUserRequest,
   DeviceInfo,
   DirectoryListing,
@@ -74,6 +75,11 @@ import {
   type MatchReviewQuery,
   type MovePlaylistItemRequest,
   Ok,
+  PublicShare,
+  ShareLink,
+  ShareLinkPage,
+  ShareTrackPlayback,
+  type ShareTrackQuery,
   OrganizeBatch,
   OrganizeBatchAccepted,
   OrganizeBatchList,
@@ -519,6 +525,21 @@ export function createApiClient(options: ApiClientOptions) {
       adminDeleteAlbum: (albumId: string, query: AdminUploadAlbumQuery = {}) =>
         request('DELETE', `/admin/uploads/albums/${id(albumId)}`, { schema: DeleteUploadsResponse, query }),
       adminDeleteFile: (fileId: string) => send('DELETE', `/admin/uploads/files/${id(fileId)}`, DeleteUploadsResponse),
+    },
+    share: {
+      /** Your share links, newest first, expired ones included until they are cleaned up. */
+      list: (query: Partial<PageQuery> = {}) => get('/me/shares', ShareLinkPage, query),
+      /** The answer's `url` (`/s/<token>`) is the only time the link is returned. */
+      create: (body: Input<typeof CreateShareRequest>) => send('POST', '/me/shares', ShareLink, body),
+      revoke: (shareId: string) => send('DELETE', `/me/shares/${id(shareId)}`, Ok),
+      /** Admins: everyone's links. */
+      adminList: (query: Partial<PageQuery> = {}) => get('/admin/shares', ShareLinkPage, query),
+      adminRevoke: (shareId: string) => send('DELETE', `/admin/shares/${id(shareId)}`, Ok),
+      /** The public page of a link, without a session. 404 `share_not_found` for any link that does not work. */
+      page: (token: string) => get(`/share/${id(token)}`, PublicShare),
+      /** A short-lived URL for one song of a shared item; resolve it with `streamUrl`. */
+      trackPlayback: (token: string, trackId: string, query: ShareTrackQuery = {}) =>
+        get(`/share/${id(token)}/tracks/${id(trackId)}/playback`, ShareTrackPlayback, query),
     },
     acquisition: {
       providers: () => get('/admin/acquisition/providers', AcquisitionProviderList),

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { Id } from './common.js'
 import { NormalizationMode, StreamQuality } from './playback.js'
+import { SharePlayback } from './share.js'
 
 /** Per-user preferences, stored on the user row. */
 export const UserSettings = z.object({
@@ -83,6 +84,13 @@ export const ServerSettings = z.object({
    * wants, so turning it back on restores them.
    */
   wantlistEnabled: z.boolean().default(false),
+  /**
+   * Whether members can make public links to albums, playlists and songs. Off, every link
+   * answers 404 but is kept, so turning it back on brings them back.
+   */
+  sharingEnabled: z.boolean().default(true),
+  /** What a share page plays to people without an account. See `SharePlayback`. */
+  sharePlayback: SharePlayback.default('previews'),
 })
 export type ServerSettings = z.infer<typeof ServerSettings>
 
@@ -108,6 +116,8 @@ export const UpdateServerSettings = z.object({
   importMaxBytes: z.number().int().min(1),
   importMaxActivePerUser: z.number().int().min(1),
   wantlistEnabled: z.boolean(),
+  sharingEnabled: z.boolean(),
+  sharePlayback: SharePlayback,
   listenBrainzToken: z.string().nullable(),
   acoustIdKey: z.string().nullable(),
   fanartKey: z.string().nullable(),

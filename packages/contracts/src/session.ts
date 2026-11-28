@@ -720,4 +720,8 @@ export const queryKeys = {
   adminOrganize: () => ['admin', 'organize'] as const,
   /** Everyone's uploads (`GET /admin/uploads`). */
   adminUploads: () => ['admin', 'uploads'] as const,
+  /** The user's share links (`GET /me/shares`). */
+  shares: () => ['shares'] as const,
+  /** Everyone's share links (`GET /admin/shares`). */
+  adminShares: () => ['admin', 'shares'] as const,
 } as const
