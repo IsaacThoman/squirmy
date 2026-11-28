@@ -1,6 +1,13 @@
-import type { TimedLyric } from '@squirmy/client-core'
+import { parseLrc, type TimedLyric } from '@squirmy/client-core'
+import type { Lyrics } from '@squirmy/contracts'
 
-export { parseLrc } from '@squirmy/client-core'
+export { parseLrc, wordProgress } from '@squirmy/client-core'
+
+/** The timed lines of a track's lyrics: the server's reading, with word times, or the LRC read here from an older server. */
+export function syncedLines(lyrics: Pick<Lyrics, 'synced' | 'lines'> | null | undefined): TimedLyric[] {
+  if (!lyrics?.synced) return []
+  return lyrics.lines ?? parseLrc(lyrics.synced)
+}
 
 /** Index of the line being sung at `positionMs`, or -1 before the first. */
 export function activeLine(lines: readonly TimedLyric[], positionMs: number): number {

@@ -68,7 +68,7 @@ Open **Admin → Organize**. With more than one managed folder, choose it under 
 2. Choose **Preview**. Squirmy plans where every file should go and shows each album with its moves (current path, then where it moves to). Nothing has changed on disk yet. Files that are already in place are not listed; "Tags only, stays in place" means a file only gets tags. A skipped move says why.
 3. Apply all of it with **Apply all**, or tick albums and choose **Apply N albums**. The batch runs in the background, and progress shows on the page; you can leave it.
 
-Covers, booklets, `.cue`, `.log`, `.lrc` and playlist files travel with their album when every audio file in their folder moves to the same new folder. Empty folders left behind are removed.
+Covers, booklets, `.cue`, `.log`, `.lrc`, `.ttml` and playlist files travel with their album when every audio file in their folder moves to the same new folder. Empty folders left behind are removed.
 
 Moves are safe against crashes and full disks: within one file system a file is renamed; across file systems it is copied next to its destination, checked byte for byte, moved into place, and only then is the original deleted. A file that already exists at the destination is never replaced.
 

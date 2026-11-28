@@ -5,7 +5,7 @@ import {
 } from '@squirmy/client-core';
 import { createSocketTransport } from '@squirmy/client-core/socket';
 import type {
-  ClientDevice, DeviceInfo, PlaybackContext, QueueEntry, RadioResponse, SessionCommand, SleepTimer, SleepTimerRequest, TrackSummary, UserSettings,
+  ClientDevice, DeviceInfo, LyricWord, PlaybackContext, QueueEntry, RadioResponse, SessionCommand, SleepTimer, SleepTimerRequest, TrackSummary, UserSettings,
 } from '@squirmy/contracts';
 import * as Network from 'expo-network';
 import {
@@ -20,6 +20,7 @@ import { useRealtime } from './data/realtime';
 import { useAvailability, useDownloadManager } from './downloads/DownloadsProvider';
 import { connectAudioSession, connectNowPlaying, createPlayerEngine } from './player/engine';
 import { favoriteState } from './player/engine/favorite';
+import { wordsStarted } from './player/lyrics';
 import { loadSession, sessionSaver } from './player/savedSession';
 import {
   codecsFor, deviceRows, findEntry, isRemote, nextDownloaded, nextRepeat, outputDevice, playableSeeds,
@@ -655,6 +656,37 @@ export function usePositionEvery(intervalMs: number, enabled = true): number {
     };
   }, [active, anchor, enabled, intervalMs, moving, runtime]);
   return position;
+}
+
+/**
+ * How many of `words` have started, read again just as the next one starts rather than on a
+ * steady tick: the sung line re-renders once a word, and nothing else does.
+ */
+export function useWordsStarted(words: readonly Pick<LyricWord, 'startMs'>[] | undefined, enabled = true): number {
+  const runtime = useContext(RuntimeContext);
+  const moving = useSessionValue(({ session }) => session.playing && !session.stalled);
+  // Seeks and track changes move the clock without a word starting.
+  const anchor = useSessionValue(({ session }) => `${session.current?.id ?? ''}:${session.positionMs}:${session.anchorAt}`);
+  const active = useAppActive();
+  const [started, setStarted] = useState(() => (words ? wordsStarted(words, runtime?.seeks.position() ?? 0).count : 0));
+  useEffect(() => {
+    if (!words?.length || !runtime) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const read = () => {
+      clearTimeout(timer);
+      const at = runtime.seeks.position();
+      const { count, nextAt } = wordsStarted(words, at);
+      setStarted(count);
+      if (enabled && active && moving && nextAt !== null) timer = setTimeout(read, Math.max(16, nextAt - at));
+    };
+    read();
+    const stopSeeks = runtime.seeks.subscribe(read);
+    return () => {
+      stopSeeks();
+      clearTimeout(timer);
+    };
+  }, [active, anchor, enabled, moving, runtime, words]);
+  return started;
 }
 
 export type SleepTimerState = {
