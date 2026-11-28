@@ -13,6 +13,7 @@
 import {
   bigint,
   boolean,
+  check,
   foreignKey,
   index,
   integer,
@@ -27,6 +28,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
+import type { CreditRole, HistoryImport, HistoryImportSource } from '@squirmy/contracts'
 
 const id = () => uuid('id').primaryKey()
 const at = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' })
@@ -80,6 +82,15 @@ export type FileTags = {
   key?: string
   /** Mood tags (`TMOO`, `MOOD`), as written. */
   moods?: string[]
+  credits?: { name: string; role: CreditRole; instrument?: string }[]
+  work?: string
+  movementName?: string
+  movementNumber?: number
+  movementTotal?: number
+  explicit?: boolean
+  comment?: string
+  /** A file's rating, in the original tag's units. */
+  ratingHint?: { source: 'popm' | 'fmps' | 'rating'; value: number }
 }
 
 // ---------------------------------------------------------------------------
@@ -541,6 +552,7 @@ export const mediaFiles = pgTable('media_files', {
   importId: uuid('import_id'),
   /** 0 discovered, 1 tags read (playable), 2 audio hash and loudness done. */
   probeStage: smallint('probe_stage').notNull().default(0),
+  tagVersion: smallint('tag_version').notNull().default(0),
   /**
    * Why the last probe or analysis of this file failed. Set instead of retrying; a scan
    * clears it when the file's size or mtime changes.
@@ -571,6 +583,45 @@ export const mediaFiles = pgTable('media_files', {
   index('media_files_collection_album').on(t.albumId, t.addedAt, t.id).where(sql`${t.missingSince} is null and not ${t.cached}`),
   index('media_files_collection_recording').on(t.recordingId, t.addedAt, t.id).where(sql`${t.missingSince} is null and not ${t.cached}`),
   index('media_files_import').on(t.importId),
+])
+
+/** File credits follow the file's current recording, including after a manual rematch. */
+export const recordingCredits = pgTable('recording_credits', {
+  recordingId: uuid('recording_id').references(() => recordings.id, { onDelete: 'cascade' }),
+  fileId: uuid('file_id').references(() => mediaFiles.id, { onDelete: 'cascade' }),
+  artistId: uuid('artist_id').notNull().references(() => artists.id, { onDelete: 'cascade' }),
+  role: text('role').$type<CreditRole>().notNull(),
+  instrument: text('instrument').notNull().default(''),
+}, (t) => [
+  check('recording_credits_owner', sql`num_nonnulls(${t.recordingId}, ${t.fileId}) = 1`),
+  uniqueIndex('recording_credits_recording').on(t.recordingId, t.artistId, t.role, t.instrument).where(sql`${t.recordingId} is not null`),
+  uniqueIndex('recording_credits_file').on(t.fileId, t.artistId, t.role, t.instrument).where(sql`${t.fileId} is not null`),
+  index('recording_credits_artist_role').on(t.artistId, t.role),
+])
+
+export const works = pgTable('works', {
+  id: id(),
+  mbid: uuid('mbid'),
+  tagKey: text('tag_key'),
+  title: text('title').notNull(),
+}, (t) => [
+  uniqueIndex('works_mbid').on(t.mbid),
+  uniqueIndex('works_tag_key').on(t.tagKey),
+  check('works_identity', sql`num_nonnulls(${t.mbid}, ${t.tagKey}) = 1`),
+])
+
+export const recordingWorks = pgTable('recording_works', {
+  recordingId: uuid('recording_id').references(() => recordings.id, { onDelete: 'cascade' }),
+  fileId: uuid('file_id').references(() => mediaFiles.id, { onDelete: 'cascade' }),
+  workId: uuid('work_id').notNull().references(() => works.id, { onDelete: 'cascade' }),
+  movementName: text('movement_name'),
+  movementNumber: integer('movement_number'),
+  movementTotal: integer('movement_total'),
+}, (t) => [
+  check('recording_works_owner', sql`num_nonnulls(${t.recordingId}, ${t.fileId}) = 1`),
+  uniqueIndex('recording_works_recording').on(t.recordingId, t.workId).where(sql`${t.recordingId} is not null`),
+  uniqueIndex('recording_works_file').on(t.fileId, t.workId).where(sql`${t.fileId} is not null`),
+  index('recording_works_work').on(t.workId),
 ])
 
 /** Album loudness, measured across the owned files of one release. */
@@ -818,7 +869,7 @@ export const plays = pgTable('plays', {
   recordingId: uuid('recording_id').notNull().references(() => recordings.id, { onDelete: 'cascade' }),
   albumId: uuid('album_id').references(() => albums.id, { onDelete: 'set null' }),
   deviceId: text('device_id'),
-  /** app | subsonic */
+  /** app | subsonic | history-import */
   client: text('client').notNull().default('app'),
   startedAt: at('started_at').notNull().defaultNow(),
   msPlayed: integer('ms_played').notNull().default(0),
@@ -830,8 +881,45 @@ export const plays = pgTable('plays', {
   contextType: text('context_type'),
   contextId: text('context_id'),
 }, (t) => [
-  index('plays_user_recent').on(t.userId, t.startedAt),
+  index('plays_user_recent').on(t.userId, t.startedAt, t.id),
   index('plays_recording').on(t.recordingId),
+])
+
+export const historyImports = pgTable('history_imports', {
+  id: id(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  source: text('source').$type<HistoryImportSource>().notNull(),
+  jsonLines: boolean('json_lines').notNull().default(false),
+  status: text('status').$type<HistoryImport['status']>().notNull().default('queued'),
+  createdAt: createdAt(),
+  processed: integer('processed').notNull().default(0),
+  matched: integer('matched').notNull().default(0),
+  unmatched: integer('unmatched').notNull().default(0),
+  duplicates: integer('duplicates').notNull().default(0),
+  ignored: integer('ignored').notNull().default(0),
+  error: text('error'),
+}, (t) => [index('history_imports_user_recent').on(t.userId, t.createdAt)])
+
+export const historyImportedPlays = pgTable('history_imported_plays', {
+  id: id(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  source: text('source').$type<HistoryImportSource>().notNull(),
+  fingerprint: text('fingerprint').notNull(),
+  /** A private row remains in Replay even if the matched recording is later deleted. */
+  playId: uuid('play_id').references(() => plays.id, { onDelete: 'set null' }),
+  startedAt: at('started_at').notNull(),
+  msPlayed: integer('ms_played'),
+  skipped: boolean('skipped').notNull().default(false),
+  title: text('title').notNull(),
+  artist: text('artist').notNull(),
+  album: text('album'),
+  trackKey: text('track_key').notNull(),
+  artistKey: text('artist_key').notNull(),
+  albumKey: text('album_key'),
+}, (t) => [
+  uniqueIndex('history_imported_plays_fingerprint').on(t.userId, t.source, t.fingerprint),
+  index('history_imported_plays_link').on(t.playId).where(sql`${t.playId} is not null`),
+  index('history_imported_plays_unmatched_recent').on(t.userId, t.startedAt, t.id).where(sql`${t.playId} is null`),
 ])
 
 /**

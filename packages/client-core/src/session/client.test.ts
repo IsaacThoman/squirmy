@@ -120,7 +120,7 @@ class FakeServer implements Held {
     const snapshot = { version: held.version, queueVersion: held.queueVersion, state, queue }
     if (this.old) return { serverTime: this.now(), snapshot, devices: this.devices() }
     const scope = held === this ? { type: 'shared' as const } : { type: 'device' as const, deviceId }
-    return { serverTime: this.now(), snapshot: { ...snapshot, scope }, devices: this.devices(), capabilities: ['detach'] }
+    return { serverTime: this.now(), snapshot: { ...snapshot, scope }, devices: this.devices(), capabilities: ['detach', 'sleepTimer'] }
   }
 
   /** Tells the device's other sockets that it changed session, and everyone the new device list. */
@@ -1654,5 +1654,77 @@ describe('SessionClient detaching', () => {
     expect(server.session).toMatchObject({ activeDeviceId: null, playing: false })
     expect(client.getSnapshot()).toMatchObject({ detached: true, isActiveDevice: true })
     expect(engine.getStatus()).toMatchObject({ state: 'playing', positionMs: 35_000 })
+  })
+})
+
+describe('SessionClient sleep timer', () => {
+  async function playingHere(count = 3) {
+    const context = setup()
+    await context.settle()
+    context.client.dispatch({ type: 'playTracks', tracks: seeds(...Array.from({ length: count }, (_, i) => i + 1)), seed: 1 })
+    await context.settle()
+    return context
+  }
+
+  it('offers the timer only when the server says it takes one', async () => {
+    const current = setup()
+    expect(current.client.getSnapshot().canSetSleepTimer).toBe(false)
+    await current.settle()
+    expect(current.client.getSnapshot().canSetSleepTimer).toBe(true)
+    const server = new FakeServer()
+    server.old = true
+    const old = setup({ server })
+    await old.settle()
+    expect(old.client.getSnapshot().canSetSleepTimer).toBe(false)
+  })
+
+  it('fades this device out over the last seconds, and comes back to full volume with the server’s pause', async () => {
+    const { client, server, transport, engine, settle } = await playingHere()
+    client.dispatch({ type: 'setSleepTimer', timer: { kind: 'time', durationMs: 60_000 } })
+    await settle()
+    await vi.advanceTimersByTimeAsync(45_000)
+    expect(engine.loaded!.gain).toBe(1)
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(engine.loaded!.gain).toBeCloseTo(0.5, 1)
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(engine.loaded!.gain).toBe(0)
+    // The session's volume is the listener's: only the output fades.
+    expect(client.getSnapshot().session.volumes[PHONE]).toBeUndefined()
+    server.apply({ type: 'endSleepTimer' })
+    transport.flush()
+    expect(engine.getStatus().state).toBe('paused')
+    expect(engine.loaded!.gain).toBe(1)
+    expect(client.getSnapshot().session.sleepTimer).toBeUndefined()
+    await settle()
+  })
+
+  it('at the end of the song, fades with the engine, preloads nothing and loads the next song paused', async () => {
+    const { client, server, transport, engine, calls, settle } = await playingHere()
+    client.dispatch({ type: 'setSleepTimer', timer: { kind: 'track' } })
+    await settle()
+    expect(engine.preloaded).toBeNull()
+    await vi.advanceTimersByTimeAsync(195_000)
+    expect(engine.loaded!.gain).toBeCloseTo(0.5, 1)
+    engine.finish()
+    await settle()
+    expect(client.getSnapshot().session).toMatchObject({ playing: false, positionMs: 0 })
+    expect(trackOf(client.getSnapshot().session.current)).toBe(2)
+    expect(calls('load').at(-1)).toMatchObject([ 'load', { autoplay: false, gain: 1 }])
+    transport.flush()
+    expect(server.session).toMatchObject({ playing: false })
+    expect(server.session.sleepTimer).toBeUndefined()
+  })
+
+  it('pauses itself past the end while offline, where the server’s pause cannot reach it', async () => {
+    const { client, transport, engine, settle } = await playingHere()
+    client.dispatch({ type: 'setSleepTimer', timer: { kind: 'time', durationMs: 60_000 } })
+    await settle()
+    transport.disconnect()
+    await vi.advanceTimersByTimeAsync(61_000)
+    expect(engine.getStatus().state).toBe('playing')
+    expect(engine.loaded!.gain).toBe(0)
+    await vi.advanceTimersByTimeAsync(1500)
+    expect(client.getSnapshot().session.playing).toBe(false)
+    expect(engine.getStatus().state).toBe('paused')
   })
 })

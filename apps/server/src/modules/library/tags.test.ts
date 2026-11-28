@@ -124,3 +124,30 @@ describe('real files', () => {
     })
   }
 })
+
+describe('less common ID3 and MP4 tags', () => {
+  it('reads involved people, musician instruments and the POPM byte', () => {
+    const raw = rawTags([[
+      { id: 'TIPL', value: { engineer: ['Ada Fitch'], mix: ['Eli Birch'] } },
+      { id: 'TMCL', value: { 'bass clarinet': ['Jun Moss'] } },
+      { id: 'POPM', value: { email: 'test@example.invalid', rating: 0 } },
+      { id: 'POPM', value: { email: 'test@example.invalid', rating: 196 } },
+      { id: 'TXXX:ITUNESADVISORY', value: '2' },
+      { id: 'TXXX:MOVEMENTNUMBER', value: '03/08' },
+    ]])
+    expect(normalizeTags({}, raw)).toEqual({
+      credits: [
+        { role: 'engineer', name: 'Ada Fitch' }, { role: 'mixer', name: 'Eli Birch' },
+        { role: 'performer', name: 'Jun Moss', instrument: 'bass clarinet' },
+      ],
+      ratingHint: { source: 'popm', value: 196 }, explicit: false, movementNumber: 3, movementTotal: 8,
+    })
+  })
+
+  it('distinguishes unrated from clean and reads the alternate MP4 explicit advisory', () => {
+    const tags = (value: number) => normalizeTags({}, rawTags([[{ id: 'rtng', value }, { id: 'RATING', value: '4' }]]))
+    expect(tags(0).explicit).toBeUndefined()
+    expect(tags(2).explicit).toBe(false)
+    expect(tags(4)).toMatchObject({ explicit: true, ratingHint: { source: 'rating', value: 4 } })
+  })
+})

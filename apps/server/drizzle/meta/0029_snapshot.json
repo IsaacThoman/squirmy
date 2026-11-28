@@ -1,5 +1,5 @@
 {
-  "id": "6f24582f-6ea6-4677-9ebc-89b78e626065",
+  "id": "f0086566-e274-4439-bd6c-d2078005b5a4",
   "prevId": "f5cf505b-271d-4a65-b2c9-28a58c982b9e",
   "version": "7",
   "dialect": "postgresql",
@@ -2403,6 +2403,332 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.history_imported_plays": {
+      "name": "history_imported_plays",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fingerprint": {
+          "name": "fingerprint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "play_id": {
+          "name": "play_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ms_played": {
+          "name": "ms_played",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "skipped": {
+          "name": "skipped",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "artist": {
+          "name": "artist",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "album": {
+          "name": "album",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "track_key": {
+          "name": "track_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "artist_key": {
+          "name": "artist_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "album_key": {
+          "name": "album_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "history_imported_plays_fingerprint": {
+          "name": "history_imported_plays_fingerprint",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "source",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "fingerprint",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "history_imported_plays_link": {
+          "name": "history_imported_plays_link",
+          "columns": [
+            {
+              "expression": "play_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"history_imported_plays\".\"play_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "history_imported_plays_unmatched_recent": {
+          "name": "history_imported_plays_unmatched_recent",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "started_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"history_imported_plays\".\"play_id\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "history_imported_plays_user_id_users_id_fk": {
+          "name": "history_imported_plays_user_id_users_id_fk",
+          "tableFrom": "history_imported_plays",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "history_imported_plays_play_id_plays_id_fk": {
+          "name": "history_imported_plays_play_id_plays_id_fk",
+          "tableFrom": "history_imported_plays",
+          "tableTo": "plays",
+          "columnsFrom": [
+            "play_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.history_imports": {
+      "name": "history_imports",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "json_lines": {
+          "name": "json_lines",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'queued'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "processed": {
+          "name": "processed",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "matched": {
+          "name": "matched",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "unmatched": {
+          "name": "unmatched",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "duplicates": {
+          "name": "duplicates",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "ignored": {
+          "name": "ignored",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "error": {
+          "name": "error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "history_imports_user_recent": {
+          "name": "history_imports_user_recent",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "history_imports_user_id_users_id_fk": {
+          "name": "history_imports_user_id_users_id_fk",
+          "tableFrom": "history_imports",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.http_cache": {
       "name": "http_cache",
       "schema": "",
@@ -4464,6 +4790,12 @@
               "isExpression": false,
               "asc": true,
               "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
             }
           ],
           "isUnique": false,
@@ -5530,223 +5862,6 @@
       },
       "indexes": {},
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.sonic_analyses": {
-      "name": "sonic_analyses",
-      "schema": "",
-      "columns": {
-        "file_id": {
-          "name": "file_id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "audio_hash": {
-          "name": "audio_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "version": {
-          "name": "version",
-          "type": "smallint",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "error": {
-          "name": "error",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "analyzed_ms": {
-          "name": "analyzed_ms",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "bpm": {
-          "name": "bpm",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "bpm_confidence": {
-          "name": "bpm_confidence",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "beat_offset_ms": {
-          "name": "beat_offset_ms",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "key": {
-          "name": "key",
-          "type": "smallint",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "mode": {
-          "name": "mode",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "key_strength": {
-          "name": "key_strength",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "tuning_cents": {
-          "name": "tuning_cents",
-          "type": "smallint",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "level_db": {
-          "name": "level_db",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "dynamic_range_db": {
-          "name": "dynamic_range_db",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "onset_rate": {
-          "name": "onset_rate",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "centroid_hz": {
-          "name": "centroid_hz",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "energy": {
-          "name": "energy",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "danceability": {
-          "name": "danceability",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "audible_start_ms": {
-          "name": "audible_start_ms",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "audible_end_ms": {
-          "name": "audible_end_ms",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "intro_end_ms": {
-          "name": "intro_end_ms",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "outro_start_ms": {
-          "name": "outro_start_ms",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "vector": {
-          "name": "vector",
-          "type": "real[]",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "analyzed_at": {
-          "name": "analyzed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "sonic_analyses_file_id_media_files_id_fk": {
-          "name": "sonic_analyses_file_id_media_files_id_fk",
-          "tableFrom": "sonic_analyses",
-          "tableTo": "media_files",
-          "columnsFrom": [
-            "file_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.sonic_hints": {
-      "name": "sonic_hints",
-      "schema": "",
-      "columns": {
-        "recording_id": {
-          "name": "recording_id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "deezer_bpm": {
-          "name": "deezer_bpm",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "deezer_checked_at": {
-          "name": "deezer_checked_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "sonic_hints_recording_id_recordings_id_fk": {
-          "name": "sonic_hints_recording_id_recordings_id_fk",
-          "tableFrom": "sonic_hints",
-          "tableTo": "recordings",
-          "columnsFrom": [
-            "recording_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},

@@ -61,10 +61,7 @@ type PlayActionsProps = {
   children?: ReactNode
 }
 
-/**
- * The heart and Want, with room for an overflow menu. No Play or Shuffle: a song plays from
- * its row, and an album as a whole from its menu.
- */
+/** The collection's heart and Want, with room for playback and overflow controls. */
 export function PlayActions({ liked = false, onLike, wanted, onWant, id, children }: PlayActionsProps) {
   const wantFailure = useLibraryFailure(id === undefined ? undefined : `want:${id}`)
   return (

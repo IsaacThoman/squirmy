@@ -41,6 +41,7 @@ export const userSettings: UserSettings = {
   scrobbleListenBrainz: true,
   scrobbleLastFm: false,
   libraryIncludesServerMusic: false,
+  shareNowPlaying: false,
 }
 
 export const serverSettings: ServerSettings = {

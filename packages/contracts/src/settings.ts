@@ -18,6 +18,7 @@ export const UserSettings = z.object({
    * by `/collection/*` either way.
    */
   libraryIncludesServerMusic: z.boolean().default(false),
+  shareNowPlaying: z.boolean().default(false),
 })
 export type UserSettings = z.infer<typeof UserSettings>
 /** `PATCH /api/v1/me/settings`. Keys left out keep their value; there are no defaults here. */
@@ -30,6 +31,7 @@ export const UpdateUserSettings = z.object({
   scrobbleListenBrainz: z.boolean(),
   scrobbleLastFm: z.boolean(),
   libraryIncludesServerMusic: z.boolean(),
+  shareNowPlaying: z.boolean(),
 }).partial()
 export type UpdateUserSettings = z.infer<typeof UpdateUserSettings>
 

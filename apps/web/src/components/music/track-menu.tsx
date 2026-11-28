@@ -1,5 +1,5 @@
-import type { TrackSummary } from '@squirmy/contracts'
-import { ArrowDown, ArrowUp, AudioWaveform, Disc3, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, Plus, Radio, Trash2 } from 'lucide-react'
+import type { CreditRole, TrackSummary } from '@squirmy/contracts'
+import { ArrowDown, ArrowUp, AudioWaveform, Disc3, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, Plus, Radio, Trash2, Users } from 'lucide-react'
 import type { MenuEntry } from '@/components/ui/menu'
 import { librarySaveEntry, wantEntry } from './library-save-entry'
 import type { PlaylistChoice, TrackAction } from './TrackList'
@@ -25,6 +25,32 @@ export type TrackMenuOptions = {
   queued?: { index: number; count: number }
 }
 
+const creditLabels: Record<CreditRole, string> = {
+  composer: 'Composer',
+  lyricist: 'Lyricist',
+  conductor: 'Conductor',
+  arranger: 'Arranger',
+  producer: 'Producer',
+  engineer: 'Engineer',
+  mixer: 'Mixer',
+  remixer: 'Remixer',
+  performer: 'Performer',
+  ensemble: 'Ensemble',
+}
+
+export function trackCreditEntries(track: TrackSummary, navigate: TrackMenuOptions['navigate']): MenuEntry[] {
+  const groups = new Map<CreditRole, MenuEntry[]>()
+  for (const { artist, role, instrument } of track.credits ?? []) {
+    const group = groups.get(role) ?? []
+    group.push({
+      label: instrument ? `${artist.name} · ${instrument}` : artist.name,
+      onSelect: () => navigate(`/artist/${artist.id}`),
+    })
+    groups.set(role, group)
+  }
+  return [...groups].flatMap(([role, items]): MenuEntry[] => [{ kind: 'label', label: creditLabels[role] }, ...items])
+}
+
 /**
  * A song's menu, the same wherever a song is listed (track lists, search results): on a touch
  * screen its whole title and credit, then play next, queue, playlists, the radios, saving it (the heart), the Wantlist, its album and artists.
@@ -34,6 +60,7 @@ export function trackMenuEntries(track: TrackSummary, { unavailable, wanted, pla
   const toEnd: MenuEntry[] = !queued
     ? [{ label: 'Add to queue', icon: <ListEnd />, onSelect: () => act('enqueue'), done: 'Added to queue', disabled: unavailable }]
     : queued.index < queued.count - 1 ? [{ label: 'Move to end', icon: <ListEnd />, onSelect: () => act('enqueue'), done: 'Moved to end', disabled: unavailable }] : []
+  const credits = trackCreditEntries(track, navigate)
   return [
     // On a touch screen the menu opens with the song's whole title and credit, which its row cuts short.
     { kind: 'header', label: track.title, detail: track.artistCredit },
@@ -60,6 +87,7 @@ export function trackMenuEntries(track: TrackSummary, { unavailable, wanted, pla
     { kind: 'separator' },
     ...(track.album && !onAlbumPage ? [{ label: 'Go to album', icon: <Disc3 />, onSelect: () => navigate(`/album/${track.album!.id}`) }] : []),
     ...track.artists.map(artist => ({ label: track.artists.length > 1 ? `Go to ${artist.name}` : 'Go to artist', icon: <MicVocal />, onSelect: () => navigate(`/artist/${artist.id}`) })),
+    ...(credits.length ? [{ kind: 'submenu' as const, label: 'Credits', icon: <Users />, items: credits }] : []),
     ...(extraMenu ?? []),
     ...(reorder ? [
       { kind: 'separator' as const },

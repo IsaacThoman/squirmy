@@ -239,6 +239,10 @@ describe('scrobble', () => {
       const first = await play(user.id, album.tracks[0]!)
       const second = await play(user.id)
       await play(user.id, album.tracks[1]!, { completed: false })
+      await db.insert(plays).values({
+        id: newId(), userId: user.id, recordingId: album.tracks[0]!.recordingId,
+        albumId: album.albumId, client: 'history-import', startedAt: new Date(), msPlayed: 240_000, completed: true,
+      })
       await savePlay(user.id, {
         id: newId(), entryId: 'short-play', recordingId: album.tracks[0]!.recordingId, albumId: album.albumId, deviceId: null,
         durationMs: 6000, msPlayed: 4000, startedAt: Date.now(), countedTo: Date.now() + 4000,
