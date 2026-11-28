@@ -1,7 +1,8 @@
-import { UpdateServerSettings, type LibraryRoot, type ServerSettings } from '@squirmy/contracts'
+import { UpdateServerSettings, type LibraryRoot, type ServerSettings, type SsoTestResult } from '@squirmy/contracts'
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
+import { CopyField } from '@/components/ui/copy-field'
 import { Dialog, DialogClose, DialogContent, DialogFooter } from '@/components/ui/dialog'
 import { Badge, Skeleton } from '@/components/ui/feedback'
 import { errorMessage } from '@/api/errors'
@@ -17,7 +18,8 @@ import { SettingRow } from './Panel'
 
 type Save = SavePatch<UpdateServerSettings>
 type Toggle = 'musicBrainzEnabled' | 'coverArtArchiveEnabled' | 'deezerEnabled' | 'wikidataEnabled' | 'lrclibEnabled' | 'registrationRequiresInvite' | 'wantlistEnabled' | 'sonicAnalysisEnabled'
-type Secret = 'listenBrainz' | 'acoustId' | 'fanart' | 'lastFm'
+  | 'ssoEnabled' | 'ssoAutoCreateUsers' | 'passwordLoginDisabled'
+type Secret = 'listenBrainz' | 'acoustId' | 'fanart' | 'lastFm' | 'sso'
 
 type ServerSettingsProps = {
   /** Undefined while loading. */
@@ -28,13 +30,15 @@ type ServerSettingsProps = {
   managedRoots: LibraryRoot[] | undefined
   onSave: Save
   status: SaveState
+  /** Loads the provider's discovery document with the saved settings. */
+  onTestSso: () => Promise<SsoTestResult>
 }
 
 /** The import folder setting's "nothing chosen" choice; a select cannot hold null. */
 const ONLY_ROOT = 'only'
 
 /** Every operator setting. Each change is saved as soon as it is made; text fields save when they lose focus. */
-export function ServerSettingsAdmin({ settings, failure, managedRoots, onSave, status }: ServerSettingsProps) {
+export function ServerSettingsAdmin({ settings, failure, managedRoots, onSave, status, onTestSso }: ServerSettingsProps) {
   const [editing, setEditing] = useState<Secret | null>(null)
   if (!settings) return failure ? <div><AdminHeader title="Server settings" description="Changes apply right away." />{failure}</div> : <SettingsSkeleton />
   const toggle = (key: Toggle, label: string, description?: string) => (
@@ -65,6 +69,8 @@ export function ServerSettingsAdmin({ settings, failure, managedRoots, onSave, s
         <Section title="Registration">
           {toggle('registrationRequiresInvite', 'Require an invite to join', 'Off lets anyone who can reach this server create an account.')}
         </Section>
+
+        <SsoSettings settings={settings} onSave={onSave} onTest={onTestSso} secret={secret('sso', settings.ssoClientSecretSet, 'Client secret', 'From the provider, for a confidential client. Stored encrypted.')} toggle={toggle} />
 
         <Section title="Metadata sources" description="Every source is optional. Turning one off keeps what it already provided.">
           {toggle('musicBrainzEnabled', 'MusicBrainz', 'Identifies albums and fills in discographies.')}
@@ -112,6 +118,60 @@ export function ServerSettingsAdmin({ settings, failure, managedRoots, onSave, s
 
       {editing && <SecretDialog secret={editing} isSet={secretSet(settings, editing)} onOpenChange={open => { if (!open) setEditing(null) }} onSave={onSave} />}
     </div>
+  )
+}
+
+/** OpenID Connect: the provider, who may come in, and whether passwords still work. */
+function SsoSettings({ settings, onSave, onTest, secret, toggle }: {
+  settings: ServerSettings
+  onSave: Save
+  onTest: () => Promise<SsoTestResult>
+  secret: ReactNode
+  toggle: (key: Toggle, label: string, description?: string) => ReactNode
+}) {
+  const [test, setTest] = useState<{ pending: boolean; result?: SsoTestResult; error?: string }>({ pending: false })
+  const runTest = async () => {
+    setTest({ pending: true })
+    try {
+      setTest({ pending: false, result: await onTest() })
+    } catch (failure) {
+      setTest({ pending: false, error: errorMessage(failure) })
+    }
+  }
+  const text = (id: string, field: 'ssoName' | 'ssoIssuerUrl' | 'ssoClientId' | 'ssoScopes' | 'ssoUsernameClaim' | 'ssoGroupsClaim' | 'ssoAllowedGroups', label: string, description: string, nullable = false) => (
+    <Row htmlFor={id} label={label} description={description}>
+      <DraftField
+        id={id} field={field} value={settings[field]} schema={UpdateServerSettings} onSave={onSave} placeholder={nullable ? 'Not set' : undefined}
+        className="w-64 max-w-full font-mono md:text-xs" parse={nullable ? (value => value.trim() || null) : undefined}
+      />
+    </Row>
+  )
+  const result = test.result
+  return (
+    <Section title="Single sign-on" description="Let people sign in with an OpenID Connect provider such as Authelia, Authentik, Keycloak or Google. Register Squirmy there as a confidential client with this callback address.">
+      <Row label="Callback address" description={settings.ssoCallbackUrl ? 'Give this to the provider as the redirect URI.' : 'Set PUBLIC_URL on the server first: the provider sends people back to it.'}>
+        {settings.ssoCallbackUrl && <div className="w-80 max-w-full"><CopyField value={settings.ssoCallbackUrl} label="Callback address" /></div>}
+      </Row>
+      {text('sso-issuer', 'ssoIssuerUrl', 'Issuer URL', 'The provider’s address, where /.well-known/openid-configuration is found.', true)}
+      {text('sso-client', 'ssoClientId', 'Client ID', 'From the provider.', true)}
+      {secret}
+      {text('sso-name', 'ssoName', 'Button name', 'Shown as “Sign in with …”.')}
+      {text('sso-scopes', 'ssoScopes', 'Scopes', 'Must include openid. Add groups if your provider needs it to send them.')}
+      {text('sso-username', 'ssoUsernameClaim', 'Username claim', 'Where a new account’s username comes from. An email address gives the part before the @.')}
+      {text('sso-groups-claim', 'ssoGroupsClaim', 'Groups claim', 'The claim listing someone’s groups. A dotted path reaches into nested claims, such as realm_access.roles.')}
+      {text('sso-groups', 'ssoAllowedGroups', 'Allowed groups', 'Only people in one of these groups (separated by commas) may sign in. Empty lets in everyone the provider accepts.')}
+      {toggle('ssoAutoCreateUsers', 'Create accounts', 'Makes a member account for someone the provider accepts who has none here. Off, an admin adds people first; an account with the same verified email address is connected on its own.')}
+      <Row
+        label="Test the provider"
+        description={result
+          ? <span role="status" className={result.ok ? 'text-foreground' : 'text-destructive'}>{result.message}</span>
+          : test.error ? <span role="status" className="text-destructive">{test.error}</span> : 'Loads the provider’s configuration with the saved settings.'}
+      >
+        <Button size="sm" variant="outline" pending={test.pending} onClick={() => void runTest()}>Test</Button>
+      </Row>
+      {toggle('ssoEnabled', 'Offer single sign-on', 'Shows “Sign in with …” on the sign-in page and lets people connect their accounts in their settings.')}
+      {toggle('passwordLoginDisabled', 'Turn off password sign-in', 'Sign-in offers only single sign-on and passkeys, and joining with an invite is off. App passwords for Subsonic apps keep working. Needs single sign-on connected to your own account. If it breaks, set SQUIRMY_ADMIN_PASSWORD_LOGIN=true on the server to let admins in with their password.')}
+    </Section>
   )
 }
 
@@ -171,7 +231,8 @@ function MatchThreshold({ value, onSave }: { value: number; onSave: Save }) {
   )
 }
 
-const secrets: Record<Secret, { title: string; description: string; fields: { key: 'listenBrainzToken' | 'acoustIdKey' | 'fanartKey' | 'lastFmKey' | 'lastFmSecret'; label: string }[] }> = {
+const secrets: Record<Secret, { title: string; description: string; fields: { key: 'listenBrainzToken' | 'acoustIdKey' | 'fanartKey' | 'lastFmKey' | 'lastFmSecret' | 'ssoClientSecret'; label: string }[] }> = {
+  sso: { title: 'Client secret', description: 'The secret the provider gave Squirmy’s client.', fields: [{ key: 'ssoClientSecret', label: 'Client secret' }] },
   listenBrainz: { title: 'ListenBrainz token', description: 'A user token from your ListenBrainz profile settings. The server uses it only to look up popularity and similar artists; it scrobbles nothing.', fields: [{ key: 'listenBrainzToken', label: 'User token' }] },
   acoustId: { title: 'AcoustID key', description: 'An application key from acoustid.org.', fields: [{ key: 'acoustIdKey', label: 'API key' }] },
   fanart: { title: 'fanart.tv key', description: 'A personal or project key from fanart.tv.', fields: [{ key: 'fanartKey', label: 'API key' }] },
@@ -179,7 +240,7 @@ const secrets: Record<Secret, { title: string; description: string; fields: { ke
 }
 
 function secretSet(settings: ServerSettings, secret: Secret): boolean {
-  return { listenBrainz: settings.listenBrainzTokenSet, acoustId: settings.acoustIdKeySet, fanart: settings.fanartKeySet, lastFm: settings.lastFmKeySet }[secret]
+  return { listenBrainz: settings.listenBrainzTokenSet, acoustId: settings.acoustIdKeySet, fanart: settings.fanartKeySet, lastFm: settings.lastFmKeySet, sso: settings.ssoClientSecretSet }[secret]
 }
 
 /** Write-only: the dialog never sees the stored value, only whether there is one. */

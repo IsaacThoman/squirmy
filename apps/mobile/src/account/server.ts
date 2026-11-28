@@ -8,6 +8,10 @@ import { displayAddress, parseServerAddress } from './address';
  */
 export type Server = {
   url: string; name: string; version: string; registrationRequiresInvite: boolean; wantlistEnabled: boolean; supportsTvDevices?: true;
+  /** The server's single sign-on provider, for "Sign in with …". */
+  ssoName?: string;
+  /** Present when the server turned password sign-in off. */
+  passwordLogin?: false;
   /** Whether members can make public share links. Absent from servers saved before it was known. */
   sharingEnabled?: boolean;
 };
@@ -30,6 +34,8 @@ export function serverFrom(url: string, status: SetupStatus): Server {
     wantlistEnabled: status.wantlistEnabled === true,
     sharingEnabled: status.sharingEnabled === true,
     ...(status.supportsTvDevices === true && { supportsTvDevices: true as const }),
+    ...(typeof status.ssoName === 'string' && { ssoName: status.ssoName }),
+    ...(status.passwordLoginEnabled === false && { passwordLogin: false as const }),
   };
 }
 

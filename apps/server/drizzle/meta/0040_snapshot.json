@@ -1,5 +1,5 @@
 {
-  "id": "9d365681-ac86-4729-8dbb-cb964afa5055",
+  "id": "e6393b18-a76e-49b5-b9cc-d6f6fb229c8f",
   "prevId": "c07057b2-15ee-44dc-adef-48bc7a9df0af",
   "version": "7",
   "dialect": "postgresql",
@@ -1595,6 +1595,115 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.auth_challenges": {
+      "name": "auth_challenges",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "token_hash": {
+          "name": "token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "data": {
+          "name": "data",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "auth_challenges_token_hash": {
+          "name": "auth_challenges_token_hash",
+          "columns": [
+            {
+              "expression": "token_hash",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "auth_challenges_expires": {
+          "name": "auth_challenges_expires",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "auth_challenges_user_id_users_id_fk": {
+          "name": "auth_challenges_user_id_users_id_fk",
+          "tableFrom": "auth_challenges",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.auth_sessions": {
       "name": "auth_sessions",
       "schema": "",
@@ -1632,6 +1741,12 @@
         },
         "user_agent": {
           "name": "user_agent",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "method": {
+          "name": "method",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -4818,149 +4933,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.playlist_collaborators": {
-      "name": "playlist_collaborators",
-      "schema": "",
-      "columns": {
-        "playlist_id": {
-          "name": "playlist_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "can_edit": {
-          "name": "can_edit",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "playlist_collaborators_user": {
-          "name": "playlist_collaborators_user",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "playlist_collaborators_playlist_id_playlists_id_fk": {
-          "name": "playlist_collaborators_playlist_id_playlists_id_fk",
-          "tableFrom": "playlist_collaborators",
-          "tableTo": "playlists",
-          "columnsFrom": [
-            "playlist_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "playlist_collaborators_user_id_users_id_fk": {
-          "name": "playlist_collaborators_user_id_users_id_fk",
-          "tableFrom": "playlist_collaborators",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "playlist_collaborators_playlist_id_user_id_pk": {
-          "name": "playlist_collaborators_playlist_id_user_id_pk",
-          "columns": [
-            "playlist_id",
-            "user_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.playlist_folders": {
-      "name": "playlist_folders",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "owner_id": {
-          "name": "owner_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "playlist_folders_owner": {
-          "name": "playlist_folders_owner",
-          "columns": [
-            {
-              "expression": "owner_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "playlist_folders_owner_id_users_id_fk": {
-          "name": "playlist_folders_owner_id_users_id_fk",
-          "tableFrom": "playlist_folders",
-          "tableTo": "users",
-          "columnsFrom": [
-            "owner_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.playlist_items": {
       "name": "playlist_items",
       "schema": "",
@@ -5127,18 +5099,6 @@
           "notNull": true,
           "default": false
         },
-        "folder_id": {
-          "name": "folder_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "artwork_asset_id": {
-          "name": "artwork_asset_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
         "rules": {
           "name": "rules",
           "type": "jsonb",
@@ -5175,21 +5135,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "playlists_folder": {
-          "name": "playlists_folder",
-          "columns": [
-            {
-              "expression": "folder_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
@@ -5204,32 +5149,6 @@
             "id"
           ],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "playlists_folder_id_playlist_folders_id_fk": {
-          "name": "playlists_folder_id_playlist_folders_id_fk",
-          "tableFrom": "playlists",
-          "tableTo": "playlist_folders",
-          "columnsFrom": [
-            "folder_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "playlists_artwork_asset_id_assets_id_fk": {
-          "name": "playlists_artwork_asset_id_assets_id_fk",
-          "tableFrom": "playlists",
-          "tableTo": "assets",
-          "columnsFrom": [
-            "artwork_asset_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -6292,6 +6211,95 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.recovery_codes": {
+      "name": "recovery_codes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code_hash": {
+          "name": "code_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "used_at": {
+          "name": "used_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "recovery_codes_code_hash": {
+          "name": "recovery_codes_code_hash",
+          "columns": [
+            {
+              "expression": "code_hash",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "recovery_codes_user": {
+          "name": "recovery_codes_user",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "recovery_codes_user_id_users_id_fk": {
+          "name": "recovery_codes_user_id_users_id_fk",
+          "tableFrom": "recovery_codes",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.release_loudness": {
       "name": "release_loudness",
       "schema": "",
@@ -7275,6 +7283,65 @@
           "tableTo": "recordings",
           "columnsFrom": [
             "recording_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.totp_credentials": {
+      "name": "totp_credentials",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "secret_encrypted": {
+          "name": "secret_encrypted",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_step": {
+          "name": "last_step",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "confirmed_at": {
+          "name": "confirmed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "totp_credentials_user_id_users_id_fk": {
+          "name": "totp_credentials_user_id_users_id_fk",
+          "tableFrom": "totp_credentials",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
           ],
           "columnsTo": [
             "id"

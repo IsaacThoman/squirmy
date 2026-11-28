@@ -1,4 +1,23 @@
 import {
+  type LinkSsoRequest,
+  type SsoExchangeRequest,
+  SsoLinkStart,
+  SsoTestResult,
+  AccountSecurity,
+  Passkey,
+  type PasskeyLoginRequest,
+  PasskeyOptions,
+  type RegisterPasskeyRequest,
+  type RenamePasskeyRequest,
+  type StartPasskeyRequest,
+  AuthSessionList,
+  type ConfirmTwoFactorRequest,
+  type EnableTwoFactorRequest,
+  RecoveryCodes,
+  type StartTwoFactorRequest,
+  TwoFactorLoginRequest,
+  TwoFactorSetup,
+  UserSecurity,
   type AcquireQuery,
   AcquireResponse,
   AcquisitionJobList,
@@ -379,6 +398,30 @@ export function createApiClient(options: ApiClientOptions) {
       /** The response is the only time `secret` is returned. */
       createAppPassword: (body: CreateAppPasswordRequest) => send('POST', '/auth/app-passwords', AppPassword, body),
       deleteAppPassword: (passwordId: string) => send('DELETE', `/auth/app-passwords/${id(passwordId)}`, Ok),
+      /** The second step after `login` answered `two_factor_required`, with the challenge it gave. */
+      loginTwoFactor: (body: Input<typeof TwoFactorLoginRequest>) => send('POST', '/auth/login/two-factor', AuthResponse, body),
+      sessions: () => get('/auth/sessions', AuthSessionList),
+      revokeSession: (sessionId: string) => send('DELETE', `/auth/sessions/${id(sessionId)}`, Ok),
+      revokeOtherSessions: () => send('POST', '/auth/sessions/revoke-others', Ok),
+      security: () => get('/auth/security', AccountSecurity),
+      startTwoFactor: (body: StartTwoFactorRequest) => send('POST', '/auth/two-factor/setup', TwoFactorSetup, body),
+      /** The response is the only time the recovery codes are returned. */
+      enableTwoFactor: (body: Input<typeof EnableTwoFactorRequest>) => send('POST', '/auth/two-factor/enable', RecoveryCodes, body),
+      disableTwoFactor: (body: ConfirmTwoFactorRequest) => send('POST', '/auth/two-factor/disable', Ok, body),
+      regenerateRecoveryCodes: (body: ConfirmTwoFactorRequest) => send('POST', '/auth/two-factor/recovery-codes', RecoveryCodes, body),
+      /** Creation options for `navigator.credentials.create`, and the challenge to send back with its answer. */
+      startPasskey: (body: StartPasskeyRequest) => send('POST', '/auth/passkeys/options', PasskeyOptions, body),
+      addPasskey: (body: RegisterPasskeyRequest) => send('POST', '/auth/passkeys', Passkey, body),
+      renamePasskey: (passkeyId: string, body: RenamePasskeyRequest) => send('PATCH', `/auth/passkeys/${id(passkeyId)}`, Passkey, body),
+      deletePasskey: (passkeyId: string) => send('DELETE', `/auth/passkeys/${id(passkeyId)}`, Ok),
+      /** Request options for `navigator.credentials.get`, for any passkey of this server. */
+      passkeyLoginOptions: () => send('POST', '/auth/passkey-login/options', PasskeyOptions),
+      loginWithPasskey: (body: PasskeyLoginRequest) => send('POST', '/auth/passkey-login', AuthResponse, body),
+      /** Where to send the browser to link the single sign-on account; it comes back to `/settings/security`. */
+      linkSso: (body: LinkSsoRequest) => send('POST', '/auth/sso/link', SsoLinkStart, body),
+      unlinkSso: (identityId: string) => send('DELETE', `/auth/sso/identities/${id(identityId)}`, Ok),
+      /** The app's half of single sign-on: the one-time code from `/auth/sso/start`'s redirect. */
+      ssoExchange: (body: SsoExchangeRequest) => send('POST', '/auth/sso/exchange', AuthResponse, body),
     },
     admin: {
       duplicates: (query: Partial<DuplicateQuery> = {}) =>
@@ -401,6 +444,11 @@ export function createApiClient(options: ApiClientOptions) {
       createUser: (body: Input<typeof CreateUserRequest>) => send('POST', '/admin/users', User, body),
       updateUser: (userId: string, body: UpdateUserRequest) => send('PATCH', `/admin/users/${id(userId)}`, User, body),
       deleteUser: (userId: string) => send('DELETE', `/admin/users/${id(userId)}`, Ok),
+      userSecurity: (userId: string) => get(`/admin/users/${id(userId)}/security`, UserSecurity),
+      revokeUserSession: (userId: string, sessionId: string) => send('DELETE', `/admin/users/${id(userId)}/sessions/${id(sessionId)}`, Ok),
+      revokeUserSessions: (userId: string) => send('DELETE', `/admin/users/${id(userId)}/sessions`, Ok),
+      resetTwoFactor: (userId: string) => send('DELETE', `/admin/users/${id(userId)}/two-factor`, Ok),
+      testSso: () => send('POST', '/admin/sso/test', SsoTestResult),
       invites: () => get('/admin/invites', InviteList),
       createInvite: (body: Input<typeof CreateInviteRequest> = {}) => send('POST', '/admin/invites', Invite, body),
       deleteInvite: (inviteId: string) => send('DELETE', `/admin/invites/${id(inviteId)}`, Ok),

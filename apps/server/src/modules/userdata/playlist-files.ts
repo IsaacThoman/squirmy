@@ -43,22 +43,23 @@ function fromLabel(label: string) {
 
 function lineEntries(text: string, m3u: boolean): Entry[] {
   let label = ''
-  return text.split(/\r\n?|\n/).flatMap((line, index) => {
+  const entries: Entry[] = []
+  const lines = text.split(/\r\n?|\n/)
+  for (const [index, line] of lines.entries()) {
     const value = line.trim()
-    if (!value) return []
+    if (!value) continue
+    const number = index + 1
     if (m3u && value.startsWith('#')) {
       if (/^#EXTINF:[^,]*,/i.test(value)) label = value.slice(value.indexOf(',') + 1).trim()
-      if (/^#SQUIRMY-MISSING:/i.test(value)) {
-        const missing = label || value.slice(value.indexOf(':') + 1).trim()
-        label = ''
-        return [{ line: index + 1, text: missing, ...fromLabel(missing) }]
-      }
-      return []
-    }
-    const entry = m3u ? { text: label || value, paths: [value], ...fromLabel(label) } : { text: value, ...fromLabel(value) }
+      if (!/^#SQUIRMY-MISSING:/i.test(value)) continue
+      const missing = label || value.slice(value.indexOf(':') + 1).trim()
+      entries.push({ line: number, text: missing, ...fromLabel(missing) })
+    } else if (m3u) entries.push({ line: number, text: label || value, paths: [value], ...fromLabel(label) })
+    else entries.push({ line: number, text: value, ...fromLabel(value) })
     label = ''
-    return [{ line: index + 1, ...entry }]
-  })
+    if (entries.length > PLAYLIST_ITEM_LIMIT) throw playlistFull()
+  }
+  return entries
 }
 
 function csvEntries(text: string): Entry[] {
@@ -120,12 +121,14 @@ function xspfEntries(text: string): Entry[] {
     if (path.length === 2 && field === 'track') {
       current.text = [current.artist, current.title].filter(Boolean).join(' - ') || current.paths?.[0] || '(empty track)'
       entries.push(current)
+      if (entries.length > PLAYLIST_ITEM_LIMIT) throw playlistFull()
       current = undefined
     }
   })
   try {
     parser.write(text).close()
-  } catch {
+  } catch (error) {
+    if (error instanceof AppError) throw error
     throw invalidFile()
   }
   if (!validRoot) throw invalidFile()

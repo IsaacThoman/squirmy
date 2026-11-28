@@ -4,7 +4,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { appPasswords, currentUser, shareLinks, userSettings, users } from '@/fixtures/server'
+import { accountSecurity, appPasswords, authSessions, currentUser, shareLinks, userSettings, users } from '@/fixtures/server'
 import { APPEARANCE_STORAGE_KEY, setAppearanceMode, setColorTheme } from '@/lib/appearance'
 import { colorThemeStylesheet, findColorTheme } from '@/lib/color-themes'
 import { modKey } from '@/lib/platform'
@@ -46,6 +46,24 @@ function props() {
     onRevokeShareLink: vi.fn<SettingsDialogProps['onRevokeShareLink']>(async () => {}),
     onChangePassword: vi.fn<SettingsDialogProps['onChangePassword']>(async () => {}),
     onLogout: vi.fn<SettingsDialogProps['onLogout']>(),
+    security: {
+      security: accountSecurity,
+      sessions: authSessions,
+      onStartTwoFactor: vi.fn(async () => ({ secret: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP', otpauthUrl: 'otpauth://totp/x', qrCode: 'data:image/svg+xml;base64,PHN2Zy8+' })),
+      onEnableTwoFactor: vi.fn(async () => ({ recoveryCodes: ['abcde-fghjk', 'mnpqr-stuvw'] })),
+      onDisableTwoFactor: vi.fn(async () => {}),
+      onRegenerateRecoveryCodes: vi.fn(async () => ({ recoveryCodes: ['zzzzz-yyyyy'] })),
+      onRevokeSession: vi.fn(async () => {}),
+      onRevokeOtherSessions: vi.fn(async () => {}),
+      passkeys: { server: true, browser: true },
+      defaultPasskeyName: 'Firefox on macOS',
+      onAddPasskey: vi.fn(async () => {}),
+      onRenamePasskey: vi.fn(async () => {}),
+      onDeletePasskey: vi.fn(async () => {}),
+      sso: { name: 'Authelia' } as { name: string } | null,
+      onLinkSso: vi.fn(async () => {}),
+      onUnlinkSso: vi.fn(async () => {}),
+    },
   } satisfies SettingsDialogProps
 }
 
@@ -84,7 +102,7 @@ afterEach(() => {
 describe('SettingsDialog', () => {
   it('lists its sections and opens on the one it is given', () => {
     renderSettings()
-    expect(sections().getAllByRole('button').map(button => button.textContent)).toEqual(['Playback', 'Library', 'Appearance', 'Account', 'Scrobbling', 'App passwords', 'Share links', 'Webhooks', 'About'])
+    expect(sections().getAllByRole('button').map(button => button.textContent)).toEqual(['Playback', 'Library', 'Appearance', 'Account', 'Security', 'App passwords', 'Share links', 'Scrobbling', 'Webhooks', 'About'])
     expect(sections().getByRole('button', { name: 'Playback' })).toHaveAttribute('aria-current', 'page')
     expect(panelTitles()).toEqual(['Settings', 'Playback'])
   })
@@ -93,6 +111,7 @@ describe('SettingsDialog', () => {
     ['Library', 'library'],
     ['Appearance', 'appearance'],
     ['Account', 'account'],
+    ['Security', 'security'],
     ['Scrobbling', 'scrobbling'],
     ['App passwords', 'app-passwords'],
     ['Share links', 'share-links'],
@@ -342,6 +361,142 @@ describe('SettingsDialog', () => {
       await userEvent.clear(await screen.findByLabelText('Display name'))
       await userEvent.click(screen.getByRole('button', { name: 'Save' }))
       expect(onRename).toHaveBeenCalledWith(null)
+    })
+  })
+
+  describe('Security', () => {
+    const security = (overrides: Partial<SettingsDialogProps['security']> = {}) => ({ ...props().security, ...overrides })
+
+    it('turns two-factor on: password, then the QR code and a code, then the recovery codes', async () => {
+      const given = security()
+      renderSettings({ section: 'security', security: given })
+      await userEvent.click(screen.getByRole('button', { name: 'Turn on' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Turn on two-factor authentication' })
+      await userEvent.type(within(dialog).getByLabelText('Your password'), 'hunter22')
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Continue' }))
+      expect(given.onStartTwoFactor).toHaveBeenCalledWith({ currentPassword: 'hunter22' })
+
+      const scan = await screen.findByRole('dialog', { name: 'Scan the code' })
+      expect(within(scan).getByRole('img', { name: 'QR code for your authenticator app' })).toHaveAttribute('src', 'data:image/svg+xml;base64,PHN2Zy8+')
+      expect(within(scan).getByLabelText('Setup key')).toHaveValue('JBSW Y3DP EHPK 3PXP JBSW Y3DP EHPK 3PXP')
+      await userEvent.type(within(scan).getByLabelText('Code from the app'), '123 456')
+      await userEvent.click(within(scan).getByRole('button', { name: 'Turn on' }))
+      expect(given.onEnableTwoFactor).toHaveBeenCalledWith({ code: '123456' })
+
+      const saved = await screen.findByRole('dialog', { name: 'Save your recovery codes' })
+      expect(within(within(saved).getByRole('list', { name: 'Recovery codes' })).getAllByRole('listitem').map(item => item.textContent)).toEqual(['abcde-fghjk', 'mnpqr-stuvw'])
+    })
+
+    it('says a wrong code under the field and stays on the step', async () => {
+      const given = security({ onEnableTwoFactor: vi.fn(async () => { throw new ApiError(403, 'invalid_code', 'That code is not right.') }) })
+      renderSettings({ section: 'security', security: given })
+      await userEvent.click(screen.getByRole('button', { name: 'Turn on' }))
+      await userEvent.type(within(await screen.findByRole('dialog')).getByLabelText('Your password'), 'hunter22')
+      await userEvent.click(screen.getByRole('button', { name: 'Continue' }))
+      await userEvent.type(await screen.findByLabelText('Code from the app'), '000000')
+      await userEvent.click(within(screen.getByRole('dialog', { name: 'Scan the code' })).getByRole('button', { name: 'Turn on' }))
+      expect(await screen.findByText('That code is not right.')).toBeInTheDocument()
+      expect(screen.getByRole('dialog', { name: 'Scan the code' })).toBeInTheDocument()
+    })
+
+    it('turns two-factor off with the password and a code', async () => {
+      const given = security({ security: { hasPassword: true, twoFactor: { enabled: true, enabledAt: '2026-11-20T10:00:00.000Z', recoveryCodesRemaining: 7 }, passkeys: [], ssoIdentities: [] } })
+      renderSettings({ section: 'security', security: given })
+      expect(screen.getByText(/7 recovery codes left/)).toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: 'Turn off' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Turn off two-factor authentication?' })
+      await userEvent.type(within(dialog).getByLabelText('Your password'), 'hunter22')
+      await userEvent.type(within(dialog).getByLabelText('Code from your authenticator app, or a recovery code'), '654321')
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Turn off' }))
+      expect(given.onDisableTwoFactor).toHaveBeenCalledWith({ currentPassword: 'hunter22', code: '654321' })
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Turn off two-factor authentication?' })).toBeNull())
+    })
+
+    it('adds a passkey after the password, named after this browser', async () => {
+      const given = security()
+      renderSettings({ section: 'security', security: given })
+      const list = screen.getByRole('list', { name: 'Passkeys' })
+      expect(within(list).getByText('MacBook')).toBeInTheDocument()
+      expect(within(list).getByText('Synced')).toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: 'Add passkey' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Add a passkey' })
+      expect(within(dialog).getByLabelText('Name')).toHaveValue('Firefox on macOS')
+      await userEvent.type(within(dialog).getByLabelText('Your password'), 'hunter22')
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Continue' }))
+      expect(given.onAddPasskey).toHaveBeenCalledWith({ currentPassword: 'hunter22', name: 'Firefox on macOS' })
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add a passkey' })).toBeNull())
+    })
+
+    it('renames and removes a passkey', async () => {
+      const given = security()
+      renderSettings({ section: 'security', security: given })
+      await userEvent.click(screen.getByRole('button', { name: 'Rename' }))
+      const rename = await screen.findByRole('dialog', { name: 'Rename passkey' })
+      await userEvent.clear(within(rename).getByLabelText('Name'))
+      await userEvent.type(within(rename).getByLabelText('Name'), 'Work laptop')
+      await userEvent.click(within(rename).getByRole('button', { name: 'Save' }))
+      expect(given.onRenamePasskey).toHaveBeenCalledWith(accountSecurity.passkeys[0]!.id, 'Work laptop')
+      await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
+      await userEvent.click(within(await screen.findByRole('dialog', { name: 'Remove “MacBook”?' })).getByRole('button', { name: 'Remove' }))
+      expect(given.onDeletePasskey).toHaveBeenCalledWith(accountSecurity.passkeys[0]!.id)
+    })
+
+    it('says why passkeys cannot be added when the server has no https address', () => {
+      renderSettings({ section: 'security', security: security({ passkeys: { server: false, browser: true } }) })
+      expect(screen.getByText(/Ask whoever runs it to set PUBLIC_URL/)).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Add passkey' })).toBeNull()
+    })
+
+    it('connects single sign-on after the password, and disconnects it', async () => {
+      const given = security()
+      renderSettings({ section: 'security', security: given })
+      await userEvent.click(screen.getByRole('button', { name: 'Connect' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Connect Authelia' })
+      await userEvent.type(within(dialog).getByLabelText('Your password'), 'hunter22')
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Continue' }))
+      expect(given.onLinkSso).toHaveBeenCalledWith({ currentPassword: 'hunter22' })
+    })
+
+    it('lists the connected provider account and says what the provider answered', async () => {
+      const identity = { id: '00000000-0000-4000-8a00-000000000001', issuer: 'https://auth.example.com', email: 'alex@example.com', createdAt: '2026-11-20T10:00:00.000Z', lastUsedAt: null }
+      const given = security({ security: { ...accountSecurity, ssoIdentities: [identity] }, ssoNotice: 'sso_linked_elsewhere' })
+      renderSettings({ section: 'security', security: given })
+      expect(screen.getByRole('status')).toHaveTextContent('already connected to another account')
+      expect(screen.getByText('alex@example.com')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Connect' })).toBeNull()
+      await userEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
+      await userEvent.click(within(await screen.findByRole('dialog', { name: 'Disconnect Authelia?' })).getByRole('button', { name: 'Disconnect' }))
+      expect(given.onUnlinkSso).toHaveBeenCalledWith(identity.id)
+    })
+
+    it('adds a passkey without a password on an account that has none', async () => {
+      const given = security({ security: { ...accountSecurity, hasPassword: false } })
+      renderSettings({ section: 'security', security: given })
+      expect(screen.getByText(/Your account has no password/)).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Turn on' })).toBeNull()
+      await userEvent.click(screen.getByRole('button', { name: 'Add passkey' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Add a passkey' })
+      expect(within(dialog).queryByLabelText('Your password')).toBeNull()
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Continue' }))
+      expect(given.onAddPasskey).toHaveBeenCalledWith({ name: 'Firefox on macOS', currentPassword: undefined })
+    })
+
+    it('lists where the account is signed in and signs one out, or all the others', async () => {
+      const given = security()
+      renderSettings({ section: 'security', security: given })
+      const list = screen.getByRole('list', { name: 'Signed-in devices' })
+      const rows = within(list).getAllByRole('listitem')
+      expect(rows.map(row => row.querySelector('.truncate')?.textContent)).toEqual(['Firefox on macOS', 'Alex’s iPhone', 'Chrome on Windows'])
+      expect(within(rows[0]!).getByText('This browser')).toBeInTheDocument()
+      expect(within(rows[0]!).queryByRole('button', { name: 'Sign out' })).toBeNull()
+      expect(within(rows[1]!).getByText(/with a password and an authenticator code/)).toBeInTheDocument()
+
+      await userEvent.click(within(rows[2]!).getByRole('button', { name: 'Sign out' }))
+      await userEvent.click(within(await screen.findByRole('dialog', { name: 'Sign out Chrome on Windows?' })).getByRole('button', { name: 'Sign out' }))
+      expect(given.onRevokeSession).toHaveBeenCalledWith(authSessions[2]!.id)
+
+      await userEvent.click(screen.getByRole('button', { name: 'Sign out everywhere else' }))
+      expect(given.onRevokeOtherSessions).toHaveBeenCalledTimes(1)
     })
   })
 

@@ -194,13 +194,13 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, onBa
   // A single character narrows what is loaded. Longer queries search the server's library, or
   // offline what the phone holds of it (`useLocalSearch`), ranked the same way.
   const searching = [...query.trim()].length >= libraryMatchMinLength;
-  const libraryFound = useLibraryMatches(offline ? '' : query);
-  const localFound = useLocalSearch(query, server ? 'all' : 'library', searching && offline);
+  const libraryFound = useLibraryMatches(offline || playlistScope ? '' : query);
+  const localFound = useLocalSearch(query, server ? 'all' : 'library', searching && offline && !playlistScope);
   // Every playlist, so one far down the list is found too.
   const playlists = useAllPlaylists((searching || Boolean(playlistScope)) && !server);
   // The search finds albums with any file on the server; the Albums list's own membership
   // decides which of them are in the library (`libraryAlbumMatches`). On this server keeps them all.
-  const albumIds = useLibraryAlbumIds(searching && !server);
+  const albumIds = useLibraryAlbumIds(searching && !server && !playlistScope);
   // A list that could not be read cannot rule a match out.
   const membership = useMemo(() => albumIds.data ?? (albumIds.isError ? { ids: [], complete: false } : undefined), [albumIds.data, albumIds.isError]);
   const pending = !offline && (libraryFound.pending || (!server && albumIds.isPending && !albumIds.isError));
@@ -227,7 +227,7 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, onBa
   const items = useMemo(() => {
     if (playlistScope) {
       const nested = playlists.items.filter(playlist => currentFolder ? playlist.folderId === currentFolder.id
-        : !playlist.folderId || !folderIds.has(playlist.folderId));
+        : query.trim() || !playlist.folderId || !folderIds.has(playlist.folderId));
       return [...(currentFolder ? [] : [likedCollection(link)]), ...nested.map(playlist => playlistCollection(playlist, link))]
         .filter(item => matches(query, item.title, item.subtitle)).map(collectionDim);
     }

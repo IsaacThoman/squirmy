@@ -43,14 +43,14 @@ To make an account yourself instead, choose **Add user**, set a username, an opt
 
 Each user's **Manage** menu in **Admin → Users & invites** has:
 
-- **Edit…**: display name, role, permissions and [explicit content](#explicit-content).
+- **Edit…**: display name, email, role, permissions and [explicit content](#explicit-content). The email address lets [single sign-on](./authentication.md#who-gets-in-and-as-whom) find the account; only admins set it.
 - **Reset password…**: sets a new password, signs them out everywhere and deletes their app passwords, so whoever had the account keeps nothing that still works.
 - **Disable account…**: signs them out everywhere, deletes their app passwords and blocks sign-in until **Enable account**.
 - **Delete account…**: deletes their likes, playlists and history too. The shared library stays.
 
 ## Signing in and sessions
 
-Sessions last 180 days and renew while in use. Changing your own password (**Settings → Account → Change password**) signs out your other browsers and apps and deletes your app passwords; make new ones for your Subsonic apps afterwards. (API clients can send `keepAppPasswords: true` to keep them.)
+Sessions last 180 days and renew while in use. **Settings → Security** lists where you are signed in and signs any of them out, and turns on [two-factor authentication](./authentication.md#two-factor-authentication); admins see and end anyone's sessions from **Manage → Sign-ins and security…**. See [Signing in and security](./authentication.md). Changing your own password (**Settings → Account → Change password**) signs out your other browsers and apps and deletes your app passwords; make new ones for your Subsonic apps afterwards. (API clients can send `keepAppPasswords: true` to keep them.)
 
 Sign-in allows 20 attempts a minute per address. Wrong passwords are also counted per username: 5 a minute from one address (IPv6: one /64), 10 from one IPv6 /48, and 30 from all addresses together. Past one of these, that username waits out the minute from there, while the account can still sign in from elsewhere. The 30-a-minute ceiling does not apply to addresses the account signed in from in the last 30 days (since the server last started). Correct sign-ins never count. At most two password checks run at once; when many are waiting, sign-in answers `busy` for a moment. Subsonic apps have no lockout: app passwords cannot be guessed, so a valid one is always accepted. Behind a reverse proxy, set [`TRUST_PROXY`](./reverse-proxy.md#what-trust-proxy-does) so the limits apply to the real client address.
 

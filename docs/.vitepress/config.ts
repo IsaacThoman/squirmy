@@ -31,6 +31,7 @@ const sidebar = [
     text: 'People and apps',
     items: [
       { text: 'Users and access', link: '/server/users' },
+      { text: 'Signing in and security', link: '/server/authentication' },
       { text: 'Subsonic clients', link: '/server/subsonic' },
       { text: 'Scrobbling', link: '/server/scrobbling' },
       { text: 'Share links', link: '/server/sharing' },

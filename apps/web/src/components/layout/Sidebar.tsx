@@ -71,7 +71,17 @@ const SidebarView = memo(function SidebarView({
   const library = useLibrary()
   const navigate = useNavigate()
   const [closed, setClosed] = useState<Set<string>>(() => new Set())
-  const foldersById = useMemo(() => new Set(folders?.items.map(folder => folder.id)), [folders])
+  const folderItems = folders?.items
+  const grouped = useMemo(() => {
+    const byFolder = new Map<string, PlaylistSummary[]>(folderItems?.map(folder => [folder.id, []]))
+    const root = playlists.filter(playlist => {
+      const contents = playlist.folderId && byFolder.get(playlist.folderId)
+      if (!contents) return true
+      contents.push(playlist)
+      return false
+    })
+    return { byFolder, root }
+  }, [folderItems, playlists])
   const own = useMemo(() => new Set(playlists.filter(playlist => playlist.ownerId === user.id).map(playlist => playlist.id)), [playlists, user.id])
   const canMove = (id: string) => own.has(id)
   const name = user.displayName ?? user.username
@@ -249,11 +259,11 @@ const SidebarView = memo(function SidebarView({
                   <ChevronDown className={cn('size-3.5 shrink-0', closed.has(folder.id) && '-rotate-90')} aria-hidden />
                 </FolderTarget>
                 {!closed.has(folder.id) && <ul className="ml-3 border-l border-sidebar-border pl-1">
-                  {playlists.filter(playlist => playlist.folderId === folder.id).map(playlistRow)}
+                  {grouped.byFolder.get(folder.id)?.map(playlistRow)}
                 </ul>}
               </li>
             ))}
-            {playlists.filter(playlist => collapsed || !playlist.folderId || !foldersById.has(playlist.folderId)).map(playlistRow)}
+            {(collapsed ? playlists : grouped.root).map(playlistRow)}
           </ul>
         </div>
       </div>

@@ -207,16 +207,19 @@ function SearchDialogHost({ onOpenChange, commands: shell }: SearchDialogState) 
 /**
  * `/settings` and `/settings/<section>`: settings are a dialog, so these addresses open it over
  * the home page. Last.fm returns here with `?lastfm=`: the Scrobbling section opens and says
- * what Last.fm answered.
+ * what Last.fm answered. Linking single sign-on returns to `/settings/security` with `?sso=linked`
+ * or `?sso_error=`, said in Security.
  */
 export function SettingsRoute() {
   const { openSettings } = useSettingsDialog()
   const { section } = useParams()
   const [params] = useSearchParams()
   const lastFm = params.get('lastfm')
+  const sso = params.get('sso_error') ?? params.get('sso')
   useEffect(() => {
     if (lastFm !== null) openSettings('scrobbling', { lastFm })
+    else if (sso !== null) openSettings('security', { sso })
     else openSettings(isSettingsSection(section) ? section : undefined)
-  }, [lastFm, section, openSettings])
+  }, [lastFm, sso, section, openSettings])
   return <Navigate to="/" replace />
 }
