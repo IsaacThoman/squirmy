@@ -105,6 +105,7 @@ function createSession(api: ApiClient, socket: SquirmySocket, device: ClientDevi
       engine,
       baseUrl: '',
       canBoost: engine.canBoost,
+      limiter: engine.limiter,
       resolvePlayback: entry => api.streaming.playback(entry.trackId, { albumId: entry.albumId ?? undefined, quality, ...engine.playbackQuery() }),
       // A failure that may pass is retried by the client. A track the server refused to stream
       // (gone, or not allowed) is told once and skipped, as one the browser cannot play.
@@ -409,6 +410,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         saveBrowserName(name)
         client.rename(browserName())
       },
+      forgetPlayback: trackId => client.forgetPlayback(trackId),
       tell: ({ tone, ...line }) => status.show({ ...line, tone, key: ACTION_STATUS }, tone === 'error' ? STATUS_ERROR_MS : STATUS_EVENT_MS),
     }
   }, [client, engine, listening, clock, store, tab, startRadio, viewer, picked, status, invites])

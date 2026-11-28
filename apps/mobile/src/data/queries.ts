@@ -186,6 +186,15 @@ export function useAlbum(id: string, { enabled = true }: { enabled?: boolean } =
 }
 
 /**
+ * Every version of a song the server holds and the user's picks, for Track info. `albumId` is
+ * the album the song plays from. Under the track's key, which the server invalidates after a pick.
+ */
+export function useTrackVersions(trackId: string | undefined, albumId: string | null | undefined, { enabled = true }: { enabled?: boolean } = {}) {
+  return useApiQuery([...queryKeys.track(trackId ?? ''), 'versions', albumId ?? null],
+    api => api.catalog.trackVersions(trackId!, albumId ? { albumId } : {}), { enabled: Boolean(trackId) && enabled });
+}
+
+/**
  * `enabled: false` until the page knows which artist. `poll: false` for a page that only
  * borrows the artist, such as an album page's rails: the invalidations are enough there, as on web.
  */
@@ -207,6 +216,10 @@ export function useArtist(id: string, { enabled = true, poll = true }: { enabled
     // final; the realtime invalidation that follows can be missed, so it is asked for again.
     refetchInterval: query => poll && artistPending(query.state.data, query.state.dataUpdateCount) ? pendingArtistPollMs : false,
   });
+}
+
+export function usePlaylistFolders(enabled: boolean) {
+  return useApiQuery(queryKeys.playlistFolders(), api => api.userdata.playlistFolders(), { enabled });
 }
 
 export function usePlaylist(id: string) {
@@ -392,6 +405,18 @@ export function useLibraryMatches(text: string) {
 
 export function useUserSettings() {
   return useApiQuery(queryKeys.settings(), api => api.userdata.settings());
+}
+
+/**
+ * Whether the user shows star ratings (`showRatings`). Every song row reads it, so it selects
+ * the one flag and a row redraws only when it changes.
+ */
+export function useRatingsEnabled(): boolean {
+  const api = useSignedInApi();
+  return useQuery({
+    queryKey: queryKeys.settings(), queryFn: () => api!.userdata.settings(), enabled: Boolean(api),
+    select: settings => settings.showRatings ?? false,
+  }).data ?? false;
 }
 
 /** Saves settings, showing the change at once and rolling it back if the server refuses. */

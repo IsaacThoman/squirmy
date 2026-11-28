@@ -68,7 +68,8 @@ export async function shareTrackPlayback(share: ShareRow, trackId: string, codec
   if (sharePlayback === 'off') throw playbackOff()
   const ref = await shareTrack(share, trackId)
   if (!ref) throw notFound('This song is not on the shared page', 'not_available')
-  const selection = await selectFile(trackId, { albumId: ref.albumId ?? undefined, codecs, quality: 'high' })
+  // The creator's version picks: the page plays the copies they would hear.
+  const selection = await selectFile(trackId, { albumId: ref.albumId ?? undefined, codecs, quality: 'high', userId: share.userId })
   if (!selection) throw songUnavailable()
   const { file } = selection
   await assertSharerAllows(share, file)

@@ -83,6 +83,19 @@ async function moveLibraryPins(tx: Transaction, type: 'album' | 'artist', from: 
   await tx.execute(sql`update library_pins set entity_id = ${into} where entity_type = ${type} and entity_id = ${from}`)
 }
 
+/** Re-points version picks (`version_picks`); where the user picked for both, the later pick is kept. */
+async function moveVersionPicks(tx: Transaction, type: 'album' | 'recording', from: string, into: string) {
+  await tx.execute(sql`
+    update version_picks t set release_id = f.release_id, tier = f.tier, picked_at = f.picked_at from version_picks f
+    where f.entity_type = ${type} and f.entity_id = ${from}
+      and t.user_id = f.user_id and t.entity_type = ${type} and t.entity_id = ${into}
+      and f.picked_at > t.picked_at`)
+  await tx.execute(sql`
+    delete from version_picks f where f.entity_type = ${type} and f.entity_id = ${from}
+      and exists (select 1 from version_picks t where t.user_id = f.user_id and t.entity_type = ${type} and t.entity_id = ${into})`)
+  await tx.execute(sql`update version_picks set entity_id = ${into} where entity_type = ${type} and entity_id = ${from}`)
+}
+
 async function moveExternalIds(tx: Transaction, type: EntityType, from: string, into: string) {
   await tx.update(externalIds).set({ entityId: into }).where(sql`${externalIds.entityType} = ${type} and ${externalIds.entityId} = ${from}`)
 }
@@ -108,7 +121,7 @@ async function redirect(tx: Transaction, table: Mergeable, from: string, into: s
 
 /**
  * Merges recording `fromId` into `intoId`: files, release tracks, external ids, lyrics
- * (the winner's are kept), library saves (likes), ratings, playlist items, plays and wants,
+ * (the winner's are kept), library saves (likes), ratings, playlist items, plays, wants, version picks,
  * and its ISRCs and explicit flag. The winner keeps its own artist credits; the loser's
  * move only when the winner has none.
  */
@@ -139,6 +152,7 @@ export async function mergeRecording(fromId: string, intoId: string, executor: E
     await tx.delete(recordingWorks).where(eq(recordingWorks.recordingId, fromId))
     await moveExternalIds(tx, 'recording', fromId, into)
     for (const table of ['likes', 'ratings', 'wants'] as const) await moveUserRows(tx, table, 'recording', fromId, into)
+    await moveVersionPicks(tx, 'recording', fromId, into)
     await tx.execute(sql`
       insert into scrobble_hearts (user_id, connection, recording_id, remote_at, exported_heart_at, exported_at)
       select user_id, connection, ${into}, remote_at, exported_heart_at, exported_at
@@ -162,7 +176,7 @@ export async function mergeRecording(fromId: string, intoId: string, executor: E
 
 /**
  * Merges album `fromId` into `intoId`: files, editions (releases), external ids, likes,
- * ratings, wants, library saves, playlist items, plays, collection plays and album hints. The winner keeps its own credits, and takes
+ * ratings, wants, library saves, playlist items, plays, collection plays, version picks and album hints. The winner keeps its own credits, and takes
  * the loser's artwork, canonical release, year and date only when it has none.
  */
 export async function mergeAlbum(fromId: string, intoId: string, executor: Executor = db): Promise<void> {
@@ -183,6 +197,7 @@ export async function mergeAlbum(fromId: string, intoId: string, executor: Execu
     for (const table of ['likes', 'ratings', 'wants'] as const) await moveUserRows(tx, table, 'album', fromId, into)
     await moveCollectionPlays(tx, 'album', fromId, into)
     await moveLibraryPins(tx, 'album', fromId, into)
+    await moveVersionPicks(tx, 'album', fromId, into)
     await tx.execute(sql`
       update ${albums} a set
         artwork_asset_id = case when f.artwork_locked and not a.artwork_locked then f.artwork_asset_id

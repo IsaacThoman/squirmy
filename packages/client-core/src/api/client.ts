@@ -129,7 +129,14 @@ import {
   type PageQuery,
   PlaybackDescriptor,
   type PlaybackQuery,
+  PlaylistCollaborator,
+  type PlaylistCollaboratorRole,
+  PlaylistDedupeResult,
   PlaylistDetail,
+  PlaylistFolder,
+  type PlaylistFolderRequest,
+  PlaylistImportResult,
+  PlaylistPerson,
   PlaylistPage,
   PlaylistSummary,
   type RegisterRequest,
@@ -172,6 +179,10 @@ import {
   DeleteUploadsResponse,
   UploadAlbumPage,
   UploadFileList,
+  TrackVersions,
+  type TrackVersionsQuery,
+  type VersionPickRequest,
+  type VersionPickType,
 } from '@squirmy/contracts'
 import { z } from 'zod'
 
@@ -513,6 +524,13 @@ export function createApiClient(options: ApiClientOptions) {
       /** Tempo, key, energy and per-file timing (for transitions); see `TrackSonic`. */
       sonic: (trackId: string) => get(`/tracks/${id(trackId)}/sonic`, TrackSonic),
       trackSummaries: (body: TrackSummariesRequest) => send('POST', '/tracks/summaries', TrackSummariesResponse, body),
+      /** Every version of a song the server holds, with the user's picks: Track info's list. */
+      trackVersions: (trackId: string, query: TrackVersionsQuery = {}) => get(`/tracks/${id(trackId)}/versions`, TrackVersions, query),
+      /** Makes a version the one that plays by default for an album or a song, for this user everywhere. */
+      pickVersion: (type: VersionPickType, entityId: string, versionId: string) =>
+        send('PUT', `/me/versions/${type}/${id(entityId)}`, Ok, { versionId } satisfies VersionPickRequest),
+      /** Back to Automatic: the album's own edition, each song from its best copy. */
+      clearVersion: (type: VersionPickType, entityId: string) => send('DELETE', `/me/versions/${type}/${id(entityId)}`, Ok),
     },
     streaming: {
       playback: (trackId: string, query: Partial<PlaybackQuery> = {}) =>
@@ -552,6 +570,19 @@ export function createApiClient(options: ApiClientOptions) {
         send('POST', `/playlists/${id(playlistId)}/items/move`, PlaylistDetail, body),
       removePlaylistItem: (playlistId: string, itemId: string) =>
         send('DELETE', `/playlists/${id(playlistId)}/items/${id(itemId)}`, PlaylistDetail),
+      playlistFolders: () => get('/playlists/folders', PlaylistFolder.array()),
+      createPlaylistFolder: (body: PlaylistFolderRequest) => send('POST', '/playlists/folders', PlaylistFolder, body),
+      deletePlaylistFolder: (folderId: string) => send('DELETE', `/playlists/folders/${id(folderId)}`, Ok),
+      playlistCollaborators: (playlistId: string) => get(`/playlists/${id(playlistId)}/collaborators`, PlaylistCollaborator.array()),
+      playlistPeople: (playlistId: string, q: string, options?: CallOptions) => get(`/playlists/${id(playlistId)}/people`, PlaylistPerson.array(), { q }, options),
+      setPlaylistCollaborator: (playlistId: string, userId: string, role: PlaylistCollaboratorRole) =>
+        send('PUT', `/playlists/${id(playlistId)}/collaborators/${id(userId)}`, Ok, { role }),
+      removePlaylistCollaborator: (playlistId: string, userId: string) =>
+        send('DELETE', `/playlists/${id(playlistId)}/collaborators/${id(userId)}`, Ok),
+      uploadPlaylistCover: (playlistId: string, file: UploadFile) => upload(`/playlists/${id(playlistId)}/cover`, [file], PlaylistSummary),
+      resetPlaylistCover: (playlistId: string) => send('DELETE', `/playlists/${id(playlistId)}/cover`, PlaylistSummary),
+      importPlaylist: (file: UploadFile) => upload('/playlists/import', [file], PlaylistImportResult),
+      dedupePlaylist: (playlistId: string, editions: boolean) => send('POST', `/playlists/${id(playlistId)}/items/dedupe`, PlaylistDedupeResult, { editions }),
       history: (query: Partial<PageQuery> = {}) => get('/me/history', HistoryPage, query),
       replay: (query: Partial<ReplayQuery> = {}) => get('/me/replay', ReplayStats, query),
       historyImports: () => get('/me/history/imports', HistoryImports),

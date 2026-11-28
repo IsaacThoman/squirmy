@@ -168,7 +168,7 @@ function songId({ params }: Context) {
 
 async function selectedSong(context: Context) {
   const recordingId = await songId(context)
-  const selection = await selectFile(recordingId, { quality: 'original' })
+  const selection = await selectFile(recordingId, { quality: 'original', userId: context.user.id })
   if (!selection) throw notFound('Song')
   await assertFileAllowed(context.user.id, selection.file)
   return selection.file

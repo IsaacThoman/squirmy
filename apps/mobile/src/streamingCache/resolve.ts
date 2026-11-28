@@ -1,3 +1,4 @@
+import type { ResolvedPlayback } from '@squirmy/client-core';
 import type { PlaybackDescriptor, QueueEntry, StreamQuality } from '@squirmy/contracts';
 
 /** The places an entry can play from. */
@@ -6,8 +7,8 @@ export type PlaybackSources = {
   downloaded: (trackId: string) => PlaybackDescriptor | null;
   /** A cached file at least as good as `quality`. With `any`, a lesser one rather than none. */
   cached: (trackId: string, quality: StreamQuality, any?: boolean) => PlaybackDescriptor | null;
-  /** `GET /tracks/:id/playback`. */
-  server: (entry: QueueEntry, quality: StreamQuality) => Promise<PlaybackDescriptor>;
+  /** `GET /tracks/:id/playback`, with the key the streaming cache keeps the stream under, if any. */
+  server: (entry: QueueEntry, quality: StreamQuality) => Promise<ResolvedPlayback>;
 };
 
 /**
@@ -24,7 +25,7 @@ export async function resolvePlayback(
   quality: StreamQuality,
   sources: PlaybackSources,
   offline = false,
-): Promise<PlaybackDescriptor> {
+): Promise<ResolvedPlayback> {
   const local = sources.downloaded(entry.trackId) ?? sources.cached(entry.trackId, quality, offline);
   if (local) return local;
   try {

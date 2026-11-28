@@ -53,6 +53,12 @@ class FakeNative implements SquirmyAudio {
   setEqualizer(curve: NativeEqualizer | null) {
     this.calls.push(['setEqualizer', curve]);
   }
+  prefetch(cacheKey: string, url: string) {
+    this.calls.push(['prefetch', cacheKey, url]);
+  }
+  cancelPrefetch(cacheKey: string) {
+    this.calls.push(['cancelPrefetch', cacheKey]);
+  }
   getStatus() {
     return { ...this.status };
   }
@@ -138,6 +144,14 @@ describe('NativeEngine', () => {
     // From a client that does not say: the file reader, which reads today's transcodes too.
     engine.load({ ...load, entryId: 'c' });
     expect(native.loaded).toMatchObject({ entryId: 'c', decoder: 'file' });
+  });
+
+  it('gives the engine the key the streaming cache keeps each stream under', () => {
+    const { native, engine } = setup();
+    engine.load({ ...load, media: { transcoded: false, cacheKey: 'file-a:original' } });
+    expect(native.loaded).toMatchObject({ entryId: 'a', cacheKey: 'file-a:original' });
+    engine.preload({ entryId: 'b', url: 'https://music.test/stream/b', gain: 1, media: { transcoded: true, cacheKey: 'file-b:opus_mp4_192' } });
+    expect(native.preloaded).toMatchObject({ entryId: 'b', cacheKey: 'file-b:opus_mp4_192' });
   });
 
   it('loads and autoplays, reporting loading at once, then playing', () => {

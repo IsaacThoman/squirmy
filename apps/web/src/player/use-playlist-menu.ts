@@ -44,7 +44,7 @@ export function usePlaylistMenu(playlist: PlaylistSummary, onPlay?: () => void) 
       return false
     }),
     onOpen: () => void navigate(`/playlist/${playlist.id}`),
-    onShare: library.sharingEnabled ? () => library.share({ kind: 'playlist', id: playlist.id, title: playlist.name }) : undefined,
+    onShare: library.sharingEnabled && (playlist.isPublic || !playlist.collaboratorRole) ? () => library.share({ kind: 'playlist', id: playlist.id, title: playlist.name }) : undefined,
   })
   return { entries }
 }

@@ -16,6 +16,7 @@ import { newId } from '../../lib/ids.js'
 import { creditKey, matchKey } from '../../lib/text.js'
 import { enqueue } from '../../jobs/index.js'
 import type { MbArtistCredit, MbRelease } from '../metadata/musicbrainz.js'
+import { uuidArray } from '../catalog/sql.js'
 import { deleteOrphanLocalReleases } from './local.js'
 import { mergeAlbum, mergeArtist, mergeRecording, resolveMerged } from './merge.js'
 import { formatSummary, type Evaluation } from './score.js'
@@ -129,9 +130,14 @@ export type Adoption = {
 export type UpsertOptions = {
   /**
    * `always` makes the release the album's canonical one. `unless-owned` leaves an album
-   * that has present files with the canonical release it has.
+   * that has present files with the canonical release it has. `unless-held` leaves it a
+   * canonical release with a MusicBrainz id that present files other than `movingFileIds`
+   * are on: another edition the server holds stays the one the album is shown as, whatever
+   * order the editions are matched in (docs/architecture.md, "Editions and versions").
    */
-  canonical: 'always' | 'unless-owned'
+  canonical: 'always' | 'unless-owned' | 'unless-held'
+  /** For `unless-held`: the files being matched, which leave whatever release they were on. */
+  movingFileIds?: readonly string[]
   /**
    * Writes the release under this album row instead of the release group's row: an
    * edition row (`albums.edition_of_id`) that shows one release of the group. The row
@@ -218,6 +224,7 @@ export async function upsertRelease(tx: Transaction, release: MbRelease, adoptio
     barcode: release.barcode,
     format: formatSummary(release),
     status: release.status,
+    disambiguation: release.disambiguation || null,
     trackCount: release.mediums.reduce((sum, medium) => sum + medium.tracks.length, 0),
     discCount: Math.max(1, release.mediums.length),
     detailLevel: 2,
@@ -236,8 +243,13 @@ export async function upsertRelease(tx: Transaction, release: MbRelease, adoptio
     await tx.insert(releases).values({ id: releaseId, ...releaseValues })
   }
   const owned = sql`exists (select 1 from ${mediaFiles} f where f.album_id = ${albums.id} and f.missing_since is null)`
+  const moving = options.movingFileIds?.length ? sql`and not (f.id = any(${uuidArray([...options.movingFileIds])}))` : sql``
+  const held = sql`exists (
+    select 1 from ${releases} current join ${mediaFiles} f on f.release_id = current.id
+    where current.id = ${albums.canonicalReleaseId} and current.id <> ${releaseId} and current.mbid is not null
+      and f.missing_since is null ${moving})`
   await tx.update(albums).set({ canonicalReleaseId: releaseId })
-    .where(and(eq(albums.id, albumId), options.canonical === 'unless-owned' ? sql`not ${owned}` : undefined))
+    .where(and(eq(albums.id, albumId), options.canonical === 'unless-owned' ? sql`not ${owned}` : options.canonical === 'unless-held' ? sql`not ${held}` : undefined))
 
   // Recordings and tracks.
   const localRecordingIds = [...(adoption.recordings?.values() ?? [])].map((recording) => recording.id)
@@ -383,12 +395,14 @@ export async function applyMatch(tx: Transaction, input: ApplyInput): Promise<Ap
     if (recording) adoptRecordings.set(key, recording)
   }
 
+  // Each file keeps its own edition: a second edition of an album the server holds does not
+  // take the album over from the first.
   const upserted = await upsertRelease(tx, release, {
     artistIds: [...localArtistIds],
     albumIds: albumOrder,
     releaseIds: localReleaseIds.filter((id) => !sharedReleaseIds.has(id)),
     recordings: adoptRecordings,
-  })
+  }, { canonical: 'unless-held', movingFileIds: input.fileIds })
   const { albumId, releaseId } = upserted
   const links = new Map([...pairs].flatMap(([key, pair]) => {
     const track = upserted.tracks.get(key)

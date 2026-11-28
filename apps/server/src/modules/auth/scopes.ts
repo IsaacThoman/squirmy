@@ -5,12 +5,20 @@ const libraryReads = new Set([
   '/home', '/search/library', '/search/catalog', '/library/items', '/library/albums', '/library/artists',
   '/library/tracks', '/library/genres', '/collection/albums', '/collection/artists', '/collection/tracks',
   '/artists/:id', '/artists/:id/releases', '/albums/:id', '/tracks/:id', '/tracks/:id/lyrics',
-  '/me/likes/:type', '/me/history', '/playlists', '/playlists/:id',
+  '/me/likes/:type', '/me/history', '/playlists', '/playlists/:id', '/playlists/folders', '/playlists/:id/export',
+])
+
+const playlistReads = new Set([
+  '/playlists', '/playlists/:id', '/playlists/folders', '/playlists/:id/export',
+  '/playlists/:id/collaborators', '/playlists/:id/people',
 ])
 
 const playlistWrites = new Set([
   'POST /playlists', 'PATCH /playlists/:id', 'DELETE /playlists/:id', 'POST /playlists/:id/items',
-  'POST /playlists/:id/items/move', 'DELETE /playlists/:id/items/:itemId',
+  'POST /playlists/:id/items/move', 'DELETE /playlists/:id/items/:itemId', 'POST /playlists/:id/items/dedupe',
+  'POST /playlists/folders', 'DELETE /playlists/folders/:id', 'POST /playlists/import',
+  'POST /playlists/:id/cover', 'DELETE /playlists/:id/cover',
+  'PUT /playlists/:id/collaborators/:userId', 'DELETE /playlists/:id/collaborators/:userId',
 ])
 
 /** Match the registered route template so path encodings and query parameters cannot change authorization. */
@@ -22,7 +30,7 @@ export function allowedApiToken(request: FastifyRequest, scopes: readonly ApiTok
     return method === 'GET' && scopes.includes('playback:control')
   }
   if (route === '/me/session/command') return method === 'POST' && scopes.includes('playback:control')
-  if (playlistWrites.has(`${method} ${route}`) || (method === 'GET' && ['/playlists', '/playlists/:id'].includes(route) && scopes.includes('playlists:manage'))) {
+  if (playlistWrites.has(`${method} ${route}`) || (method === 'GET' && playlistReads.has(route) && scopes.includes('playlists:manage'))) {
     return scopes.includes('playlists:manage')
   }
   return scopes.includes('library:read') && ((method === 'GET' && libraryReads.has(route)) || (method === 'POST' && route === '/tracks/summaries'))

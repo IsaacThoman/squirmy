@@ -23,7 +23,7 @@ import { useColors } from '../theme';
 import { serviceNames } from './scrobbling';
 import {
   explicitLabel, explicitNote, explicitRestrictedNote, lastFmAdminNote, normalizationNote, normalizationOptions, normalizationTarget,
-  openListenBrainzSettings, qualityNote, qualityOptions, scrobbleDetail, scrobbleFooter, serverMusicLabel, serverMusicNote, shareNowPlayingLabel,
+  openListenBrainzSettings, qualityNote, qualityOptions, ratingsLabel, ratingsNote, scrobbleDetail, scrobbleFooter, serverMusicLabel, serverMusicNote, shareNowPlayingLabel,
   shareNowPlayingNote, targetOptions, useSettingsScreen,
 } from './settings';
 
@@ -73,6 +73,11 @@ export function SettingsScreen() {
               <Text modifiers={[font({ textStyle: 'body' })]}>{serverMusicLabel}</Text>
             </Toggle>
             {screen.errors.library && <ServiceError message={screen.errors.library} />}
+          </Section>
+          <Section footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{ratingsNote}</Text>}>
+            <Toggle isOn={settings.showRatings ?? false} onIsOnChange={screen.setShowRatings} modifiers={[tint(colors.accent)]}>
+              <Text modifiers={[font({ textStyle: 'body' })]}>{ratingsLabel}</Text>
+            </Toggle>
           </Section>
           <Section title="Explicit Content" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{screen.explicitRestricted ? explicitRestrictedNote : explicitNote}</Text>}>
             <Toggle isOn={screen.allowExplicit} onIsOnChange={screen.setAllowExplicit} modifiers={[tint(colors.accent), disabled(screen.explicitRestricted)]}>

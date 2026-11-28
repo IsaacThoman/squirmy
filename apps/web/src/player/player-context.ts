@@ -121,6 +121,11 @@ export type PlayerControls = {
   /** Renames this browser in every device list; null goes back to the name from the user agent. */
   renameDevice: (name: string | null) => void
   /**
+   * Loads songs again from the server the next time they start (all of them, or one track's),
+   * for when the copy they play from changed: the user picked another version. What plays now goes on.
+   */
+  forgetPlayback: (trackId?: string) => void
+  /**
    * Says something on the player's status line, under the song: a playback command that failed
    * (an album that did not load to play, a device that could not be moved to), or what one
    * changed out of sight. It goes away by itself, an error a little later.

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { VersionId } from './catalog.js'
 import { Id, IsoDateTime } from './common.js'
 
 /** `original` serves the file untouched. `copy_mp4` repackages its audio packets. */
@@ -17,7 +18,7 @@ export const StreamQuality = z.enum(['original', 'high', 'data_saver'])
 export type StreamQuality = z.infer<typeof StreamQuality>
 
 export const PlaybackQuery = z.object({
-  /** Album context; prefers the file that belongs to this album. */
+  /** Album context; prefers the file that belongs to this album (after the user's pick for the song). */
   albumId: Id.optional(),
   quality: StreamQuality.default('original'),
   /** Comma separated codec list. With MSE, `mp3` means audio/mpeg and `mp3_mp4` means MP3 in MP4. */
@@ -72,6 +73,8 @@ export const PlaybackSource = z.object({
   bitDepth: z.number().int().nullable(),
   channels: z.number().int().nullable(),
   bytes: z.number().int().nullable(),
+  /** The version the file is of (see `TrackVersions`), so Track info can mark it. Absent from older servers. */
+  versionId: VersionId.optional(),
 })
 export type PlaybackSource = z.infer<typeof PlaybackSource>
 

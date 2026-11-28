@@ -1,18 +1,23 @@
 import {
-  ArtistReleasesQuery, HomeQuery, Id, LibraryItemsQuery, LibraryQuery, PageQuery, TrackQuery, TrackSummariesRequest,
-  type Lyrics, type TrackSummariesResponse, type TrackSummary,
+  ArtistReleasesQuery, HomeQuery, Id, LibraryItemsQuery, LibraryQuery, PageQuery, TrackQuery, TrackSummariesRequest, TrackVersionsQuery,
+  VersionPickRequest, VersionPickType,
+  type Lyrics, type Ok, type TrackSummariesResponse, type TrackSummary, type TrackVersions,
 } from '@squirmy/contracts'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { requireUser } from '../../lib/auth.js'
+import { notFound } from '../../lib/errors.js'
 import { cachedRead, type CacheTag } from '../../lib/read-cache.js'
 import { home } from './home.js'
 import { listLibraryItems } from './library-items.js'
 import { listLibraryAlbums, listLibraryArtists, listLibraryGenres, listLibraryTracks } from './library.js'
 import { albumDetail, artistDetail, artistReleases, trackDetail, trackLyrics } from './pages.js'
+import { resolveOne } from './redirects.js'
 import { alignedTrackSummaries } from './summaries.js'
+import { setVersionPick, trackVersions } from './versions.js'
 
 const IdParams = z.object({ id: Id })
+const PickParams = z.object({ type: VersionPickType, id: Id })
 
 // What each cached read depends on (lib/read-cache.ts): an invalidation of any of these
 // key roots drops it. Track and album summaries carry availability, artwork and likes.
@@ -98,6 +103,28 @@ export async function catalogRoutes(app: FastifyInstance) {
   app.get('/tracks/:id', async (request): Promise<TrackSummary> =>
     trackDetail(requireUser(request).id, IdParams.parse(request.params).id, TrackQuery.parse(request.query).albumId))
   app.get('/tracks/:id/lyrics', async (request): Promise<Lyrics> => trackLyrics(IdParams.parse(request.params).id))
+  app.get('/tracks/:id/versions', async (request): Promise<TrackVersions> => {
+    const { id } = IdParams.parse(request.params)
+    const query = TrackVersionsQuery.parse(request.query)
+    const [recordingId, albumId] = await Promise.all([
+      resolveOne('recordings', id),
+      query.albumId ? resolveOne('albums', query.albumId).then((album) => album ?? query.albumId) : undefined,
+    ])
+    if (!recordingId) throw notFound('No such track', 'track_not_found')
+    return trackVersions(requireUser(request).id, recordingId, albumId)
+  })
+
+  // The version of an album or a song that plays by default (docs/architecture.md, "Editions and versions").
+  app.put('/me/versions/:type/:id', async (request): Promise<Ok> => {
+    const { type, id } = PickParams.parse(request.params)
+    await setVersionPick(requireUser(request).id, type, id, VersionPickRequest.parse(request.body).versionId)
+    return { ok: true }
+  })
+  app.delete('/me/versions/:type/:id', async (request): Promise<Ok> => {
+    const { type, id } = PickParams.parse(request.params)
+    await setVersionPick(requireUser(request).id, type, id, null)
+    return { ok: true }
+  })
 
   app.post('/tracks/summaries', async (request): Promise<TrackSummariesResponse> => {
     const body = TrackSummariesRequest.parse(request.body)
