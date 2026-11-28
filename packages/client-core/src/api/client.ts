@@ -95,7 +95,8 @@ import {
   type RematchAlbumRequest,
   type ResolveReviewRequest,
   ScanRootResponse,
-  type SearchKind,
+  type SearchFacets,
+  type SearchResultKind,
   SearchResults,
   ScrobblingStatus,
   ServerSettings,
@@ -107,6 +108,7 @@ import {
   type UpdateAcquisitionPolicy,
   type UpdateAcquisitionProviderRequest,
   TrackSummariesResponse,
+  TrackSonic,
   type TrackSummariesRequest,
   TrackPage,
   TrackSummary,
@@ -237,7 +239,7 @@ const DeviceList = page(DeviceInfo)
 const JamPeople = page(JamPerson)
 const JobList = z.array(JobQueueStats)
 const likedPages = { track: TrackPage, album: AlbumPage, artist: ArtistPage } as const
-type SearchParams = { q: string; limit?: number; type?: SearchKind; offset?: number; scope?: 'library' | 'server' }
+type SearchParams = SearchFacets & { q: string; limit?: number; type?: SearchResultKind; offset?: number; scope?: 'library' | 'server' }
 type LikedItems = { track: TrackSummary; album: AlbumSummary; artist: ArtistSummary }
 
 /**
@@ -418,6 +420,8 @@ export function createApiClient(options: ApiClientOptions) {
       album: (albumId: string) => get(`/albums/${id(albumId)}`, AlbumDetail),
       track: (trackId: string, query: TrackQuery = {}) => get(`/tracks/${id(trackId)}`, TrackSummary, query),
       lyrics: (trackId: string) => get(`/tracks/${id(trackId)}/lyrics`, Lyrics),
+      /** Tempo, key, energy and per-file timing (for transitions); see `TrackSonic`. */
+      sonic: (trackId: string) => get(`/tracks/${id(trackId)}/sonic`, TrackSonic),
       trackSummaries: (body: TrackSummariesRequest) => send('POST', '/tracks/summaries', TrackSummariesResponse, body),
     },
     streaming: {
@@ -487,6 +491,8 @@ export function createApiClient(options: ApiClientOptions) {
     radio: {
       track: (trackId: string) => send('POST', `/radio/track/${id(trackId)}`, RadioResponse),
       artist: (artistId: string) => send('POST', `/radio/artist/${id(artistId)}`, RadioResponse),
+      /** A radio of tracks that sound like this one (falls back to the track radio's mix when it is not analysed). */
+      sonic: (trackId: string) => send('POST', `/radio/sonic/${id(trackId)}`, RadioResponse),
     },
     imports: {
       /** Your own imports, or every import for an admin, newest first. */

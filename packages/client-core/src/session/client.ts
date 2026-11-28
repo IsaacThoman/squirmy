@@ -16,10 +16,12 @@ import {
   type SessionQueue,
   type ServerEvent,
   type SessionState,
+  type SignalPath,
 } from '@squirmy/contracts'
 import { ApiError, streamUrl } from '../api/client.js'
 import type { EngineEvent, EngineState, EngineStatus, PlayerEngine } from '../engine.js'
-import { gainFor } from '../normalization.js'
+import { appliedGain } from '../normalization.js'
+import { signalReport } from '../signal.js'
 import { clearRepeating, setRepeating, setTimer } from '../timers.js'
 import { followsJam, memberCommandRoute } from './jam.js'
 import { createInitialSession, joinSession, positionAt, reduceParsedSession, type Session, splitSession } from './reducer.js'
@@ -69,6 +71,13 @@ export type SessionClientSnapshot = {
    * active device is listed or is this one.
    */
   away: AwayDevice | null
+  /**
+   * What the active device plays, as it plays it (see "Signal path" in the session contract):
+   * this device's own while it plays here, once the current entry is loaded; otherwise the
+   * active device's last report, while it is about the current entry. Null when there is
+   * none: nothing loaded yet, or a device or server that does not report.
+   */
+  signal: SignalPath | null
 }
 
 /**
@@ -274,6 +283,12 @@ export class SessionClient {
   /** The server state held is this device's own session. */
   private detached = false
   private serverDetaches = false
+  /** The server takes and passes on `session:signal`. */
+  private serverSignals = false
+  /** The last signal path the server passed on, from whichever device sent it. */
+  private remoteSignal: SignalPath | null = null
+  /** What this device last reported since the last hello, so a report goes out only when it changes. */
+  private sentSignal: string | null = null
   private serverSleeps = false
   private serverJams = false
   /** Moves the gain along a sleep timer's fade; see `followFade`. */
@@ -353,7 +368,7 @@ export class SessionClient {
     const { state, queue } = splitSession(this.local)
     this.snapshot = {
       session: state, queue, devices: this.devices, connection: this.connection, isActiveDevice: this.isActive(),
-      detached: this.detached, canDetach: this.canDetach(), canSetSleepTimer: false, canJam: false, outage: null, away: null,
+      detached: this.detached, canDetach: this.canDetach(), canSetSleepTimer: false, canJam: false, outage: null, away: null, signal: null,
     }
   }
 
@@ -376,6 +391,10 @@ export class SessionClient {
       transport.on('session:moved', update => {
         // Before the hello is answered there is nothing to replace; its answer says the same.
         if (this.connection === 'online') this.onMoved(update)
+      }),
+      transport.on('session:signal', signal => {
+        this.remoteSignal = signal
+        this.publish()
       }),
       transport.on('devices', devices => {
         this.setDevices(devices)
@@ -574,6 +593,7 @@ export class SessionClient {
   setNormalization(mode: NormalizationMode): void {
     this.normalization = mode
     if (this.isActive() && this.local.current) this.applyGain(this.local.current)
+    this.publish()
   }
 
   // Sync
@@ -669,6 +689,10 @@ export class SessionClient {
     this.setDevices(reply.devices)
     this.detached = snapshot.scope?.type === 'device'
     this.serverDetaches = reply.capabilities?.includes('detach') ?? false
+    this.serverSignals = reply.capabilities?.includes('signal') ?? false
+    this.remoteSignal = reply.signal ?? null
+    // The server may have restarted, or this device moved session: it hears it again.
+    this.sentSignal = null
     this.serverSleeps = reply.capabilities?.includes('sleepTimer') ?? false
     this.serverJams = reply.capabilities?.includes('jam') ?? false
   }
@@ -893,17 +917,58 @@ export class SessionClient {
     const canDetach = this.canDetach()
     const outage = this.outage()
     const away = this.away(previous.away)
+    const signal = this.signal(previous.signal)
+    this.sendSignal(signal)
     if (
       session === previous.session && queueHalf === previous.queue && this.devices === previous.devices
       && this.connection === previous.connection && isActiveDevice === previous.isActiveDevice
       && this.detached === previous.detached && canDetach === previous.canDetach && this.serverSleeps === previous.canSetSleepTimer
-      && this.serverJams === previous.canJam && outage === previous.outage && away === previous.away
+      && this.serverJams === previous.canJam && outage === previous.outage && away === previous.away && signal === previous.signal
     ) return
     this.snapshot = {
       session, queue: queueHalf, devices: this.devices, connection: this.connection, isActiveDevice, detached: this.detached, canDetach,
-      canSetSleepTimer: this.serverSleeps, canJam: this.serverJams, outage, away,
+      canSetSleepTimer: this.serverSleeps, canJam: this.serverJams, outage, away, signal,
     }
     for (const listener of [...this.listeners]) listener()
+  }
+
+  /**
+   * The signal path to show: this device's while it plays the current entry, else the
+   * active device's report about it. `previous` is kept while it says the same.
+   */
+  private signal(previous: SignalPath | null): SignalPath | null {
+    const current = this.local.current
+    let signal: SignalPath | null = null
+    if (this.isActive()) {
+      const descriptor = current && this.inEngine.get(current.id)
+      if (current && descriptor) {
+        const albumContext = this.inAlbumContext(current, this.local)
+        const normalization = { mode: this.normalization, ...appliedGain(this.normalization, descriptor.normalization, { albumContext, canBoost: this.player?.canBoost ?? false }) }
+        signal = { ...signalReport(current.id, descriptor, normalization, descriptor.url.startsWith('file:')), deviceId: this.device.id }
+      }
+    } else {
+      const remote = this.remoteSignal
+      if (remote && remote.entryId === current?.id && remote.deviceId === this.local.activeDeviceId) signal = remote
+    }
+    if (signal === previous || (signal && previous && JSON.stringify(signal) === JSON.stringify(previous))) return previous
+    return signal
+  }
+
+  /**
+   * Tells the server what this device plays, when it is the active device and that changed.
+   * Only once the server's own state has the entry current on this device: it drops a report
+   * about any other, so one sent ahead of the `trackEnded` or `transfer` that gets it there
+   * would be lost. That state's arrival publishes again.
+   */
+  private sendSignal(signal: SignalPath | null): void {
+    if (!signal || signal.deviceId !== this.device.id || this.connection !== 'online' || !this.serverSignals) return
+    const held = this.server?.session
+    if (held?.current?.id !== signal.entryId || held.activeDeviceId !== this.device.id) return
+    const { deviceId: _deviceId, ...report } = signal
+    const key = JSON.stringify(report)
+    if (key === this.sentSignal) return
+    this.sentSignal = key
+    this.transport.signal(report)
   }
 
   private setDevices(devices: DeviceInfo[]): void {
@@ -1070,6 +1135,8 @@ export class SessionClient {
       gain: this.gain,
     })
     this.preloadNext()
+    // The signal path follows what the engine now holds.
+    this.publish()
   }
 
   /**
@@ -1149,9 +1216,13 @@ export class SessionClient {
 
   private gainOf(entry: QueueEntry, descriptor: PlaybackDescriptor | undefined, session: Session): number {
     const volume = this.player?.systemVolume ? 1 : session.volumes[this.device.id] ?? 1
-    const albumContext = !session.shuffle && session.context?.type === 'album' && session.context.id === entry.albumId
+    const albumContext = this.inAlbumContext(entry, session)
     const fade = entry.id === session.current?.id ? this.fadeOf(session) : 1
-    return volume * fade * gainFor(this.normalization, descriptor?.normalization, { albumContext, canBoost: this.player?.canBoost ?? false })
+    return volume * fade * appliedGain(this.normalization, descriptor?.normalization, { albumContext, canBoost: this.player?.canBoost ?? false }).gain
+  }
+
+  private inAlbumContext(entry: QueueEntry, session: Session): boolean {
+    return !session.shuffle && session.context?.type === 'album' && session.context.id === entry.albumId
   }
 
   /**

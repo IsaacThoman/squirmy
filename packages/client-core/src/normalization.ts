@@ -22,15 +22,23 @@ export type GainContext = {
  * exceeds 1 when `canBoost` is false.
  */
 export function gainFor(mode: NormalizationMode, normalization: Normalization | null | undefined, context: GainContext): number {
-  if (mode === 'off' || !normalization) return 1
+  return appliedGain(mode, normalization, context).gain
+}
+
+/**
+ * `gainFor`, and which of the two gains it comes from: null when it is 1 for want of one
+ * (`off`, or no data). A gain the peak or `canBoost` holds back to 1 still names its source.
+ */
+export function appliedGain(mode: NormalizationMode, normalization: Normalization | null | undefined, context: GainContext): { gain: number; applied: 'track' | 'album' | null } {
+  if (mode === 'off' || !normalization) return { gain: 1, applied: null }
   const album = mode === 'album' || (mode === 'auto' && context.albumContext)
-  const track = { gainDb: normalization.trackGainDb, peak: normalization.trackPeak }
-  const whole = { gainDb: normalization.albumGainDb, peak: normalization.albumPeak }
+  const track = { gainDb: normalization.trackGainDb, peak: normalization.trackPeak, source: 'track' as const }
+  const whole = { gainDb: normalization.albumGainDb, peak: normalization.albumPeak, source: 'album' as const }
   const [preferred, fallback] = album ? [whole, track] : [track, whole]
   const chosen = preferred.gainDb !== null ? preferred : fallback
-  if (chosen.gainDb === null) return 1
+  if (chosen.gainDb === null) return { gain: 1, applied: null }
   let gain = 10 ** (chosen.gainDb / 20)
   if (chosen.peak !== null && chosen.peak > 0) gain = Math.min(gain, 1 / chosen.peak)
   if (!context.canBoost) gain = Math.min(gain, 1)
-  return gain
+  return { gain, applied: chosen.source }
 }

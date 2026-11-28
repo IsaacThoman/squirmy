@@ -20,8 +20,9 @@ import { whereItPlays } from './player/session';
 import { useVolumeSlider } from './player/volume';
 import NowPlaying, { SystemVolumeSlider } from '../modules/now-playing';
 import {
-  SheetAction, SheetField, SheetFrame, SheetInfo, SheetNote, SheetRows, SheetRow, SheetScroll, SheetSlider, SheetSystemVolume, TrackSummary,
+  SheetAction, SheetFacts, SheetField, SheetFrame, SheetInfo, SheetNote, SheetRows, SheetRow, SheetScroll, SheetSlider, SheetSystemVolume, TrackSummary,
 } from './SheetUI';
+import { trackInfoNote, trackInfoSections } from './player/trackInfo';
 import { DETACHED_SYMBOL, detachedHeader, hasQueueToBring, moveFailure, separateRows } from './player/detach';
 import { announce } from './inlineFeedback';
 import { playlistAddFailure } from './library/failures';
@@ -163,6 +164,24 @@ export function TrackActionSheet({ id, albumId, playlistId, itemId }: { id: stri
           run(action);
         }} />)}
       </SheetRows>
+    </Sheet>
+  );
+}
+
+/**
+ * Track info for the song playing: where it plays, its file, how it reaches that device (the
+ * file as it is, or a transcode and why) and the normalization applied. The audio facts are the
+ * playing device's own report, so a phone controlling a TV says what the TV plays.
+ */
+export function TrackInfoSheet() {
+  const { track, signal, output, session } = usePlaybackState();
+  const where = { signal, output: session.activeDeviceId ? output : null };
+  const note = trackInfoNote(where);
+  return (
+    <Sheet title="Track info">
+      <TrackSummary track={track} subtitle={track ? [track.artistCredit, track.album?.title].filter(Boolean).join(' · ') : undefined} />
+      {trackInfoSections(where).map(section => <SheetFacts key={section.title} title={section.title} rows={section.rows} />)}
+      {note && <SheetNote>{note}</SheetNote>}
     </Sheet>
   );
 }

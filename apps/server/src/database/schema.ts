@@ -76,6 +76,12 @@ export type FileTags = {
   mbArtistIds?: string[]
   mbAlbumArtistIds?: string[]
   hasLyrics?: boolean
+  /** Tempo a tagger or DJ software wrote (`TBPM`, `BPM`, MP4 `tmpo`). */
+  bpm?: number
+  /** Musical key as written (`TKEY`, `INITIALKEY`): "Am", "F#", "8A" or "1m". `sonic/keys.ts` reads it. */
+  key?: string
+  /** Mood tags (`TMOO`, `MOOD`), as written. */
+  moods?: string[]
   credits?: { name: string; role: CreditRole; instrument?: string }[]
   work?: string
   movementName?: string
@@ -211,6 +217,7 @@ export const artists = pgTable('artists', {
 }, (t) => [
   uniqueIndex('artists_mbid').on(t.mbid),
   index('artists_name_key_trgm').using('gin', t.nameKey.op('gin_trgm_ops')),
+  index('artists_name_key_unicode').using('gin', sql`search_unicode_bigrams(${t.nameKey})`),
   index('artists_name_key').on(t.nameKey),
   // Prefix search (modules/search): byte order, so a range scan finds every name starting with the query.
   index('artists_name_key_prefix').on(sql`${t.nameKey} collate "C"`),
@@ -290,6 +297,7 @@ export const albums = pgTable('albums', {
   index('albums_match_key').on(t.matchKey),
   // Search (modules/search): fuzzy "artist title" queries, and title prefixes in byte order.
   index('albums_match_key_trgm').using('gin', t.matchKey.op('gin_trgm_ops')),
+  index('albums_match_key_unicode').using('gin', sql`search_unicode_bigrams(${t.matchKey})`),
   index('albums_title_key_prefix').on(sql`${t.titleKey} collate "C"`),
   index('albums_primary_artist').on(t.primaryArtistId),
   index('albums_edition_of').on(t.editionOfId).where(sql`${t.editionOfId} is not null`),
@@ -368,6 +376,7 @@ export const recordings = pgTable('recordings', {
   index('recordings_title_key_trgm').using('gin', t.titleKey.op('gin_trgm_ops')),
   index('recordings_match_key').on(t.matchKey),
   index('recordings_match_key_trgm').using('gin', t.matchKey.op('gin_trgm_ops')),
+  index('recordings_match_key_unicode').using('gin', sql`search_unicode_bigrams(${t.matchKey})`),
   index('recordings_title_key_prefix').on(sql`${t.titleKey} collate "C"`),
   index('recordings_album_hint').on(t.albumHintId),
   index('recordings_isrcs').using('gin', t.isrcs),
@@ -468,7 +477,7 @@ export const lyrics = pgTable('lyrics', {
   source: text('source').notNull(),
   language: text('language'),
   fetchedAt: at('fetched_at').notNull().defaultNow(),
-})
+}, (t) => [index('lyrics_search').using('gin', sql`to_tsvector('simple', search_lyric_text(${t.plain}, ${t.synced}))`).where(sql`not ${t.instrumental}`)])
 
 // ---------------------------------------------------------------------------
 // Library: files on disk and everything derived from them.
@@ -515,6 +524,11 @@ export const mediaFiles = pgTable('media_files', {
   // Measured loudness (EBU R128). Null until the loudness job has run.
   loudnessLufs: real('loudness_lufs'),
   truePeakDb: real('true_peak_db'),
+  // Frames per channel after source trimming, at the decoder's sample rate.
+  decodedFrames: bigint('decoded_frames', { mode: 'number' }),
+  decodedRate: integer('decoded_rate'),
+  primingFrames: integer('priming_frames'),
+  paddingFrames: integer('padding_frames'),
   // ReplayGain values read from the file's own tags, when present.
   tagTrackGainDb: real('tag_track_gain_db'),
   tagTrackPeak: real('tag_track_peak'),
@@ -625,6 +639,51 @@ export const releaseLoudness = pgTable('release_loudness', {
   truePeakDb: real('true_peak_db').notNull(),
   fileCount: integer('file_count').notNull(),
   computedAt: at('computed_at').notNull().defaultNow(),
+})
+
+/**
+ * Sonic analysis of one file (`modules/sonic`): tempo, key, energy and the timbre vector
+ * radio compares tracks with. A row also records that the file's tempo, key and mood tags
+ * were read (`version` null: tags only, analysis off). Redone when the file's audio hash
+ * or the analysis version changes.
+ */
+export const sonicAnalyses = pgTable('sonic_analyses', {
+  fileId: uuid('file_id').primaryKey().references(() => mediaFiles.id, { onDelete: 'cascade' }),
+  /** The file's audio hash when it was analysed. */
+  audioHash: text('audio_hash'),
+  /** `ANALYSIS_VERSION` of the code that analysed it; null when only its tags were read. */
+  version: smallint('version'),
+  /** Why the analysis failed. Not retried until the version changes or the audio does. */
+  error: text('error'),
+  analyzedMs: integer('analyzed_ms'),
+  bpm: real('bpm'),
+  bpmConfidence: real('bpm_confidence'),
+  beatOffsetMs: integer('beat_offset_ms'),
+  /** Pitch class of the tonic, 0 = C. */
+  key: smallint('key'),
+  mode: text('mode').$type<'major' | 'minor'>(),
+  keyStrength: real('key_strength'),
+  tuningCents: smallint('tuning_cents'),
+  levelDb: real('level_db'),
+  dynamicRangeDb: real('dynamic_range_db'),
+  onsetRate: real('onset_rate'),
+  centroidHz: real('centroid_hz'),
+  energy: real('energy'),
+  danceability: real('danceability'),
+  audibleStartMs: integer('audible_start_ms'),
+  audibleEndMs: integer('audible_end_ms'),
+  introEndMs: integer('intro_end_ms'),
+  outroStartMs: integer('outro_start_ms'),
+  /** Raw timbre descriptors in `VECTOR_LAYOUT` order; similarity standardizes them over the library. */
+  vector: real('vector').array(),
+  analyzedAt: at('analyzed_at').notNull().defaultNow(),
+})
+
+/** What other sources say about a recording's sound: Deezer's tempo, for files nothing else describes. */
+export const sonicHints = pgTable('sonic_hints', {
+  recordingId: uuid('recording_id').primaryKey().references(() => recordings.id, { onDelete: 'cascade' }),
+  deezerBpm: real('deezer_bpm'),
+  deezerCheckedAt: at('deezer_checked_at'),
 })
 
 /** Albums whose best match scored below the auto-accept threshold. */
@@ -1092,6 +1151,7 @@ export const catalogIndex = pgTable('catalog_index', {
   index('catalog_index_album_head').using('gin', t.nameKey.op('gin_trgm_ops')).where(sql`kind = 'album' and head`),
   index('catalog_index_recording_head').using('gin', t.nameKey.op('gin_trgm_ops')).where(sql`kind = 'recording' and head`),
   index('catalog_index_prefix').on(t.kind, sql`(${t.nameKey} collate "C")`),
+  // Unicode and composite indexes are owned by the catalog-index importer and upgrade job.
 ])
 
 /**

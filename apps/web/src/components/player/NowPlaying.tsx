@@ -1,6 +1,6 @@
 import { contextLabel } from '@squirmy/client-core'
 import type { Artwork } from '@squirmy/contracts'
-import { ChevronDown, ListMusic, MessageSquareQuote, MonitorSpeaker } from 'lucide-react'
+import { ChevronDown, Info, ListMusic, MessageSquareQuote, MonitorSpeaker } from 'lucide-react'
 import { Dialog as DialogPrimitive } from 'radix-ui'
 import { useRef, useState } from 'react'
 import { ArtistLinks } from '@/components/music/ArtistLinks'
@@ -19,6 +19,7 @@ import { PlayerStatusLine } from './PlayerStatus'
 import { QueueContent } from './Queue'
 import { SleepTimerButton } from './SleepTimer'
 import { SongMenuButton } from './SongMenu'
+import { QualityBadge, TrackInfoDialog } from './TrackInfo'
 import { SeekBar, TransportButtons, VolumeControl } from './Transport'
 import { useNowPlayingWheel } from './use-now-playing-wheel'
 import './now-playing.css'
@@ -94,6 +95,8 @@ export function NowPlaying({ open, onOpenChange, pane, onPaneChange }: NowPlayin
 function NowPlayingContent({ pane, onPaneChange, onOpenChange }: Omit<NowPlayingProps, 'open'>) {
   const player = usePlayer()
   const { state, controls } = player
+  const [info, setInfo] = useState(false)
+  const infoEntries = [{ kind: 'separator' as const }, { label: 'Track info', icon: <Info />, onSelect: () => setInfo(true) }]
   const library = useLibrary()
   const artUrl = useArtUrl()
   const item = state.current
@@ -166,9 +169,9 @@ function NowPlayingContent({ pane, onPaneChange, onOpenChange }: Omit<NowPlaying
             </div>
             {/* Named after the song, as in the player bar: never the page's own heart. */}
             {item && <SaveHeart id={item.track.id} liked={item.track.liked} onToggle={onToggleLike} title={item.track.title} size="lg" className="max-md:size-11 pointer-coarse:size-11" />}
-            {item && <SongMenuButton track={item.track} onNavigate={() => onOpenChange(false)} size="lg" className="-ml-2 text-foreground max-md:size-11 pointer-coarse:size-11" />}
+            {item && <SongMenuButton track={item.track} onNavigate={() => onOpenChange(false)} extraMenu={infoEntries} size="lg" className="-ml-2 text-foreground max-md:size-11 pointer-coarse:size-11" />}
           </div>
-          <SeekBar stacked durationMs={item?.entry.durationMs ?? 0} onSeek={controls.seek} disabled={!item || hostControls(player.state)} />
+          <SeekBar stacked durationMs={item?.entry.durationMs ?? 0} onSeek={controls.seek} disabled={!item || hostControls(player.state)} center={<QualityBadge signal={state.signal} onOpen={() => setInfo(true)} />} />
           <div className="mt-1 flex flex-col items-center gap-3 md:flex-row md:justify-between short-landscape:flex-col!">
             <div className="order-2 flex gap-8 md:order-1 md:w-40 md:gap-1 short-landscape:order-2! short-landscape:w-auto! short-landscape:gap-8!">
               <IconButton label={pane === 'lyrics' ? 'Hide lyrics' : 'Show lyrics'} aria-controls="now-playing-lyrics" pressed={pane === 'lyrics'} onClick={() => toggle('lyrics')} className="max-md:size-11 pointer-coarse:size-11"><MessageSquareQuote /></IconButton>
@@ -182,6 +185,7 @@ function NowPlayingContent({ pane, onPaneChange, onOpenChange }: Omit<NowPlaying
         <NowPlayingStage player={player} pane={pane} artwork={artwork} onClose={() => onOpenChange(false)} />
 
       </div>
+      <TrackInfoDialog player={player} open={info} onOpenChange={setInfo} />
     </>
   )
 }

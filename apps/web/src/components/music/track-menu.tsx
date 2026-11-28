@@ -1,5 +1,5 @@
 import type { CreditRole, TrackSummary } from '@squirmy/contracts'
-import { ArrowDown, ArrowUp, Disc3, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, Users, Plus, Radio, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, AudioWaveform, Disc3, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, Plus, Radio, Trash2, Users } from 'lucide-react'
 import type { MenuEntry } from '@/components/ui/menu'
 import { librarySaveEntry, wantEntry } from './library-save-entry'
 import type { PlaylistChoice, TrackAction } from './TrackList'
@@ -53,7 +53,7 @@ export function trackCreditEntries(track: TrackSummary, navigate: TrackMenuOptio
 
 /**
  * A song's menu, the same wherever a song is listed (track lists, search results): on a touch
- * screen its whole title and credit, then play next, queue, playlists, radio, saving it (the heart), the Wantlist, its album and artists.
+ * screen its whole title and credit, then play next, queue, playlists, the radios, saving it (the heart), the Wantlist, its album and artists.
  */
 export function trackMenuEntries(track: TrackSummary, { unavailable, wanted, playlists, act, navigate, extraMenu, reorder, onAlbumPage = false, queued }: TrackMenuOptions): MenuEntry[] {
   const playNext: MenuEntry[] = queued && queued.index === 0 ? [] : [{ label: 'Play next', icon: <ListStart />, onSelect: () => act('play-next'), done: 'Playing next', disabled: unavailable }]
@@ -78,6 +78,8 @@ export function trackMenuEntries(track: TrackSummary, { unavailable, wanted, pla
       ],
     }] : []),
     { label: 'Start radio', icon: <Radio />, onSelect: () => act('radio'), disabled: unavailable },
+    // Leans on how the song sounds (the server's sonic analysis) more than on who made it.
+    { label: 'Songs that sound like this', icon: <AudioWaveform />, onSelect: () => act('sonic-radio'), disabled: unavailable },
     { kind: 'separator' },
     librarySaveEntry(track, () => act('like')),
     // Undefined `wanted` means the server has the wantlist off. It is for music that does not play.

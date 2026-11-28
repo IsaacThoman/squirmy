@@ -8,6 +8,8 @@ A client asks the server how to play a track and gets back a signed URL, valid f
 
 When an album has several files for the same track, the server picks the file on the album being played first, then lossless over lossy, then the higher bitrate.
 
+When the server has measured the original file, its playback descriptor includes the exact decoded frame count, sample rate and source priming. Clients that use those values can identify the track's exact boundary.
+
 ### Quality and transcoding
 
 Each user picks a streaming quality in **Settings → Playback** (web) or **Settings → Streaming Quality** (iOS): one for Wi-Fi and the browser (default **Original**), one for cellular on iOS (default **High**).
@@ -20,19 +22,25 @@ Each user picks a streaming quality in **Settings → Playback** (web) or **Sett
 
 Each client says which formats it decodes. The iOS app lists FLAC, ALAC, AAC, MP3, WAV and AIFF, so an Opus, Ogg Vorbis or WMA file is converted to AAC for it even at **Original**.
 
-Conversions are done with ffmpeg and sent while they are encoded, so playback starts after a moment rather than after the whole file. At most half the CPU cores (at least two) encode at once. Subsonic apps can also ask for MP3 at 320 or 192 kbps; see [Subsonic clients](./subsonic.md#streaming-and-transcoding).
+Conversions are done with ffmpeg and sent as they are encoded, so playback can start while the rest of the file is being converted. The server reserves at most half the CPU cores (at least two) for encoders, with up to four concurrent conversions started by each user. New playback gets priority over preloading, cache fills and downloads. If a download or cache fill is interrupted to make room for playback, its conversion starts over when requested again. Subsonic apps can also ask for MP3 at 320 or 192 kbps. See [Subsonic clients](./subsonic.md#streaming-and-transcoding).
+
+### Seeing what plays
+
+Now Playing shows a **Lossless** badge while the device playing receives a lossless file as it is, and **Hi-Res Lossless** when that file is above 48 kHz or 16-bit. A lossy stream has no badge, and neither has a lossless file converted on its way (by **High**, **Data saver**, or a device that can't play its format). The badge and **Track info** in the song's menu open the song's details: its file (format, sample rate, bit depth, bitrate, channels, size), what the device receives (the file as it is, or a conversion and why), the volume normalization applied, and the device playing. Each device says this itself, so a phone controlling a TV shows what the TV plays. A device running an older version of Squirmy doesn't say, and its listeners see no badge.
 
 ### The transcode cache
 
-Every conversion is kept in `<data>/transcodes/`, so the second play of a track starts at once and seeks like the original. The cache is capped by **Admin → Server settings → Transcoding → Transcode cache** (default 10 GB). Once an hour, the least recently used conversions beyond the cap are deleted, except those played in the last half hour. The folder is safe to delete at any time; it refills as people listen.
+Completed conversions are kept in `<data>/transcodes/`, so the second play of a track starts at once and seeks like the original. If everyone leaves a stream early, the server gives readers up to 10 seconds to reconnect before stopping the conversion. Cache fills, downloads and conversions already at least halfway through the track keep running after a disconnect. The cache is capped by **Admin → Server settings → Transcoding → Transcode cache** (default 10 GB). Once an hour, the least recently used conversions beyond the cap are deleted, except those played in the last half hour. The folder is safe to delete at any time and refills as people listen.
 
 ## Loudness normalization
 
 Albums are mastered at very different levels. Normalization evens them out so you do not reach for the volume between songs.
 
-**What is measured.** Each file's integrated loudness and true peak are measured with ffmpeg's EBU R128 filter, in the background at low priority. The server decodes the tracks of an album one at a time into a continuous measurement. The album true peak is the highest of the track true peaks. Until a measurement is available, the server uses the file's ReplayGain tags when present. The target is -18 LUFS, the ReplayGain reference.
+**What is measured.** Each file's integrated loudness and true peak are measured with ffmpeg's EBU R128 filter, in the background at low priority. The same decode records the exact number of audio frames and the source's encoder delay and trailing padding as reported by ffmpeg. The server decodes the tracks of an album one at a time into a continuous measurement. The album true peak is the highest of the track true peaks. The target is -18 LUFS, the ReplayGain reference.
 
-**Decode failures.** After retries, the server records the error for the file and clears its measured track and album gains. The next scan that detects a change to the file retries measurement. Check the failed `loudness.measure` job when investigating an unreadable file.
+**While a file awaits measurement.** The server uses its ReplayGain tags when present. Without tagged gains, the track gain is estimated from the median track gain of the library, when available. Streaming the track moves its measurement ahead of the background queue. Playback descriptors requested after measurement carry the track's own gain.
+
+**Decode failures.** After retries, the server records the error for the file and clears its measured gains and exact length, along with its release's album measurement. The next scan that detects a change to the file retries measurement. Check the failed `loudness.measure` job when investigating an unreadable file.
 
 **The modes**, per user in **Settings → Playback → Volume normalization** (web) or **Normalize Volume** (iOS):
 
@@ -47,7 +55,7 @@ Albums are mastered at very different levels. Normalization evens them out so yo
 
 ## Listening history
 
-Squirmy records app plays with less than five seconds of listening as early skips when the play closes. They stay out of listening history, Home's Recently played and Most played, and scrobbles. Radio and Autoplay slightly lower a track's ranking if you skipped it early at least twice in the past 30 days.
+Squirmy records app plays with less than five seconds of listening as early skips when the play closes. They stay out of listening history, Home's Recently played and Most played, and scrobbles. Radio and Autoplay slightly lower a track's ranking if you skipped it early at least twice in the past 30 days. They also use the [sonic analysis](./sonic-analysis.md#how-radio-uses-it) to keep to songs that sound alike and to let tempo, key and energy flow.
 
 Home's **Most played** counts the past 90 days of plays that reached half the song or four minutes, whichever came first. Scrobbles use the same listening threshold.
 
