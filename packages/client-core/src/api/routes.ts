@@ -69,6 +69,7 @@ export const apiRoutes = {
   'catalog.album': 'GET /albums/:id',
   'catalog.track': 'GET /tracks/:id',
   'catalog.lyrics': 'GET /tracks/:id/lyrics',
+  'catalog.sonic': 'GET /tracks/:id/sonic',
   'catalog.trackSummaries': 'POST /tracks/summaries',
 
   'streaming.playback': 'GET /tracks/:id/playback',
@@ -110,6 +111,8 @@ export const apiRoutes = {
 
   'radio.track': 'POST /radio/track/:id',
   'radio.artist': 'POST /radio/artist/:id',
+  'radio.mix': 'GET /mixes/:id',
+  'radio.sonic': 'POST /radio/sonic/:id',
 
   'imports.list': 'GET /imports',
   'imports.options': 'GET /imports/options',

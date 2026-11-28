@@ -2,6 +2,8 @@ import type { CatalogIndexImport, CatalogIndexStatus } from '@squirmy/contracts'
 import { desc, eq } from 'drizzle-orm'
 import { db, getSql } from '../../database/client.js'
 import { catalogIndexImports } from '../../database/schema.js'
+import { conflict } from '../../lib/errors.js'
+import { catalogSearchUpgradeState, catalogUpgradeLock } from './indexes.js'
 
 function toImport(row: typeof catalogIndexImports.$inferSelect): CatalogIndexImport {
   return {
@@ -33,6 +35,7 @@ export async function getCatalogIndexStatus(): Promise<CatalogIndexStatus> {
     importedAt: active?.finishedAt?.toISOString() ?? null,
     counts: { artists: active?.artists ?? 0, albums: active?.albums ?? 0, recordings: active?.recordings ?? 0 },
     sizeBytes: Number(size?.bytes ?? 0),
+    searchUpgrade: active ? await catalogSearchUpgradeState() : null,
     active: active ? toImport(active) : null,
     latest: latest && latest.id !== active?.id ? toImport(latest) : null,
   }
@@ -41,6 +44,10 @@ export async function getCatalogIndexStatus(): Promise<CatalogIndexStatus> {
 /** Empties the index and marks it dropped. Search reports not ready until the next import. */
 export async function dropCatalogIndex() {
   await getSql().begin(async (sql) => {
+    // An exclusive table lock waiting behind a concurrent build would block new search reads.
+    const [row] = await sql<{ locked: boolean }[]>`
+      select pg_try_advisory_xact_lock(hashtext(${catalogUpgradeLock})) as locked`
+    if (!row?.locked) throw conflict('Search index maintenance is running. Try removing the index again after the current build.', 'catalog_index_maintenance_running')
     await sql`truncate catalog_index`
     await sql`update catalog_index_imports set state = 'dropped' where state = 'active'`
   })

@@ -54,6 +54,8 @@ export const CatalogIndexStatus = z.object({
   counts: z.object({ artists: z.number().int(), albums: z.number().int(), recordings: z.number().int() }),
   /** Disk used by the index table and its indexes. */
   sizeBytes: z.number().int(),
+  /** Unicode and composite search indexes for the active import, if any. */
+  searchUpgrade: z.enum(['pending', 'building', 'ready']).nullable().optional(),
   /** The import in use, if any. */
   active: CatalogIndexImport.nullable(),
   /** The newest import when it is not the active one: running, interrupted, failed or cancelled. */
