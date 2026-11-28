@@ -9,6 +9,7 @@ import { memo, useCallback, useMemo, useState } from 'react';
 import { Platform, useWindowDimensions } from 'react-native';
 import { useSharingEnabled, useWantlistEnabled } from '../account/AccountProvider';
 import { useLiked, useLikeFailure, useWanted, useWantFailure } from '../data/library';
+import { useRatingsEnabled } from '../data/queries';
 import { useRealtime } from '../data/realtime';
 import { useCanPlay, useTrackDownload, useViewer } from '../downloads/DownloadsProvider';
 import { downloadSymbol, unavailableReason } from '../downloads/model';
@@ -130,6 +131,7 @@ const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
   const loading = useTrackLoading(track.id);
   const wantlist = useWantlistEnabled();
   const sharing = useSharingEnabled();
+  const ratings = useRatingsEnabled();
   const wanted = useWanted(track.id);
   const wantFailure = useWantFailure(track.id);
   const viewer = useViewer();
@@ -143,7 +145,7 @@ const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
   const rowFrame = measuresRows ? frame({ minHeight: rowHeight }) : frame({ height: rowHeight });
   const options = { playlist: playlist && { ...playlist, onRemove: handlers.remove }, album, artist };
   // Described from what the row already reads; nothing runs until an item is chosen.
-  const actions = trackActions(track, { liked, likeFailure, playable, offline, current: playing, download, onItsOwn, wantlist, wanted, wantFailure, viewer, sharing }, options);
+  const actions = trackActions(track, { liked, likeFailure, playable, offline, current: playing, download, onItsOwn, wantlist, wanted, wantFailure, viewer, sharing, ratings }, options);
   const heart = heartButton(liked, track.title, likeFailure);
   const perform = (action: TrackAction) => run(track, action, options);
 

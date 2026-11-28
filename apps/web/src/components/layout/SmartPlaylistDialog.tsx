@@ -1,4 +1,8 @@
 import { CreatePlaylistRequest, type PlaylistDetail, type SmartField, type SmartPlaylistRules } from '@squirmy/contracts'
+import {
+  booleanOptions, decadeOptions, emptyDraft, fieldInfo, fieldOptions, isDraftGroup, matchOptions, newCondition, newGroup, operatorOptions, sortOptions,
+  sourceOptions, toDraft, toRules, unitOptions, withField, type Draft, type DraftCondition, type DraftGroup, type DraftRule,
+} from '@squirmy/client-core'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { ListPlus, Plus, X } from 'lucide-react'
 import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
@@ -13,10 +17,6 @@ import { Switch } from '@/components/ui/switch'
 import { plural, formatTotalDuration } from '@/lib/format'
 import { useDebounced } from '@/lib/use-debounced'
 import { cn } from '@/lib/utils'
-import {
-  booleanOptions, decadeOptions, emptyDraft, fieldInfo, fieldOptions, isDraftGroup, matchOptions, newCondition, newGroup, operatorOptions, sortOptions,
-  sourceOptions, toDraft, toRules, unitOptions, withField, type Draft, type DraftCondition, type DraftGroup, type DraftRule,
-} from './smart-rules'
 
 type SmartPlaylistDialogProps = {
   open: boolean

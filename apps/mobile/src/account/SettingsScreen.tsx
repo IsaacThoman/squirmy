@@ -9,7 +9,7 @@ import { StorageSection } from '../streamingCache/StorageSection';
 import { createThemedStyles, useColors } from '../theme';
 import {
   explicitLabel, explicitNote, explicitRestrictedNote, lastFmAdminNote, normalizationNote, normalizationOptions, normalizationTarget,
-  openListenBrainzSettings, qualityNote, qualityOptions, scrobbleDetail, scrobbleFooter, serverMusicLabel, serverMusicNote, shareNowPlayingLabel,
+  openListenBrainzSettings, qualityNote, qualityOptions, ratingsLabel, ratingsNote, scrobbleDetail, scrobbleFooter, serverMusicLabel, serverMusicNote, shareNowPlayingLabel,
   shareNowPlayingNote, targetOptions, useSettingsScreen,
 } from './settings';
 
@@ -53,6 +53,11 @@ export function SettingsScreen() {
             onPress={() => screen.setLibraryIncludesServerMusic(!settings.libraryIncludesServerMusic)} />
         </SheetRows>
         <Text style={styles.note}>{serverMusicNote}</Text>
+        <SheetRows>
+          <SheetRow title={ratingsLabel} icon="star" selected={settings.showRatings ?? false}
+            onPress={() => screen.setShowRatings(!settings.showRatings)} />
+        </SheetRows>
+        <Text style={styles.note}>{ratingsNote}</Text>
         <SheetRows>
           {/* Shown off and inert while an admin keeps explicit content off for the account. */}
           <SheetRow title={explicitLabel} icon="e.square.fill" selected={screen.allowExplicit}
