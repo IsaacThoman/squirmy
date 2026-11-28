@@ -244,6 +244,15 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       }
       status.show({ message, tone: 'info', key: UNDO_STATUS, action: { label: 'Undo', run } }, STATUS_UNDO_MS)
     }
+    /**
+     * In someone's jam only the host chooses what plays: what would (a radio, a queued song picked)
+     * says so rather than doing nothing. Buttons for it are dimmed; this is for menus and the like.
+     */
+    const hostChooses = () => {
+      if (!followsJam(latest().session)) return false
+      status.show({ message: 'Only the host can choose what plays', detail: 'You can still add songs to the queue if they let everyone.', tone: 'error', key: ACTION_STATUS }, STATUS_ERROR_MS)
+      return true
+    }
     return {
       togglePlay: () => {
         // The player shows Play while the browser holds the audio back, so pressing it plays.
@@ -253,6 +262,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       next: () => dispatch({ type: 'next' }),
       previous: () => dispatch({ type: 'previous' }),
       seek: positionMs => {
+        // The jam's host seeks; this device keeps to the jam's clock (a lyric line pressed included).
+        if (followsJam(latest().session)) return
         listening.seek(Math.max(0, Math.round(positionMs)))
         clock.sync()
       },
@@ -299,6 +310,18 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       enqueue: (tracks, placement, toIndex) => {
         const seeds = tracks.filter(playable).slice(0, MAX_SEEDS).map(seedOf)
         if (!seeds.length) return
+        const { session } = latest()
+        if (followsJam(session)) {
+          // A member adds where the jam's policy lets them, and only at either end: moving songs is the host's.
+          if (session.jam?.queuePolicy !== 'everyone') {
+            return status.show({ message: 'Only the host adds songs', detail: 'They chose who can add songs.', tone: 'error', key: ACTION_STATUS }, STATUS_ERROR_MS)
+          }
+          store.prime(tracks)
+          const next = toIndex === 0 || (toIndex === undefined && placement === 'next')
+          dispatch({ type: 'enqueue', tracks: seeds, placement: next ? 'next' : 'last' })
+          const first = tracks.find(playable)!
+          return status.show({ message: seeds.length > 1 ? `Added ${seeds.length} songs for everyone` : `Added “${first.title}” for everyone`, tone: 'info', key: ACTION_STATUS }, STATUS_EVENT_MS)
+        }
         store.prime(tracks)
         const before = shown(latest().queue.queue)
         const at = toIndex === undefined ? undefined : Math.max(0, Math.min(toIndex, before.length))
@@ -333,8 +356,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
           }
         })
       },
-      startRadio,
+      startRadio: seed => {
+        if (!hostChooses()) startRadio(seed)
+      },
       playEntry: entryId => {
+        if (hostChooses()) return
         const { queue: lists } = latest()
         const past = lists.history.find(entry => entry.id === entryId)
         if (!past) dispatch({ type: 'playQueueEntry', entryId })
@@ -358,11 +384,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         if (target) dispatch({ type: 'moveInQueue', entryId, toIndex: list.indexOf(target) })
       },
       clearQueue: () => {
+        if (followsJam(latest().session)) return
         if (latest().queue.queue.length) undoable({ type: 'clearQueue' }, 'Queue cleared')
         else dispatch({ type: 'clearQueue' })
       },
       clearHistory: () => {
-        if (!latest().queue.history.length) return
+        if (followsJam(latest().session) || !latest().queue.history.length) return
         dispatch({ type: 'clearHistory' })
         status.show({ message: 'History cleared', tone: 'info', key: ACTION_STATUS }, STATUS_EVENT_MS)
       },

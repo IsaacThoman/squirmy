@@ -43,7 +43,7 @@ export function LeanBack({ player, onExit, onNavigate }: LeanBackProps) {
     }
   }
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'Enter' || event.target !== root.current || !item) return
+    if (event.key !== 'Enter' || event.target !== root.current || !item || hostControls(player.state)) return
     event.preventDefault()
     controls.togglePlay()
   }

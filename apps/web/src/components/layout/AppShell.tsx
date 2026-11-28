@@ -13,7 +13,7 @@ import { usePreloadNextArtwork } from '@/components/player/use-next-artwork'
 import { SettingsDialogContext, type SettingsOpenOptions, type SettingsSection } from '@/components/settings/settings-dialog'
 import { cn } from '@/lib/utils'
 import { useLibrary } from '@/player/library-context'
-import { usePlayer } from '@/player/player-context'
+import { hostControls, usePlayer } from '@/player/player-context'
 import { letterIsTaken } from '@/player/shortcuts'
 import { BackBreadcrumb } from './BackBreadcrumb'
 import { ErrorBoundary } from './ErrorBoundary'
@@ -482,8 +482,9 @@ function ShellShortcuts({ commands, onSearch }: { commands: ShellCommands; onSea
       const deviceId = state.activeDeviceId ?? state.thisDeviceId
       const run: Record<string, (() => void) | undefined> = {
         m: () => toggleMute(state.volume, deviceId, volume => controls.setVolume(volume)),
-        s: () => controls.setShuffle(!state.shuffle),
-        r: controls.cycleRepeat,
+        // The host's in a jam this user follows, as their buttons are.
+        s: hostControls(state) ? undefined : () => controls.setShuffle(!state.shuffle),
+        r: hostControls(state) ? undefined : controls.cycleRepeat,
         l: track && (() => void library.setSaved({ type: 'track', id: track.id, title: track.title }, !track.liked)),
         q: commands.toggleQueue,
         y: track && commands.toggleLyrics,
