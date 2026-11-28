@@ -322,16 +322,17 @@ describe('adding to a playlist', () => {
   })
 })
 
-describe('collection header playback', () => {
+describe('collection menu playback', () => {
   it.each([
     ['Play', undefined],
     ['Shuffle', true],
-  ] as const)('starts a playlist with %s', async (action, shuffle) => {
+  ] as const)('starts a playlist from its menu with %s', async (action, shuffle) => {
     const { services, socket } = fakeServices()
     const playlist = playlistDetail('00000000-0000-4000-8400-000000000001')!
     renderWithApp(<AppRoutes />, `/playlist/${playlist.id}`, services)
     const header = (await screen.findByRole('heading', { name: playlist.name })).closest('header')!
-    await userEvent.click(within(header).getByRole('button', { name: action }))
+    await userEvent.click(within(header).getByRole('button', { name: 'More options' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: action }))
     await waitFor(() => expect(socket.commands).toContainEqual(expect.objectContaining({
       type: 'playTracks', startedFrom: 'collection', shuffle,
       context: { type: 'playlist', id: playlist.id, title: playlist.name },
@@ -346,7 +347,8 @@ describe('collection header playback', () => {
     )) as never)
     renderWithApp(<AppRoutes />, '/liked', services)
     const header = (await screen.findByRole('heading', { name: 'Liked Songs' })).closest('header')!
-    await userEvent.click(within(header).getByRole('button', { name: 'Shuffle' }))
+    await userEvent.click(within(header).getByRole('button', { name: 'More options' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Shuffle' }))
     await waitFor(() => expect(socket.commands).toContainEqual(expect.objectContaining({
       type: 'playTracks', startedFrom: 'collection', shuffle: true,
       tracks: expect.arrayContaining([{ trackId: rest[0]!.id, albumId: rest[0]!.album?.id ?? null, durationMs: rest[0]!.durationMs, state: 'ready' }]),

@@ -75,7 +75,7 @@ describe('personal home', () => {
 })
 
 describe('mix page', () => {
-  it('shows the mix read-only and shuffles it from its header', async () => {
+  it('shows the mix read-only and shuffles it from its menu', async () => {
     const fake = fakeServices()
     const mix = mixes[0]!
     renderWithApp(<AppRoutes />, `/mix/${mix.id}`, fake.services)
@@ -88,9 +88,8 @@ describe('mix page', () => {
     expect(screen.queryByRole('button', { name: /^Move/ })).toBeNull()
     await userEvent.click(screen.getByRole('button', { name: 'More options' }))
     expect(await screen.findByRole('menuitem', { name: 'Add to queue' })).toBeInTheDocument()
-    expect(screen.queryByRole('menuitem', { name: 'Shuffle' })).toBeNull()
-    await userEvent.keyboard('{Escape}')
-    await userEvent.click(within(heading.closest('header')!).getByRole('button', { name: 'Shuffle' }))
+    expect(within(heading.closest('header')!).queryByRole('button', { name: 'Shuffle' })).toBeNull()
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Shuffle' }))
     await waitFor(() => expect(fake.socket.commands.find(command => command.type === 'playTracks')).toMatchObject({
       context: { type: 'mix', id: mix.id, title: mix.name },
       shuffle: true,
