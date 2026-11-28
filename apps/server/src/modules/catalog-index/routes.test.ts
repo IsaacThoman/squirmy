@@ -61,7 +61,7 @@ describe('catalog index admin routes', () => {
   it('reports an empty index before the first import', async () => {
     expect(await status()).toEqual({
       ready: false, dumpDate: null, importedAt: null, counts: { artists: 0, albums: 0, recordings: 0 },
-      sizeBytes: expect.any(Number), active: null, latest: null,
+      sizeBytes: expect.any(Number), searchUpgrade: null, active: null, latest: null,
     })
   })
 
@@ -73,6 +73,7 @@ describe('catalog index admin routes', () => {
     const current = await status()
     expect(current).toMatchObject({
       ready: true,
+      searchUpgrade: 'ready',
       dumpDate: '2026-11-17T08:00:03.201Z',
       counts: { artists: 9, albums: 11 },
       active: { state: 'active', source: dump, recordingsPerArtist: 1000, error: null },

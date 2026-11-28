@@ -93,7 +93,8 @@ import {
   type RematchAlbumRequest,
   type ResolveReviewRequest,
   ScanRootResponse,
-  type SearchKind,
+  type SearchFacets,
+  type SearchResultKind,
   SearchResults,
   ScrobblingStatus,
   ServerSettings,
@@ -235,7 +236,7 @@ type Input<T extends z.ZodType> = z.input<T>
 const DeviceList = page(DeviceInfo)
 const JobList = z.array(JobQueueStats)
 const likedPages = { track: TrackPage, album: AlbumPage, artist: ArtistPage } as const
-type SearchParams = { q: string; limit?: number; type?: SearchKind; offset?: number; scope?: 'library' | 'server' }
+type SearchParams = SearchFacets & { q: string; limit?: number; type?: SearchResultKind; offset?: number; scope?: 'library' | 'server' }
 type LikedItems = { track: TrackSummary; album: AlbumSummary; artist: ArtistSummary }
 
 /**

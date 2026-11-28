@@ -157,11 +157,11 @@ describe('userdata', () => {
     it('creates, lists, reads and updates playlists with owner-only changes', async () => {
       const mine = await create(mira, { name: 'Morning', description: 'Slow start' })
       expect(mine).toMatchObject({ name: 'Morning', description: 'Slow start', ownerId: mira.id, ownerName: 'mira', isPublic: false, trackCount: 0, durationMs: 0, artworks: [] })
-      expect(invalidated).toHaveBeenCalledWith({ user: mira.id }, [queryKeys.playlists(), queryKeys.libraryItems(), queryKeys.home()])
+      expect(invalidated).toHaveBeenCalledWith({ user: mira.id }, [queryKeys.playlists(), queryKeys.libraryItems(), queryKeys.home(), queryKeys.search()])
       invalidated.mockClear()
       const shared = await create(lune, { name: 'Shared', isPublic: true })
       // Everyone refreshes the list once, the owner included (they are in 'all' too).
-      expect(invalidated.mock.calls).toEqual([[[{ user: lune.id }, 'all'], [queryKeys.playlists(), queryKeys.libraryItems()]], [{ user: lune.id }, [queryKeys.home()]]])
+      expect(invalidated.mock.calls).toEqual([[[{ user: lune.id }, 'all'], [queryKeys.playlists(), queryKeys.libraryItems(), queryKeys.search()]], [{ user: lune.id }, [queryKeys.home()]]])
       const secret = await create(lune, { name: 'Secret' })
 
       const visible = body(await call(mira, { url: '/playlists' }), PlaylistPage).items.map((playlist) => playlist.name)

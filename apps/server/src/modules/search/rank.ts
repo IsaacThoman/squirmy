@@ -39,6 +39,7 @@ export type RankInput = {
   /** For prominence passed along: the credited artists, a song's album. */
   artistIds: string[]
   albumId: string | null
+  albumTitle?: string | null
   /** An album's type: a single gives way to the song of the same name. */
   albumType?: AlbumType | null
   /** The result's place in the list it came from. */
@@ -144,20 +145,24 @@ function artistRelevance(query: string, form: string): number {
   return 0
 }
 
-/** Matches of "artist title" and "title artist" for queries naming both. */
-function pairRelevance(query: string, title: string, artist: string): number {
+/** Matches of a title and a credited artist or release title, in either order. */
+function pairRelevance(query: string, title: string, context: string): number {
   let best = 0
-  for (const pair of [`${artist} ${title}`, `${title} ${artist}`]) {
+  for (const [first, second] of [[context, title], [title, context]] as const) {
+    const pair = `${first} ${second}`
     if (pair === query) return relevance.exact
-    if (withoutArticle(pair) === withoutArticle(query)) best = Math.max(best, relevance.article)
+    const bareFirst = withoutArticle(first)
+    const barePair = `${bareFirst} ${withoutArticle(second)}`
+    const bareQuery = withoutArticle(query)
+    if (barePair === bareQuery) best = Math.max(best, relevance.article)
     // Only a query that goes past the first part is about the pair, not the artist or title alone.
-    const first = pair.startsWith(artist) ? artist : title
-    if ([...query].length > [...first].length + 1 && pair.startsWith(query)) best = Math.max(best, relevance.pairPrefix)
+    if ((query.length > first.length + 1 && pair.startsWith(query))
+      || (bareQuery.length > bareFirst.length + 1 && barePair.startsWith(bareQuery))) best = Math.max(best, relevance.pairPrefix)
   }
   return best
 }
 
-export function matchOf(query: string, item: Pick<RankInput, 'type' | 'name' | 'artistCredit' | 'artistNames'>): { name: number; total: number } {
+export function matchOf(query: string, item: Pick<RankInput, 'type' | 'name' | 'artistCredit' | 'artistNames' | 'albumTitle'>): { name: number; total: number } {
   const key = queryKey(query)
   const titles = forms(item.name)
   let name = 0
@@ -168,6 +173,9 @@ export function matchOf(query: string, item: Pick<RankInput, 'type' | 'name' | '
     for (const artist of artists) {
       total = Math.max(total, artistRelevance(key, artist))
       for (const title of titles) name = Math.max(name, pairRelevance(key, title, artist))
+    }
+    for (const album of forms(item.albumTitle ?? '')) {
+      for (const title of titles) name = Math.max(name, pairRelevance(key, title, album))
     }
     total = Math.max(total, name)
   }
