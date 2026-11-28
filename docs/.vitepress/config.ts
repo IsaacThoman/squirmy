@@ -55,6 +55,7 @@ const sidebar = [
       { text: 'Provider protocol', link: '/provider-protocol' },
       { text: 'Local search index', link: '/local-search-index' },
       { text: 'Detached playback UI', link: '/detached-playback-ui' },
+      { text: 'Audio engine', link: '/audio-engine' },
     ],
   },
 ]
