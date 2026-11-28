@@ -20,11 +20,15 @@ Each user picks a streaming quality in **Settings → Playback** (web) or **Sett
 
 Each client says which formats it decodes. The iOS app lists FLAC, ALAC, AAC, MP3, WAV and AIFF, so an Opus, Ogg Vorbis or WMA file is converted to AAC for it even at **Original**.
 
-Conversions are done with ffmpeg and sent while they are encoded, so playback starts after a moment rather than after the whole file. At most half the CPU cores (at least two) encode at once. Subsonic apps can also ask for MP3 at 320 or 192 kbps; see [Subsonic clients](./subsonic.md#streaming-and-transcoding).
+Conversions are done with ffmpeg and sent as they are encoded, so playback can start while the rest of the file is being converted. The server reserves at most half the CPU cores (at least two) for encoders, with up to four concurrent conversions started by each user. New playback gets priority over preloading, cache fills and downloads. If a download or cache fill is interrupted to make room for playback, its conversion starts over when requested again. Subsonic apps can also ask for MP3 at 320 or 192 kbps. See [Subsonic clients](./subsonic.md#streaming-and-transcoding).
+
+### Seeing what plays
+
+Now Playing shows a **Lossless** badge while the device playing receives a lossless file as it is, and **Hi-Res Lossless** when that file is above 48 kHz or 16-bit. A lossy stream has no badge, and neither has a lossless file converted on its way (by **High**, **Data saver**, or a device that can't play its format). The badge and **Track info** in the song's menu open the song's details: its file (format, sample rate, bit depth, bitrate, channels, size), what the device receives (the file as it is, or a conversion and why), the volume normalization applied, and the device playing. Each device says this itself, so a phone controlling a TV shows what the TV plays. A device running an older version of Squirmy doesn't say, and its listeners see no badge.
 
 ### The transcode cache
 
-Every conversion is kept in `<data>/transcodes/`, so the second play of a track starts at once and seeks like the original. The cache is capped by **Admin → Server settings → Transcoding → Transcode cache** (default 10 GB). Once an hour, the least recently used conversions beyond the cap are deleted, except those played in the last half hour. The folder is safe to delete at any time; it refills as people listen.
+Completed conversions are kept in `<data>/transcodes/`, so the second play of a track starts at once and seeks like the original. If everyone leaves a stream early, the server gives readers up to 10 seconds to reconnect before stopping the conversion. Cache fills, downloads and conversions already at least halfway through the track keep running after a disconnect. The cache is capped by **Admin → Server settings → Transcoding → Transcode cache** (default 10 GB). Once an hour, the least recently used conversions beyond the cap are deleted, except those played in the last half hour. The folder is safe to delete at any time and refills as people listen.
 
 ## Loudness normalization
 

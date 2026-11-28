@@ -14,6 +14,8 @@ import type {
   SessionCommand,
   SessionHello,
   SessionHelloAck,
+  SignalPath,
+  SignalReport,
 } from '@squirmy/contracts'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FakeEngine } from '../engine.js'
@@ -47,6 +49,9 @@ class FakeServer implements Held {
   readonly commands: CommandEnvelope[] = []
   readonly reports: EngineReport[] = []
   readonly hellos: SessionHello[] = []
+  readonly signals: SignalReport[] = []
+  /** The last signal path passed on, as the real server keeps it. */
+  signal: SignalPath | null = null
   readonly seen = new Set<string>()
   rejecting = false
   /** Answers as a server from before detaching: no capabilities, no scope, and the new events are never answered. */
@@ -120,7 +125,17 @@ class FakeServer implements Held {
     const snapshot = { version: held.version, queueVersion: held.queueVersion, state, queue }
     if (this.old) return { serverTime: this.now(), snapshot, devices: this.devices() }
     const scope = held === this ? { type: 'shared' as const } : { type: 'device' as const, deviceId }
-    return { serverTime: this.now(), snapshot: { ...snapshot, scope }, devices: this.devices(), capabilities: ['detach', 'sleepTimer'] }
+    const signal = this.signal && this.signal.entryId === held.session.current?.id && this.signal.deviceId === held.session.activeDeviceId ? this.signal : null
+    return { serverTime: this.now(), snapshot: { ...snapshot, scope }, devices: this.devices(), capabilities: ['detach', 'signal', 'sleepTimer'], ...(signal ? { signal } : {}) }
+  }
+
+  /** As the server: keeps the active device's report about the current entry and passes it on. */
+  receiveSignal(transport: FakeTransport, report: SignalReport): void {
+    this.signals.push(report)
+    const held = this.held(transport.deviceId)
+    if (held.session.activeDeviceId !== transport.deviceId || held.session.current?.id !== report.entryId) return
+    this.signal = { ...report, deviceId: transport.deviceId! }
+    for (const other of this.transports) if (this.held(other.deviceId) === held) other.push('session:signal', this.signal)
   }
 
   /** Tells the device's other sockets that it changed session, and everyone the new device list. */
@@ -223,6 +238,10 @@ class FakeTransport implements SessionTransport {
 
   report(report: EngineReport): void {
     this.toServer.push(() => this.server.reports.push(report))
+  }
+
+  signal(report: SignalReport): void {
+    this.toServer.push(() => this.server.receiveSignal(this, report))
   }
 
   on<E extends keyof ServerToClientEvents>(event: E, listener: ServerToClientEvents[E]): () => void {
@@ -1266,6 +1285,90 @@ describe('SessionClient engine', () => {
     const { client, engine } = await playingHere()
     client.dispose()
     expect(engine.getStatus().state).toBe('idle')
+  })
+})
+
+describe('SessionClient signal path', () => {
+  async function playingHere(server = new FakeServer()) {
+    const context = setup({ server })
+    await context.settle()
+    context.client.dispatch({ type: 'playTracks', tracks: seeds(1, 2), seed: 1 })
+    await context.settle()
+    return context
+  }
+
+  it('shows what this device plays once it is loaded, and tells the server', async () => {
+    const { client, server } = await playingHere()
+    const { signal, session } = client.getSnapshot()
+    expect(signal).toMatchObject({
+      entryId: session.current!.id,
+      deviceId: PHONE,
+      source: { codec: 'flac', lossless: true, sampleRate: 44100, bitDepth: 16 },
+      delivery: { profile: 'original', transcoded: false, reason: null, local: false },
+      normalization: { mode: 'off', applied: null, gainDb: null },
+    })
+    expect(server.signals).toHaveLength(1)
+    expect(server.signals[0]!.entryId).toBe(session.current!.id)
+  })
+
+  it('reports again when the next entry plays and when normalization changes, and not otherwise', async () => {
+    const { client, server, engine, settle } = await playingHere()
+    client.dispatch({ type: 'setVolume', deviceId: PHONE, value: 0.5 })
+    await settle()
+    expect(server.signals).toHaveLength(1)
+    client.setNormalization('track')
+    await settle()
+    expect(server.signals.at(-1)!.normalization).toEqual({ mode: 'track', applied: 'track', gainDb: -6 })
+    engine.finish()
+    await settle()
+    expect(server.signals.at(-1)!.entryId).toBe(client.getSnapshot().session.current!.id)
+    expect(server.signals).toHaveLength(3)
+  })
+
+  it('reports again after a reconnect', async () => {
+    const { server, transport, settle } = await playingHere()
+    transport.disconnect()
+    transport.connect()
+    await settle()
+    expect(server.signals).toHaveLength(2)
+  })
+
+  it('shows a remote device the active device\'s report, from the hello and as it changes', async () => {
+    const phone = await playingHere()
+    const web = setup({ server: phone.server, id: WEB, canPlay: false })
+    await web.settle()
+    expect(web.client.getSnapshot().signal).toMatchObject({ deviceId: PHONE, entryId: phone.client.getSnapshot().session.current!.id })
+    phone.engine.finish()
+    await phone.settle()
+    await web.settle()
+    expect(web.client.getSnapshot().signal?.entryId).toBe(web.client.getSnapshot().session.current!.id)
+  })
+
+  it('shows none while the report is about another entry or device', async () => {
+    const phone = await playingHere()
+    const web = setup({ server: phone.server, id: WEB, canPlay: false })
+    await web.settle()
+    phone.transport.disconnect()
+    phone.server.apply({ type: 'next' }, WEB)
+    await web.settle()
+    expect(web.client.getSnapshot().signal).toBeNull()
+  })
+
+  it('sends nothing to a server without the capability', async () => {
+    const server = new FakeServer()
+    server.old = true
+    const { client } = await playingHere(server)
+    expect(client.getSnapshot().signal).not.toBeNull()
+    expect(server.signals).toEqual([])
+  })
+
+  it('says when a stream is a local copy', async () => {
+    const context = setup()
+    context.resolvePlayback.mockImplementation(async entry => ({ ...descriptor(entry), url: 'file:///downloads/1.flac' }))
+    await context.settle()
+    context.client.dispatch({ type: 'playTracks', tracks: seeds(1), seed: 1 })
+    await context.settle()
+    expect(context.client.getSnapshot().signal?.delivery.local).toBe(true)
   })
 })
 

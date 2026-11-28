@@ -1,5 +1,5 @@
 import { createInitialSession, joinSession, type Session, splitSession } from '@squirmy/client-core'
-import { SessionQueue, type SessionSnapshot, SessionState } from '@squirmy/contracts'
+import { SessionQueue, type SessionSnapshot, SessionState, type SignalPath } from '@squirmy/contracts'
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../../database/client.js'
@@ -73,6 +73,11 @@ export type SessionRecord = {
    * starting a song they did not pick. Kept in memory only, like the counts above.
    */
   picked: string | null
+  /**
+   * What the active device last said it plays (`session:signal`). Kept in memory only and
+   * passed on only while it is about the current entry on the active device.
+   */
+  signal: SignalPath | null
   persistTimer: ReturnType<typeof setTimeout> | null
   /** The last write, so writes of one session never overtake each other. */
   writing: Promise<void>
@@ -148,6 +153,7 @@ function newRecord(userId: string, deviceId: string | null, fields: Pick<Session
     deferred: new Map(),
     autoplayAskedFor: null,
     picked: null,
+    signal: null,
     persistTimer: null,
     writing: Promise.resolve(),
     lastSeenAt: 0,

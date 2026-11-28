@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { ClientDevice } from './auth.js'
 import { Id } from './common.js'
+import { NormalizationMode, PlaybackSource, StreamProfile, TranscodeReason } from './playback.js'
 import type { EntityChanges } from './realtime.js'
 
 /**
@@ -353,6 +354,54 @@ export const EngineReport = z.object({
 export type EngineReport = z.infer<typeof EngineReport>
 
 /**
+ * Signal path: what the active device is playing, as it plays it, so every client's Now
+ * Playing can tell the file from what reaches the speakers.
+ *
+ * The active device sends `session:signal` (servers with the `signal` capability) each time
+ * it starts an entry, when what it says changes (its normalization setting, album or track
+ * gain), and after every hello or move. The server keeps the latest per session, in memory
+ * only, and sends it to the sockets in that session; a hello's answer carries it. It describes
+ * `entryId` on `deviceId` and nothing else: clients show it only while that entry is current
+ * and that device active, so it never has to be cleared. A device that does not report
+ * (an older app) leaves its listeners with none.
+ */
+export const SignalReport = z.object({
+  entryId: z.string(),
+  trackId: Id,
+  /** The file. Null when the descriptor came from a server that did not describe it. */
+  source: PlaybackSource.nullable(),
+  /** What reaches the device. */
+  delivery: z.object({
+    profile: StreamProfile,
+    transcoded: z.boolean(),
+    codec: z.string(),
+    lossless: z.boolean(),
+    bitrate: z.number().int().nullable(),
+    sampleRate: z.number().int().nullable(),
+    bitDepth: z.number().int().nullable(),
+    /** Why it is a transcode; null when it is not, or the server did not say. */
+    reason: TranscodeReason.nullable(),
+    /** Played from a copy on the device (a download, or the streaming cache) rather than streamed. */
+    local: z.boolean(),
+  }),
+  /**
+   * Loudness normalization: the device's setting, which gain it applies (null when none:
+   * off, or no loudness data) and the change in dB after peak limiting, against the -18 LUFS
+   * reference of `Normalization`.
+   */
+  normalization: z.object({
+    mode: NormalizationMode,
+    applied: z.enum(['track', 'album']).nullable(),
+    gainDb: z.number().nullable(),
+  }),
+})
+export type SignalReport = z.infer<typeof SignalReport>
+
+/** A `SignalReport` as the server passes it on: `deviceId` is the device that sent it. */
+export const SignalPath = SignalReport.extend({ deviceId: z.string() })
+export type SignalPath = z.infer<typeof SignalPath>
+
+/**
  * Presence.
  *
  * A device is listed (in `devices`, hello answers and `GET /me/devices`) only while it is
@@ -470,9 +519,10 @@ export type SessionHello = z.infer<typeof SessionHello>
 
 /**
  * What a server can do beyond the base protocol. `detach`: `session:detach`, `session:attach`
- * and all they imply. `sleepTimer`: `setSleepTimer` and `SessionState.sleepTimer`.
+ * and all they imply. `signal`: `session:signal` (see "Signal path"). `sleepTimer`:
+ * `setSleepTimer` and `SessionState.sleepTimer`.
  */
-export const SessionCapability = z.enum(['detach', 'sleepTimer'])
+export const SessionCapability = z.enum(['detach', 'signal', 'sleepTimer'])
 export type SessionCapability = z.infer<typeof SessionCapability>
 
 export const SessionHelloAck = z.object({
@@ -491,6 +541,8 @@ export const SessionHelloAck = z.object({
    * `missing`: the server holds none (cleaned up earlier, or ended from elsewhere).
    */
   detachedEnded: z.enum(['expired', 'missing']).optional(),
+  /** The session's latest signal path while its entry is current and its device active. Absent otherwise, and from older servers. */
+  signal: SignalPath.optional(),
 })
 export type SessionHelloAck = z.infer<typeof SessionHelloAck>
 
@@ -585,6 +637,8 @@ export interface ClientToServerEvents {
   'time:sync': (clientTime: number, ack: (reply: { clientTime: number; serverTime: number }) => void) => void
   'session:command': (envelope: CommandEnvelope, ack: (reply: CommandAck) => void) => void
   'session:report': (report: EngineReport) => void
+  /** Only on servers with the `signal` capability, and only from the active device. See "Signal path". */
+  'session:signal': (report: SignalReport) => void
   /** Only on servers with the `detach` capability. See "Detaching". */
   'session:detach': (request: SessionDetach, ack: (reply: SessionMoveAck) => void) => void
   'session:attach': (request: SessionAttach, ack: (reply: SessionMoveAck) => void) => void
@@ -604,6 +658,8 @@ export interface ServerToClientEvents {
    * the device detached or attached it. Handle it like the answer to a hello.
    */
   'session:moved': (update: SessionHelloAck) => void
+  /** The session's active device said what it plays (see "Signal path"). To the sockets in that session. */
+  'session:signal': (signal: SignalPath) => void
   devices: (devices: DeviceInfo[]) => void
   /**
    * TanStack Query keys to invalidate: lists whose members or order changed. Changes to
