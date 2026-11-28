@@ -41,6 +41,8 @@ type Entry = {
   userId: string
   tags: readonly CacheTag[]
   artistId?: string
+  /** The ids the body names, so a catalog change is checked without scanning every body. */
+  ids: ReadonlySet<string>
   body: string
   etag: string
   expiresAt: number
@@ -66,6 +68,8 @@ function maxBytes() {
 
 const generationOf = (userId: string) => `${globalGeneration}:${userGenerations.get(userId) ?? 0}`
 const artistRead = /\|\/api\/v1\/artists\/([^/?]+)(\/releases)?(?:\?|$)/
+const quotedId = /"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"/g
+const idsIn = (body: string): ReadonlySet<string> => new Set(Array.from(body.matchAll(quotedId), (match) => match[1]!))
 
 function remove(key: string) {
   const entry = entries.get(key)
@@ -99,9 +103,10 @@ async function load(key: string, userId: string, tags: readonly CacheTag[], comp
     const artist = artistRead.exec(key)
     // Artist detail supplies the resolved id when the URL named a redirect.
     const artistId = artist && !artist[2] ? (result as { id: string }).id : artist?.[1]
-    if (generationOf(userId) === generation && !showsCatalogChanges(body, artistId, catalogChanges)) {
+    const ids = idsIn(body)
+    if (generationOf(userId) === generation && !showsCatalogChanges(ids, artistId, catalogChanges)) {
       const now = Date.now()
-      store(key, { userId, tags, artistId, body, etag, expiresAt: now + ttlMs, readAt: now, rewarm: rewarm ? compute : undefined })
+      store(key, { userId, tags, artistId, ids, body, etag, expiresAt: now + ttlMs, readAt: now, rewarm: rewarm ? compute : undefined })
     }
     return { body, etag }
   })().finally(() => inFlight.delete(flightKey))
@@ -154,9 +159,10 @@ function scheduleRewarm(key: string, entry: Entry) {
   }, rewarmDelayMs).unref())
 }
 
-function showsCatalogChanges(body: string, artistId: string | undefined, { entities, discographies }: CatalogStubChanges) {
+function showsCatalogChanges(ids: ReadonlySet<string>, artistId: string | undefined, { entities, discographies }: CatalogStubChanges) {
   if (artistId && discographies.has(artistId)) return true
-  for (const id of entities) if (body.includes(`"${id}"`)) return true
+  const [fewer, more] = entities.size <= ids.size ? [entities, ids] : [ids, entities]
+  for (const id of fewer) if (more.has(id)) return true
   return false
 }
 
@@ -169,7 +175,7 @@ export function dropCatalogStubReads(changes: CatalogStubChanges) {
     for (const id of discographies) catalogChanges.discographies.add(id)
   }
   for (const [key, entry] of entries) {
-    if (!showsCatalogChanges(entry.body, entry.artistId, changes)) continue
+    if (!showsCatalogChanges(entry.ids, entry.artistId, changes)) continue
     remove(key)
     scheduleRewarm(key, entry)
   }
