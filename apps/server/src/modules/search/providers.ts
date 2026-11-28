@@ -12,7 +12,8 @@ import { isCatalogIndexReady, searchCatalogIndex, type CatalogIndexResult } from
 import { deezer, musicbrainz } from '../metadata/index.js'
 import type { DeezerAlbumSummary, DeezerTrack } from '../metadata/deezer.js'
 import type { MbArtistCredit, MbRecording, MbReleaseGroupSummary } from '../metadata/musicbrainz.js'
-import { editionFreeQuery } from './keys.js'
+import { editionFreeQuery, readings } from './keys.js'
+import { matchOf, relevance } from './rank.js'
 
 /** Whose ids a result carries; also the `external_ids.provider` they are stored under. */
 export type IdSource = 'deezer' | 'musicbrainz'
@@ -74,6 +75,7 @@ export type SearchProvider = {
    * each. Throws when the service fails.
    */
   search: (query: string, options: SearchOptions) => Promise<ProviderResults>
+  composite?: (pairs: readonly { title: string; context: string }[], options: SearchOptions) => Promise<ProviderResults>
 }
 
 export type SearchOptions = { limit: number; offset: number; types: readonly SearchKind[] }
@@ -177,6 +179,17 @@ export const deezerProvider: SearchProvider = {
       tracks: results.tracks.map(deezerTrack),
     }
   },
+  async composite(pairs, options) {
+    // A small fan-out over the titles nearest the middle split. Credits and release names
+    // are verified after merging, since Deezer's free-text results can ignore some words.
+    const titles = [...new Set(pairs.map(({ title }) => title))].slice(0, 4)
+    const hits = await Promise.allSettled(titles.map((title) => shared(deezerProvider, title, options)))
+    return {
+      artists: [],
+      albums: hits.flatMap((hit) => hit.status === 'fulfilled' ? hit.value.albums : []),
+      tracks: hits.flatMap((hit) => hit.status === 'fulfilled' ? hit.value.tracks : []),
+    }
+  },
 }
 
 // ---------------------------------------------------------------------------
@@ -229,6 +242,15 @@ export const musicBrainzProvider: SearchProvider = {
     const recordings = types.includes('track') ? await musicbrainz.searchRecordingsByText(query, { limit, offset }) : []
     return {
       artists: artists.map((artist) => ({ id: artist.mbid, mbid: artist.mbid, name: artist.name, imageUrl: null })),
+      albums: await Promise.all(groups.map((group) => mbAlbum(group))),
+      tracks: await Promise.all(recordings.filter((recording) => !recording.video).map(mbTrack)),
+    }
+  },
+  async composite(pairs, options) {
+    const { groups } = options.types.includes('album') ? await musicbrainz.searchByTitleAndContext('release-group', pairs, options) : { groups: [] }
+    const { recordings } = options.types.includes('track') ? await musicbrainz.searchByTitleAndContext('recording', pairs, options) : { recordings: [] }
+    return {
+      artists: [],
       albums: await Promise.all(groups.map((group) => mbAlbum(group))),
       tracks: await Promise.all(recordings.filter((recording) => !recording.video).map(mbTrack)),
     }
@@ -317,14 +339,46 @@ export const searchProviders: readonly SearchProvider[] = [localIndexProvider, d
 /** `first`'s results, then those of `second` it lacks, at most `limit` of each kind. */
 function mergeResults(first: ProviderResults, second: ProviderResults, limit: number): ProviderResults {
   const merge = <T>(a: T[], b: T[], key: (item: T) => string) => {
-    const seen = new Set(a.map(key))
-    return [...a, ...b.filter((item) => !seen.has(key(item)))].slice(0, limit)
+    const seen = new Set<string>()
+    return [...a, ...b].filter((item) => {
+      const id = key(item)
+      if (seen.has(id)) return false
+      seen.add(id)
+      return true
+    }).slice(0, limit)
   }
   return {
     artists: merge(first.artists, second.artists, (artist) => artist.id),
     albums: merge(first.albums, second.albums, (album) => album.id ?? `${matchKey(album.artistCredit)}|${matchKey(album.title)}`),
     tracks: merge(first.tracks, second.tracks, (track) => track.id),
   }
+}
+
+/** Provider title queries are useful only when the whole reading did not already answer. */
+async function withComposite(
+  provider: SearchProvider, key: string, options: SearchOptions, whole: ProviderResults,
+): Promise<ProviderResults> {
+  if (!provider.composite) return whole
+  const pairs = readings(key).filter((reading): reading is { title: string; context: string } => reading.context !== null)
+    .sort((a, b) => Math.abs(a.title.length - a.context.length) - Math.abs(b.title.length - b.context.length))
+  if (pairs.length === 0) return whole
+  const matches = (type: 'album' | 'track', item: ProviderAlbum | ProviderTrack) =>
+    matchOf(key, {
+      type, name: item.title, artistCredit: item.artistCredit, artistNames: item.artists.map(({ name }) => name),
+      albumTitle: 'album' in item ? item.album?.title : null,
+    }).name >= relevance.pairPrefix
+  // A good whole answer is usually a name that happens to contain several words.
+  if (whole.artists.some((hit) => [key, `the ${key}`].includes(matchKey(hit.name)))
+    || whole.albums.some((hit) => matches('album', hit)) || whole.tracks.some((hit) => matches('track', hit))) return whole
+  const types = options.types.filter((type) => type !== 'artist')
+  if (types.length === 0) return whole
+  const extra = await provider.composite(pairs, { ...options, types }).catch(() => null)
+  if (!extra) return whole
+  return mergeResults({
+    artists: [],
+    albums: extra.albums.filter((hit) => matches('album', hit)),
+    tracks: extra.tracks.filter((hit) => matches('track', hit)),
+  }, whole, options.limit)
 }
 
 /** Provider calls in progress, so identical queries arriving together share one. */
@@ -358,9 +412,12 @@ export async function searchCatalog(
   for (const provider of providers) {
     if (!(await provider.available())) continue
     try {
-      if (plain === normalized) return { provider, results: await shared(provider, normalized, options) }
+      if (plain === normalized) {
+        const whole = await shared(provider, normalized, options)
+        return { provider, results: await withComposite(provider, key, options, whole) }
+      }
       const [whole, withoutEdition] = await Promise.all([shared(provider, normalized, options), shared(provider, plain, options)])
-      return { provider, results: mergeResults(whole, withoutEdition, limit) }
+      return { provider, results: await withComposite(provider, plainKey, options, mergeResults(whole, withoutEdition, limit)) }
     } catch (error) {
       failure = error
     }

@@ -38,7 +38,7 @@ import { displayFontScale, isAccessibilitySize } from './fontScale';
 import { ScrollEdge } from './ScrollEdge';
 import {
   albumCollection, albumTypeLabels, artistCollection, CollectionCover, CollectionRail, EmptyState, gridColumns, gutter, largeTextScale, likedCollection, matches,
-  OfflineBadge, playlistCollection, QueryState, SectionTitle, tapFeedback, useCollectionDim, type Collection,
+  homeItemCollection, OfflineBadge, playlistCollection, QueryState, SectionTitle, tapFeedback, useCollectionDim, type Collection,
 } from './library/shared';
 import { useRealtime, useScanProgress } from './data/realtime';
 import { homeEmpty } from './library/homeEmpty';
@@ -68,6 +68,9 @@ function sectionSize(section: HomeSection) {
     case 'artists': return section.artists.length;
     case 'tracks': return section.tracks.length;
     case 'playlists': return section.playlists.length;
+    case 'items': return section.items.length;
+    // A kind from a newer server than this app shows nothing.
+    default: return 0;
   }
 }
 
@@ -87,6 +90,7 @@ function HomeRail({ section, link, onOpen, onTrackMenu }: { section: HomeSection
       size={section.id === 'recently-added' ? 146 : 131} />}
     {section.kind === 'artists' && <CollectionRail items={section.artists.map(artist => artistCollection(artist, link))} size={110} />}
     {section.kind === 'playlists' && <CollectionRail items={section.playlists.map(playlist => playlistCollection(playlist, link))} />}
+    {section.kind === 'items' && <CollectionRail items={section.items.flatMap(item => homeItemCollection(item, link) ?? [])} />}
     {section.kind === 'tracks' && <View style={styles.trackList}>
       <SongList tracks={section.tracks.slice(0, homeSongLimit)} onTrackMenu={track => onTrackMenu(track)}
         onPlay={start => actions.playTracks(section.tracks, { start, context: { type: 'other', id: section.id, title: section.title } })} />
@@ -316,7 +320,7 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, onBa
 }
 
 type SearchRow =
-  | { kind: 'song'; key: string; song: SongRowItem }
+  | { kind: 'song'; key: string; snippet?: string; song: SongRowItem }
   | { kind: 'row'; key: string; item: Exclude<SearchItem, { type: 'track' }> }
   | { kind: 'heading'; key: string };
 
@@ -462,7 +466,7 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
   const rows = useMemo((): SearchRow[] => {
     const songs = new Map(songItems.data.map(song => [song.track.id, song]));
     const results = shown.map((item): SearchRow => (item.type === 'track'
-      ? { kind: 'song', key: searchItemKey(item), song: songs.get(item.track.id)! }
+      ? { kind: 'song', key: searchItemKey(item), song: songs.get(item.track.id)!, snippet: item.matchDetail }
       : { kind: 'row', key: searchItemKey(item), item }));
     if (active || !results.length) return results;
     return [{ kind: 'heading', key: 'h:viewed' }, ...results];
@@ -477,7 +481,10 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
     : renderResult(info);
   const renderResult = ({ item: row }: { item: SearchRow }) => {
     switch (row.kind) {
-      case 'song': return <View style={styles.songs}>{renderSong({ item: row.song })}</View>;
+      case 'song': return <View style={styles.songs}>
+        {renderSong({ item: row.song })}
+        {row.snippet ? <Text numberOfLines={2} style={styles.searchMatchDetail}>{row.snippet}</Text> : null}
+      </View>;
       case 'row': {
         const item = collectionDim(resultCollection(row.item, link));
         // The size of a song row's cover, so titles line up down the mixed list.
@@ -570,6 +577,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   libraryBody: { paddingHorizontal: gutter },
   sortRow: { flexDirection: 'row', alignItems: 'center', minHeight: 43, marginBottom: 4 },
   libraryActions: { flexDirection: 'row', marginLeft: 'auto' },
+  searchMatchDetail: { color: colors.muted, fontSize: 13, marginStart: resultCover + 12, marginBottom: 8 },
   songs: { marginHorizontal: -4 },
   songsHeading: { marginHorizontal: -gutter, marginTop: 18 },
   more: { marginVertical: 20 },

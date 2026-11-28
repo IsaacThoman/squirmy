@@ -1,6 +1,6 @@
 {
-  "id": "58b4e36a-9c97-4ad4-93e5-338e37a379f1",
-  "prevId": "1474948e-0d56-4cfb-9474-9fa5419567ee",
+  "id": "75205c3a-6824-41ac-8783-ff1f55839205",
+  "prevId": "eeb3233a-dbe9-4ad6-97e7-521364f05db7",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -850,6 +850,21 @@
           "method": "gin",
           "with": {}
         },
+        "albums_match_key_unicode": {
+          "name": "albums_match_key_unicode",
+          "columns": [
+            {
+              "expression": "search_unicode_bigrams(\"match_key\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        },
         "albums_title_key_prefix": {
           "name": "albums_title_key_prefix",
           "columns": [
@@ -1350,6 +1365,21 @@
           "method": "gin",
           "with": {}
         },
+        "artists_name_key_unicode": {
+          "name": "artists_name_key_unicode",
+          "columns": [
+            {
+              "expression": "search_unicode_bigrams(\"name_key\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        },
         "artists_name_key": {
           "name": "artists_name_key",
           "columns": [
@@ -1546,115 +1576,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.auth_challenges": {
-      "name": "auth_challenges",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "token_hash": {
-          "name": "token_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "data": {
-          "name": "data",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::jsonb"
-        },
-        "attempts": {
-          "name": "attempts",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "auth_challenges_token_hash": {
-          "name": "auth_challenges_token_hash",
-          "columns": [
-            {
-              "expression": "token_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "auth_challenges_expires": {
-          "name": "auth_challenges_expires",
-          "columns": [
-            {
-              "expression": "expires_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "auth_challenges_user_id_users_id_fk": {
-          "name": "auth_challenges_user_id_users_id_fk",
-          "tableFrom": "auth_challenges",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.auth_sessions": {
       "name": "auth_sessions",
       "schema": "",
@@ -1692,12 +1613,6 @@
         },
         "user_agent": {
           "name": "user_agent",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "method": {
-          "name": "method",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -3598,7 +3513,24 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "lyrics_search": {
+          "name": "lyrics_search",
+          "columns": [
+            {
+              "expression": "to_tsvector('simple', search_lyric_text(\"plain\", \"synced\"))",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "not \"lyrics\".\"instrumental\"",
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "lyrics_recording_id_recordings_id_fk": {
           "name": "lyrics_recording_id_recordings_id_fk",
@@ -3866,6 +3798,30 @@
         "true_peak_db": {
           "name": "true_peak_db",
           "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decoded_frames": {
+          "name": "decoded_frames",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decoded_rate": {
+          "name": "decoded_rate",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "priming_frames": {
+          "name": "priming_frames",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "padding_frames": {
+          "name": "padding_frames",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false
         },
@@ -4527,134 +4483,6 @@
             "id"
           ],
           "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.passkeys": {
-      "name": "passkeys",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "credential_id": {
-          "name": "credential_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "public_key": {
-          "name": "public_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "counter": {
-          "name": "counter",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "transports": {
-          "name": "transports",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::text[]"
-        },
-        "device_type": {
-          "name": "device_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "backed_up": {
-          "name": "backed_up",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "last_used_at": {
-          "name": "last_used_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "passkeys_credential_id": {
-          "name": "passkeys_credential_id",
-          "columns": [
-            {
-              "expression": "credential_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "passkeys_user": {
-          "name": "passkeys_user",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "passkeys_user_id_users_id_fk": {
-          "name": "passkeys_user_id_users_id_fk",
-          "tableFrom": "passkeys",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -5798,6 +5626,21 @@
           "method": "gin",
           "with": {}
         },
+        "recordings_match_key_unicode": {
+          "name": "recordings_match_key_unicode",
+          "columns": [
+            {
+              "expression": "search_unicode_bigrams(\"match_key\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        },
         "recordings_title_key_prefix": {
           "name": "recordings_title_key_prefix",
           "columns": [
@@ -5938,95 +5781,6 @@
             "id"
           ],
           "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.recovery_codes": {
-      "name": "recovery_codes",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "code_hash": {
-          "name": "code_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "used_at": {
-          "name": "used_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "recovery_codes_code_hash": {
-          "name": "recovery_codes_code_hash",
-          "columns": [
-            {
-              "expression": "code_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "recovery_codes_user": {
-          "name": "recovery_codes_user",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "recovery_codes_user_id_users_id_fk": {
-          "name": "recovery_codes_user_id_users_id_fk",
-          "tableFrom": "recovery_codes",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -6743,65 +6497,6 @@
           "tableTo": "recordings",
           "columnsFrom": [
             "recording_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.totp_credentials": {
-      "name": "totp_credentials",
-      "schema": "",
-      "columns": {
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "secret_encrypted": {
-          "name": "secret_encrypted",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "last_step": {
-          "name": "last_step",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "confirmed_at": {
-          "name": "confirmed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "totp_credentials_user_id_users_id_fk": {
-          "name": "totp_credentials_user_id_users_id_fk",
-          "tableFrom": "totp_credentials",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
           ],
           "columnsTo": [
             "id"

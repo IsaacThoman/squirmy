@@ -13,6 +13,12 @@ import { SILENT_LUFS } from './normalization.js'
 const exec = promisify(execFile)
 
 export type Loudness = { lufs: number; truePeakDb: number }
+type TrackMeasurement = Loudness & {
+  decodedFrames: number
+  decodedRate: number
+  primingFrames: number
+  paddingFrames: number
+}
 
 /** Stored as the true peak of digital silence, which ebur128 reports as -inf. */
 const SILENT_PEAK_DB = -144
@@ -60,16 +66,34 @@ const audioStream = ['-map', '0:a:0']
 // it is measured. Only a file ffmpeg cannot decode at all is a failure.
 const decodeInput = audioInput
 
-/** EBU R128 integrated loudness and true peak of one file's first audio stream. */
-export async function measureLoudness(file: string): Promise<Loudness> {
-  // Per-frame lines go to the verbose level, so at `info` only the summary is logged.
+/** EBU R128 and sample counts from the same decode of the first audio stream. */
+export async function measureLoudness(file: string): Promise<TrackMeasurement> {
   const { stderr } = await exec(getConfig().FFMPEG_PATH, [
-    ...ffmpegOptions, ...meterLog, ...decodeInput(file), ...audioStream,
-    '-af', 'ebur128=peak=true:framelog=verbose', '-f', 'null', '-',
+    ...ffmpegOptions, '-v', 'level+debug', ...decodeInput(file), ...audioStream,
+    // Log the meter's ticks at trace level so the decoder's debug log stays small.
+    '-af', 'ebur128=peak=true:framelog=56', '-f', 'null', '-',
   ], meterOptions)
   const result = parseEbur128(stderr)
   if (!result) throw new Error('ffmpeg printed no loudness summary')
-  return result
+
+  // The null output keeps the source rate. Its final sample count includes only the
+  // PCM ffmpeg actually decoded, after any skip/discard side data has been applied.
+  const decodeLog = stderr.slice(stderr.indexOf('[info] Stream mapping:'))
+  const decodedRate = Number(/\[info\]\s+Stream #0:0[^\n]*: Audio: pcm_s16le, (\d+) Hz/.exec(decodeLog)?.[1])
+  const decodedFrames = Number(/Output stream #0:0 \(audio\): \d+ frames encoded \((\d+) samples\)/.exec(decodeLog)?.[1])
+  if (!Number.isSafeInteger(decodedFrames) || decodedFrames <= 0 || !Number.isInteger(decodedRate) || decodedRate <= 0) {
+    throw new Error('ffmpeg printed no decoded audio length')
+  }
+
+  // Ignore the probe's copy of these messages before "Stream mapping". MP3's gapless
+  // metadata includes decoder delay, so use the number ffmpeg actually trims.
+  let primingFrames = 0
+  let paddingFrames = 0
+  for (const [, skip, discard] of decodeLog.matchAll(/\[debug\] skip (\d+) \/ discard (\d+) samples due to side data/g)) {
+    primingFrames ||= Number(skip)
+    paddingFrames += Number(discard)
+  }
+  return { ...result, decodedFrames, decodedRate, primingFrames, paddingFrames }
 }
 
 async function* albumPcm(files: string[], channels: string[], signal: AbortSignal) {
@@ -144,16 +168,16 @@ async function inputExists(file: string): Promise<boolean> {
  */
 export async function measureFile(fileId: string, lastAttempt: boolean): Promise<string | null> {
   const [file] = await db.select().from(mediaFiles).where(and(eq(mediaFiles.id, fileId), isNull(mediaFiles.missingSince)))
-  if (!file || (file.probeError && !isLoudnessError(file.probeError))) return null
+  if (!file || file.probeStage < 1 || (file.probeError && !isLoudnessError(file.probeError))) return null
   const input = await libraryPath(file)
   if (!await inputExists(input)) return null
 
   // A scan or move can replace the input while ffmpeg is reading it.
   const sameFile = and(eq(mediaFiles.id, fileId), isNull(mediaFiles.missingSince),
     eq(mediaFiles.rootId, file.rootId), eq(mediaFiles.relPath, file.relPath),
-    eq(mediaFiles.size, file.size), eq(mediaFiles.mtime, file.mtime), eq(mediaFiles.probeStage, file.probeStage),
+    eq(mediaFiles.size, file.size), eq(mediaFiles.mtime, file.mtime),
     sql`${mediaFiles.probeError} is not distinct from ${file.probeError}`)
-  let result: Loudness
+  let result: TrackMeasurement
   try {
     result = await measureLoudness(input)
   } catch (error) {
@@ -164,17 +188,26 @@ export async function measureFile(fileId: string, lastAttempt: boolean): Promise
       const detail = failure.stderr?.split('\n').find((line) => /\[(error|fatal)\]/.test(line)) ?? failure.message
       await db.transaction(async (tx) => {
         const [failed] = await tx.update(mediaFiles).set({
-          probeError: (LOUDNESS_ERROR_PREFIX + detail.trim()).slice(0, 500), loudnessLufs: null, truePeakDb: null, updatedAt: new Date(),
+          probeError: (LOUDNESS_ERROR_PREFIX + detail.trim()).slice(0, 500),
+          loudnessLufs: null, truePeakDb: null,
+          decodedFrames: null, decodedRate: null, primingFrames: null, paddingFrames: null,
+          updatedAt: new Date(),
         }).where(sameFile).returning({ releaseId: mediaFiles.releaseId })
         if (failed?.releaseId) await tx.delete(releaseLoudness).where(eq(releaseLoudness.releaseId, failed.releaseId))
       })
     }
     throw error
   }
+  const { lufs, ...measurement } = result
+  // Backfilling lengths alone does not make the existing album meter result stale.
+  // The loudness columns are PostgreSQL real values, so compare at their precision.
+  const loudnessChanged = file.loudnessLufs === null || file.truePeakDb === null
+    || Math.fround(file.loudnessLufs) !== Math.fround(lufs)
+    || Math.fround(file.truePeakDb) !== Math.fround(result.truePeakDb)
   const [measured] = await db.update(mediaFiles).set({
-    loudnessLufs: result.lufs, truePeakDb: result.truePeakDb, probeError: null, updatedAt: new Date(),
+    ...measurement, loudnessLufs: lufs, probeError: null, ...(loudnessChanged && { updatedAt: new Date() }),
   }).where(sameFile).returning({ releaseId: mediaFiles.releaseId })
-  return measured?.releaseId ?? null
+  return loudnessChanged ? measured?.releaseId ?? null : null
 }
 
 /**
