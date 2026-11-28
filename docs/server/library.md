@@ -87,17 +87,21 @@ The collection's files are in four states:
 | **From tags only** | Nothing scored 50% or more, MusicBrainz is off, or an admin chose to keep the album as its tags describe it. The album is still browsable and playable, built from its tags, with no MusicBrainz id. |
 | **Waiting** | Not tried yet. Albums waiting are retried every 10 minutes. |
 
-How an album is matched, in order:
+The matcher tries these steps in order and stops as soon as a candidate qualifies for automatic acceptance.
 
-1. MusicBrainz ids already in the tags (as written by Picard and most taggers).
-2. A search for the album artist and title, scored on track count, titles, lengths and year.
-3. For files with no album and artist tags, and only when an [AcoustID key](./metadata-and-privacy.md#api-keys) is set: the audio fingerprint.
+1. Look up the MusicBrainz release ID, then the release-group ID from the tags.
+2. Look up the release by barcode (UPC or EAN).
+3. Look up recordings by ISRC and consider releases with the same number of tracks as the album's files.
+4. Search by album artist and title.
+5. Use audio fingerprints when an [AcoustID key](./metadata-and-privacy.md#api-keys) is set.
+
+The matcher scores the candidates against the files, including track count, titles, lengths and year. If fingerprints are available, they also help score releases found earlier. The review queue shows up to five of the highest-scoring releases when the best one needs review.
 
 ### Turning identification on later
 
 Switching **MusicBrainz** on starts on the albums left **Waiting** while it was off straight away, instead of at the next 10-minute retry.
 
-Adding an **AcoustID** key gives files that could only be identified by fingerprint another go: loose files and albums without an album artist and title that went to **From tags only** are set back to **Waiting** and matched by fingerprint. Albums that were searched by their artist and title and found nothing are not tried again, because a fingerprint is only used when there is nothing to search for; use **Fix match** for those. Albums you locked with **Keep as it is** or **Use this release** stay as they are.
+Adding an **AcoustID** key sets unlocked files that went to **From tags only** back to **Waiting** if they have no known AcoustID. This includes loose tracks and albums whose tags did not lead to a confident match. Existing reviews are still available in the review queue.
 
 Either way, the work uses the same matching queue and MusicBrainz rate limit as a scan. Albums are queued 100 at a time; the rest follow at the next 10-minute retries.
 
