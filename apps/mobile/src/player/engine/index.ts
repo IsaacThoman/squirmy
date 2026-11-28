@@ -1,7 +1,9 @@
 import type { PlayerEngine } from '@squirmy/client-core';
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
+import { Platform } from 'react-native';
 import NativeAudio from '../../../modules/audio-engine';
 import NowPlaying, { type AudioOutput } from '../../../modules/now-playing';
+import { playbackRequestFor, type PlaybackRequest } from '../session';
 import { ExpoAudioEngine, type ExpoAudioEngineOptions } from './ExpoAudioEngine';
 import { NativeEngine } from './NativeEngine';
 import { storedEngine, type PlaybackEngineKind } from './setting';
@@ -52,6 +54,19 @@ let running: PlaybackEngineKind | undefined;
 export function runningEngine(): PlaybackEngineKind {
   running ??= storedEngine() === 'native' && startNative() ? 'native' : 'classic';
   return running;
+}
+
+let request: PlaybackRequest | undefined;
+
+/**
+ * What `/tracks/:id/playback` asks for while this run's engine plays (`playbackRequestFor`),
+ * decided once. A native module from before the fragmented profiles has no `probeCodecs` and
+ * cannot read them, so it asks as the classic engine does.
+ */
+export function playbackRequest(): PlaybackRequest {
+  const native = runningEngine() === 'native' ? NativeAudio : null;
+  request ??= playbackRequestFor(Platform.OS, native?.probeCodecs ? () => native.probeCodecs!() : undefined);
+  return request;
 }
 
 /**

@@ -1,5 +1,5 @@
 import { formatBytes, GIGABYTE, plural, reduceSession, type Session } from '@squirmy/client-core';
-import type { PlaybackDescriptor, QueueEntry, StreamQuality, TrackSummary } from '@squirmy/contracts';
+import type { PlaybackDescriptor, QueueEntry, StreamProfile, StreamQuality, TrackSummary } from '@squirmy/contracts';
 import { checkIntervalMs, type NetworkKind } from '../downloads/model';
 
 /**
@@ -47,6 +47,16 @@ export const minFreeBytes = 500 * 1024 ** 2;
 export const maxAttempts = 3;
 
 const order: readonly StreamQuality[] = ['data_saver', 'high', 'original'];
+
+const fragmentedProfiles: ReadonlySet<StreamProfile> = new Set(['flac_mp4', 'opus_mp4_192', 'opus_mp4_96', 'aac_mp4_256', 'aac_mp4_128', 'copy_mp4']);
+
+/**
+ * The copy is in fragmented MP4, which only the native engine asks for: it carries no edit
+ * list, so another player would play its priming, and older systems cannot play its Opus.
+ */
+export function needsNativeEngine(row: Pick<CacheRow, 'descriptor'>): boolean {
+  return fragmentedProfiles.has(row.descriptor.profile);
+}
 const rank = (quality: StreamQuality) => order.indexOf(quality);
 
 /**

@@ -10,13 +10,14 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, StyleSheet } from 'react-native';
 import { closeSheet } from '../closeSheet';
+import { runningEngine } from '../player/engine';
 import { engineNote, engineOptions, showsEngineSetting, useEngineSetting } from '../player/engine/setting';
 import { SheetFormHeader, SheetPickerRow } from '../SheetUI';
 import { StorageSection } from '../streamingCache/StorageSection';
 import { useColors } from '../theme';
 import { serviceNames } from './scrobbling';
 import {
-  lastFmAdminNote, normalizationNote, normalizationOptions, openListenBrainzSettings, qualityNote, qualityOptions,
+  lastFmAdminNote, nativeQualityNote, normalizationNote, normalizationOptions, openListenBrainzSettings, qualityNote, qualityOptions,
   explicitLabel, explicitNote, explicitRestrictedNote, scrobbleDetail, scrobbleFooter, serverMusicLabel, serverMusicNote, shareNowPlayingLabel,
   shareNowPlayingNote, useSettingsScreen,
 } from './settings';
@@ -47,7 +48,7 @@ export function SettingsScreen() {
               onChange={normalization => update({ normalization })} />
             {engineChoice && <SheetPickerRow label="Engine" value={engine} options={engineOptions} onChange={setEngine} />}
           </Section>
-          <Section title="Streaming Quality" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{qualityNote}</Text>}>
+          <Section title="Streaming Quality" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{runningEngine() === 'native' ? nativeQualityNote : qualityNote}</Text>}>
             <SheetPickerRow label="Wi-Fi" value={settings.qualityWifi} options={qualityOptions} onChange={qualityWifi => update({ qualityWifi })} />
             <SheetPickerRow label="Cellular" value={settings.qualityCellular} options={qualityOptions}
               onChange={qualityCellular => update({ qualityCellular })} />

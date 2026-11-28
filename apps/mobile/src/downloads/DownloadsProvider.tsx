@@ -48,6 +48,8 @@ const capItem = accountItem<number | null>('downloadCap', 'device');
 /** `current` gives the latest client, so a replaced one does not rebuild the manager. */
 function source(current: () => Api, serverUrl: string): DownloadSource {
   return {
+    // In today's profiles whichever engine plays, since a download outlives a change of engine;
+    // with the native engine a cached original still becomes a download without a second fetch.
     describe: (trackId, albumId, quality) => current().streaming.playback(trackId, {
       albumId: albumId ?? undefined, quality, codecs: codecsFor(Platform.OS), download: true, intent: 'download',
     }),

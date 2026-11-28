@@ -113,7 +113,7 @@ When an admin has [connected a provider](../server/acquisition.md), songs that a
 
 ## Known limits
 
-- **Gapless playback is close but not sample-accurate** with the classic engine, which every build uses unless you choose another: the next track starts as the previous one ends, which can leave a tiny seam on continuous albums. The **Native** engine (TestFlight and development builds, under **Settings → Playback → Engine**) is gapless for FLAC, ALAC, AAC, MP3 and Opus files; songs the server transcodes for the phone (formats iOS can't play, or the **High** and **Data Saver** qualities) still have their encoder's short gap with either engine.
+- **Gapless playback is close but not sample-accurate** with the classic engine, which every build uses unless you choose another: the next track starts as the previous one ends, which can leave a tiny seam on continuous albums. The **Native** engine (TestFlight and development builds, under **Settings → Playback → Engine**) is gapless for FLAC, ALAC, AAC, MP3 and Opus files, and for the songs the server converts for the phone (formats iOS can't play, or the **High** and **Data Saver** qualities), which it gets as Opus (AAC where the phone can't play Opus) or lossless FLAC. With the classic engine those converted songs still have their encoder's short gap. Downloads are converted the classic way whichever engine plays, so a download at **High** or **Data Saver** keeps that short gap.
 - **Lock screen and Control Center controls** are implemented but have not yet been verified on a physical device.
 - **Volume normalization only turns loud tracks down.** It never boosts quiet ones on iOS.
 - **A paused phone drops off other devices' lists** once iOS suspends the app, and comes back when you open it.

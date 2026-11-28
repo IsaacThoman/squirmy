@@ -3,7 +3,7 @@ import type { Artwork, PlaybackDescriptor, StreamQuality, TrackSummary } from '@
 import type { DownloadNetwork } from '../downloads/manager';
 import { extensionFor, retryDelay, sizeMatches } from '../downloads/model';
 import {
-  estimateBytes, evictionsAcross, inUse, maxAttempts, nothingNear, pick, plan, reconcile, sameOutlook, type CacheRow, type ForeignRow,
+  estimateBytes, evictionsAcross, inUse, maxAttempts, needsNativeEngine, nothingNear, pick, plan, reconcile, sameOutlook, type CacheRow, type ForeignRow,
   type Near, type Outlook, type Plan, type Target,
 } from './model';
 
@@ -334,8 +334,13 @@ export class StreamingCache {
 
   // Internals
 
-  private copies(trackId: string): CacheRow[] {
-    return qualities.flatMap(quality => this.rows.get(keyOf({ trackId, quality })) ?? []);
+  /**
+   * The track's copies this player can play; with `all`, every one. The classic player passes
+   * over the native engine's fragmented MP4 copies, and a fetch of its own replaces them.
+   */
+  private copies(trackId: string, all = false): CacheRow[] {
+    const rows = qualities.flatMap(quality => this.rows.get(keyOf({ trackId, quality })) ?? []);
+    return all || this.ports.streams ? rows : rows.filter(row => !needsNativeEngine(row));
   }
 
   private plan(): Plan {
@@ -464,7 +469,7 @@ export class StreamingCache {
 
     const { url: _url, expiresAt: _expiresAt, ...kept } = descriptor;
     // Any copy the track already had is of a lesser quality, or of a file the server has replaced.
-    const replaced = this.copies(trackId);
+    const replaced = this.copies(trackId, true);
     const playing = this.outlook.role === 'active' && this.outlook.current?.trackId === trackId;
     const playedAt = playing ? this.now : Math.max(0, ...replaced.map(old => old.playedAt ?? 0)) || null;
     const row: CacheRow = {
@@ -580,7 +585,7 @@ export class StreamingCache {
   }
 
   private markPlayed(trackId: string): void {
-    const rows = this.copies(trackId).map(row => ({ ...row, playedAt: this.now }));
+    const rows = this.copies(trackId, true).map(row => ({ ...row, playedAt: this.now }));
     if (!rows.length) return;
     for (const row of rows) this.rows.set(keyOf(row), row);
     this.ports.index.put(rows);

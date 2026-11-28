@@ -1,6 +1,5 @@
 import { artworkUrl, streamUrl } from '@squirmy/client-core';
 import { useCallback, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
-import { Platform } from 'react-native';
 import { useAccountKey, useServerUrl, useSignedInApi } from '../account/AccountProvider';
 import { accountItem } from '../data/accountStorage';
 import { useTrackStore } from '../data/library';
@@ -8,8 +7,7 @@ import { useUserSettings } from '../data/queries';
 import { useRealtime } from '../data/realtime';
 import { useDownloadManager } from '../downloads/DownloadsProvider';
 import { downloadNetwork } from '../downloads/files';
-import { runningEngine } from '../player/engine';
-import { codecsFor } from '../player/session';
+import { playbackRequest, runningEngine } from '../player/engine';
 import { StreamingCacheContext } from './context';
 import { cacheIndex } from './database';
 import { cacheFiles } from './files';
@@ -57,7 +55,8 @@ export function StreamingCacheProvider({ children }: PropsWithChildren) {
       describe: (trackId, albumId, quality) => {
         const current = live.current.api;
         if (!current) return Promise.reject(new Error('Signed out'));
-        return current.streaming.playback(trackId, { albumId: albumId ?? undefined, quality, codecs: codecsFor(Platform.OS), intent: 'cache' });
+        // As the player asks, so the cached file is the one that would have streamed.
+        return current.streaming.playback(trackId, { albumId: albumId ?? undefined, quality, ...playbackRequest(), intent: 'cache' });
       },
       url: descriptor => streamUrl(live.current.serverUrl, descriptor),
       track: async (trackId, albumId) => {

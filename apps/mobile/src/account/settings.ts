@@ -56,6 +56,8 @@ export const shareNowPlayingLabel = 'Share what I’m listening to with other us
 export const shareNowPlayingNote = 'Lets other users see your current song in Subsonic apps.';
 
 export const qualityNote = 'Original streams the file as it is when this device can play it. High is AAC at 256 kbps. Data Saver uses the least data.';
+/** With the native engine, which gets Opus where the device decodes it. */
+export const nativeQualityNote = 'Original streams the file as it is when this device can play it. High is Opus at 192 kbps, or AAC at 256 kbps where Opus can’t play. Data Saver uses the least data.';
 
 /** What the settings screen says under a section's controls when the server or the service refused. */
 export const scrobbleFailures = {
