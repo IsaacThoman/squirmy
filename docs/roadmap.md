@@ -25,6 +25,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Likes, ratings, playlists, history, user settings
 - [x] Lyrics: embedded, sidecar and LRCLIB, shown on web and iOS, word by word from Enhanced LRC and TTML
 - [x] Web app: setup, login, library, album and artist pages, player, queue
+- [x] Web app on a desktop: multi-select in song lists and the queue, dragging songs and cards to playlists, the queue and the player, right-click menus on cards and the player, a command palette, keyboard shortcuts, a pop-out player
 - [x] Now Playing's turning cover colors (web and iPhone), covers that crossfade, a lean-back full screen on the web and a Compact density
 - [x] Mobile app: connect, login, real data, real audio, lock-screen controls
 
@@ -123,7 +124,7 @@ Designed in [audio-engine.md](./audio-engine.md); each item is a pull request fr
 - [x] S3. Fragmented MP4 profiles (FLAC, Opus, AAC) with exact gapless numbers, and seeking live transcodes
 - [ ] C1. Queue diffs with checkpoints on the session socket
 - [ ] C2. Undoing queue edits
-- [ ] M1. The native iOS and tvOS engine, behind a setting
+- [x] M1. The native iOS and tvOS engine, behind a setting
 - [ ] M2. Streaming to the cache in one pass
 - [ ] M3. Fragmented MP4 transcodes and live seeking on iOS
 - [ ] M4. Normalization with boost and a true-peak limiter, with a target setting

@@ -1,5 +1,5 @@
 import type { PlaylistDetail } from '@squirmy/contracts'
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from '@/App'
@@ -82,6 +82,18 @@ describe('smart playlists', () => {
     const dialog = within(await screen.findByRole('dialog', { name: 'Share playlist' }))
     await userEvent.click(dialog.getByRole('button', { name: 'Create link' }))
     expect(api.share.create).toHaveBeenCalledWith(expect.objectContaining({ kind: 'playlist', id: smart.id }))
+  })
+
+  it('offers no removal of picked songs', async () => {
+    const { services } = withSmart()
+    renderWithApp(<AppRoutes />, `/playlist/${smart.id}`, services)
+    for (const { track } of smart.items.slice(0, 2)) {
+      const row = (await screen.findByRole('button', { name: `More options for ${track.title}` })).closest('li')!
+      fireEvent.click(row.querySelector('.grid')!, { ctrlKey: true })
+    }
+    const bar = screen.getByRole('toolbar', { name: 'Selected songs' })
+    expect(within(bar).getByRole('button', { name: 'Add to queue' })).toBeInTheDocument()
+    expect(within(bar).queryByRole('button', { name: 'Remove from playlist' })).toBeNull()
   })
 
   it('edits its rules from its menu', async () => {

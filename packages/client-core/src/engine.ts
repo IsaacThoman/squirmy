@@ -1,3 +1,5 @@
+import type { PlaybackDescriptor } from '@squirmy/contracts'
+
 /**
  * The audio output each platform implements: `HTMLAudioElement` plus Web Audio on the
  * web, `expo-audio` on mobile. `SessionClient` is its only caller and drives it only
@@ -64,6 +66,7 @@ export type EngineLoad = {
   startMs: number
   autoplay: boolean
   gain: number
+  media?: EngineMedia
 }
 
 export type EnginePreload = {
@@ -71,6 +74,18 @@ export type EnginePreload = {
   url: string
   /** Applied when the preloaded entry starts. */
   gain: number
+  media?: EngineMedia
+}
+
+/**
+ * What the playback descriptor says about the stream, for engines that decode it themselves
+ * (the iOS native engine). Engines that hand the URL to a player ignore it.
+ */
+export type EngineMedia = {
+  /** A server transcode rather than the original file. */
+  transcoded: boolean
+  /** The stream's exact length and priming, when the server knows them. */
+  gapless?: PlaybackDescriptor['gapless']
 }
 
 /**

@@ -1,7 +1,7 @@
 import { searchItemKey, tooShortToSearch, type RecentSearch, type SearchFilter, type SearchItem } from '@squirmy/client-core'
 import type { SearchFacets, TrackSummary } from '@squirmy/contracts'
 import { MoreHorizontal, Play, RotateCw, Search, X } from 'lucide-react'
-import { useEffect, useId, useMemo, useRef, type KeyboardEvent, type MouseEvent } from 'react'
+import { useContext, useEffect, useId, useMemo, useRef, useSyncExternalStore, type KeyboardEvent, type MouseEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { Page, PageHeader } from '@/components/layout/Page'
 import { GenreTile } from '@/components/music/Cards'
@@ -11,8 +11,11 @@ import { PrefetchLink } from '@/components/music/PrefetchLink'
 import { useResultMenus } from '@/components/music/result-menus'
 import { searchItemText, searchRowClass } from '@/components/music/search-row'
 import { SearchItemArt, SearchRowBody } from '@/components/music/SearchRow'
+import { SelectionContext } from '@/components/music/selection'
 import { SectionHeader } from '@/components/music/SectionHeader'
 import { trackMenuEntries } from '@/components/music/track-menu'
+import { usePickedTracks, useTrackSelection } from '@/components/music/track-selection'
+import { commandKey } from '@/components/music/use-list-selection'
 import { Button } from '@/components/ui/button'
 import { EmptyState, Skeleton, Spinner } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
@@ -230,11 +233,26 @@ type ResultsProps = {
 
 function Results({ term, filter, list, onChoose }: ResultsProps) {
   const { items, lyricItems, creditItems, stale, pending, failed, catalogFailed, unavailable, retry, retrying = false, loadMore, hasMore, moreFailed, moreError } = list
-  const tracks = useMemo(() => [...(items ?? []), ...(lyricItems ?? []), ...(creditItems ?? [])].flatMap(item => item.type === 'track' ? [item.track] : []), [items, lyricItems, creditItems])
+  // Every song found, in the order the page lists them (the list, then lyric and credit matches),
+  // each once: a song whose title and lyrics both match is one song to pick, play or queue.
+  const tracks = useMemo(() => {
+    const seen = new Set<string>()
+    return [...(items ?? []), ...(lyricItems ?? []), ...(creditItems ?? [])].flatMap(item => {
+      if (item.type !== 'track' || seen.has(item.track.id)) return []
+      seen.add(item.track.id)
+      return [item.track]
+    })
+  }, [items, lyricItems, creditItems])
+  const songIndexes = useMemo(() => new Map(tracks.map((track, index) => [track.id, index])), [tracks])
   const actions = useTrackActions(tracks)
   const resultMenu = useResultMenus()
   const viewer = useViewer()
   const navigate = useNavigate()
+  // Songs found can be picked with ⌘/Ctrl-click and Shift-click, as in a track list, across the
+  // list and its Lyrics and Credits sections; a click plays one.
+  const rowsList = useRef<HTMLDivElement>(null)
+  const keys = useMemo(() => tracks.map(track => track.id), [tracks])
+  const selection = useTrackSelection({ tracks, keys, batch: actions.batch, list: rowsList })
 
   if (unavailable) return <EmptyState icon={<Search />} title="Search is not available yet" description="This server does not answer searches yet. Browse your library in the meantime." />
   if (failed) {
@@ -260,25 +278,29 @@ function Results({ term, filter, list, onChoose }: ResultsProps) {
       />
     )
   }
-  const resultRows = (entries: SearchItem[]) => entries.map(item => (
-    <ResultRow
-      key={searchItemKey(item)}
-      item={item}
-      stale={stale}
-      onChoose={() => onChoose(item)}
-      trackMenu={item.type === 'track' ? track => trackMenuEntries(track, {
-        unavailable: !isPlayable(track, viewer),
-        wanted: actions.isWanted?.(track),
-        playlists: actions.playlists,
-        canShare: actions.canShare,
-        ratings: actions.ratings,
-        act: action => actions.onAction(action, track, tracks.indexOf(track)),
-        navigate: to => void navigate(to),
-      }) : undefined}
-      resultMenu={resultMenu}
-      onLike={item.type === 'track' ? () => actions.onAction('like', item.track, tracks.indexOf(item.track)) : undefined}
-    />
-  ))
+  const resultRows = (entries: SearchItem[]) => entries.map(item => {
+    const songIndex = item.type === 'track' ? (songIndexes.get(item.track.id) ?? -1) : undefined
+    return (
+      <ResultRow
+        key={searchItemKey(item)}
+        item={item}
+        songIndex={songIndex}
+        stale={stale}
+        onChoose={() => onChoose(item)}
+        trackMenu={item.type === 'track' ? track => trackMenuEntries(track, {
+          unavailable: !isPlayable(track, viewer),
+          wanted: actions.isWanted?.(track),
+          playlists: actions.playlists,
+          canShare: actions.canShare,
+          ratings: actions.ratings,
+          act: action => actions.onAction(action, track, songIndex!),
+          navigate: to => void navigate(to),
+        }) : undefined}
+        resultMenu={resultMenu}
+        onLike={item.type === 'track' ? () => actions.onAction('like', item.track, songIndex!) : undefined}
+      />
+    )
+  })
   return (
     // A row reads across: past this width its duration and menu drift away from its title.
     <div aria-busy={stale || pending || undefined} className="flex max-w-4xl flex-col gap-3">
@@ -291,21 +313,27 @@ function Results({ term, filter, list, onChoose }: ResultsProps) {
           className="[overflow-wrap:anywhere]"
         />
       )}
-      {items.length > 0 && (
-        // Results of an earlier query stay, faded, while this one's load, but are not there to be opened.
-        <ol aria-label={`Results for ${term}`} inert={stale || undefined} className="-mx-2.5 flex flex-col">
-          {resultRows(items)}
-        </ol>
+      {selection.provide(
+        // One region for the songs of every section, so a press in any of them keeps the picked songs.
+        <div ref={rowsList} onKeyDown={selection.onListKeyDown} className="contents">
+          {items.length > 0 && (
+            // Results of an earlier query stay, faded, while this one's load, but are not there to be opened.
+            <ol aria-label={`Results for ${term}`} inert={stale || undefined} className="-mx-2.5 flex flex-col">
+              {resultRows(items)}
+            </ol>
+          )}
+          {([
+            { title: 'Lyrics', rows: lyricItems },
+            { title: 'Credits', rows: creditItems },
+          ]).map(({ title, rows }) => rows?.length ? (
+            <section key={title} inert={stale || undefined}>
+              <SectionHeader title={title} />
+              <ol aria-label={`Matching ${title.toLowerCase()}`} className="-mx-2.5 flex flex-col">{resultRows(rows)}</ol>
+            </section>
+          ) : null)}
+          {selection.bar}
+        </div>,
       )}
-      {([
-        { title: 'Lyrics', rows: lyricItems },
-        { title: 'Credits', rows: creditItems },
-      ]).map(({ title, rows }) => rows?.length ? (
-        <section key={title} inert={stale || undefined}>
-          <SectionHeader title={title} />
-          <ol aria-label={`Matching ${title.toLowerCase()}`} className="-mx-2.5 flex flex-col">{resultRows(rows)}</ol>
-        </section>
-      ) : null)}
       {moreFailed && !stale && loadMore
         ? <LoadError title="More results didn’t load" error={moreError} retrying={pending} onRetry={loadMore} />
         : (pending || hasMore) && <MoreResults loading={pending} onEndReached={hasMore ? loadMore : undefined} />}
@@ -320,7 +348,11 @@ type ResultRowProps = {
   trackMenu?: (track: TrackSummary) => MenuEntry[]
   resultMenu: ReturnType<typeof useResultMenus>
   onLike?: () => void
+  /** A song's place among the songs found, for picking it. */
+  songIndex?: number
 }
+
+const noSubscribe = () => () => {}
 
 /** A row's highlight while the keyboard is on its own control, as the pointer's is on hover. */
 const focusedRow = 'has-[[data-search-row]:focus-visible]:bg-accent'
@@ -331,7 +363,7 @@ const focusedRow = 'has-[[data-search-row]:focus-visible]:bg-accent'
  * play is gray and opens its album. Its heart and its menu (the overflow button, or a right
  * click) are controls of their own beside it, the menu the one the same kind has everywhere.
  */
-function ResultRow({ item, stale, onChoose, trackMenu, resultMenu, onLike }: ResultRowProps) {
+function ResultRow({ item, stale, onChoose, trackMenu, resultMenu, onLike, songIndex }: ResultRowProps) {
   const viewer = useViewer()
   const controls = usePlayerControls()
   const detailId = useId()
@@ -347,7 +379,11 @@ function ResultRow({ item, stale, onChoose, trackMenu, resultMenu, onLike }: Res
   const current = playback !== null
   const playing = playback === 'playing' || playback === 'loading'
   const loading = playback === 'loading'
-  const menu = track ? trackMenu!(track) : resultMenu(item as Exclude<SearchItem, { type: 'track' }>)
+  const rowSelection = useContext(SelectionContext)
+  const picked = usePickedTracks()
+  // How many songs are picked, while this one is: its menu then says and acts on all of them.
+  const pickedCount = useSyncExternalStore(rowSelection?.selection.subscribe ?? noSubscribe, () => (track && rowSelection?.selection.has(track.id) ? rowSelection.selection.size : 0))
+  const menu = track ? (pickedCount > 1 && picked ? picked.menu() : trackMenu!(track)) : resultMenu(item as Exclude<SearchItem, { type: 'track' }>)
 
   const overlay = 'absolute inset-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring'
   // A plain click goes through `onChoose`, which records the result as recently viewed and
@@ -365,7 +401,11 @@ function ResultRow({ item, stale, onChoose, trackMenu, resultMenu, onLike }: Res
         // A song's name is what pressing it does; the row's "Song · Artist" says which one.
         aria-label={unavailable ? `${title}, ${unavailableText}` : playing ? `Pause ${title}` : `Play ${title}`}
         aria-describedby={detailId}
-        onClick={current && !unavailable ? controls.togglePlay : onChoose}
+        onClick={event => {
+          if (rowSelection && songIndex !== undefined && (commandKey(event) || event.shiftKey)) return rowSelection.onRowClick(songIndex, event)
+          if (current && !unavailable) controls.togglePlay()
+          else onChoose()
+        }}
         className={overlay}
       />
     )
@@ -389,7 +429,8 @@ function ResultRow({ item, stale, onChoose, trackMenu, resultMenu, onLike }: Res
         // A song that does not play still opens its album, and its heart and menu work. Its control's name says "Not available".
         title={unavailable ? unavailableText : undefined}
         // Its own size container: the duration shows when the row, not the window, has room for it.
-        className={cn('group/row @container relative', snippet ? 'min-h-16 py-2' : 'h-14', searchRowClass(false, stale), focusedRow)}
+        data-selected={pickedCount > 0 || undefined}
+        className={cn('group/row @container relative', snippet ? 'min-h-16 py-2' : 'h-14', searchRowClass(false, stale), focusedRow, pickedCount > 0 && 'bg-accent hover:bg-accent')}
       >
         <div className="relative size-10 shrink-0">
           <SearchItemArt item={item} dimmed={dimmed} className="size-10" />
@@ -403,7 +444,7 @@ function ResultRow({ item, stale, onChoose, trackMenu, resultMenu, onLike }: Res
             </div>
           )}
         </div>
-        <SearchRowBody art={null} title={title} detail={detail} snippet={snippet} detailId={detailId} dimmed={dimmed} current={current} explicit={track?.explicit ?? false} note={unavailable ? unavailableText : undefined} />
+        <SearchRowBody art={null} title={title} detail={detail} snippet={snippet} detailId={detailId} dimmed={dimmed} current={current} explicit={track?.explicit ?? false} note={unavailable ? unavailableText : pickedCount > 0 ? 'Selected' : undefined} />
         {primary}
         {/* A finger gets 44 px for the heart and the menu, with no gap between them. */}
         <div className="relative z-10 flex shrink-0 items-center gap-1 pointer-coarse:gap-0">

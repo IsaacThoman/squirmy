@@ -4,7 +4,7 @@ A share link is a public page for an album, a playlist or a song. Anyone you sen
 
 ## Making a link
 
-- **Web app.** Choose **Share…** in the **⋯** menu of an album (on its page, its card or a search result), a playlist (on its page or a search result) or a song (in any song list). Pick how long the link works (**1 day**, **7 days**, **30 days** or **Until I revoke it**), choose **Create link**, then **Copy**.
+- **Web app.** Choose **Share…** in the **⋯** menu of an album (on its page, its card or a search result), a playlist (on its page or a search result) or a song (in any song list, the queue or **Now Playing**). A right-click on an album's or playlist's card, or on the song in the player bar, offers it too, and so does the [search box's commands](./web.md#search-and-commands) for the song playing. Pick how long the link works (**1 day**, **7 days**, **30 days** or **Until I revoke it**), choose **Create link**, then **Copy**.
 - **iOS app.** Choose **Share** on an album's or playlist's page, or in a song's menu. Pick how long the link works, and the share sheet opens with the link in it.
 
 The link looks like `https://music.example.com/s/…`. Copy it when it is made: the server keeps only a fingerprint of it, so it cannot show you the same link again. If you lose it, make a new one.

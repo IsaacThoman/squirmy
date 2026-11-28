@@ -119,15 +119,19 @@ describe('Library', () => {
     // The list is asked for again, in its new order.
     await waitFor(() => expect(fake.api.catalog.items.mock.calls.length).toBeGreaterThan(listed))
 
-    // A playlist's menu is the pin alone; Liked Songs is pinned by its own id.
+    // A playlist's menu plays, queues, shares and opens it, then pins it; Liked Songs is pinned by its own id.
     fireEvent.contextMenu(within(list).getByRole('link', { name: playlist.name }))
-    expect((await screen.findAllByRole('menuitem')).map(item => item.textContent)).toEqual(['Pin to top'])
+    expect((await screen.findAllByRole('menuitem')).map(item => item.textContent)).toEqual(['Play', 'Play next', 'Add to queue', 'Add to playlist', 'Share…', 'Go to playlist', 'Pin to top'])
     await userEvent.click(screen.getByRole('menuitem', { name: 'Pin to top' }))
     expect(fake.api.userdata.pin).toHaveBeenCalledWith('playlist', playlist.id)
     await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
     fireEvent.contextMenu(within(list).getByRole('link', { name: 'Liked Songs' }))
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Pin to top' }))
     expect(fake.api.userdata.pin).toHaveBeenCalledWith('liked', '00000000-0000-0000-0000-000000000000')
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+    fireEvent.contextMenu(within(list).getByRole('link', { name: playlist.name }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Share…' }))
+    expect(await screen.findByRole('dialog', { name: 'Share playlist' })).toBeInTheDocument()
   })
 
   it('offers no pin where it is not known: other filters and searches', async () => {
