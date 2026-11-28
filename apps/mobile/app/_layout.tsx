@@ -83,6 +83,7 @@ function Routes() {
       <Stack.Protected guard={signedIn}>
         <Stack.Screen name="(tabs)" options={authOptions} />
         <Stack.Screen name="devices" options={sheet} />
+        <Stack.Screen name="listen-together" options={sheet} />
         <Stack.Screen name="track-actions" options={sheet} />
         <Stack.Screen name="track-info" options={sheet} />
         <Stack.Screen name="add-to-playlist" options={sheet} />

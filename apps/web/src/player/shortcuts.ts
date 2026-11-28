@@ -1,4 +1,4 @@
-import type { SessionClientSnapshot } from '@squirmy/client-core'
+import { followsJam, type SessionClientSnapshot } from '@squirmy/client-core'
 import { useEffect, useRef } from 'react'
 import type { PlayerControls, PositionClock } from './player-context'
 
@@ -49,7 +49,8 @@ export function keyIsTaken(event: Pick<KeyboardEvent, 'key' | 'target' | 'altKey
 /**
  * Space plays and pauses, ←/→ seek by five seconds (with Shift, go to the previous or next song)
  * and ↑/↓ change the volume of the device that plays, unless the focused element uses the key
- * itself or is inside something that does (`keyIsTaken`). The shell has the letter keys.
+ * itself or is inside something that does (`keyIsTaken`). The shell has the letter keys. While
+ * this user follows someone's jam only the volume keys work, as only the volume does in the player.
  */
 export function useShortcuts(controls: PlayerControls, clock: PositionClock, snapshot: SessionClientSnapshot, thisDeviceId: string) {
   const latest = useRef(snapshot)
@@ -59,7 +60,9 @@ export function useShortcuts(controls: PlayerControls, clock: PositionClock, sna
     const onKeyDown = (event: KeyboardEvent) => {
       if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', ' '].includes(event.key) || keyIsTaken(event)) return
       const { session } = latest.current
-      if (!session.current && event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
+      const volumeKey = event.key === 'ArrowUp' || event.key === 'ArrowDown'
+      // In someone's jam the host plays, pauses and seeks, so those keys are as the dimmed buttons: nothing. The volume is the listener's own.
+      if (!volumeKey && (!session.current || followsJam(session))) return
       event.preventDefault()
       // Held down, Shift+arrow would skip song after song.
       if (event.shiftKey && event.repeat && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) return

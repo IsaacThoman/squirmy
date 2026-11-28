@@ -1,6 +1,9 @@
+import type { JamInfo } from '@squirmy/contracts'
+import type { ReactNode } from 'react'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { usePlayer, PlayerContext } from '@/player/player-context'
 import { renderWithApp } from '@/test/render'
 import { canPopOut, usePopOut } from './pop-out'
 import { PopOutPlayer } from './PopOutPlayer'
@@ -23,6 +26,13 @@ function Harness() {
       {popOut.popped && <PopOutPlayer target={popOut.popped} />}
     </>
   )
+}
+
+/** The fixture session as a member of someone's jam sees it. */
+function AsMember({ children }: { children: ReactNode }) {
+  const player = usePlayer()
+  const jam: JamInfo = { id: 'abcdefghijklmnopqrstuv', hostUserId: 'host', queuePolicy: 'everyone', startedAt: 0, role: 'member', members: [] }
+  return <PlayerContext value={{ ...player, state: { ...player.state, jam } }}>{children}</PlayerContext>
 }
 
 afterEach(() => {
@@ -62,6 +72,19 @@ describe('the pop-out player', () => {
     // Its controls are the player's.
     await userEvent.click(popped.getByRole('button', { name: 'Pause' }))
     expect(await popped.findByRole('button', { name: 'Play' })).toBeInTheDocument()
+  })
+
+  it('dims its transport for a member of someone’s jam, and Space there does nothing', async () => {
+    const { target } = pictureInPicture()
+    renderWithApp(<AsMember><Harness /></AsMember>)
+    await userEvent.click(screen.getByRole('button', { name: 'Pop out player' }))
+    const popped = within(target.document.body)
+    expect(await popped.findByText('Night Swimming')).toBeInTheDocument()
+    for (const name of ['Previous', 'Pause', 'Next']) expect(popped.getByRole('button', { name })).toBeDisabled()
+    // Left be (not prevented), as the window's player does not take it.
+    expect(fireEvent.keyDown(target.document.body, { key: ' ' })).toBe(true)
+    // Its heart is the listener's own.
+    expect(popped.getByRole('button', { name: /library/ })).toBeEnabled()
   })
 
   it('goes when the listener closes its window', async () => {

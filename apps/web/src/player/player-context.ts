@@ -1,6 +1,7 @@
-import { type AwayDevice, deviceLabel, listedDevices, readsUnavailable, type DeviceLabel, type SessionMoveResult, type SessionOutage } from '@squirmy/client-core'
-import type { DeviceInfo, Lyrics, PlaybackContext, QueueEntry, RepeatMode, SignalPath, SleepTimer, SleepTimerRequest, TrackSummary } from '@squirmy/contracts'
-import { createContext, useContext, useLayoutEffect, useState, useSyncExternalStore } from 'react'
+import { type AwayDevice, deviceLabel, listedDevices, readsUnavailable, type DeviceLabel, type JamResult, type SessionMoveResult, type SessionOutage } from '@squirmy/client-core'
+import type { DeviceInfo, JamInfo, JamRequest, Lyrics, PlaybackContext, QueueEntry, RepeatMode, SignalPath, SleepTimer, SleepTimerRequest, TrackSummary } from '@squirmy/contracts'
+import { createContext, useContext, useLayoutEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { CurrentUserContext } from '@/auth/session'
 import type { PlayerStatus } from './status'
 
 /** A queue entry with the track it points at, hydrated for display. */
@@ -60,7 +61,15 @@ export type PlayerState = {
   canSetSleepTimer?: boolean
   /** The server's clock, which a sleep timer's end is told in. Left out by fixtures: this browser's. */
   serverNow?: () => number
+  /** The jam this session hosts or follows, while it does (see "Listen together" in the session contract). */
+  jam?: JamInfo
+  /** The server can listen together, so the player offers it. */
+  canJam?: boolean
+  /** Someone asked this user to join their jam, until it is answered or dismissed. */
+  jamInvite?: JamInvite | null
 }
+
+export type JamInvite = { jamId: string; hostName: string }
 
 export type LyricsStatus = 'none' | 'loading' | 'failed' | 'ready'
 
@@ -105,6 +114,10 @@ export type PlayerControls = {
   detach: () => Promise<SessionMoveResult>
   /** Puts this tab back in the shared session; `bringQueue` makes the shared session what this tab was playing. */
   attach: (options?: { bringQueue?: boolean }) => Promise<SessionMoveResult>
+  /** Starts, joins, leaves, ends or changes a jam. Resolves once the server has answered. */
+  jam: (request: JamRequest) => Promise<JamResult>
+  /** Forgets the invite shown, answered or not. */
+  dismissJamInvite: () => void
   /** Renames this browser in every device list; null goes back to the name from the user agent. */
   renameDevice: (name: string | null) => void
   /**
@@ -121,6 +134,9 @@ export type StatusMessage = { message: string; detail?: string; tone: 'info' | '
 export type Player = { state: PlayerState; controls: PlayerControls }
 
 export const PlayerContext = createContext<Player | null>(null)
+
+/** The session's jam, apart from the rest of the session, so queue rows can name who added a song without rendering on every update. */
+export const JamContext = createContext<JamInfo | undefined>(undefined)
 
 /** The controls alone. They keep one identity, so readers that only send commands skip every session update. */
 export const PlayerControlsContext = createContext<PlayerControls | null>(null)
@@ -140,6 +156,44 @@ export function useRadioStarting(seed: RadioSeed): boolean {
  */
 export function labelDevice(state: Pick<PlayerState, 'thisDeviceId' | 'devices'>, device: DeviceInfo): DeviceLabel {
   return deviceLabel(device, listedDevices(state.devices, state.thisDeviceId), state.thisDeviceId, 'This browser')
+}
+
+/** Whether only the jam's host controls playback here: this user follows someone else's jam. */
+export function hostControls(state: Pick<PlayerState, 'jam'>): boolean {
+  return state.jam?.role === 'member'
+}
+
+/**
+ * What this listener may do to what plays, under the jam's rules (`memberCommandRoute` and the
+ * server's): everything, unless they follow someone's jam. There the host controls playback; a
+ * member adds songs while the jam's queue policy lets everyone, and takes out only what they
+ * added. Volume and the device that plays are each listener's own, so they are not here.
+ */
+export type JamRights = {
+  /** Play, pause, seek, skip, shuffle, repeat, Autoplay, a radio, a queued song picked to play, clearing the queue or history. */
+  transport: boolean
+  /** Adding songs to Up next. */
+  add: boolean
+  /** Moving songs in Up next. */
+  reorder: boolean
+  /** Taking this entry out of the queue. */
+  remove: (entry: Pick<QueueEntry, 'addedBy'>) => boolean
+}
+
+const allRights: JamRights = { transport: true, add: true, reorder: true, remove: () => true }
+
+export function jamRights(jam: JamInfo | undefined, userId: string | null): JamRights {
+  if (jam?.role !== 'member') return allRights
+  const add = jam.queuePolicy === 'everyone'
+  return { transport: false, add, reorder: false, remove: entry => add && userId !== null && entry.addedBy === userId }
+}
+
+/** `jamRights` of this user's session. Reads the jam alone, so it renders again only when the jam changes. */
+export function useJamRights(): JamRights {
+  const jam = useContext(JamContext)
+  // Null in a fixture that renders the player without signing in, where there is no jam either.
+  const userId = useContext(CurrentUserContext)?.id ?? null
+  return useMemo(() => jamRights(jam, userId), [jam, userId])
 }
 
 /** Whether this tab controls playback on another device, including while it reconnects. */

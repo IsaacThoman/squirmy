@@ -109,6 +109,8 @@ export const apiRoutes = {
 
   'sessions.session': 'GET /me/session',
   'sessions.devices': 'GET /me/devices',
+  'sessions.jam': 'GET /jams/:id',
+  'sessions.jamPeople': 'GET /jams/people',
 
   'search.library': 'GET /search/library',
   'search.catalog': 'GET /search/catalog',
