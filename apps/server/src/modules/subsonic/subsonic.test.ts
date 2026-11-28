@@ -720,7 +720,7 @@ describe('subsonic', () => {
         expect(await rows()).toEqual([])
         await report('stopped', 170_000)
         await report('stopped', 170_000)
-        await user.client.json('scrobble', { id, time: started })
+        await user.client.json('scrobble', { id, time: started - 1000 })
         expect(await rows()).toEqual([expect.objectContaining({ msPlayed: 90_000, completed: true, skipped: false, client: 'subsonic', albumId: blueHour.albumId })])
         expect((await user.client.call('getNowPlaying')).nowPlaying.entry).toEqual([])
 

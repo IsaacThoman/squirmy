@@ -16,7 +16,7 @@ import { newId } from '../../lib/ids.js'
 import { libraryPath, serveFile, withLibraryFile, type StreamRequest, type StreamResponse } from './files.js'
 import { fragmentedSourceFrames } from './gapless.js'
 import { rewritePacketDurations } from './mp4.js'
-import { codecFamily, fragmentedEncoder, isFragmented, mp4Options, outputBitDepth, outputSampleRate, profiles, sourceSampleRate, type MediaFile, type TranscodeProfile } from './profiles.js'
+import { codecFamily, fragmentedEncoder, mp4Options, outputBitDepth, outputSampleRate, profiles, sourceSampleRate, type MediaFile, type TranscodeProfile } from './profiles.js'
 
 type TranscodeRow = typeof transcodes.$inferSelect
 

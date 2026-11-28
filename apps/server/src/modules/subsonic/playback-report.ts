@@ -29,6 +29,7 @@ type Timeline = {
 
 const OFFLINE_GRACE_MS = 30 * 60_000
 const DUPLICATE_GRACE_MS = 30_000
+const CLOCK_SKEW_MS = 5000
 const timelines = new Map<string, Timeline>()
 type PlayInterval = { startedAt: number; endedAt: number }
 const finished = new Map<string, PlayInterval[]>()
@@ -71,9 +72,9 @@ export function reportedByTimeline(user: Context['user'], client: string, record
   const current = timelines.get(key)
   const at = playedAt?.getTime()
   if (current?.recordingId === recordingId && current.state !== 'stopped' && now <= current.expiresAt
-    && (at === undefined || (at >= current.startedAt && at <= now))) return !current.ignoreScrobble
+    && (at === undefined || (at >= current.startedAt - CLOCK_SKEW_MS && at <= now + CLOCK_SKEW_MS))) return !current.ignoreScrobble
   return finished.get(playKey(key, recordingId))?.some((play) => now <= play.endedAt + OFFLINE_GRACE_MS && (
-    at === undefined ? now <= play.endedAt + DUPLICATE_GRACE_MS : at >= play.startedAt && at <= play.endedAt + DUPLICATE_GRACE_MS
+    at === undefined ? now <= play.endedAt + DUPLICATE_GRACE_MS : at >= play.startedAt - CLOCK_SKEW_MS && at <= play.endedAt + DUPLICATE_GRACE_MS
   )) ?? false
 }
 
