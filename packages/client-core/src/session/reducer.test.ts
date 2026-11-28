@@ -751,6 +751,8 @@ describe('reduceSession under random commands', () => {
       () => ({ type: 'deviceLost', deviceId: device() }),
       () => ({ type: 'syncPosition', entryId: anEntry(), positionMs: int(400_000), stalled: random() < 0.3 }),
       () => ({ type: 'updateTracks', tracks: [{ trackId: track(1 + int(12)), id: track(1 + int(12)), durationMs: int(400_000) }] }),
+      () => ({ type: 'setSleepTimer', timer: pick([null, { kind: 'time', durationMs: 1 + int(60_000) }, { kind: 'track' }, { kind: 'queue' }] as const) }),
+      () => ({ type: 'endSleepTimer' }),
     ]
     return pick(commands)()
   }

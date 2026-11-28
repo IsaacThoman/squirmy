@@ -1,5 +1,5 @@
 import { createInitialSession, joinSession, type Session, splitSession } from '@squirmy/client-core'
-import { SessionQueue, type SessionSnapshot, SessionState } from '@squirmy/contracts'
+import { SessionQueue, type SessionSnapshot, SessionState, type SignalPath } from '@squirmy/contracts'
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../../database/client.js'
@@ -76,6 +76,11 @@ export type SessionRecord = {
   picked: string | null
   /** Queue edits `undo` can undo, the newest last (see "Undo" in the session contract). In memory only: a restart forgets them. */
   undo: UndoStep[]
+  /**
+   * What the active device last said it plays (`session:signal`). Kept in memory only and
+   * passed on only while it is about the current entry on the active device.
+   */
+  signal: SignalPath | null
   persistTimer: ReturnType<typeof setTimeout> | null
   /** The last write, so writes of one session never overtake each other. */
   writing: Promise<void>
@@ -152,6 +157,7 @@ function newRecord(userId: string, deviceId: string | null, fields: Pick<Session
     autoplayAskedFor: null,
     picked: null,
     undo: [],
+    signal: null,
     persistTimer: null,
     writing: Promise.resolve(),
     lastSeenAt: 0,

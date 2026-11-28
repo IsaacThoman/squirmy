@@ -14,6 +14,7 @@ import { fromFfprobe, normalizeTags, rawTags, readGains, technicalFromFormat, ty
 export type ProbeJob = { fileId: string }
 
 /** Analysis is heavy and waits behind tag reading. */
+export const TAG_VERSION = 1
 export const ANALYZE_PRIORITY = -10
 
 type Probed = { technical: Technical; tags: FileTags; gains: Gains; picture?: EmbeddedPicture }
@@ -69,7 +70,8 @@ export async function probeFile({ fileId }: ProbeJob) {
   const info = await stat(absolute).catch(() => null)
   if (!info?.isFile()) return
   const mtime = new Date(Math.floor(info.mtimeMs))
-  if (file.probeStage >= 1 && file.size === info.size && file.mtime.getTime() === mtime.getTime()) return
+  const unchanged = file.probeStage >= 1 && file.size === info.size && file.mtime.getTime() === mtime.getTime()
+  if (unchanged && file.tagVersion >= TAG_VERSION) return
 
   const probed = await read(absolute, info.size)
   if (typeof probed === 'string') {
@@ -90,7 +92,8 @@ export async function probeFile({ fileId }: ProbeJob) {
     tagAlbumGainDb: probed.gains.albumGainDb,
     tagAlbumPeak: probed.gains.albumPeak,
     groupKey,
-    probeStage: 1,
+    tagVersion: TAG_VERSION,
+    probeStage: unchanged ? file.probeStage : 1,
     probeError: null,
     updatedAt: new Date(),
   }).where(eq(mediaFiles.id, fileId))
@@ -98,6 +101,6 @@ export async function probeFile({ fileId }: ProbeJob) {
   for (const key of new Set([groupKey, file.groupKey])) {
     if (key) await enqueue('library.ingest', { rootId: file.rootId, groupKey: key }, { singletonKey: key })
   }
-  await enqueue('library.analyze', { fileId }, { singletonKey: fileId, priority: ANALYZE_PRIORITY })
+  if (!unchanged || file.probeStage === 1) await enqueue('library.analyze', { fileId }, { singletonKey: fileId, priority: ANALYZE_PRIORITY })
   reportProbeProgress(file.rootId)
 }

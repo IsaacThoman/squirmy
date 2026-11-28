@@ -5,8 +5,10 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useAccountKey } from '../account/AccountProvider';
 import { useAllPlaylists, useSearch, useSearchPages } from '../data/queries';
+import { useRealtime } from '../data/realtime';
 import { useViewer } from '../downloads/DownloadsProvider';
 import { catalogWaitMs, searchItems, searchStage } from './search';
+import { useLocalSearch } from './useLocalSearch';
 
 /** The results for what is typed and the filter chosen, however they were found. */
 export type SearchList = {
@@ -29,17 +31,22 @@ export type SearchList = {
    */
   moreFailed?: boolean;
   retryMore?: () => void;
+  /** The server can't be reached: these are what the phone holds that matches (`useLocalSearch`). */
+  local?: boolean;
 };
 
 /**
  * The Search tab's list. All mixes every kind as the server ranks them: it waits for the
  * catalog's answer, or `catalogWaitMs` after the library's, keeping the last results on
  * screen meanwhile, so rows do not reshuffle with every key. A kind pages further as the
- * list ends. Playlists are the viewer's own whose names match.
+ * list ends. Playlists are the viewer's own whose names match. Offline, the list is what the
+ * phone holds that matches, ranked the same way, and a filter keeps its kind.
  */
 export function useSearchList(text: string, filter: SearchFilter): SearchList {
   const viewer = useViewer();
+  const { offline } = useRealtime();
   const term = text.trim();
+  const local = useLocalSearch(text, 'all', offline);
   const search = useSearch(filter === 'all' ? text : '');
   const pages = useSearchPages(text, filterKind(filter));
   // Every playlist, not only the first page of them, so any of them can be found by name.
@@ -133,6 +140,10 @@ export function useSearchList(text: string, filter: SearchFilter): SearchList {
   const [shown, setShown] = useState<{ term: string; filter: SearchFilter; signature: string; list: SearchList } | null>(null);
   const signature = current?.items ? `${term}\n${filter}\n${current.items.map(searchItemKey).join(',')}` : null;
   if (current && signature !== null && signature !== shown?.signature) setShown({ term, filter, signature, list: current });
+  if (offline && term && local) {
+    const items = filter === 'all' ? local : local.filter(item => item.type === filter);
+    return { items, stale: false, pending: false, failed: false, catalogFailed: false, local: true, refetch: async () => {} };
+  }
   if (!term) return { items: null, stale: false, pending: false, failed: false, catalogFailed: false, refetch: async () => {} };
   if (current) return current;
   return shown?.list.items && shown.filter === filter && continuesQuery(term, shown.term)

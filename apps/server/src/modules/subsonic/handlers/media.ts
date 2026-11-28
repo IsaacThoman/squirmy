@@ -8,6 +8,7 @@ import { readOriginal } from '../../artwork/recover.js'
 import { rendition } from '../../artwork/renditions.js'
 import { trackLyrics } from '../../catalog/pages.js'
 import { openStream, selectFile } from '../../streaming/index.js'
+import { streamSignal } from '../../streaming/files.js'
 import { profiles } from '../../streaming/profiles.js'
 import { expectId } from '../ids.js'
 import { notFound, sent, type Context, type Handler, type Payload } from '../protocol.js'
@@ -47,7 +48,11 @@ async function stream(context: Context): Promise<typeof sent> {
   }
 
   const profile = plan.kind === 'profile' ? plan.profile : 'original'
-  const response = await openStream(file, profile, rangeHeaders(context))
+  const response = await openStream(file, profile, {
+    ...rangeHeaders(context),
+    userId: context.user.id,
+    signal: profile === 'original' ? undefined : streamSignal(reply.raw),
+  })
   let body = response.body
   if (estimate && profile !== 'original' && response.headers['content-length'] === undefined) {
     const bytes = Math.ceil(remainingSeconds(profiles[profile].bitrate))

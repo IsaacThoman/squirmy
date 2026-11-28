@@ -8,7 +8,7 @@ const entry = (id: string, state: QueueEntry['state'] = 'ready'): QueueEntry => 
 
 function fakeSession() {
   const { state, queue } = splitSession(createInitialSession());
-  let snapshot: SessionClientSnapshot = { session: state, queue, devices: [], connection: 'online', isActiveDevice: true, detached: false, canDetach: false, canUndo: false, outage: null, away: null };
+  let snapshot: SessionClientSnapshot = { session: state, queue, devices: [], connection: 'online', isActiveDevice: true, detached: false, canDetach: false, canSetSleepTimer: false, canUndo: false, outage: null, away: null, signal: null };
   const listeners = new Set<() => void>();
   return {
     getSnapshot: () => snapshot,

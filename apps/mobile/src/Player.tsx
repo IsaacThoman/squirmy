@@ -25,9 +25,11 @@ import { DETACHED_LABEL, DETACHED_SYMBOL } from './player/detach';
 import { playPauseLabel, STILL_LOADING_LABEL } from './player/loading';
 import { artworkTransform, type ArtworkFrame } from './player/artwork';
 import { ArtworkPrefetch } from './player/ArtworkPrefetch';
+import { QualityBadge } from './player/QualityBadge';
 import { usePlaybackStatus } from './player/usePlaybackStatus';
 import { usePlayerShown } from './player/visibility';
 import { useVolumeSlider } from './player/volume';
+import { SleepTimerBadge } from './player/SleepTimerBadge';
 import { Icon } from './ui';
 import { SystemVolumeSlider } from '../modules/now-playing';
 import LyricsPage, { type LyricsHandle } from './player/LyricsPage';
@@ -53,7 +55,7 @@ const compactArtworkTop = 7;
 const miniCoverRadius = 8;
 const cardRadius = 38;
 const handover = 50;
-const sheetRoutes = ['/devices', '/track-actions', '/add-to-playlist'];
+const sheetRoutes = ['/devices', '/track-actions', '/track-info', '/add-to-playlist'];
 const modeMotion = { duration: 360, easing: Easing.inOut(Easing.cubic) };
 const panelMotion = { duration: 210 };
 // Instant under Reduce Motion, as Reanimated's timings are by default.
@@ -445,6 +447,7 @@ export default function Player() {
                 <View style={styles.collapse} pointerEvents="box-none"><CollapseButton onPress={close} /></View>
                 {/* As on the pages under the player: only downloaded and cached songs play. */}
                 <OfflineBadge style={styles.offline} />
+                <SleepTimerBadge style={styles.sleepTimer} />
               </Animated.View>
             </GestureDetector>
             <View style={styles.playerStage}>
@@ -602,7 +605,8 @@ function Scrubber() {
   const styles = useStyles();
   const colors = useColors();
   const reduceMotion = useReducedMotion();
-  const { durationMs: duration, current, actions } = usePlaybackState();
+  const router = useRouter();
+  const { durationMs: duration, current, actions, signal } = usePlaybackState();
   // Collapsed, Now Playing stays mounted but unseen; its clock waits until it opens again.
   const position = usePosition(usePlayerShown());
   const [draft, setDraft] = useState<number | null>(null);
@@ -647,6 +651,9 @@ function Scrubber() {
       />
       <View style={styles.timeRow}>
         <Animated.Text maxFontSizeMultiplier={secondaryFontScale} style={[styles.time, styles.timeStart, timeStyle]}>{elapsed}</Animated.Text>
+        <View style={styles.timeCenter} pointerEvents="box-none">
+          <QualityBadge signal={signal} onPress={() => router.push('/track-info')} />
+        </View>
         <Animated.Text maxFontSizeMultiplier={secondaryFontScale} style={[styles.time, styles.timeEnd, timeStyle]}>
           {formatRemaining(shown, duration)}
         </Animated.Text>
@@ -733,6 +740,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   grabberTouch: { alignItems: 'center' },
   collapse: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center' },
   offline: { position: 'absolute', top: 2, left: artworkInset },
+  sleepTimer: { position: 'absolute', top: 2, right: artworkInset },
   playerStage: { flex: 1 },
   deckFrame: { flex: 1 },
   // The artwork at the top, the title's room under it; a tall screen's spare height goes below them.
@@ -770,6 +778,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   // Each time grows from the end it sits at.
   timeStart: { transformOrigin: 'left top' },
   timeEnd: { transformOrigin: 'right top' },
+  timeCenter: { position: 'absolute', left: 0, right: 0, top: 1, alignItems: 'center' },
   transportButtons: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly' },
   primaryButton: { width: 66, height: 66 },
   primaryButtonCompact: { width: 56, height: 56 },

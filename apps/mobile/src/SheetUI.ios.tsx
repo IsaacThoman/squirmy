@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BrandMark } from './BrandMark';
 import { IconButton, NativeCover, Symbol, TrackCover, hitShape, plainButton } from './native/Controls';
 import type {
-  SheetActionProps, SheetFieldProps, SheetFrameProps, SheetNoteProps, SheetPickerRowProps, SheetScrollProps, SheetInfoProps, SheetRowProps, SheetSliderProps,
+  SheetActionProps, SheetFactsProps, SheetFieldProps, SheetFrameProps, SheetNoteProps, SheetPickerRowProps, SheetScrollProps, SheetInfoProps, SheetRowProps, SheetSliderProps,
   TrackSummaryProps,
 } from './SheetUI';
 import { isAccessibilitySize } from './fontScale';
@@ -191,6 +191,23 @@ export function SheetSlider({ label, value, onChange }: SheetSliderProps) {
       <Slider value={value} min={0} max={1} onValueChange={onChange} modifiers={[tint(colors.accent), accessibilityLabel(label)]} />
       <Symbol name="speaker.wave.3.fill" size={15} color={colors.muted} />
     </HStack>
+  </VStack>;
+}
+
+/** A heading over label and value pairs, as the system's info sheets list them. */
+export function SheetFacts({ title, rows }: SheetFactsProps) {
+  const colors = useColors();
+  return <VStack alignment="leading" spacing={0}>
+    <Text modifiers={[font({ textStyle: 'footnote', weight: 'semibold' }), foregroundStyle(colors.muted), accessibilityAddTraits(['isHeader']),
+      padding({ bottom: 4 })]}>{title}</Text>
+    {rows.map((row, index) => <VStack key={row.label} alignment="leading" spacing={0}>
+      <HStack spacing={12} modifiers={[frame({ minHeight: 36 }), accessibilityLabel(`${row.label}, ${row.value}`)]}>
+        <Text modifiers={[foregroundStyle(colors.muted)]}>{row.label}</Text>
+        <Spacer minLength={8} />
+        <Text modifiers={[multilineTextAlignment('trailing')]}>{row.value}</Text>
+      </HStack>
+      {index < rows.length - 1 && <Divider />}
+    </VStack>)}
   </VStack>;
 }
 

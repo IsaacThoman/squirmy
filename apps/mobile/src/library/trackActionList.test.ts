@@ -36,9 +36,16 @@ describe('trackActions', () => {
   });
 
   it('offers the current track only Play while paused, and never Play next', () => {
-    expect(ids(track(), state({ current: 'paused' }))).toEqual(['resume', 'last', 'like', 'download', 'playlist', 'radio', 'album', 'artist']);
+    expect(ids(track(), state({ current: 'paused' }))).toEqual(['resume', 'last', 'like', 'download', 'playlist', 'radio', 'album', 'artist', 'info']);
     expect(trackActions(track(), state({ current: 'paused' }))[0]?.title).toBe('Play');
-    expect(ids(track(), state({ current: 'playing' }))).toEqual(['last', 'like', 'download', 'playlist', 'radio', 'album', 'artist']);
+    expect(ids(track(), state({ current: 'playing' }))).toEqual(['last', 'like', 'download', 'playlist', 'radio', 'album', 'artist', 'info']);
+  });
+
+  it('offers Track info for the current track only, as a sheet', () => {
+    expect(trackActions(track(), state({ current: 'playing' })).at(-1)).toEqual({ id: 'info', title: 'Track info', icon: 'info.circle', sheet: true, href: '/track-info' });
+    expect(ids(track(), state())).not.toContain('info');
+    // Offline too: it says what the device playing reported, which needs no server.
+    expect(ids(track(), state({ current: 'paused', offline: true }))).toContain('info');
   });
 
   it('has one library entry that flips the heart', () => {
