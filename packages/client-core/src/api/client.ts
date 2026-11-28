@@ -153,6 +153,10 @@ import {
   DeleteUploadsResponse,
   UploadAlbumPage,
   UploadFileList,
+  TrackVersions,
+  type TrackVersionsQuery,
+  type VersionPickRequest,
+  type VersionPickType,
 } from '@squirmy/contracts'
 import { z } from 'zod'
 
@@ -465,6 +469,13 @@ export function createApiClient(options: ApiClientOptions) {
       /** Tempo, key, energy and per-file timing (for transitions); see `TrackSonic`. */
       sonic: (trackId: string) => get(`/tracks/${id(trackId)}/sonic`, TrackSonic),
       trackSummaries: (body: TrackSummariesRequest) => send('POST', '/tracks/summaries', TrackSummariesResponse, body),
+      /** Every version of a song the server holds, with the user's picks: Track info's list. */
+      trackVersions: (trackId: string, query: TrackVersionsQuery = {}) => get(`/tracks/${id(trackId)}/versions`, TrackVersions, query),
+      /** Makes a version the one that plays by default for an album or a song, for this user everywhere. */
+      pickVersion: (type: VersionPickType, entityId: string, versionId: string) =>
+        send('PUT', `/me/versions/${type}/${id(entityId)}`, Ok, { versionId } satisfies VersionPickRequest),
+      /** Back to Automatic: the album's own edition, each song from its best copy. */
+      clearVersion: (type: VersionPickType, entityId: string) => send('DELETE', `/me/versions/${type}/${id(entityId)}`, Ok),
     },
     streaming: {
       playback: (trackId: string, query: Partial<PlaybackQuery> = {}) =>

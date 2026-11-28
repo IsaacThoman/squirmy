@@ -79,6 +79,9 @@ export const apiRoutes = {
   'catalog.lyrics': 'GET /tracks/:id/lyrics',
   'catalog.sonic': 'GET /tracks/:id/sonic',
   'catalog.trackSummaries': 'POST /tracks/summaries',
+  'catalog.trackVersions': 'GET /tracks/:id/versions',
+  'catalog.pickVersion': 'PUT /me/versions/:type/:id',
+  'catalog.clearVersion': 'DELETE /me/versions/:type/:id',
 
   'streaming.playback': 'GET /tracks/:id/playback',
 
