@@ -1,5 +1,5 @@
 import type {
-  AppPassword, DeviceInfo, Invite, JobQueueStats, ServerSettings, User, UserSettings,
+  AppPassword, DeviceInfo, Invite, JobQueueStats, PublicShare, ServerSettings, ShareLink, User, UserSettings,
 } from '@squirmy/contracts'
 
 const at = (iso: string) => `2026-11-${iso}:00.000Z`
@@ -33,6 +33,29 @@ export const appPasswords: AppPassword[] = [
   { id: '00000000-0000-4000-8700-000000000101', name: 'Car stereo', createdAt: at('03T20:11'), lastUsedAt: at('19T17:45') },
   { id: '00000000-0000-4000-8700-000000000102', name: 'Desktop player', createdAt: at('08T09:30'), lastUsedAt: null },
 ]
+
+export const shareLinks: ShareLink[] = [
+  {
+    id: '00000000-0000-4000-8700-000000000201', kind: 'album', targetId: '00000000-0000-4000-8000-000000000301', title: 'Blue Hour', subtitle: 'Mira Vale', artwork: null,
+    createdAt: at('20T18:02'), expiresAt: at('27T18:02'), expired: false, openCount: 4, lastOpenedAt: at('21T09:15'),
+  },
+  {
+    id: '00000000-0000-4000-8700-000000000202', kind: 'playlist', targetId: '00000000-0000-4000-8000-000000000302', title: 'Late drive', subtitle: null, artwork: null,
+    createdAt: at('12T22:40'), expiresAt: null, expired: false, openCount: 0, lastOpenedAt: null,
+  },
+  {
+    id: '00000000-0000-4000-8700-000000000203', kind: 'track', targetId: '00000000-0000-4000-8000-000000000303', title: 'Night Swimming', subtitle: 'Mira Vale', artwork: null,
+    createdAt: at('02T08:00'), expiresAt: at('03T08:00'), expired: true, openCount: 12, lastOpenedAt: at('02T23:59'),
+  },
+]
+
+export const publicShare: PublicShare = {
+  kind: 'album', title: 'Blue Hour', artistCredit: 'Mira Vale', year: 2024, artwork: null, durationMs: 401_000, playback: 'previews', expiresAt: at('27T18:02'), serverName: 'Squirmy',
+  tracks: [
+    { id: '00000000-0000-4000-8000-000000000401', title: 'Night Swimming', artistCredit: 'Mira Vale', albumTitle: null, artwork: null, durationMs: 214_000, disc: 1, position: 1, explicit: null, available: true },
+    { id: '00000000-0000-4000-8000-000000000402', title: 'Glass City', artistCredit: 'Mira Vale', albumTitle: null, artwork: null, durationMs: 187_000, disc: 1, position: 2, explicit: false, available: false },
+  ],
+}
 
 export const userSettings: UserSettings = {
   normalization: 'auto',
@@ -72,6 +95,8 @@ export const serverSettings: ServerSettings = {
   importMaxActivePerUser: 3,
   wantlistEnabled: false,
   sonicAnalysisEnabled: true,
+  sharingEnabled: true,
+  sharePlayback: 'previews',
 }
 
 export const jobs: JobQueueStats[] = [

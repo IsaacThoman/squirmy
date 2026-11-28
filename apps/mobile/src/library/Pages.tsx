@@ -18,6 +18,7 @@ import { appearsOnKey, isArtistSectionKey, releaseGroups } from '../data/artists
 import { useAlbum, useArtist, useArtistReleases, useGenreAlbums, useHistory, useHome, useLikedTracks, useMix, usePlaylist } from '../data/queries';
 import type { BrowseProps } from '../Library';
 import { useRealtime } from '../data/realtime';
+import { useShareItem, type ShareLinkTarget } from './shareLink';
 import {
   useAvailability, useDownloadActions, useDownloadedAlbum, useDownloadedLikes, useDownloadedPlaylist,
 } from '../downloads/DownloadsProvider';
@@ -212,6 +213,15 @@ function share(message: string) {
   void Share.share({ message }).catch(() => Alert.alert('Sharing unavailable'));
 }
 
+/** Share for an album or playlist page: a public link where the server allows it, else its name. */
+function useShare() {
+  const shareItem = useShareItem();
+  return (target: ShareLinkTarget, text: string) => {
+    tapFeedback();
+    shareItem(target, text);
+  };
+}
+
 /** True once the page has waited `trackListWaitMs` for the songs of the album `id`. As on web. */
 function useOverdue(awaiting: boolean, id: string): boolean {
   const [overdue, setOverdue] = useState<string | null>(null);
@@ -238,6 +248,7 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const wantFailure = useWantFailure(id);
   const { setLiked, setWanted } = useLibraryActions();
   const wantlist = useWantlistEnabled();
+  const shareAlbum = useShare();
   const control = useDownloadControl(albumCollectionId(id), data?.title ?? '',
     album.data?.discs.flatMap(disc => disc.tracks), () => download.album(album.data!));
   const [checking, setChecking] = useState(false);
@@ -300,7 +311,7 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
     setSaved: saved => setLiked('album', data.id, saved, data.title),
     setWanted: want => setWanted('album', data.id, want, data.title),
     goToArtist: index => onOpen(link('artist', data.artists[index]!.id)),
-    share: () => share(`${data.title} · ${data.artistCredit}`),
+    share: () => shareAlbum({ kind: 'album', id: data.id, title: data.title }, `${data.title} · ${data.artistCredit}`),
   });
 
   return <DetailPage item={albumCollection(data, link)} tint={data.artwork?.color ?? fallbackTint} title={data.title}
@@ -478,6 +489,7 @@ function HistoryScreen(props: PageProps) {
 
 function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset = 155 }: PageProps) {
   const { state } = useAccount();
+  const sharePlaylist = useShare();
   const playlist = usePlaylist(id);
   const kept = useDownloadedPlaylist(id);
   // Deleted on another device: the server's 404 wins over the copy loaded before it and over
@@ -554,7 +566,7 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
       // While the playlist is deleted the button waits for the server, with nothing to choose.
       deleting ? { icon: 'ellipsis', label: `Deleting ${data.name}`, busy: true, onPress: () => undefined }
         : menu.length > 0 && { icon: 'ellipsis', label: `More options for ${data.name}`, menu },
-      { icon: 'square.and.arrow.up', label: `Share ${data.name}`, onPress: () => share(data.name) },
+      { icon: 'square.and.arrow.up', label: `Share ${data.name}`, onPress: () => sharePlaylist({ kind: 'playlist', id: data.id, title: data.name }, data.name) },
     ]}
     // Reordering drags rows within one native list, so while editing every row is drawn.
     onBack={onBack} bottomInset={bottomInset} list={tracks.length && !editing ? songs : undefined}>

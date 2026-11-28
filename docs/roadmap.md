@@ -103,6 +103,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Documentation site ([docs/](./index.md), built with VitePress)
 - [x] Docker health check on `/ready`, and the image reports its source version
 - [x] Explicit content controls: a per-user switch an admin can enforce, explicit songs gray and kept out of queues, radio, search, Home and Subsonic, and known clean versions in their place (server, web, iOS and Apple TV)
+- [x] Public share links to albums, playlists and songs: expiring and revocable, a public page with previews or whole songs as the admin allows, managed in Settings and Admin → Sharing (server, web, and Share on iOS)
 
 ## 9. Apple TV
 

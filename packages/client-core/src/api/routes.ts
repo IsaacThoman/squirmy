@@ -156,6 +156,14 @@ export const apiRoutes = {
   'uploads.adminDeleteAlbum': 'DELETE /admin/uploads/albums/:albumId',
   'uploads.adminDeleteFile': 'DELETE /admin/uploads/files/:fileId',
 
+  'share.list': 'GET /me/shares',
+  'share.create': 'POST /me/shares',
+  'share.revoke': 'DELETE /me/shares/:id',
+  'share.adminList': 'GET /admin/shares',
+  'share.adminRevoke': 'DELETE /admin/shares/:id',
+  'share.page': 'GET /share/:token',
+  'share.trackPlayback': 'GET /share/:token/tracks/:id/playback',
+
   'acquisition.providers': 'GET /admin/acquisition/providers',
   'acquisition.createProvider': 'POST /admin/acquisition/providers',
   'acquisition.updateProvider': 'PATCH /admin/acquisition/providers/:id',

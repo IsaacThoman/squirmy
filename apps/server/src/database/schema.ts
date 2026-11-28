@@ -32,6 +32,7 @@ import type {
   CreditRole,
   HistoryImport,
   HistoryImportSource,
+  ShareKind,
   SmartPlaylistRules,
 } from '@squirmy/contracts'
 
@@ -893,6 +894,34 @@ export const playlistItems = pgTable('playlist_items', {
   addedBy: uuid('added_by').references(() => users.id, { onDelete: 'set null' }),
   addedAt: at('added_at').notNull().defaultNow(),
 }, (t) => [index('playlist_items_order').on(t.playlistId, t.position)])
+
+/**
+ * Public links to an album, playlist or track (the `share` module). Only the token's SHA-256 is
+ * stored. Ids point at catalog rows and follow merges when read; a playlist that is deleted
+ * takes its links with it, and so does the account that made them.
+ */
+export const shares = pgTable('shares', {
+  id: id(),
+  tokenHash: text('token_hash').notNull(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  kind: text('kind').$type<ShareKind>().notNull(),
+  albumId: uuid('album_id').references(() => albums.id, { onDelete: 'cascade' }),
+  playlistId: uuid('playlist_id').references(() => playlists.id, { onDelete: 'cascade' }),
+  recordingId: uuid('recording_id').references(() => recordings.id, { onDelete: 'cascade' }),
+  createdAt: createdAt(),
+  /** Null for a link that does not expire. */
+  expiresAt: at('expires_at'),
+  openCount: integer('open_count').notNull().default(0),
+  lastOpenedAt: at('last_opened_at'),
+}, (t) => [
+  uniqueIndex('shares_token_hash').on(t.tokenHash),
+  index('shares_user').on(t.userId, t.createdAt),
+  index('shares_created').on(t.createdAt),
+  check('shares_target', sql`case ${t.kind} when 'album' then ${t.albumId} is not null and ${t.playlistId} is null and ${t.recordingId} is null
+    when 'playlist' then ${t.playlistId} is not null and ${t.albumId} is null and ${t.recordingId} is null
+    when 'track' then ${t.recordingId} is not null and ${t.playlistId} is null
+    else false end`),
+])
 
 export const plays = pgTable('plays', {
   id: id(),

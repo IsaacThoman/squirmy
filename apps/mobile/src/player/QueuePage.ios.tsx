@@ -13,7 +13,7 @@ import Animated, {
 import { scheduleOnRN } from 'react-native-worklets';
 import { contextLabel } from '@squirmy/client-core';
 import type { TrackSummary } from '@squirmy/contracts';
-import { useWantlistEnabled } from '../account/AccountProvider';
+import { useSharingEnabled, useWantlistEnabled } from '../account/AccountProvider';
 import { useRealtime } from '../data/realtime';
 import { useCanPlay, useTrackDownload, useViewer } from '../downloads/DownloadsProvider';
 import { useLiked, useLikeFailure, useTrack, useWanted, useWantFailure } from '../data/library';
@@ -477,6 +477,7 @@ const QueueTrack = memo(function QueueTrack({ entry, handlers, position, minHeig
   const playable = useCanPlay(track);
   const current = useCurrentTrackState(track?.id);
   const wantlist = useWantlistEnabled();
+  const sharing = useSharingEnabled();
   const wanted = useWanted(track?.id);
   const wantFailure = useWantFailure(track?.id);
   const viewer = useViewer();
@@ -487,7 +488,7 @@ const QueueTrack = memo(function QueueTrack({ entry, handlers, position, minHeig
   const title = track?.title ?? '';
   const addedBy = useAddedBy(entry);
   const detail = [pending?.detail || row.detail, addedBy && `Added by ${addedBy}`].filter(Boolean).join(' · ');
-  const listed = track ? trackActions(track, { liked: favorite, likeFailure, playable, offline, current, download, onItsOwn, wantlist, wanted, wantFailure, viewer }) : [];
+  const listed = track ? trackActions(track, { liked: favorite, likeFailure, playable, offline, current, download, onItsOwn, wantlist, wanted, wantFailure, viewer, sharing }) : [];
   const actions = position ? queuedEntryActions(listed, position) : listed;
   // A failed or gray song fades its cover, and its text takes colors that stay readable (3:1).
   const label = accessibilityLabel([pending?.title ?? title, detail].filter(Boolean).join(', '));

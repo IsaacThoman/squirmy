@@ -42,6 +42,7 @@ export function useSongMenuEntries({ track, unavailable = false, queued, onNavig
     unavailable: unavailable || !isPlayable(track, viewer),
     wanted: actions.isWanted?.(track),
     playlists: actions.playlists,
+    canShare: actions.canShare,
     ratings: actions.ratings,
     act,
     navigate: to => {
