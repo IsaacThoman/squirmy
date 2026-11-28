@@ -63,6 +63,13 @@ export function isChoice(value: unknown): value is Choice {
   return value === 'normalization' || value === 'target' || value === 'quality';
 }
 
+/** A setting of this Apple TV's own, kept on it rather than in the account. */
+export type DeviceChoice = 'equalizer';
+
+export function isDeviceChoice(value: unknown): value is DeviceChoice {
+  return value === 'equalizer';
+}
+
 /** The label of the chosen option, or nothing for a value this app doesn't know. */
 export function optionLabel<T extends string | number>(options: readonly Option<T>[], value: T): string {
   return options.find(option => option.value === value)?.label ?? '';

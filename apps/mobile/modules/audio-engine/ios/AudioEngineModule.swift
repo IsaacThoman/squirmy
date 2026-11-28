@@ -27,6 +27,16 @@ struct ItemRecord: Record {
   }
 }
 
+/// `NativeEqualizer` in `index.ts`.
+struct EqualizerRecord: Record {
+  @Field var bandsDb: [Double] = []
+  @Field var preampDb: Double = 0
+
+  func curve() -> EqualizerCurve {
+    EqualizerCurve(bandsDb: bandsDb.map(Float.init), preampDb: Float(preampDb))
+  }
+}
+
 /**
  * The native engine for JavaScript (`NativeEngine`): commands go to the process's one engine
  * and its events come back as `status`, `ended`, `error`, `interrupted`, `resumed` and `log`.
@@ -66,6 +76,7 @@ public class AudioEngineModule: Module {
     Function("setGain") { (gain: Double) in SharedEngine.shared.engine.setGain(Float(gain)) }
     Function("stop") { SharedEngine.shared.engine.stop() }
     Function("holdAudioSession") { (hold: Bool) in SharedEngine.shared.engine.holdAudioSession(hold) }
+    Function("setEqualizer") { (curve: EqualizerRecord?) in SharedEngine.shared.engine.setEqualizer(curve?.curve()) }
     Function("getStatus") { () -> [String: Any] in
       Self.payload(SharedEngine.shared.engine.status())
     }

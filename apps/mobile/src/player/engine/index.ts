@@ -1,6 +1,6 @@
 import type { PlayerEngine } from '@squirmy/client-core';
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
-import NativeAudio from '../../../modules/audio-engine';
+import NativeAudio, { type NativeEqualizer } from '../../../modules/audio-engine';
 import NowPlaying, { type AudioOutput } from '../../../modules/now-playing';
 import { ExpoAudioEngine, type ExpoAudioEngineOptions } from './ExpoAudioEngine';
 import { NativeEngine } from './NativeEngine';
@@ -19,6 +19,9 @@ export type AppEngine = PlayerEngine & {
   holdAudioSession(hold: boolean): void;
   isTryingToPlay(): boolean;
   dispose?(): void;
+  /** The native engine's equalizer, where the build has it. */
+  readonly equalizer?: boolean;
+  setEqualizer?(curve: NativeEqualizer | null): void;
 };
 
 /** Native playback reports position this often, in milliseconds. */

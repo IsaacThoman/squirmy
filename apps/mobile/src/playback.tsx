@@ -20,6 +20,7 @@ import { useRealtime } from './data/realtime';
 import { useAvailability, useDownloadManager } from './downloads/DownloadsProvider';
 import { connectAudioSession, connectNowPlaying, createPlayerEngine } from './player/engine';
 import { favoriteState } from './player/engine/favorite';
+import { followOutputSettings } from './player/engine/output';
 import { storedEngine } from './player/engine/setting';
 import { wordsStarted } from './player/lyrics';
 import { loadSession, sessionSaver } from './player/savedSession';
@@ -43,6 +44,8 @@ type Runtime = {
   client: SessionClient; device: ClientDevice; loading: LoadingWatch; seeks: PendingSeek;
   /** The engine turns quiet songs up with normalization, which takes its limiter. */
   boosts: boolean;
+  /** The engine has the equalizer. */
+  equalizer: boolean;
 };
 type PlayOptions = { start?: number; shuffle?: boolean; context?: PlaybackContext };
 
@@ -121,6 +124,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         },
       }, storedEngine());
       const stopAudioSession = connectAudioSession(engine);
+      const stopOutput = followOutputSettings(engine);
       const saved = loadSession(account);
       if (saved) tracks.prime(saved.tracks);
       const client: SessionClient = new SessionClient({
@@ -360,7 +364,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       client.start();
       followPlaying();
       holdWhilePreparing();
-      setRuntime({ client, device, loading, seeks, boosts: engine.canBoost && engine.limiter });
+      setRuntime({ client, device, loading, seeks, boosts: engine.canBoost && engine.limiter, equalizer: engine.equalizer === true });
       teardown = () => {
         // Saved for the account as it leaves (sign-out or a switch keeps what it saved), so
         // opening it again offline finds the queue as it was.
@@ -375,6 +379,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         stopRefreshing();
         engine.holdAudioSession(false);
         stopAudioSession();
+        stopOutput();
         stopErrors();
         onOffline.current = null;
         onLikes.current = null;
@@ -613,6 +618,11 @@ export function useLoading(): LoadingPhase {
  */
 export function useNormalizationBoosts(): boolean {
   return useContext(RuntimeContext)?.boosts ?? false;
+}
+
+/** Whether this device's engine has the equalizer (the native one), for Settings to offer it. False before playback starts. */
+export function useEqualizerAvailable(): boolean {
+  return useContext(RuntimeContext)?.equalizer ?? false;
 }
 
 /** `useLoading` for a row: its phase while `trackId` is the current entry's track, otherwise `none`. */

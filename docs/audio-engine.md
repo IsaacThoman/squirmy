@@ -175,10 +175,12 @@ A song chosen on another device, or one the user skips to, is not gapless by def
 
 ### Equalizer
 
-- 10 bands (31 Hz to 16 kHz, ±12 dB, peaking biquads from the RBJ cookbook through Accelerate's `vDSP.Biquad`), presets, and a preamp that defaults to minus the largest boost so the limiter seldom works. A parametric mode (for headphone correction profiles) can be added later on the same filters.
-- A change is heard after the lead; the filters' outputs are crossfaded over 10 ms across the change, so it does not click.
-- Stored per device, since it belongs to the headphones or speakers, not to the account.
-- Off on tvOS until it has a settings screen.
+- 10 bands (31 Hz to 16 kHz, ±12 dB, peaking biquads from the RBJ cookbook through Accelerate's `vDSP_biquad`), presets, and a preamp that defaults to minus the largest boost so the limiter seldom works. A parametric mode (for headphone correction profiles) can be added later on the same filters.
+- **The response is the curve.** Each filter is an octave and a half wide, with the cookbook's correction for the bilinear transform so the 16 kHz band does not narrow near half the sample rate; a curve with every band at +6 dB is then within 5.75 and 6.17 dB from 31 Hz to 16 kHz. Neighbouring bands overlap, so the filters' own gains are solved for (a linear solve with their measured interaction, then a few corrections with the exact response) to put the response at each centre on its band's setting: within 0.001 dB for the presets and for curves whose neighbours differ by up to 12 dB. A curve that swings further from band to band than octave-wide filters can follow is met as closely as filters within ±24 dB allow.
+- A change is heard after the lead; the new filters start from the old ones' state and the two outputs are crossfaded over 10 ms, so it does not click. A change that arrives while one is under way follows it once it is over.
+- Off, or flat with no preamp, passes the samples untouched; any curve sends every entry through the limiter.
+- Stored per device, since it belongs to the headphones or speakers, not to the account. Presets: Off, Bass Boost, Bass Reducer, Treble Boost, Vocal, Late Night (a loudness contour: fuller bass and treble for low volumes) and Custom. Off is the flat curve, so there is no separate Flat.
+- tvOS has the presets, without the band editor.
 
 ### Speed
 
@@ -240,7 +242,7 @@ interface SquirmyAudio {
   preload(item: NativeItem | null): void
   play(): void; pause(): void; seek(positionMs: number): void; setGain(gain: number): void; stop(): void
   getStatus(): { entryId: string | null; state: EngineState; positionMs: number }   // synchronous, reads the clock
-  setOutput(options: { eq?: Eq | null; limiter?: boolean; crossfadeMs?: number; rate?: number }): void
+  setEqualizer(curve: { bandsDb: number[]; preampDb: number } | null): void   // the device's setting, from followOutputSettings
   probeCodecs(): string[]                          // e.g. ['flac','alac','aac','mp3','wav','aiff','opus']
   prefetch(cacheKey: string, url: string): void; cancelPrefetch(cacheKey: string): void
   addListener(event: 'status' | 'ended' | 'error' | 'cacheComplete' | 'route', listener: (event: any) => void): { remove(): void }
@@ -481,7 +483,7 @@ Each item is one pull request against `dev`, small enough for one agent. **Deps*
 - Deps: M1; S2 for estimated gains (works without).
 - Acceptance: the limiter keeps a +12 dB boosted full-scale tone under -1 dBTP measured 4× oversampled, and leaves a signal under the ceiling bit-identical; `gainFor` tests cover every mode with the new options.
 
-**M5. `feat(mobile): equalizer`** — bands, presets and preamp in the DSP chain and a Settings screen. Deps: M4. Acceptance: each band's measured response is within 0.5 dB of its setting at its centre frequency; a change mid-song produces no step larger than the 10 ms crossfade allows.
+**M5. `feat(mobile): equalizer`** — bands, presets and preamp in the DSP chain and a Settings screen. Deps: M4. Acceptance: each band's measured response is within 0.5 dB of its setting at its centre frequency; a change mid-song produces no step larger than the 10 ms crossfade allows. Done: `EqualizerTests` measures every preset and several custom curves with sines at each centre (within 0.5 dB of the setting) and between them (within 0.05 dB of the designed response), at 44.1 and 48 kHz.
 
 **M6. `feat(mobile): crossfade`** — the timeline's mixing, the album-run rule, the engine contract sentence, the setting. Deps: M4. Acceptance: two tones crossfaded over 4 s have constant power within 0.5 dB through the fade; consecutive album tracks are gapless with crossfade on; `ended` arrives when the incoming item starts.
 
