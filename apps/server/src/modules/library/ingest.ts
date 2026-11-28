@@ -3,7 +3,7 @@ import { INCOMING_FOLDER, queryKeys } from '@squirmy/contracts'
 import { and, asc, eq, gte, inArray, isNull, sql } from 'drizzle-orm'
 import { db, type Transaction } from '../../database/client.js'
 import {
-  albumArtists, albums, artists, libraryRoots, mediaFiles, recordingArtists, recordings, releases, releaseTracks,
+  albumArtists, albums, artists, libraryRoots, mediaFiles, recordingArtists, recordingCredits, recordings, recordingWorks, releases, releaseTracks, works,
 } from '../../database/schema.js'
 import { enqueue } from '../../jobs/index.js'
 import { newId } from '../../lib/ids.js'
@@ -51,6 +51,7 @@ export async function ingestGroup({ rootId, groupKey }: IngestJob) {
     const writer = new GroupWriter(tx, rootId, groupKey, files, await requestedArtists(tx, files))
     const result = identified ? await writer.relink(plan) : await writer.build(plan)
 
+    await writer.writeFileCreditsAndWorks()
     const after = await tx.select({ id: mediaFiles.id, recordingId: mediaFiles.recordingId, releaseId: mediaFiles.releaseId })
       .from(mediaFiles).where(inArray(mediaFiles.id, files.map((file) => file.id)))
     await removeOrphans(tx, {
@@ -72,7 +73,8 @@ export async function ingestGroup({ rootId, groupKey }: IngestJob) {
   // a finished upload announces the lists itself.
   const collection = outcome.files.some((file) => !file.cached && !file.relPath.startsWith(`${INCOMING_FOLDER}/`))
   const lists = collection ? [queryKeys.library(), queryKeys.home()] : []
-  invalidateSoon([...lists, queryKeys.album(outcome.albumId), ...outcome.artistIds.map((id) => queryKeys.artist(id))])
+  const tracks = [...new Set([...outcome.recordings.values()].flatMap((id) => id ? [id] : []))]
+  invalidateSoon([...lists, queryKeys.album(outcome.albumId), ...tracks.map(queryKeys.track), ...outcome.artistIds.map((id) => queryKeys.artist(id))])
   // Owned by the matching module, which keys the job by `<rootId>:<groupKey>`.
   await enqueue('matching.match-album', { rootId, groupKey }, { singletonKey: `${rootId}:${groupKey}` })
 }
@@ -358,6 +360,40 @@ class GroupWriter {
       ;[album] = await tx.update(albums).set({ canonicalReleaseId: release!.id }).where(eq(albums.id, album!.id)).returning()
     }
     return { album: album!, release: release! }
+  }
+
+  async writeFileCreditsAndWorks() {
+    const { tx } = this
+    const fileIds = this.files.map((file) => file.id)
+    const former = await tx.delete(recordingCredits).where(inArray(recordingCredits.fileId, fileIds)).returning({ artistId: recordingCredits.artistId })
+    const formerWorks = await tx.delete(recordingWorks).where(inArray(recordingWorks.fileId, fileIds)).returning({ id: recordingWorks.workId })
+    this.formerArtists.push(...former.map((row) => row.artistId))
+    for (const { artistId } of former) this.touchedArtists.add(artistId)
+
+    const credits: (typeof recordingCredits.$inferInsert)[] = []
+    const links: (typeof recordingWorks.$inferInsert)[] = []
+    const workIds = new Map<string, string>()
+    for (const { id: fileId, tags } of this.files) {
+      for (const { name, role, instrument } of tags.credits ?? []) {
+        credits.push({ fileId, role, instrument, artistId: await this.artist({ name, joinPhrase: '' }) })
+      }
+      if (!tags.work) continue
+      const composers = (tags.credits ?? []).filter((credit) => credit.role === 'composer').map((credit) => matchKey(credit.name)).sort()
+      const tagKey = JSON.stringify([matchKey(tags.work) || tags.work, ...new Set(composers)])
+      let workId = workIds.get(tagKey)
+      if (!workId) {
+        const [work] = await tx.insert(works).values({ id: newId(), tagKey, title: tags.work })
+          .onConflictDoUpdate({ target: works.tagKey, set: { title: sql`works.title` } }).returning({ id: works.id })
+        workId = work!.id
+        workIds.set(tagKey, workId)
+      }
+      links.push({ fileId, workId, movementName: tags.movementName, movementNumber: tags.movementNumber, movementTotal: tags.movementTotal })
+    }
+    if (credits.length > 0) await tx.insert(recordingCredits).values(credits).onConflictDoNothing()
+    if (links.length > 0) await tx.insert(recordingWorks).values(links).onConflictDoNothing()
+    if (formerWorks.length > 0) {
+      await tx.delete(works).where(and(inArray(works.id, formerWorks.map((work) => work.id)), sql`not exists (select 1 from recording_works rw where rw.work_id = works.id)`))
+    }
   }
 
   private recordingValues(track: TrackPlan, primaryArtistId: string) {
