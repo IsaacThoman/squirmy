@@ -146,6 +146,14 @@ type Ending = {
  */
 export async function finishJob(jobId: string, ending: Ending): Promise<JobRow | null> {
   const ended = await db.transaction(async (tx) => {
+    // Provider changes serialize the streak with its provisional misses. Lock the provider
+    // first, since deleting it locks that row before cascading to the job and its misses.
+    const [provider] = await tx.execute(sql`
+      select p.id from acquisition_providers p
+      join acquisition_jobs j on j.provider_id = p.id
+      where j.id = ${jobId} and j.completed_at is null
+      for no key update of p`)
+    if (!provider) return null
     const [row] = await tx.update(acquisitionJobs).set({
       status: ending.status,
       error: ending.error?.slice(0, 1000) ?? null,
@@ -159,6 +167,7 @@ export async function finishJob(jobId: string, ending: Ending): Promise<JobRow |
       ? await recordProviderFailure(tx, row.providerId, ending.providerFailure, row.recordingIds)
       : { outage: false, restored: [] }
     const ready = ending.ready ?? []
+    if (ending.status === 'completed' && ready.length > 0) await noteProviderDelivered(tx, row.providerId)
     const missed = health.outage ? [] : ending.missed ?? []
     await recordMisses(tx, row.providerId, 'recording', missed, ending.error ?? 'Not delivered')
     const notReady = row.recordingIds.filter((id) => !ready.includes(id))
@@ -179,7 +188,6 @@ export async function finishJob(jobId: string, ending: Ending): Promise<JobRow |
       if (!(error instanceof AppError)) throw error
     })
   }
-  if (ending.status === 'completed' && ready.length > 0) await noteProviderDelivered(row.providerId)
   // Every list showing these learns their availability now, whatever it turned out to be: a
   // song the provider lacks (`unavailable`, with a miss stored by this job or by the resolve
   // that looked for an offer) turns gray where it is; one that failed for an outage or an

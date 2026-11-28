@@ -22,6 +22,7 @@ import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createLibraryRoot, createUser } from '../../test/factories.js'
 import { liveEncode } from '../subsonic/transcode.js'
 import { evictTranscodes } from './cache.js'
+import { withLibraryFile } from './files.js'
 import { streamingModule } from './index.js'
 import { signStreamUrl } from './playback.js'
 import { cacheRoot, isTranscoding, setTranscodeSlotLimit, stopTranscodes, tryAcquireSlot } from './transcode.js'
@@ -59,6 +60,8 @@ vi.mock('node:child_process', async (importOriginal) => {
   }) as typeof actual.spawn
   return { ...actual, spawn }
 })
+
+vi.mock(import('./files.js'), { spy: true })
 
 const run = promisify(execFile)
 
@@ -198,6 +201,35 @@ describe('transcodes', () => {
     expect(one!.statusCode).toBe(200)
     expect(one!.rawPayload.equals(two!.rawPayload)).toBe(true)
     expect(one!.rawPayload.length).toBeGreaterThan(400_000)
+  })
+
+  it('rechecks the cache if an encoder finishes after another request missed it', async () => {
+    const file = await addFile('a/tone.flac')
+    const profile = 'mp3_192'
+    const before = spawned.ffmpeg
+    const original = await vi.importActual<typeof import('./files.js')>('./files.js')
+    let proceed!: () => void
+    const blocked = new Promise<void>((resolve) => { proceed = resolve })
+    const checkSource = vi.mocked(withLibraryFile)
+    checkSource.mockClear()
+    checkSource.mockImplementationOnce(async (source, attempt) => {
+      await blocked
+      return original.withLibraryFile(source, attempt)
+    })
+    const waiting = fetch(file.id, profile, { range: 'bytes=10-19' }).then(response => response)
+    try {
+      await expect.poll(() => checkSource.mock.calls.length).toBe(1)
+      const first = await fetch(file.id, profile)
+      expect(first.statusCode).toBe(200)
+      proceed()
+      const second = await waiting
+      expect(second.statusCode).toBe(206)
+      expect(second.rawPayload).toEqual(first.rawPayload.subarray(10, 20))
+      expect(spawned.ffmpeg - before).toBe(1)
+    } finally {
+      proceed()
+      await waiting
+    }
   })
 
   it('finishes the cache file when the client goes away', async () => {
@@ -455,9 +487,11 @@ describe('transcodes', () => {
 
       const end = await started(halfway)
       end.progress(1500)
+      const disconnectedAt = performance.now()
       for (const client of [first, second, prefetch, saving, nearEnd]) client.request.destroy()
       expect((await started(play)).exited).toBe(false)
       await expect.poll(() => isTranscoding(play.id, profile), { timeout: 18_000 }).toBe(false)
+      expect(performance.now() - disconnectedAt).toBeGreaterThanOrEqual(9900)
       expect(await row(play.id, profile)).toBeUndefined()
       for (const file of [shared, cache, download, halfway]) expect((await started(file)).exited).toBe(false)
       expect(spawned.encoders).toHaveLength(5)
