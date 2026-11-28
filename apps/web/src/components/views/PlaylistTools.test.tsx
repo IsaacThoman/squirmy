@@ -1,9 +1,9 @@
-import { screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from '@/App'
 import { playlists } from '@/fixtures/catalog'
-import { userSettings } from '@/fixtures/server'
+import { currentUser, userSettings } from '@/fixtures/server'
 import { fakeServices } from '@/test/fake-services'
 import { renderWithApp } from '@/test/render'
 
@@ -31,6 +31,43 @@ describe('finding and sorting in a playlist', () => {
     expect(await screen.findByRole('heading', { name: 'No songs match' })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Show every song' }))
     expect(await screen.findByRole('button', { name: `More options for ${afterDark.items[1].track.title}` })).toBeInTheDocument()
+  })
+})
+
+/** The row of the song titled `title`. */
+const row = (title: string) => screen.getByRole('button', { name: `More options for ${title}` }).closest('li')!
+/** Picks it with Ctrl-click, on the row itself rather than one of its controls. */
+const pick = (title: string) => fireEvent.click(row(title).querySelector('.grid')!, { ctrlKey: true })
+
+describe('picked songs in a sorted or filtered playlist', () => {
+  // The first and third by title, which are not the first and third as the playlist stores them.
+  const byTitle = [...afterDark.items].sort((a, b) => a.track.title.localeCompare(b.track.title))
+  const chosen = [byTitle[0], byTitle[2]]
+
+  it('are the ones removed, whatever order the songs are listed in', async () => {
+    const { services, api } = fakeServices()
+    const own = { ...afterDark, ownerId: currentUser.id }
+    api.userdata.playlist.mockResolvedValue(own)
+    const removePlaylistItem = vi.fn(async (_playlistId: string, _itemId: string) => own)
+    Object.assign(api.userdata, { removePlaylistItem })
+    renderWithApp(<AppRoutes />, `/playlist/${afterDark.id}`, services)
+    await userEvent.click(await screen.findByRole('combobox', { name: 'Sort songs' }))
+    await userEvent.click(await screen.findByRole('option', { name: 'Title' }))
+    for (const item of chosen) pick(item.track.title)
+    await userEvent.click(within(screen.getByRole('toolbar', { name: 'Selected songs' })).getByRole('button', { name: 'Remove from playlist' }))
+    await waitFor(() => expect(removePlaylistItem).toHaveBeenCalledTimes(2))
+    expect(removePlaylistItem.mock.calls.map(([, itemId]) => itemId).sort()).toEqual(chosen.map(item => item.itemId).sort())
+  })
+
+  it('leave the selection once a find no longer lists them', async () => {
+    const { services } = ownPlaylist()
+    renderWithApp(<AppRoutes />, `/playlist/${afterDark.id}`, services)
+    const find = await screen.findByRole('searchbox', { name: 'Find in playlist' })
+    for (const item of chosen) pick(item.track.title)
+    expect(screen.getByRole('toolbar', { name: 'Selected songs' })).toHaveTextContent('2 songs selected')
+    // Typed without a press on the field, which would let go of the whole selection.
+    fireEvent.change(find, { target: { value: chosen[0].track.title } })
+    await waitFor(() => expect(screen.getByRole('toolbar', { name: 'Selected songs' })).toHaveTextContent('1 song selected'))
   })
 })
 
