@@ -25,6 +25,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Likes, ratings, playlists, history, user settings
 - [x] Lyrics: embedded, sidecar and LRCLIB, shown on web and iOS, word by word from Enhanced LRC and TTML
 - [x] Web app: setup, login, library, album and artist pages, player, queue
+- [x] Web app on a desktop: multi-select in song lists and the queue, dragging songs and cards to playlists, the queue and the player, right-click menus on cards and the player, a command palette, keyboard shortcuts, a pop-out player
 - [x] Now Playing's turning cover colors (web and iPhone), covers that crossfade, a lean-back full screen on the web and a Compact density
 - [x] Mobile app: connect, login, real data, real audio, lock-screen controls
 

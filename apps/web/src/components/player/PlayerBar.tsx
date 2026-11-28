@@ -1,18 +1,23 @@
-import { ChevronUp, Ellipsis, Heart, ListMusic, MessageSquareQuote, MonitorSpeaker, Music2 } from 'lucide-react'
-import { useLayoutEffect, useState, type ReactNode } from 'react'
+import { ChevronUp, Ellipsis, Heart, ListMusic, ListStart, MessageSquareQuote, MonitorSpeaker, Music2, PictureInPicture2 } from 'lucide-react'
+import { useLayoutEffect, useState, type DragEvent, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { ArtistLinks } from '@/components/music/ArtistLinks'
 import { Cover } from '@/components/music/Cover'
 import { SaveHeart } from '@/components/music/LibrarySave'
 import { IconButton } from '@/components/ui/icon-button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { errorMessage } from '@/api/errors'
+import { songsLabel } from '@/components/music/track-menu'
+import { draggedMusic } from '@/lib/drag'
 import { cn } from '@/lib/utils'
+import { useDroppedMusic } from '@/player/use-dropped-music'
 import { hostControls, playingElsewhere, usePosition, type Player } from '@/player/player-context'
 import { STILL_LOADING_LABEL, useStillLoading } from '@/player/use-still-loading'
 import { DevicesPopover } from './Devices'
 import { JamButton } from './ListenTogether'
 import { PlayerStatusLine } from './PlayerStatus'
 import { SleepTimerChip } from './SleepTimer'
+import { SongContextMenu } from './SongMenu'
 import { progressPosition } from './progress'
 import { PlayPauseButton, SeekBar, touchTarget, TransportButtons, VolumeControl } from './Transport'
 import { useNowPlayingWheel } from './use-now-playing-wheel'
@@ -23,6 +28,8 @@ const barClass = '@container bg-sidebar text-sidebar-foreground [--accent:var(--
 /** Bar widths, in px, below which the volume and the Now Playing button step into "More player controls". */
 const VOLUME_FITS = 992
 const NOW_PLAYING_FITS = 704
+/** Pop out player gets a button of its own past this width, beside the volume; below, it is under More. */
+const POP_OUT_FITS = 1120
 /** Below this the bar stacks the transport under the song, so the title and credit keep their room. */
 const ONE_ROW_FITS = 576
 
@@ -35,6 +42,9 @@ export type PlayerChromeProps = {
   lyricsOpen: boolean
   onToggleLyrics: () => void
   onOpenNowPlaying: () => void
+  /** Pops the player out into a window of its own; left out where the browser cannot. */
+  onTogglePopOut?: () => void
+  poppedOut?: boolean
 }
 
 /**
@@ -65,7 +75,7 @@ function useBarSize(element: HTMLElement | null) {
 
 /** Whether two bar widths fit the same controls: on the same side of every width the bar lays itself out by. */
 function sameFit(a: number, b: number) {
-  return [ONE_ROW_FITS, NOW_PLAYING_FITS, VOLUME_FITS].every(fits => (a >= fits) === (b >= fits))
+  return [ONE_ROW_FITS, NOW_PLAYING_FITS, VOLUME_FITS, POP_OUT_FITS].every(fits => (a >= fits) === (b >= fits))
 }
 
 /**
@@ -75,7 +85,41 @@ function sameFit(a: number, b: number) {
  * the controls that do not fit go into "More player controls". It keeps clear of the home
  * indicator on a phone on its side.
  */
-export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueue, lyricsOpen, onToggleLyrics, onOpenNowPlaying }: PlayerChromeProps) {
+/**
+ * Songs or a card dropped on the player play next: the bar says so while they are over it, and
+ * the status line once they are in.
+ */
+function usePlayNextDrop(player: PlayerChromeProps['player']) {
+  const songsOf = useDroppedMusic()
+  const [over, setOver] = useState(false)
+  const handlers = {
+    onDragOver: (event: DragEvent) => {
+      if (!draggedMusic(event)) return
+      event.preventDefault()
+      event.dataTransfer.dropEffect = 'copy'
+      setOver(true)
+    },
+    onDragLeave: (event: DragEvent) => {
+      if (!(event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget))) setOver(false)
+    },
+    onDrop: (event: DragEvent) => {
+      const music = draggedMusic(event)
+      setOver(false)
+      if (!music) return
+      event.preventDefault()
+      songsOf(music).then(
+        tracks => {
+          player.controls.enqueue(tracks, 'next')
+          player.controls.tell({ message: 'Playing next', detail: music.kind === 'collection' ? music.collection.title : songsLabel(tracks.length), tone: 'info' })
+        },
+        (error: unknown) => player.controls.tell({ message: 'Couldn’t add to the queue', detail: errorMessage(error), tone: 'error' }),
+      )
+    },
+  }
+  return { over, handlers }
+}
+
+export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueue, lyricsOpen, onToggleLyrics, onOpenNowPlaying, onTogglePopOut, poppedOut = false }: PlayerChromeProps) {
   const { state, controls } = player
   const item = state.current
   const elsewhere = playingElsewhere(state)
@@ -85,14 +129,25 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
   const stacked = width < ONE_ROW_FITS && !short
   const volumeFits = width >= VOLUME_FITS
   const nowPlayingFits = width >= NOW_PLAYING_FITS
+  const popOutFits = width >= POP_OUT_FITS
   // On one squeezed row (a phone on its side) lyrics and the heart step aside too, so the title
   // keeps some room: they are behind More, and Now Playing has them.
   const lyricsFit = stacked || width >= ONE_ROW_FITS
   const heartFits = lyricsFit
   const onWheel = useNowPlayingWheel('up', onOpenNowPlaying)
+  const drop = usePlayNextDrop(player)
+  const popOutButton = onTogglePopOut && (
+    <IconButton label={poppedOut ? 'Close pop-out player' : 'Pop out player'} size="sm" pressed={poppedOut} onClick={onTogglePopOut} className={touchTarget}><PictureInPicture2 /></IconButton>
+  )
+  const song = (children: ReactNode) => (item ? <SongContextMenu track={item.track}>{children}</SongContextMenu> : children)
   return (
     // A landmark, so screen readers can jump to the player and tests can find it by name.
-    <section ref={setSection} aria-label="Player" className={cn(barClass, 'pb-[env(safe-area-inset-bottom)]')} onWheel={item ? onWheel : undefined}>
+    <section ref={setSection} aria-label="Player" data-drop-target="" className={cn(barClass, 'relative pb-[env(safe-area-inset-bottom)]')} onWheel={item ? onWheel : undefined} {...drop.handlers}>
+      {drop.over && (
+        <div aria-hidden className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center gap-2 border-t bg-sidebar/90 text-sm font-medium ring-2 ring-inset ring-primary">
+          <ListStart className="size-4 text-primary" />Drop to play next
+        </div>
+      )}
       {/*
         Stacked: the song and the tools on top, the transport under them across the bar.
         A phone on its side keeps one row (there is no height to spare): the track takes what the
@@ -108,7 +163,7 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
             : 'h-[4.5rem] pointer-coarse:h-[5.75rem] grid-cols-[minmax(0,1.3fr)_minmax(10rem,1fr)_auto] gap-3 @[36rem]:grid-cols-[minmax(0,1fr)_minmax(12rem,1.2fr)_auto] @[36rem]:gap-4 @[44rem]:grid-cols-[minmax(14rem,1fr)_minmax(0,36rem)_minmax(14rem,1fr)] @[62rem]:grid-cols-[minmax(17rem,1fr)_minmax(0,36rem)_minmax(17rem,1fr)]',
         )}
       >
-        <div className="flex min-w-0 items-center gap-3">
+        {song(<div className="flex min-w-0 items-center gap-3">
           {item ? (
             <>
               <button type="button" aria-label="Open Now Playing" onClick={onOpenNowPlaying} className="group relative shrink-0 rounded-[5px] outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar">
@@ -144,7 +199,7 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
               </div>
             </>
           )}
-        </div>
+        </div>)}
 
         <div className={cn('flex min-w-0 flex-col items-center gap-0.5', stacked && 'col-span-2 row-start-2')}>
           <TransportButtons player={player} disabled={!item || hostControls(state)} modeClassName={stacked ? undefined : 'hidden @[36rem]:inline-flex'} />
@@ -161,13 +216,19 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
             trigger={<IconButton label="Devices" size="sm" className={cn(touchTarget, (elsewhere || state.detached) && 'text-primary hover:text-primary')}><MonitorSpeaker /></IconButton>}
           />
           {volumeFits && <VolumeControl volume={state.volume} deviceId={state.activeDeviceId ?? state.thisDeviceId} onChange={controls.setVolume} />}
+          {popOutFits && popOutButton}
           {nowPlayingFits && <IconButton label="Now Playing" size="sm" disabled={!item} onClick={onOpenNowPlaying} className={touchTarget}><ChevronUp /></IconButton>}
-          {!volumeFits && (
+          {(!volumeFits || (onTogglePopOut && !popOutFits)) && (
             <MoreControls>
-              <VolumeControl volume={state.volume} deviceId={state.activeDeviceId ?? state.thisDeviceId} onChange={controls.setVolume} fill className="gap-2.5 px-1 py-1" />
+              {!volumeFits && <VolumeControl volume={state.volume} deviceId={state.activeDeviceId ?? state.thisDeviceId} onChange={controls.setVolume} fill className="gap-2.5 px-1 py-1" />}
               {!nowPlayingFits && (
                 <button type="button" disabled={!item} onClick={onOpenNowPlaying} className={moreRowClass}>
                   <ChevronUp aria-hidden className="size-4 text-muted-foreground" />Now Playing
+                </button>
+              )}
+              {!popOutFits && onTogglePopOut && (
+                <button type="button" aria-pressed={poppedOut} onClick={onTogglePopOut} className={moreRowClass}>
+                  <PictureInPicture2 aria-hidden className={cn('size-4', poppedOut ? 'text-primary' : 'text-muted-foreground')} />{poppedOut ? 'Close pop-out player' : 'Pop out player'}
                 </button>
               )}
               {!lyricsFit && (

@@ -1,4 +1,4 @@
-import { act, screen, within } from '@testing-library/react'
+import { act, fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -40,6 +40,38 @@ describe('PlayerBar', () => {
     const region = screen.getByRole('region', { name: 'Player' })
     expect(within(region).getByRole('link', { name: lead.name })).toHaveAttribute('href', `/artist/${lead.id}`)
     expect(within(region).getByRole('link', { name: guest.name })).toHaveAttribute('href', `/artist/${guest.id}`)
+  })
+})
+
+describe('PlayerBar menus and the pop-out player', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('opens the song’s menu from a right-click on what shows it', async () => {
+    renderWithApp(bar(player('ready', 'entry-menu')))
+    fireEvent.contextMenu(within(screen.getByRole('region', { name: 'Player' })).getByRole('button', { name: 'Open Now Playing' }))
+    expect(await screen.findByRole('menuitem', { name: 'Start radio' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Go to album' })).toBeInTheDocument()
+  })
+
+  it('offers to pop the player out where the browser can, beside the volume or under More', async () => {
+    const onTogglePopOut = vi.fn()
+    const width = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1200)
+    const { unmount } = renderWithApp(<PlayerBar player={player('ready', 'entry-pip')} liked={false} onToggleLike={() => {}} queueOpen={false} onToggleQueue={() => {}} lyricsOpen={false} onToggleLyrics={() => {}} onOpenNowPlaying={() => {}} onTogglePopOut={onTogglePopOut} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Pop out player' }))
+    expect(onTogglePopOut).toHaveBeenCalledOnce()
+    unmount()
+    width.mockReturnValue(1000)
+    renderWithApp(<PlayerBar player={player('ready', 'entry-pip-narrow')} liked={false} onToggleLike={() => {}} queueOpen={false} onToggleQueue={() => {}} lyricsOpen={false} onToggleLyrics={() => {}} onOpenNowPlaying={() => {}} onTogglePopOut={onTogglePopOut} />)
+    expect(screen.queryByRole('button', { name: 'Pop out player' })).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: 'More player controls' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Pop out player' }))
+    expect(onTogglePopOut).toHaveBeenCalledTimes(2)
+  })
+
+  it('has no pop-out button where the browser cannot', () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1200)
+    renderWithApp(bar(player('ready', 'entry-no-pip')))
+    expect(screen.queryByRole('button', { name: 'Pop out player' })).toBeNull()
   })
 })
 

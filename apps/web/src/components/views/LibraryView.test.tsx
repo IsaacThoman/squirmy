@@ -119,9 +119,9 @@ describe('Library', () => {
     // The list is asked for again, in its new order.
     await waitFor(() => expect(fake.api.catalog.items.mock.calls.length).toBeGreaterThan(listed))
 
-    // A playlist's menu is the pin alone; Liked Songs is pinned by its own id.
+    // A playlist's menu plays, queues and opens it, then pins it; Liked Songs is pinned by its own id.
     fireEvent.contextMenu(within(list).getByRole('link', { name: playlist.name }))
-    expect((await screen.findAllByRole('menuitem')).map(item => item.textContent)).toEqual(['Pin to top'])
+    expect((await screen.findAllByRole('menuitem')).map(item => item.textContent)).toEqual(['Play', 'Play next', 'Add to queue', 'Add to playlist', 'Go to playlist', 'Pin to top'])
     await userEvent.click(screen.getByRole('menuitem', { name: 'Pin to top' }))
     expect(fake.api.userdata.pin).toHaveBeenCalledWith('playlist', playlist.id)
     await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())

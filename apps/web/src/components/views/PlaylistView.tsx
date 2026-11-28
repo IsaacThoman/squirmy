@@ -34,11 +34,13 @@ type PlaylistViewProps = {
   onDelete: () => void
   onMove: (from: number, to: number) => void
   onRemove: (index: number) => void
+  /** Removes the picked songs. */
+  onRemoveMany: (indexes: number[]) => Promise<unknown>
   /** A move or removal the server refused, said above the songs it went back among. */
   failure?: string
 }
 
-export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete, onMove, onRemove, failure }: PlaylistViewProps) {
+export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete, onMove, onRemove, onRemoveMany, failure }: PlaylistViewProps) {
   // Finding and sorting only change what is listed here: the playlist keeps its own order.
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<PlaylistSort>('custom')
@@ -67,6 +69,7 @@ export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete
       context={{ type: 'playlist', id: playlist.id, title: playlist.name }}
       onMove={changesItems && asStored ? onMove : undefined}
       onRemove={changesItems ? index => onRemove(shown[index]) : undefined}
+      onRemoveMany={changesItems ? indexes => onRemoveMany(indexes.map(index => shown[index])) : undefined}
       toolbar={playlist.items.length > 1 && (
         <>
           <SearchField value={query} onValueChange={setQuery} placeholder="Find in playlist" className="w-full sm:w-64" />
@@ -178,6 +181,7 @@ type TrackCollectionProps = {
   onPlay?: (index: number, options?: PlayOptions) => void
   onMove?: (from: number, to: number) => void
   onRemove?: (index: number) => void
+  onRemoveMany?: (indexes: number[]) => Promise<unknown>
   /** Loads another page when the end comes into view. */
   onEndReached?: () => void
   moreFailure?: MoreFailure
@@ -189,11 +193,11 @@ type TrackCollectionProps = {
   failure?: string
 }
 
-function TrackCollection({ kind, title, art, tint, byline, description, tracks, addedAt, getItemKey, count, durationMs, context, onPlay, onMove, onRemove, onEndReached, moreFailure, toolbar, menuEntries, empty, failure }: TrackCollectionProps) {
+function TrackCollection({ kind, title, art, tint, byline, description, tracks, addedAt, getItemKey, count, durationMs, context, onPlay, onMove, onRemove, onRemoveMany, onEndReached, moreFailure, toolbar, menuEntries, empty, failure }: TrackCollectionProps) {
   const controls = usePlayerControls()
   const viewer = useViewer()
   const play = onPlay ?? ((index: number, options?: PlayOptions) => controls.playTracks(tracks, index, context, options))
-  const actions = useTrackActions(tracks, context, { onPlay: index => play(index), onMove, onRemove })
+  const actions = useTrackActions(tracks, context, { onPlay: index => play(index), onMove, onRemove, onRemoveMany })
   // A list still loading (Liked Songs) plays once the rest is in, so its count says there is something to play.
   const playable = tracks.some(track => isPlayable(track, viewer)) || (!!count && !!onPlay)
   // Like an album's, the menu plays or shuffles the collection; there are no Play and Shuffle buttons.
