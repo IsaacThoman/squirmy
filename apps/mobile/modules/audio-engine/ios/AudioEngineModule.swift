@@ -6,6 +6,18 @@ struct GaplessRecord: Record {
   @Field var frames: Double = 0
 }
 
+/// `NativeTiming` in `index.ts`.
+struct TimingRecord: Record {
+  @Field var audibleStartMs: Double?
+  @Field var audibleEndMs: Double?
+  @Field var introEndMs: Double?
+  @Field var outroStartMs: Double?
+
+  func timing() -> ItemTiming {
+    ItemTiming(audibleStartMs: audibleStartMs, audibleEndMs: audibleEndMs, introEndMs: introEndMs, outroStartMs: outroStartMs)
+  }
+}
+
 /// `NativeItem` in `index.ts`.
 struct ItemRecord: Record {
   @Field var entryId: String = ""
@@ -16,6 +28,7 @@ struct ItemRecord: Record {
   @Field var gapless: GaplessRecord?
   @Field var decoder: String = "file"
   @Field var albumRun: Bool = false
+  @Field var timing: TimingRecord?
   @Field var autoplay: Bool = false
 
   func item() throws -> EngineItem {
@@ -23,7 +36,7 @@ struct ItemRecord: Record {
     return EngineItem(
       entryId: entryId, url: url, startMs: startMs, gain: Float(gain), albumRun: albumRun, decoder: DecoderKind(rawValue: decoder) ?? .file,
       gapless: gapless.map { Gapless(sampleRate: $0.sampleRate, primingFrames: Int64($0.primingFrames), frames: Int64($0.frames)) },
-      cacheKey: cacheKey)
+      cacheKey: cacheKey, timing: timing?.timing())
   }
 }
 
@@ -79,6 +92,7 @@ public class AudioEngineModule: Module {
     Function("holdAudioSession") { (hold: Bool) in SharedEngine.shared.engine.holdAudioSession(hold) }
     Function("setEqualizer") { (curve: EqualizerRecord?) in SharedEngine.shared.engine.setEqualizer(curve?.curve()) }
     Function("setCrossfade") { (seconds: Double) in SharedEngine.shared.engine.setCrossfade(seconds: seconds) }
+    Function("setSmartTransitions") { (on: Bool) in SharedEngine.shared.engine.setSmartTransitions(on) }
     Function("setFade") { (level: Double) in SharedEngine.shared.engine.setFade(Float(level)) }
     Function("getStatus") { () -> [String: Any] in
       Self.payload(SharedEngine.shared.engine.status())

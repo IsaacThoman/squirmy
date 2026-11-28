@@ -9,7 +9,7 @@ import type { FastifyInstance, InjectOptions } from 'fastify'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { fileMoves, mediaFiles, organizeBatches, releaseLoudness, users } from '../../database/schema.js'
+import { fileMoves, mediaFiles, organizeBatches, releaseLoudness, sonicAnalyses, users } from '../../database/schema.js'
 import { enqueue, startJobs, stopJobs } from '../../jobs/index.js'
 import { newId } from '../../lib/ids.js'
 import { makeTone } from '../../test/audio.js'
@@ -98,6 +98,19 @@ describe('streaming originals', () => {
     const missing = await call({ url: `/api/v1/tracks/${unowned}/playback`, headers: admin })
     expect(missing.statusCode).toBe(404)
     expect(missing.json().error.code).toBe('not_available')
+  })
+
+  it('gives the file timing from its sonic analysis, for crossfades', async () => {
+    expect((await descriptor()).timing).toBeNull()
+    await db.insert(sonicAnalyses).values({
+      fileId: flac.fileId, version: 1, bpm: 120, bpmConfidence: 0.9, beatOffsetMs: 40,
+      audibleStartMs: 120, audibleEndMs: 2800, introEndMs: 400, outroStartMs: 2300,
+    })
+    const timing = { bpm: 120, beatOffsetMs: 40, audibleStartMs: 120, audibleEndMs: 2800, introEndMs: 400, outroStartMs: 2300 }
+    expect((await descriptor()).timing).toEqual(timing)
+    // A transcode keeps the file's timeline.
+    expect((await descriptor('?quality=high')).timing).toEqual(timing)
+    await db.delete(sonicAnalyses).where(eq(sonicAnalyses.fileId, flac.fileId))
   })
 
   it('estimates an unmeasured gain and raises its singleton measurement on play', async () => {

@@ -1,4 +1,4 @@
-import type { EngineEvent, EngineLoad, EnginePreload, EngineStatus } from '@squirmy/client-core'
+import { crossfadePlan, type EngineEvent, type EngineLoad, type EngineMedia, type EnginePreload, type EngineStatus, type TransitionPlan } from '@squirmy/client-core'
 import type { PlaybackQuery } from '@squirmy/contracts'
 import type { EqGains } from './equalizer'
 import { EngineOutput, supportsLimiter, type AttachOutput, type OutputOptions } from './output'
@@ -39,8 +39,8 @@ const CURVE_POINTS = 256
 
 type Slot = { engine: InnerEngine; fade: GainNode | null; limiterChanged: (() => void) | null }
 
-/** The preloaded entry, loaded paused on the other engine, ready to fade in. */
-type Standby = { request: EnginePreload; ready: boolean; starting: boolean }
+/** The preloaded entry, loaded paused on the other engine at `startMs` (past its leading silence), ready to fade in. */
+type Standby = { request: EnginePreload; startMs: number; ready: boolean; starting: boolean }
 
 /** A fade under way: the outgoing slot, and the timer that stops it once it is silent. */
 type Fade = { outgoing: Slot; timer: ReturnType<typeof setTimeout> }
@@ -59,6 +59,10 @@ type Fade = { outgoing: Slot; timer: ReturnType<typeof setTimeout> }
  * that moment `ended` goes out for the outgoing entry and the incoming one becomes active, as
  * the client-core contract says of an engine that crossfades. A pause, seek, load or stop in
  * the middle of a fade ends it at once (10 ms), as a user's skip does.
+ *
+ * Where the fade lies follows client-core's `crossfadePlan` from the songs' `timing`: it ends
+ * where the outgoing song falls silent, which then stops, and the incoming one starts past its
+ * leading silence; with Smart transitions it also lasts as long as their outro and intro do.
  */
 export class CrossfadeEngine implements BrowserEngine {
   readonly limiter: boolean
@@ -69,6 +73,9 @@ export class CrossfadeEngine implements BrowserEngine {
   private readonly output = new EngineOutput()
   private context: AudioContext | null = null
   private seconds = 0
+  private smart = false
+  /** What the loaded entry's descriptor said, its timing above all. */
+  private media: EngineMedia | undefined
   private preloaded: EnginePreload | null = null
   private standby: Standby | null = null
   private fade: Fade | null = null
@@ -109,6 +116,11 @@ export class CrossfadeEngine implements BrowserEngine {
     this.route()
   }
 
+  /** Fits each crossfade to the songs' outro and intro (`crossfadePlan`'s Smart transitions). */
+  setSmartTransitions(on: boolean): void {
+    this.smart = on
+  }
+
   load(request: EngineLoad): void {
     this.settle()
     const standby = this.standby
@@ -118,15 +130,18 @@ export class CrossfadeEngine implements BrowserEngine {
       this.active = this.other(previous)
       this.standby = null
       this.preloaded = null
+      this.media = request.media ?? standby.request.media
       previous.engine.stop()
       const { engine } = this.active
       engine.setGain(request.gain)
       this.emit({ type: 'status', status: { entryId: request.entryId, state: 'loading', positionMs: request.startMs } })
-      if (request.startMs > 0) engine.seek(request.startMs)
+      // It waits past its silence, for a fade; loaded, it starts where it is asked to.
+      if (request.startMs !== standby.startMs) engine.seek(request.startMs)
       if (request.autoplay) engine.play()
       else this.emit({ type: 'status', status: engine.getStatus() })
       return this.sync()
     }
+    this.media = request.media
     this.active.engine.load(request)
     this.sync()
   }
@@ -246,11 +261,13 @@ export class CrossfadeEngine implements BrowserEngine {
     this.dropStandby()
     // The other engine is still fading out: the preload waits for it.
     if (this.fade) return
-    this.standby = { request, ready: false, starting: false }
+    // Where it starts depends on its own timing alone, so the loaded entry's length need not be known yet.
+    const startMs = this.plan(request, Infinity)!.incomingStartMs
+    this.standby = { request, startMs, ready: false, starting: false }
     const { engine } = this.other(this.active)
     // Its fade gain must exist before it plays (an element engine joins the graph on its first play).
     engine.warm()
-    engine.load({ ...request, startMs: 0, autoplay: false })
+    engine.load({ ...request, startMs, autoplay: false })
     this.sync()
   }
 
@@ -288,19 +305,23 @@ export class CrossfadeEngine implements BrowserEngine {
   private watch(): void {
     const standby = this.standby
     if (!standby?.ready || standby.starting) return
-    const { engine } = this.active
-    const status = engine.getStatus()
-    const duration = engine.entryDurationMs()
-    if (status.state !== 'playing' || duration === null) return
-    if (duration - status.positionMs > this.fadeMs(duration) + START_LEAD_MS) return
+    const status = this.active.engine.getStatus()
+    const plan = this.plan(standby.request)
+    if (status.state !== 'playing' || !plan) return
+    if (plan.outgoingEndMs - status.positionMs > plan.fadeMs + START_LEAD_MS) return
     standby.starting = true
     this.other(this.active).engine.play()
   }
 
-  /** The fade's length for an outgoing entry `duration` long: the setting, but no more than half of either song. */
-  private fadeMs(duration: number): number {
-    const incoming = this.standby?.request.media?.durationMs
-    return Math.min(this.seconds * 1000, duration / 2, incoming ? incoming / 2 : Infinity)
+  /** The fade into `incoming` (`crossfadePlan`), once the loaded entry's length is known. */
+  private plan(incoming: EnginePreload, unknownLength: number | null = null): TransitionPlan | null {
+    const duration = this.active.engine.entryDurationMs() ?? unknownLength
+    if (duration === null) return null
+    return crossfadePlan(
+      { durationMs: duration, timing: this.media?.timing },
+      { durationMs: incoming.media?.durationMs, timing: incoming.media?.timing },
+      { seconds: this.seconds, smart: this.smart },
+    )
   }
 
   /** The incoming entry plays: both fades start now, and the outgoing entry has ended as far as the session is concerned. */
@@ -308,8 +329,10 @@ export class CrossfadeEngine implements BrowserEngine {
     const outgoing = this.active
     const incoming = this.other(outgoing)
     const status = outgoing.engine.getStatus()
-    const duration = outgoing.engine.entryDurationMs() ?? status.positionMs
-    const seconds = Math.max(0.05, Math.min(this.fadeMs(duration), duration - status.positionMs) / 1000)
+    const request = this.standby!.request
+    const plan = this.plan(request) ?? { fadeMs: 0, outgoingEndMs: status.positionMs }
+    // Over what is left of the outgoing song's sound, which stops when the fade does.
+    const seconds = Math.max(0.05, Math.min(plan.fadeMs, plan.outgoingEndMs - status.positionMs) / 1000)
     const context = this.ensureContext()
     const now = context.currentTime
     curve(outgoing.fade, now, seconds, angle => Math.cos(angle))
@@ -317,6 +340,7 @@ export class CrossfadeEngine implements BrowserEngine {
     this.standby = null
     this.preloaded = null
     this.active = incoming
+    this.media = request.media
     const timer = setTimeout(() => this.finishFade(), seconds * 1000 + 100)
     this.fade = { outgoing, timer }
     this.emit({ type: 'ended', entryId: status.entryId! })

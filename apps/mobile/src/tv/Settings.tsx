@@ -14,10 +14,10 @@ import {
 import { loadFailure } from '../data/errors';
 import { useUpdateSettings, useUserSettings } from '../data/queries';
 import { useAccountStorage } from '../account/storageUsage';
-import { useCrossfadeAvailable, useEqualizerAvailable, useNormalizationBoosts } from '../playback';
-import { crossfadeNote, crossfadeOptions } from '../player/engine/crossfade';
+import { useCrossfadeAvailable, useEqualizerAvailable, useNormalizationBoosts, useSmartTransitionsAvailable } from '../playback';
+import { crossfadeNote, crossfadeOptions, smartTransitionsLabel, smartTransitionsNote } from '../player/engine/crossfade';
 import { equalizerNote, equalizerOptions, tvEqualizerOptions } from '../player/engine/equalizer';
-import { useCrossfadeSetting, useEqualizerSetting } from '../player/engine/output';
+import { useCrossfadeSetting, useEqualizerSetting, useSmartTransitionsSetting } from '../player/engine/output';
 import { engineNote, engineOptions, showsEngineSetting, useEngineSetting } from '../player/engine/setting';
 import { Icon } from '../ui';
 import { Focusable } from './Focusable';
@@ -121,6 +121,8 @@ export function TvSettingsScreen() {
   const [equalizer] = useEqualizerSetting();
   const crossfadeAvailable = useCrossfadeAvailable();
   const [crossfade] = useCrossfadeSetting();
+  const smartAvailable = useSmartTransitionsAvailable() && crossfadeAvailable && crossfade > 0;
+  const [smartTransitions, setSmartTransitions] = useSmartTransitionsSetting();
   if (state.status !== 'signedIn') return null;
   const { server, user } = state;
   const { settings } = screen;
@@ -170,6 +172,8 @@ export function TvSettingsScreen() {
           note={equalizerNote} onNote={setNote} onPress={() => open('equalizer')} />}
         {crossfadeAvailable && <Row title="Crossfade" value={optionLabel(crossfadeOptions, crossfade)} chevron
           note={crossfadeNote} onNote={setNote} onPress={() => open('crossfade')} />}
+        {smartAvailable && <Row title={smartTransitionsLabel} value={onOff(smartTransitions)} note={smartTransitionsNote} onNote={setNote}
+          onPress={() => setSmartTransitions(!smartTransitions)} />}
         {/* Two values, so selecting the row switches between them, as a switch's row does. */}
         {showsEngineSetting() && <Row title="Engine" value={optionLabel(engineOptions, engine)} note={engineNote} onNote={setNote}
           onPress={() => setEngine(engine === 'native' ? 'classic' : 'native')} />}

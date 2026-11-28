@@ -106,8 +106,8 @@ function base64(samples: Float32Array): string {
  * stream's own rate is not resampled); `?lead=` and `?behind=` shrink the MSE engine's
  * buffer, so short tones reach seeks outside it; `?muted=1` silences what follows the
  * recorder, so a measurement makes no sound; `?limiter=0` leaves the limiter out, to compare;
- * `?crossfade=` sets this browser's crossfade setting, in seconds, which the page's engine
- * follows as the app's does. The engine is the page's kind twice over in a `CrossfadeEngine`,
+ * `?crossfade=` sets this browser's crossfade setting, in seconds, and `?smart=1` turns Smart
+ * transitions on, which the page's engine follows as the app's does. The engine is the page's kind twice over in a `CrossfadeEngine`,
  * as the app's is.
  */
 function instrumentedEngine(): Instruments {
@@ -146,6 +146,8 @@ function instrumentedEngine(): Instruments {
   })
   const crossfade = params.get('crossfade')
   if (crossfade !== null) setAudioSettings({ crossfadeSeconds: Number(crossfade) || 0 })
+  const smart = params.get('smart')
+  if (smart !== null) setAudioSettings({ smartTransitions: smart === '1' })
   const events: LoggedEvent[] = []
   engine.subscribe(event => events.push({ at: performance.now(), event }))
   const level = () => {

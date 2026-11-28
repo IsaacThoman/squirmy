@@ -184,6 +184,60 @@ describe('CrossfadeEngine', () => {
     expect(second().loaded).toBeNull()
   })
 
+  describe('with the songs\' timing', () => {
+    const timing = (overrides: object) => ({ bpm: null, beatOffsetMs: null, audibleStartMs: null, audibleEndMs: null, introEndMs: null, outroStartMs: null, ...overrides })
+    /** Plays `a` (falling silent 3 s before its end, with a 5 s outro) from `startMs`, and preloads `b` (silent for 1.2 s, then a 2 s intro). */
+    function playingTimed(startMs: number, preload: object = {}) {
+      engine.load({ ...request('a', { media: { transcoded: false, durationMs: DURATION, timing: timing({ audibleEndMs: DURATION - 3000, outroStartMs: DURATION - 8000 }) } }), startMs, autoplay: true })
+      engine.preload(request('b', { media: { transcoded: false, durationMs: DURATION, timing: timing({ audibleStartMs: 1200, introEndMs: 3200 }) } , ...preload }))
+    }
+
+    it('skips the silence: the fade ends where the first song falls silent, and the next starts where its sound does', () => {
+      engine.setCrossfade(4)
+      playingTimed(DURATION - 10_000)
+      expect(second().getStatus()).toMatchObject({ entryId: 'b', state: 'paused', positionMs: 1200 })
+      // Its sound ends 7 s from here: the fade starts 4 s and the start's lead before that, 2.85 s in.
+      vi.advanceTimersByTime(2_700)
+      expect(second().getStatus().state).toBe('paused')
+      vi.advanceTimersByTime(200)
+      expect(second().getStatus()).toMatchObject({ state: 'playing', positionMs: 1200 })
+      expect(events.at(-2)).toEqual({ type: 'ended', entryId: 'a' })
+      const [out] = fadeOf(0).filter(([kind]) => kind === 'curve')
+      expect(out![3]).toBeCloseTo(4, 1)
+      // The first song stops once it is silent, 3 s before its file ends.
+      vi.advanceTimersByTime(4_200)
+      expect(first().getStatus().state).toBe('idle')
+    })
+
+    it('with Smart transitions, mixes over the outro rather than the setting', () => {
+      engine.setCrossfade(12)
+      engine.setSmartTransitions(true)
+      playingTimed(DURATION - 20_000)
+      // The 5 s outro (longer than the 2 s intro) ends 17 s from here: the fade starts 11.85 s in.
+      vi.advanceTimersByTime(11_700)
+      expect(second().getStatus().state).toBe('paused')
+      vi.advanceTimersByTime(200)
+      expect(second().getStatus().state).toBe('playing')
+      const [out] = fadeOf(0).filter(([kind]) => kind === 'curve')
+      expect(out![3]).toBeCloseTo(5, 1)
+    })
+
+    it('plays gaplessly into the next song of the album, silence and all', () => {
+      engine.setCrossfade(4)
+      engine.setSmartTransitions(true)
+      playingTimed(0, { continuesAlbum: true })
+      expect(first().preloaded?.entryId).toBe('b')
+      expect(second().loaded).toBeNull()
+    })
+
+    it('starts a skipped-to song from its start, not past its silence', () => {
+      engine.setCrossfade(4)
+      playingTimed(0)
+      engine.load({ ...request('b'), startMs: 0, autoplay: true })
+      expect(engine.getStatus()).toMatchObject({ entryId: 'b', state: 'playing', positionMs: 0 })
+    })
+  })
+
   it('moves a waiting preload back to the playing engine when crossfade is turned off', () => {
     engine.setCrossfade(4)
     playing(0)

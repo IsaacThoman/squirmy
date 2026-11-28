@@ -14,6 +14,9 @@
  * 4. Fill each mix with the user's favourite songs by its artists and songs like them, picked
  *    by radio's ranking (`suggest`) seeded with those favourites, interleaved so the mix opens
  *    on a favourite and keeps returning to them. No song is in two mixes.
+ * 5. Order each mix so one song flows into the next (`smoothOrder`): favourites trade places
+ *    with favourites and suggestions with suggestions, where that lowers the tempo, key and
+ *    energy jumps radio's `transitionCost` charges.
  *
  * Mixes are made once a day (catalog's `catalog.home-picks` job) and stored, so a mix stays
  * the same all day; random choices are seeded by the user, the day and the slot. A mix is a
@@ -28,9 +31,10 @@ import { newId } from '../../lib/ids.js'
 import { explicitAllowed } from '../catalog/explicit.js'
 import { completedPlay, placeholderArtist, playArtist, uuidArray } from '../catalog/sql.js'
 import { servable, trackSummaries } from '../catalog/summaries.js'
-import { isRequester, suggest } from './ranking.js'
+import { sonicPoints, type SonicPoint } from '../sonic/index.js'
+import { isRequester, suggest, weights } from './ranking.js'
 import { similarArtists } from './similar.js'
-import { artistSoundAffinity, pairKey } from './sonic.js'
+import { artistSoundAffinity, pairKey, seedSound, soundRank, transitionCost, type SeedSound } from './sonic.js'
 
 /** Most mixes a user has. */
 export const MIX_LIMIT = 6
@@ -231,15 +235,18 @@ export function cluster(artists: ListenedArtist[], signals: Signals): ListenedAr
 
 /** Least genre similarity of a suggestion to its mix, when the suggestion's genres are known. */
 const ON_TOPIC = 0.15
+/** When they are not: the most of the library that may sound nearer the mix's favourites than it does. */
+const SOUND_ON_TOPIC = 0.5
 
 /**
  * Leaves out suggestions whose genres are known and have nothing to do with the mix's.
  * Radio's ranking pads a batch with unrelated songs when the related ones run out (a radio
  * would rather keep playing); a mix is better a few songs shorter than off its theme. Songs
- * by the mix's artists, and songs whose genres nothing says, stay: those come from the
- * similar-artist and radio pools, related by other means.
+ * by the mix's artists stay. So do songs whose genres nothing says (those come from the
+ * similar-artist and radio pools, related by other means), unless they are analysed and sound
+ * farther from the mix's favourites than most of the library does.
  */
-async function onTopic(tracks: TrackSummary[], members: ListenedArtist[]): Promise<TrackSummary[]> {
+async function onTopic(tracks: TrackSummary[], members: ListenedArtist[], sound: SeedSound): Promise<TrackSummary[]> {
   const theme = new Map<string, number>()
   for (const member of members) for (const [genre, weight] of member.genres) theme.set(genre, (theme.get(genre) ?? 0) + weight)
   const artists = new Set(members.map((member) => member.id))
@@ -251,7 +258,7 @@ async function onTopic(tracks: TrackSummary[], members: ListenedArtist[]): Promi
   return tracks.filter((track) => {
     if (track.artists.some((artist) => artists.has(artist.id))) return true
     const genres = track.album ? genresOf.get(track.album.id) ?? [] : []
-    if (genres.length === 0) return true
+    if (genres.length === 0) return (soundRank(sound, track.id) ?? 0) <= SOUND_ON_TOPIC
     const vector = new Map<string, number>()
     for (const genre of genres) addGenre(vector, genre, 1)
     return cosine(vector, theme) >= ON_TOPIC
@@ -311,6 +318,81 @@ export function interleave(loved: TrackSummary[], fresh: TrackSummary[], length:
   return result
 }
 
+/** What the sequence's transitions cost in all (`transitionCost`). */
+export function sequenceCost(ids: readonly string[], points: ReadonlyMap<string, SonicPoint>): number {
+  let cost = 0
+  for (let index = 1; index < ids.length; index++) cost += transitionCost(points.get(ids[index - 1]!), points.get(ids[index]!), weights)
+  return cost
+}
+
+/** Rounds of swaps `smoothOrder` makes at most: each is one look at every pair, a few thousand for a mix. */
+const SMOOTHING_ROUNDS = 4
+
+/**
+ * Orders a mix (as `interleave` made it) so each song flows into the next: lower tempo, key
+ * and energy jumps (`transitionCost`). The shape stays: the first song stays first, favourites
+ * keep their places in the order and trade them only with each other, as suggestions do, and
+ * no artist plays twice in a row more often than in `interleave`'s order. A greedy pass first
+ * (at each place, the song of that kind that follows best, ties to the earlier in the mix),
+ * then swaps of two songs of one kind while one lowers the total. Deterministic, and with nothing
+ * analysed it changes nothing.
+ */
+export function smoothOrder(tracks: readonly TrackSummary[], favourites: ReadonlySet<string>, points: ReadonlyMap<string, SonicPoint>): TrackSummary[] {
+  if (tracks.length < 3 || !tracks.some((track) => points.has(track.id))) return [...tracks]
+  const artistOf = (track: TrackSummary) => track.artists[0]?.id ?? track.artistCredit
+  const kindOf = (track: TrackSummary) => favourites.has(track.id)
+  const cost = (from: TrackSummary, to: TrackSummary) => transitionCost(points.get(from.id), points.get(to.id), weights)
+  const greedy = [tracks[0]!]
+  const left = tracks.slice(1)
+  for (let place = 1; place < tracks.length; place++) {
+    const kind = kindOf(tracks[place]!)
+    const previous = greedy.at(-1)!
+    let best = -1
+    for (let index = 0; index < left.length; index++) {
+      const one = left[index]!
+      if (kindOf(one) !== kind) continue
+      if (best < 0) { best = index; continue }
+      const other = left[best]!
+      const sameArtist = (track: TrackSummary) => artistOf(track) === artistOf(previous)
+      if (sameArtist(one) !== sameArtist(other)) {
+        if (!sameArtist(one)) best = index
+        continue
+      }
+      if (cost(previous, one) < cost(previous, other) - 1e-9) best = index
+    }
+    greedy.push(left.splice(best, 1)[0]!)
+  }
+  const repeats = (order: readonly TrackSummary[]) => order.reduce((sum, track, at) => sum + Number(at > 0 && artistOf(track) === artistOf(order[at - 1]!)), 0)
+  // Picking the best next song can leave only one artist's songs for the end: then the swaps start from the mix as it was.
+  const result = repeats(greedy) <= repeats(tracks) ? greedy : [...tracks]
+  // Swaps: the cost around both places before and after, and no new artist repeats.
+  const repeatsAt = (order: TrackSummary[], at: number) =>
+    (at > 0 && artistOf(order[at]!) === artistOf(order[at - 1]!)) || (at + 1 < order.length && artistOf(order[at]!) === artistOf(order[at + 1]!))
+  const around = (order: TrackSummary[], places: number[]) => {
+    const edges = new Set(places.flatMap((at) => [at, at + 1]).filter((edge) => edge > 0 && edge < order.length))
+    let sum = 0
+    for (const edge of edges) sum += cost(order[edge - 1]!, order[edge]!)
+    return sum
+  }
+  for (let round = 0; round < SMOOTHING_ROUNDS; round++) {
+    let improved = false
+    for (let a = 1; a < result.length; a++) {
+      for (let b = a + 1; b < result.length; b++) {
+        if (kindOf(result[a]!) !== kindOf(result[b]!)) continue
+        const before = around(result, [a, b])
+        const repeatedBefore = Number(repeatsAt(result, a)) + Number(repeatsAt(result, b))
+        ;[result[a], result[b]] = [result[b]!, result[a]!]
+        const after = around(result, [a, b])
+        const repeatedAfter = Number(repeatsAt(result, a)) + Number(repeatsAt(result, b))
+        if (after < before - 1e-9 && repeatedAfter <= repeatedBefore) improved = true
+        else [result[a], result[b]] = [result[b]!, result[a]!]
+      }
+    }
+    if (!improved) break
+  }
+  return result
+}
+
 /**
  * The user's mixes for today, best first, without storing them. `day` seeds the random
  * choices (an ISO date), so a second run on the same day picks the same songs.
@@ -341,9 +423,10 @@ export async function makeMixes(userId: string, day: string): Promise<MadeMix[]>
     )
     const suggestions = (await trackSummaries(userId, suggested.map((seed) => ({ id: seed.trackId, albumId: seed.albumId }))))
       .filter((track) => playable(track, requester, allowsExplicit) && !used.has(track.id))
-    const fresh = await onTopic(suggestions, members)
-    const tracks = interleave(loved, fresh, MIX_LENGTH)
-    if (tracks.length < MIN_MIX_TRACKS) continue
+    const fresh = await onTopic(suggestions, members, await seedSound(loved.map((track) => track.id), new Set(), false))
+    const mixed = interleave(loved, fresh, MIX_LENGTH)
+    if (mixed.length < MIN_MIX_TRACKS) continue
+    const tracks = smoothOrder(mixed, new Set(loved.map((track) => track.id)), await sonicPoints(mixed.map((track) => track.id)))
     for (const track of tracks) used.add(track.id)
     const label = labelOf(members, labels)
     labels.add(label)

@@ -217,6 +217,8 @@ const RETRY_MS = 3000
 /** Signed URLs are refreshed this long before they expire. */
 const DESCRIPTOR_MARGIN_MS = 5 * 60_000
 const DESCRIPTOR_CACHE_SIZE = 50
+/** A song the engine moved to this far in skipped its silence; a start this near 0 is only the engine's latency. */
+const SKIPPED_START_MS = 250
 /** Tracks `forgetPlayback` remembers forgetting, for resolves still in flight. */
 const FORGOTTEN_TRACKS_SIZE = 64
 const REPORTED: Partial<Record<EngineState, EngineReport['status']>> = {
@@ -1432,6 +1434,7 @@ export class SessionClient {
       case 'ended':
         if (this.isActive() && event.entryId === this.local.current?.id) {
           this.enqueue({ type: 'trackEnded', entryId: event.entryId }, this.endCommandId(event.entryId))
+          this.followStart(event.entryId)
           this.recompute()
           this.flush()
         }
@@ -1448,6 +1451,17 @@ export class SessionClient {
         if (finishedLoading) this.syncEngine(this.local, false)
       }
     }
+  }
+
+  /**
+   * A crossfade may start the next song past its leading silence (`crossfadePlan`): the
+   * session starts it there too, or the end's own update would seek it back to the start.
+   * Not in a jam this device follows, which keeps to the host's clock.
+   */
+  private followStart(endedId: string): void {
+    const status = this.player!.engine.getStatus()
+    if (followsJam(this.local) || status.entryId === endedId || status.entryId !== this.preloadTarget || status.positionMs < SKIPPED_START_MS) return
+    this.enqueue({ type: 'seek', positionMs: Math.round(status.positionMs) }, this.newCommandId())
   }
 
   /**
@@ -1483,7 +1497,7 @@ function isRefusal(error: unknown): boolean {
 
 function mediaOf(descriptor: ResolvedPlayback): EngineMedia {
   const { transcoded, profile, mime, codec, sampleRate, durationMs } = descriptor
-  return { transcoded, gapless: descriptor.gapless ?? null, cacheKey: descriptor.cacheKey ?? null, profile, mime, codec, sampleRate, durationMs }
+  return { transcoded, gapless: descriptor.gapless ?? null, cacheKey: descriptor.cacheKey ?? null, timing: descriptor.timing ?? null, profile, mime, codec, sampleRate, durationMs }
 }
 
 function descriptorKey(entry: QueueEntry): string {

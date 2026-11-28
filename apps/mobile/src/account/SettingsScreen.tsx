@@ -3,13 +3,13 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { closeSheet } from '../closeSheet';
-import { useCrossfadeAvailable, useEqualizerAvailable, useNormalizationBoosts } from '../playback';
-import { crossfadeNote, crossfadeOptions } from '../player/engine/crossfade';
+import { useCrossfadeAvailable, useEqualizerAvailable, useNormalizationBoosts, useSmartTransitionsAvailable } from '../playback';
+import { crossfadeNote, crossfadeOptions, smartTransitionsLabel, smartTransitionsNote } from '../player/engine/crossfade';
 import {
   automaticPreamp, clampGain, customEqualizerNote, equalizerBands, equalizerNote, equalizerOptions, equalizerRangeDb, formatGain,
   maxPreampDb, type EqualizerSetting,
 } from '../player/engine/equalizer';
-import { useCrossfadeSetting, useEqualizerSetting } from '../player/engine/output';
+import { useCrossfadeSetting, useEqualizerSetting, useSmartTransitionsSetting } from '../player/engine/output';
 import { SheetFrame, SheetRow, SheetRows } from '../SheetUI';
 import { StorageSection } from '../streamingCache/StorageSection';
 import { createThemedStyles, useColors } from '../theme';
@@ -29,6 +29,8 @@ export function SettingsScreen() {
   const [equalizer, setEqualizer] = useEqualizerSetting();
   const crossfadeAvailable = useCrossfadeAvailable();
   const [crossfade, setCrossfade] = useCrossfadeSetting();
+  const smartAvailable = useSmartTransitionsAvailable() && crossfadeAvailable && crossfade > 0;
+  const [smartTransitions, setSmartTransitions] = useSmartTransitionsSetting();
   return <ScrollView keyboardShouldPersistTaps="handled">
     <SheetFrame title="Settings" onClose={() => closeSheet(router)}>
       {settings ? <>
@@ -61,6 +63,12 @@ export function SettingsScreen() {
               selected={crossfade === option.value} onPress={() => setCrossfade(option.value)} />)}
           </SheetRows>
           <Text style={styles.note}>{crossfadeNote}</Text>
+          {smartAvailable && <>
+            <SheetRows>
+              <SheetRow title={smartTransitionsLabel} icon="waveform.path" selected={smartTransitions} onPress={() => setSmartTransitions(!smartTransitions)} />
+            </SheetRows>
+            <Text style={styles.note}>{smartTransitionsNote}</Text>
+          </>}
         </>}
         <Text style={styles.heading}>Wi-Fi quality</Text>
         <SheetRows>

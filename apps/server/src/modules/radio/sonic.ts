@@ -12,7 +12,11 @@
  *   tempo jump (double and half time count as the same tempo), a key that clashes on the
  *   Camelot wheel, a jump in energy. Each applies only when both tracks are known well
  *   enough, so unanalysed tracks are neither helped nor hurt.
+ * - `artistSoundAffinity` is how alike two artists sound, by the same rank, for the mixes.
  */
+import { sql } from 'drizzle-orm'
+import { db } from '../../database/client.js'
+import { uuidArray } from '../catalog/sql.js'
 import { centroid, distance, keyDistance, neighbourhood, sonicIndex, vectorOf, type Neighbourhood, type SonicIndex, type SonicPoint } from '../sonic/index.js'
 
 export type SeedSound = {
@@ -58,12 +62,18 @@ export async function seedSound(seeds: readonly string[], exclude: ReadonlySet<s
   return { index, query, near, neighbours: new Set(near.nearest.map((one) => one.id)) }
 }
 
-/** 0..1, how close the recording sounds to the seeds by rank in the library; null when not analysed. */
-export function similarity(sound: SeedSound, recordingId: string): number | null {
+/** The share of the library nearer the seeds than the recording (0 nearest, 1 farthest); null when not analysed. */
+export function soundRank(sound: SeedSound, recordingId: string): number | null {
   if (!sound.query || !sound.near) return null
   const vector = vectorOf(sound.index, recordingId)
   if (!vector) return null
-  return (1 - sound.near.percentile(distance(sound.query, vector))) ** 2
+  return sound.near.percentile(distance(sound.query, vector))
+}
+
+/** 0..1, how close the recording sounds to the seeds by rank in the library; null when not analysed. */
+export function similarity(sound: SeedSound, recordingId: string): number | null {
+  const rank = soundRank(sound, recordingId)
+  return rank === null ? null : (1 - rank) ** 2
 }
 
 export type TransitionWeights = { tempoJump: number; keyClash: number; energyJump: number }
@@ -87,15 +97,69 @@ export function transitionCost(from: SonicPoint | undefined, to: SonicPoint | un
   return cost
 }
 
+/** Fewest analysed tracks an artist needs for its sound to be judged. */
+const MIN_ARTIST_TRACKS = 3
+/** Most of an artist's analysed tracks its sound is measured from (the first by id: the same every day). */
+const ARTIST_TRACKS = 200
+
+/** The analysed recordings of each artist (credited on, or leading), in id order, in the index. */
+async function artistTracks(index: SonicIndex, artistIds: readonly string[]): Promise<Map<string, Float32Array[]>> {
+  const rows = await db.execute<{ artistId: string; id: string }>(sql`
+    select r.primary_artist_id as "artistId", r.id from recordings r
+    where r.primary_artist_id = any(${uuidArray(artistIds)}) and r.merged_into_id is null
+    union
+    select ra.artist_id, ra.recording_id from recording_artists ra join recordings r on r.id = ra.recording_id
+    where ra.artist_id = any(${uuidArray(artistIds)}) and r.merged_into_id is null
+    order by 1, 2`)
+  const tracks = new Map<string, Float32Array[]>()
+  for (const row of rows) {
+    const vector = vectorOf(index, row.id)
+    const list = tracks.get(row.artistId) ?? []
+    if (!vector || list.length >= ARTIST_TRACKS) continue
+    list.push(vector)
+    tracks.set(row.artistId, list)
+  }
+  return tracks
+}
+
 /**
- * Seam for how alike artists sound, for the mixes (mixes.ts `affinity`): for pairs of the
- * given artists, a similarity from 0 (nothing alike) to 1 (alike), keyed by `pairKey`; a pair
- * it cannot judge is left out. It answers null for now, so mixes are made from the genre,
- * similar-artist and co-listening signals alone; the sonic index above is what fills it in.
+ * How alike artists sound, for the mixes (mixes.ts `affinity`): for pairs of the given
+ * artists, a similarity from 0 (nothing alike) to 1 (alike), keyed by `pairKey`. An artist's
+ * sound is the average of its analysed tracks' vectors. From A's sound, B's tracks are as
+ * near as A's own on average (fully alike) or as far as the library's tracks are on average
+ * (not at all), or between; the pair's similarity is the mean of both ways round. Measured
+ * against the library's own spread, it needs no calibration: in a library of one genre, it
+ * tells apart artists that a mixed library would call alike. An artist with fewer than
+ * `MIN_ARTIST_TRACKS` analysed tracks is left out, as is every pair with it.
  */
 export async function artistSoundAffinity(artistIds: readonly string[]): Promise<Map<string, number> | null> {
-  void artistIds
-  return null
+  const index = await sonicIndex()
+  if (artistIds.length < 2 || index.ids.length < MIN_ARTIST_TRACKS * 2) return null
+  const tracks = await artistTracks(index, artistIds)
+  const width = index.data.length / index.ids.length
+  const judged = artistIds.flatMap((id) => {
+    const own = tracks.get(id) ?? []
+    if (own.length < MIN_ARTIST_TRACKS) return []
+    const sound = centroid(own.map((vector) => ({ vector, weight: 1 })))!
+    let library = 0
+    for (let row = 0; row < index.ids.length; row++) library += distance(sound, index.data, row * width)
+    return [{ id, own, sound, far: library / index.ids.length }]
+  })
+  if (judged.length < 2) return null
+  const near = (from: (typeof judged)[number], vectors: Float32Array[]) =>
+    vectors.reduce((sum, vector) => sum + distance(from.sound, vector), 0) / vectors.length
+  const ownNear = judged.map((one) => near(one, one.own))
+  const pairs = new Map<string, number>()
+  for (let a = 0; a < judged.length; a++) {
+    for (let b = a + 1; b < judged.length; b++) {
+      const way = (from: number, to: number) => {
+        const spread = judged[from]!.far - ownNear[from]!
+        return spread > 0 ? clamp01((judged[from]!.far - near(judged[from]!, judged[to]!.own)) / spread) : 0
+      }
+      pairs.set(pairKey(judged[a]!.id, judged[b]!.id), (way(a, b) + way(b, a)) / 2)
+    }
+  }
+  return pairs
 }
 
 /** The key of an unordered pair of ids. */

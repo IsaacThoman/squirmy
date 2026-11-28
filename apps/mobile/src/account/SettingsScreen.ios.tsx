@@ -11,13 +11,13 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, StyleSheet } from 'react-native';
 import { closeSheet } from '../closeSheet';
 import { runningEngine } from '../player/engine';
-import { useCrossfadeAvailable, useEqualizerAvailable, useNormalizationBoosts } from '../playback';
-import { crossfadeNote, crossfadeOptions } from '../player/engine/crossfade';
+import { useCrossfadeAvailable, useEqualizerAvailable, useNormalizationBoosts, useSmartTransitionsAvailable } from '../playback';
+import { crossfadeNote, crossfadeOptions, smartTransitionsLabel, smartTransitionsNote } from '../player/engine/crossfade';
 import {
   automaticPreamp, clampGain, customEqualizerNote, equalizerBands, equalizerNote, equalizerOptions, equalizerRangeDb, formatGain,
   maxPreampDb, type EqualizerSetting,
 } from '../player/engine/equalizer';
-import { useCrossfadeSetting, useEqualizerSetting } from '../player/engine/output';
+import { useCrossfadeSetting, useEqualizerSetting, useSmartTransitionsSetting } from '../player/engine/output';
 import { engineNote, engineOptions, showsEngineSetting, useEngineSetting } from '../player/engine/setting';
 import { SheetFormHeader, SheetPickerRow } from '../SheetUI';
 import { StorageSection } from '../streamingCache/StorageSection';
@@ -43,9 +43,12 @@ export function SettingsScreen() {
   const [equalizer, setEqualizer] = useEqualizerSetting();
   const crossfadeAvailable = useCrossfadeAvailable();
   const [crossfade, setCrossfade] = useCrossfadeSetting();
+  // Beside a crossfade that is on, which they shape.
+  const smartAvailable = useSmartTransitionsAvailable() && crossfadeAvailable && crossfade > 0;
+  const [smartTransitions, setSmartTransitions] = useSmartTransitionsSetting();
   const playbackNote = [
     normalizationNote(useNormalizationBoosts()), equalizerAvailable ? equalizerNote : null, crossfadeAvailable ? crossfadeNote : null,
-    engineChoice ? engineNote : null,
+    smartAvailable ? smartTransitionsNote : null, engineChoice ? engineNote : null,
   ].filter(Boolean).join('\n\n');
 
   return <KeyboardAvoidingView behavior="padding" style={styles.page}>
@@ -66,6 +69,9 @@ export function SettingsScreen() {
             {equalizerAvailable && <SheetPickerRow label="Equalizer" value={equalizer.preset} options={equalizerOptions}
               onChange={preset => setEqualizer({ ...equalizer, preset })} />}
             {crossfadeAvailable && <SheetPickerRow label="Crossfade" value={crossfade} options={crossfadeOptions} onChange={setCrossfade} />}
+            {smartAvailable && <Toggle isOn={smartTransitions} onIsOnChange={setSmartTransitions} modifiers={[tint(colors.accent)]}>
+              <Text modifiers={[font({ textStyle: 'body' })]}>{smartTransitionsLabel}</Text>
+            </Toggle>}
             {engineChoice && <SheetPickerRow label="Engine" value={engine} options={engineOptions} onChange={setEngine} />}
           </Section>
           {equalizerAvailable && equalizer.preset === 'custom' && <CustomEqualizer setting={equalizer} onChange={setEqualizer} />}

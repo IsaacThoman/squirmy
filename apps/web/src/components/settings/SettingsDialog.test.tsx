@@ -256,6 +256,18 @@ describe('SettingsDialog', () => {
       expect(crossfade).toHaveTextContent('6 seconds')
     })
 
+    it('offers Smart transitions with a crossfade on, off until it is turned on', async () => {
+      renderSettings()
+      expect(screen.queryByRole('switch', { name: 'Smart transitions' })).toBeNull()
+      await userEvent.click(screen.getByRole('combobox', { name: 'Crossfade' }))
+      await userEvent.click(await screen.findByRole('option', { name: '6 seconds' }))
+      const smart = screen.getByRole('switch', { name: 'Smart transitions' })
+      expect(smart).not.toBeChecked()
+      await userEvent.click(smart)
+      expect(smart).toBeChecked()
+      expect(JSON.parse(localStorage.getItem(AUDIO_STORAGE_KEY)!).smartTransitions).toBe(true)
+    })
+
     describe('equalizer', () => {
       const stored = () => JSON.parse(localStorage.getItem(AUDIO_STORAGE_KEY) ?? 'null') as { equalizer: { preset: string; custom: number[] } } | null
       const bands = () => screen.queryAllByRole('slider')
