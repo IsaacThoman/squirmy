@@ -1,17 +1,17 @@
 import {
-  ApiError, artworkUrl, createInitialSession, randomSeed, refreshFetchedTracks, SessionClient, sleepTimerAccessibilityLabel, sleepTimerChoiceId,
+  addedByName, ApiError, artworkUrl, createInitialSession, followsJam, randomSeed, refreshFetchedTracks, SessionClient, sleepTimerAccessibilityLabel, sleepTimerChoiceId,
   sleepTimerChoices, sleepTimerLabel, splitSession,
-  type PlaybackNotice, type SessionClientSnapshot, type SessionMoveResult, type SessionPlayer, type SleepTimerChoice,
+  type JamResult, type PlaybackNotice, type SessionClientSnapshot, type SessionMoveResult, type SessionPlayer, type SleepTimerChoice,
 } from '@squirmy/client-core';
 import { createSocketTransport } from '@squirmy/client-core/socket';
 import type {
-  ClientDevice, DeviceInfo, PlaybackContext, QueueEntry, RadioResponse, SessionCommand, SleepTimer, SleepTimerRequest, TrackSummary, UserSettings,
+  ClientDevice, DeviceInfo, JamRequest, PlaybackContext, QueueEntry, RadioResponse, SessionCommand, SleepTimer, SleepTimerRequest, TrackSummary, UserSettings,
 } from '@squirmy/contracts';
 import * as Network from 'expo-network';
 import {
   createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PropsWithChildren,
 } from 'react';
-import { AppState, Platform } from 'react-native';
+import { Alert, AppState, Platform } from 'react-native';
 import { useAccount, useAccountKey, useServerUrl, useSignedInApi } from './account/AccountProvider';
 import { clientDevice } from './account/storage';
 import { useLibraryActions, useLikeChanges, useTrack, useTrackStore } from './data/library';
@@ -49,7 +49,7 @@ const saveDelayMs = 5000;
 
 const idle: SessionClientSnapshot = (() => {
   const { state, queue } = splitSession(createInitialSession());
-  return { session: state, queue, devices: [], connection: 'offline', isActiveDevice: false, detached: false, canDetach: false, canSetSleepTimer: false, outage: null, away: null };
+  return { session: state, queue, devices: [], connection: 'offline', isActiveDevice: false, detached: false, canDetach: false, canSetSleepTimer: false, canJam: false, outage: null, away: null };
 })();
 const idleSnapshot = () => idle;
 const noSubscription = () => () => undefined;
@@ -121,6 +121,21 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         transport: createSocketTransport(socket),
         device,
         restore: saved?.session,
+        onJamEvent: event => {
+          if (event.type === 'jam.left') {
+            return report({ message: event.reason === 'ended' ? 'The listening session ended.' : 'You were removed from the listening session.' });
+          }
+          // Joining replaces what this account plays, so it is asked rather than done.
+          Alert.alert(`${event.hostName} invited you to listen together`, 'You’ll hear what they play, in step, on this device.', [
+            { text: 'Not now', style: 'cancel' },
+            {
+              text: 'Join',
+              onPress: () => void client.jam({ action: 'join', jamId: event.jamId }).then(result => {
+                if (!result.ok) report({ message: jamFailure(result.error) });
+              }),
+            },
+          ]);
+        },
         onDetachedEnded: reason => {
           const here = Platform.isTV ? 'This Apple TV' : 'This phone';
           report({ message: reason === 'expired'
@@ -403,6 +418,22 @@ function createActions(runtime: Runtime | null, canPlay: (track: TrackSummary) =
     const { seeds } = playableSeeds(tracks, 0, canPlay);
     if (seeds.length) send({ type: 'enqueue', tracks: seeds, placement });
   };
+  /**
+   * In someone else's jam only the host picks what plays: a member's pick joins the queue
+   * instead, when the host lets everyone add. True when it was handled so.
+   */
+  const asMember = (tracks: readonly TrackSummary[], start: number | undefined): boolean => {
+    const current = session();
+    if (!followsJam(current)) return false;
+    if (current.jam?.queuePolicy !== 'everyone') {
+      playbackStatus.report({ message: 'Only the host can choose what plays.' });
+      return true;
+    }
+    const picked = start === undefined ? tracks : tracks.slice(start, start + 1);
+    enqueue(picked, 'last');
+    playbackStatus.report({ message: picked.length === 1 ? `Added “${picked[0]!.title}” for everyone.` : 'Added for everyone.' });
+    return true;
+  };
   return {
     playPause: () => send({ type: session().playing ? 'pause' : 'play' }),
     play: () => send({ type: 'play' }),
@@ -430,6 +461,7 @@ function createActions(runtime: Runtime | null, canPlay: (track: TrackSummary) =
      * index into `tracks`). `shuffle` left out keeps the session's shuffle setting.
      */
     playTracks: (tracks: readonly TrackSummary[], { start, shuffle, context }: PlayOptions = {}) => {
+      if (asMember(tracks, shuffle ? undefined : start)) return;
       const { seeds, startIndex } = playableSeeds(tracks, start, canPlay);
       if (!seeds.length) return;
       send({
@@ -440,6 +472,8 @@ function createActions(runtime: Runtime | null, canPlay: (track: TrackSummary) =
         startedFrom: start === undefined || shuffle ? 'collection' : 'song',
       });
     },
+    /** Starts, joins, leaves, ends or changes a jam (listening together). Resolves once the server has answered. */
+    jam: (request: JamRequest): Promise<JamResult> => runtime?.client.jam(request) ?? Promise.resolve({ ok: false, error: 'offline' }),
     playRadio: ({ tracks, context }: RadioResponse) => send({ type: 'playTracks', tracks, context, startIndex: 0, seed: randomSeed(), startedFrom: 'collection' }),
     /** Plays one track now and keeps the queue: it goes to the front, then playback moves to it. */
     playNow: (track: TrackSummary) => {
@@ -511,6 +545,12 @@ export function usePlaybackState() {
     detached: snapshot.detached,
     /** This phone can play separately: hide the control otherwise. */
     canDetach: snapshot.canDetach,
+    /** The jam this session hosts or follows, while it does. */
+    jam: session.jam,
+    /** The server can listen together: offer it. */
+    canJam: snapshot.canJam,
+    /** Someone else's jam: only its host controls playback. */
+    hostControls: followsJam(session),
     /** Every device the user has connected, the detached ones included, for the "Playing separately" group. */
     allDevices: devices,
     thisDeviceId: device?.id ?? '',
@@ -580,6 +620,12 @@ export function usePosition(enabled = true): number {
 // and re-renders only when that fact changes, not on every session broadcast.
 
 /** Reads one value from the session client; re-renders only when it changes (compared with `Object.is`). */
+/** Who added the entry, by name, while the session is in a jam; null otherwise. */
+export function useAddedBy(entry: Pick<QueueEntry, 'addedBy'>): string | null {
+  const jam = useSessionValue(({ session }) => session.jam);
+  return jam ? addedByName({ jam }, entry) : null;
+}
+
 function useSessionValue<T>(select: (snapshot: SessionClientSnapshot) => T): T {
   const runtime = useContext(RuntimeContext);
   return useSyncExternalStore(runtime?.client.subscribe ?? noSubscription, () => select(runtime?.client.getSnapshot() ?? idle));
@@ -686,4 +732,17 @@ export function useCurrentDurationMs(): number {
   const albumId = useSessionValue(({ session }) => session.current?.albumId);
   const track = useTrack(trackId, albumId);
   return durationMs || track?.durationMs || 0;
+}
+
+/** What a refused jam request says. */
+export function jamFailure(error: string): string {
+  switch (error) {
+    case 'offline': return 'Can’t do that while offline.';
+    case 'jam_not_found': return 'That listening session has ended.';
+    case 'jam_full': return 'That listening session is full.';
+    case 'jam_hosting': return 'End your own listening session first.';
+    case 'jam_detached': return 'This device plays separately. Rejoin your other devices first.';
+    case 'jam_host_only': return 'Only the host can do that.';
+    default: return 'Something went wrong. Try again.';
+  }
 }

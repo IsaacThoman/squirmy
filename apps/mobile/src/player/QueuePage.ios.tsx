@@ -19,7 +19,7 @@ import { useCanPlay, useTrackDownload, useViewer } from '../downloads/DownloadsP
 import { useLiked, useLikeFailure, useTrack, useWanted, useWantFailure } from '../data/library';
 import { trackActions, useDownloadedOnItsOwn, useTrackActionRunner, type TrackAction } from '../library/trackActions';
 import { Symbol, TrackActionsMenu, TrackCover, hitShape, plainButton } from '../native/Controls';
-import { useCurrentTrackState, usePlaybackActions, usePlaybackState, type QueueEntry } from '../playback';
+import { useAddedBy, useCurrentTrackState, usePlaybackActions, usePlaybackState, type QueueEntry } from '../playback';
 import type { QueueProps } from './QueuePage';
 import { selectionFeedback } from './design';
 import { clipInset, pushedOpacity, restingStop, rowWindow, snapStops, stickyShift, type Band, type RowWindow } from './queueScroll';
@@ -485,7 +485,8 @@ const QueueTrack = memo(function QueueTrack({ entry, handlers, position, minHeig
   // Without its summary a row has nothing to show or act on: it says why, and offers no menu.
   const pending = track ? null : pendingQueueRow(offline);
   const title = track?.title ?? '';
-  const detail = pending?.detail || row.detail;
+  const addedBy = useAddedBy(entry);
+  const detail = [pending?.detail || row.detail, addedBy && `Added by ${addedBy}`].filter(Boolean).join(' · ');
   const listed = track ? trackActions(track, { liked: favorite, likeFailure, playable, offline, current, download, onItsOwn, wantlist, wanted, wantFailure, viewer }) : [];
   const actions = position ? queuedEntryActions(listed, position) : listed;
   // A failed or gray song fades its cover, and its text takes colors that stay readable (3:1).

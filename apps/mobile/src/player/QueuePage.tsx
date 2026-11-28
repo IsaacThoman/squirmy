@@ -9,7 +9,7 @@ import { useRealtime } from '../data/realtime';
 import { useCanPlay, useViewer } from '../downloads/DownloadsProvider';
 import { useLibraryActions, useLiked, useLikeFailure, useTrack, useTrackStore } from '../data/library';
 import { heartButton, heartColor } from '../library/heart';
-import { type QueueEntry, usePlaybackState } from '../playback';
+import { type QueueEntry, useAddedBy, usePlaybackState } from '../playback';
 import { Cover, Icon } from '../ui';
 import { PlayerButton } from './Controls';
 import { selectionFeedback } from './design';
@@ -404,7 +404,9 @@ function TrackRow({ entry, onPress, handle, onTrackMenu, onPromote, onRemove }: 
   const { offline } = useRealtime();
   const playable = useCanPlay(track);
   const viewer = useViewer();
-  const { detail, unavailable: failed } = queueRow(entry, track, { playable, offline, viewer });
+  const { detail: credit, unavailable: failed } = queueRow(entry, track, { playable, offline, viewer });
+  const addedBy = useAddedBy(entry);
+  const detail = addedBy ? `${credit} · Added by ${addedBy}` : credit;
   const title = track?.title ?? '';
 
   return (
