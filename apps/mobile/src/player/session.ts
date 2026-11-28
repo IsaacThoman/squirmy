@@ -160,7 +160,7 @@ function allEntries(session: Entries): QueueEntry[] {
  * one that is not on the phone says "Not downloaded". An entry whose summary has not loaded
  * yet is not grayed, so rows do not flash.
  */
-export function queueRow(entry: Pick<QueueEntry, 'state'>, track: Pick<TrackSummary, 'availability' | 'artistCredit'> | undefined, {
+export function queueRow(entry: Pick<QueueEntry, 'state'>, track: (Pick<TrackSummary, 'availability' | 'artistCredit'> & { explicit?: boolean | null }) | undefined, {
   playable, offline, viewer,
 }: { playable: boolean; offline: boolean; viewer: Viewer | null | undefined }): { detail: string; unavailable: boolean } {
   if (entry.state === 'failed') return { detail: UNAVAILABLE_LABEL, unavailable: true };

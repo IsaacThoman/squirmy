@@ -67,7 +67,7 @@ Requests can be GET or form POST, with or without `.view`, and answers come as X
 - **Your library is Squirmy's library**, what you saved (plus the music on the server with the setting on), limited to songs whose files are on the server: an album you starred shows once its files have arrived. A search with a query, and opening an album or artist by id, also reach the server's collection, so search finds everything the server has.
 - **Similar songs and artists** come from Squirmy's radio, limited to your library.
 - **ReplayGain** values on songs are Squirmy's loudness measurements (or the file's own tags until a file is measured), relative to -18 LUFS.
-- **Song metadata** includes role-based `contributors` and `displayComposer`, plus `works` and `movements` when available. `explicitStatus` is `explicit`, `clean` or an empty string when unknown. File comments are available as `comment`.
+- **Song metadata** includes role-based `contributors` and `displayComposer`, plus `works` and `movements` when available. `explicitStatus` is `explicit`, `clean` or an empty string when unknown. For a user with [explicit content](./users.md#explicit-content) off, explicit songs are left out of every answer, and `stream` and `download` refuse them with error 50. File comments are available as `comment`.
 
 ### Streaming and transcoding
 
