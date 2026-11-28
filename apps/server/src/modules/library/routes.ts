@@ -7,6 +7,7 @@ import { libraryRoots } from '../../database/schema.js'
 import { requireAdmin } from '../../lib/auth.js'
 import { conflict, notFound } from '../../lib/errors.js'
 import { invalidate } from '../../realtime/index.js'
+import { sonicProgress } from '../sonic/index.js'
 import { lockCatalog, removeOrphans } from './cleanup.js'
 import { listDuplicates, listLowQuality, removeDuplicate } from './duplicates.js'
 import { listFileHealth, requestHealthCheck } from './health.js'
@@ -46,7 +47,7 @@ async function libraryStats(): Promise<LibraryStats> {
       union
       select ra.artist_id from recording_artists ra where ra.recording_id in (select recording_id from media_files where missing_since is null and not cached)
     ) owned`)
-  return { artists: credited?.artists ?? 0, ...files! }
+  return { artists: credited?.artists ?? 0, ...files!, sonic: await sonicProgress() }
 }
 
 export async function libraryRoutes(app: FastifyInstance) {

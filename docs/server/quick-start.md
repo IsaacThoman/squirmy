@@ -81,7 +81,7 @@ Open **Admin → Library** to watch it. Each folder shows what it is doing ("Fin
 2. **Reading tags.** Tags and technical details are read and the files are grouped into albums. As soon as an album's tags are read it is browsable and playable, built from its tags.
 3. **Identifying albums.** Each album is matched against MusicBrainz, by the MusicBrainz ids in its tags when they are there, otherwise by searching for its artist and title and comparing track counts, titles and lengths. Confident matches are applied; uncertain ones wait in the [review queue](./library.md#the-review-queue-and-fix-match).
 4. **Filling in.** Covers, artist images, biographies, lyrics and external ids are fetched for identified albums.
-5. **Measuring.** A hash of each file's audio (so moved, retagged and duplicate files are recognized) and its loudness (for [volume normalization](./playback.md#loudness-normalization)) are computed at low priority, so they never hold up browsing.
+5. **Measuring.** A hash of each file's audio (so moved, retagged and duplicate files are recognized), its loudness (for [volume normalization](./playback.md#loudness-normalization)) and then its tempo, key, energy and sound (the [sonic analysis](./sonic-analysis.md) radio uses) are computed at low priority, so they never hold up browsing.
 
 ### How long it takes, and why
 

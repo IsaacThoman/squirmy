@@ -67,6 +67,7 @@ export const serverSettings: ServerSettings = {
   importMaxBytes: 64 * 1024 ** 3,
   importMaxActivePerUser: 3,
   wantlistEnabled: false,
+  sonicAnalysisEnabled: true,
 }
 
 export const jobs: JobQueueStats[] = [
