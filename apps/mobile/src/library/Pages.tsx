@@ -39,6 +39,8 @@ import {
 } from './shared';
 import { albumPlaylistSheet, useCollectionActions } from './collectionActions';
 import { albumActions, playActions } from './albumActions';
+import { useVersionPick } from './useVersionPick';
+import { versionFailure, versionsButton } from './versions';
 import { confirmQueued } from './queued';
 import { uniqueTracks } from './loadAll';
 import { useStartGuard } from './pending';
@@ -262,6 +264,11 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const lead = useArtist(leadId ?? '', { enabled: Boolean(leadId), poll: false });
   const leadData = lead.isPlaceholderData ? undefined : lead.data;
   const related = useMemo(() => data ? relatedAlbums(data, leadData) : { versions: [], more: [] }, [data, leadData]);
+  const pickVersion = useVersionPick();
+  const versionPicks = useStartGuard();
+  // A pick the server refused says so on the Versions button and under the buttons for a few
+  // seconds, as a radio that didn't start does; the menu opens again to try again.
+  const versionFailures = useBriefFailures<true>();
   if (!data) return <PageFallback query={album} what="this album" onBack={onBack} />;
   const tracks = data.discs.flatMap(disc => disc.tracks);
   const context: PlaybackContext = { type: 'album', id: data.id, title: data.title };
@@ -314,15 +321,31 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
     share: () => shareAlbum({ kind: 'album', id: data.id, title: data.title }, `${data.title} · ${data.artistCredit}`),
   });
 
+  // Which edition plays by default, for every song of the album. The page is read again with the
+  // pick, whose edition may list other songs; the songs already loaded to play are loaded again.
+  const versionFailed = versionFailures.failures.has('version');
+  const chooseVersion = (versionId: string | null) => {
+    tapFeedback();
+    versionFailures.drop('version');
+    versionPicks.run('version', () => pickVersion('album', data.id, versionId).catch(() => {
+      versionFailures.fail('version', true);
+      announce(versionFailure(data.title));
+    }));
+  };
+  // Only from the server's answer, never from a download kept offline: the versions are the server's.
+  const versions = album.data && !album.isPlaceholderData && !offline
+    ? versionsButton(album.data, { busy: versionPicks.pending('version'), failed: versionFailed }, chooseVersion) : false;
+
   return <DetailPage item={albumCollection(data, link)} tint={data.artwork?.color ?? fallbackTint} title={data.title}
     artist={data.artistCredit} artistLinks={artistLinks}
     info={[albumTypeLabels[data.type], data.genres[0], data.year, albumNote(data, viewer)].filter(Boolean).join('  ·  ')}
-    buttons={buttons} status={control.status}
+    buttons={buttons} status={<>{control.status}{versionFailed && <FailureLine message={versionFailure(data.title)} />}</>}
     nav={[
       // The heart saves the album to the library. The placeholder does not know whether it is saved.
       !album.isPlaceholderData && { ...heartButton(liked, data.title, likeFailure),
         onPress: () => { tapFeedback(); setLiked('album', data.id, !liked, data.title); } },
       control.nav,
+      versions,
       { icon: 'ellipsis', label: `More options for ${data.title}`, menu },
     ]}
     onBack={onBack} bottomInset={bottomInset}>
