@@ -96,6 +96,30 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Layered app icon and Top Shelf images
 - [ ] First tvOS TestFlight distribution
 
+## 10. Playback core
+
+Designed in [audio-engine.md](./audio-engine.md); each item is a pull request from its [implementation plan](./audio-engine.md#implementation-plan).
+
+- [x] Design, with measurements of today's gaps and spikes of the new engine and formats
+- [ ] S1. Transcode priorities and cancelling abandoned encodes
+- [ ] S2. Exact lengths and priming per file, estimated gains for unmeasured files
+- [ ] S3. Fragmented MP4 profiles (FLAC, Opus, AAC) with exact gapless numbers, and seeking live transcodes
+- [ ] C1. Queue diffs with checkpoints on the session socket
+- [ ] C2. Undoing queue edits
+- [ ] M1. The native iOS and tvOS engine, behind a setting
+- [ ] M2. Streaming to the cache in one pass
+- [ ] M3. Fragmented MP4 transcodes and live seeking on iOS
+- [ ] M4. Normalization with boost and a true-peak limiter, with a target setting
+- [ ] M5. Equalizer
+- [ ] M6. Crossfade
+- [ ] M7. Playback speed, with the rate in the session
+- [ ] M8. AirPlay 2 buffering
+- [ ] M9. The native engine by default, and `expo-audio` removed
+- [ ] W1. Ramped gain changes on the web
+- [ ] W2. Gapless web playback through Media Source Extensions
+- [ ] W3. Limiter, equalizer and output device on the web
+- [ ] W4. Crossfade on the web
+
 ## Deferred
 
 - Purchasing through acquisition providers (priced offers, caps, budgets)

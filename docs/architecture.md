@@ -298,6 +298,8 @@ Two separate questions, both answered in `modules/catalog/availability.ts`: can 
 
 ### Playback and streaming
 
+The replacement of this core (a native iOS and tvOS engine, fragmented MP4 transcodes with exact gapless numbers, transcode priorities, a Media Source Extensions engine on the web) is designed in [audio-engine.md](./audio-engine.md); until its pull requests land, this section describes what runs.
+
 - Clients ask `GET /tracks/:id/playback` and receive a signed URL. The stream route accepts the signature instead of a session so `<audio>`, AVPlayer and downloads need no headers. Signatures bind the file id, profile, user id and an expiry of 12 hours.
 - File choice: files of the recording that belong to the requested album first, then lossless over lossy, then higher bitrate. Both ids follow merges, so a queue entry that names an album merged away still gets that album's file.
 - `chooseProfile` (`streaming/select.ts`) maps a quality to a profile. `original` serves the file when the client decodes its codec. Otherwise the target is the first profile the client decodes from the quality's preference list (`original` and `high`: `aac_256`, then `mp3_320`, `opus_128`, `mp3_192`; `data_saver`: `opus_128`, then `mp3_192`, `aac_256`, `mp3_320`). A lossy file at or below the target bitrate that the client decodes is served as is; one it cannot decode gets the smallest playable profile at or above its own bitrate. Encoder settings are in `streaming/profiles.ts`.
@@ -310,6 +312,8 @@ Two separate questions, both answered in `modules/catalog/availability.ts`: can 
 - Loudness is EBU R128 from ffmpeg's `ebur128` filter. `loudness.measure` `{ fileId }` stores a file's integrated loudness and true peak, then queues `loudness.album` `{ releaseId }`. The album job streams decoded audio from one track at a time into a continuous meter and stores the maximum measured track true peak. Silent and very short files store -70 LUFS, which yields no gain. A final decode failure sets `probe_error` and clears the track measurement and its release's album measurement. Scanning a changed file clears the error so measurement can run again. `loudness.sweep` runs every 10 minutes and at worker start, queuing files with no measurement or recorded error in batches of 500 and releases that need an updated measurement.
 
 ### Sessions
+
+Sending queue changes as diffs instead of the whole queue, and undoing queue edits, are designed in [audio-engine.md](./audio-engine.md#connect-queue-transport).
 
 The server holds one shared session per user in memory, loaded on first use and persisted to `playback_sessions` on change (debounced one second, and flushed on shutdown), plus one session of its own for each detached device (see "Detaching" below). This assumes one API process: the copy in memory is the truth, so functions that change sessions (`markRecordingReady`, `replaceQueue`) must run in that process. Commands arrive on the socket, run through `reduceSession` from client-core, and the result is broadcast to the sockets in that session (socket.io room `session:<user>` for the shared one, `session:<user>/<device>` for a device's own): `session:state` on every change, `session:queue` only when the queue half changed (`queueChanged`), emitted just before the `session:state` of the same version. A socket joins a session room when its hello is answered; device lists and invalidations go to the `user:<id>` room as before.
 
