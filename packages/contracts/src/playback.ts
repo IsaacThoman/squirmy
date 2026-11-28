@@ -30,6 +30,8 @@ export const Normalization = z.object({
   albumGainDb: z.number().nullable(),
   trackPeak: z.number().nullable(),
   albumPeak: z.number().nullable(),
+  /** The track gain comes from the library median; its peak is unknown. */
+  estimated: z.boolean().optional(),
 })
 export type Normalization = z.infer<typeof Normalization>
 
@@ -55,5 +57,11 @@ export const PlaybackDescriptor = z.object({
   /** Byte size when known; lets downloads show progress. */
   bytes: z.number().int().nullable(),
   normalization: Normalization.nullable(),
+  /** Exact length of the delivered stream and the source priming before it. */
+  gapless: z.object({
+    sampleRate: z.number().int().positive(),
+    primingFrames: z.number().int().nonnegative(),
+    frames: z.number().int().positive(),
+  }).nullish(),
 })
 export type PlaybackDescriptor = z.infer<typeof PlaybackDescriptor>

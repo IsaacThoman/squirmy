@@ -106,7 +106,9 @@ class ScanWriter {
     }
     if (this.changed.length > 0) {
       await db.execute(sql`
-        update media_files f set size = v.size, mtime = v.mtime, probe_stage = 0, probe_error = null, missing_since = null, updated_at = now()
+        update media_files f set size = v.size, mtime = v.mtime, probe_stage = 0, probe_error = null, missing_since = null,
+          loudness_lufs = null, true_peak_db = null, decoded_frames = null, decoded_rate = null,
+          priming_frames = null, padding_frames = null, updated_at = now()
         from jsonb_to_recordset(${JSON.stringify(this.changed)}::jsonb) as v(id uuid, size bigint, mtime timestamptz)
         where f.id = v.id`)
       this.stats.filesChanged += this.changed.length

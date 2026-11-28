@@ -24,6 +24,10 @@ export type ToneSpec = {
   tags?: Record<string, string | number>
   /** Embed a small solid-color cover. */
   cover?: boolean | string
+  /** MP3 only: omit the Xing/Info header and its LAME-compatible gapless data. */
+  withoutXingHeader?: boolean
+  /** M4A only: encode lossless ALAC here instead of AAC. */
+  alac?: boolean
 }
 
 const codecs: Record<ToneFormat, string[]> = {
@@ -69,7 +73,9 @@ export async function makeTone(directory: string, spec: ToneSpec): Promise<strin
     const image = await coverImage(typeof spec.cover === 'string' ? spec.cover : 'purple')
     args.push('-i', image, '-map', '0:a', '-map', '1:v', '-c:v', 'copy', '-disposition:v', 'attached_pic')
   }
-  args.push('-af', `volume=${spec.volumeDb ?? -50}dB`, '-ac', '2', ...codecs[format])
+  const encoder = format === 'm4a' && spec.alac ? ['-c:a', 'alac'] : codecs[format]
+  args.push('-af', `volume=${spec.volumeDb ?? -50}dB`, '-ac', '2', ...encoder)
+  if (format === 'mp3' && spec.withoutXingHeader) args.push('-write_xing', '0')
   for (const [key, value] of Object.entries(spec.tags ?? {})) args.push('-metadata', `${key}=${value}`)
   args.push(output)
   await run(ffmpeg(), args)

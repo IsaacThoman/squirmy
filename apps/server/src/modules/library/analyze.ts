@@ -72,6 +72,13 @@ export async function analyzeFile({ fileId }: AnalyzeJob) {
       bitDepth: current.bitDepth,
       channels: current.channels,
       durationMs: current.durationMs,
+      // Identical packets can have different source trim metadata after a remux.
+      loudnessLufs: current.loudnessLufs,
+      truePeakDb: current.truePeakDb,
+      decodedFrames: current.decodedFrames,
+      decodedRate: current.decodedRate,
+      primingFrames: current.primingFrames,
+      paddingFrames: current.paddingFrames,
       tags: current.tags,
       embeddedArtAssetId: current.embeddedArtAssetId,
       tagTrackGainDb: current.tagTrackGainDb,
