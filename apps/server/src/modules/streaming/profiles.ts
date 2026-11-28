@@ -5,7 +5,7 @@ import type { mediaFiles } from '../../database/schema.js'
 export type MediaFile = typeof mediaFiles.$inferSelect
 export type TranscodeProfile = Exclude<StreamProfile, 'original'>
 
-export type ProfileSpec = {
+type EncoderSpec = {
   /** Codec family of the output, in the vocabulary clients use in `codecs`. */
   codec: string
   /** Target bitrate in bits per second. */
@@ -18,6 +18,41 @@ export type ProfileSpec = {
   args: string[]
 }
 
+type FragmentedEncoder = Omit<EncoderSpec, 'bitrate'> & {
+  bitrate: number | null
+  primingFrames: number
+  packetFrames?: number
+}
+
+export const mp4Options = { movflags: '+delay_moov+default_base_moof', use_editlist: '0', frag_duration: '500000' }
+const mp4 = ['-f', 'mp4', ...Object.entries(mp4Options).flatMap(([key, value]) => [`-${key}`, value]), '-strict', 'experimental']
+
+const fragmentedEncoders = {
+  flac_mp4: {
+    codec: 'flac', bitrate: null, maxSampleRate: 192_000, mime: 'audio/mp4', extension: 'mp4',
+    primingFrames: 0, args: ['-c:a', 'flac', ...mp4],
+  },
+  opus_mp4_192: {
+    codec: 'opus', bitrate: 192_000, maxSampleRate: 48_000, mime: 'audio/mp4', extension: 'mp4',
+    primingFrames: 312, packetFrames: 960, args: ['-c:a', 'libopus', '-b:a', '192k', ...mp4],
+  },
+  opus_mp4_96: {
+    codec: 'opus', bitrate: 96_000, maxSampleRate: 48_000, mime: 'audio/mp4', extension: 'mp4',
+    primingFrames: 312, packetFrames: 960, args: ['-c:a', 'libopus', '-b:a', '96k', ...mp4],
+  },
+  aac_mp4_256: {
+    codec: 'aac', bitrate: 256_000, maxSampleRate: 48_000, mime: 'audio/mp4', extension: 'mp4',
+    primingFrames: 1024, packetFrames: 1024, args: ['-c:a', 'aac', '-b:a', '256k', ...mp4],
+  },
+  aac_mp4_128: {
+    codec: 'aac', bitrate: 128_000, maxSampleRate: 48_000, mime: 'audio/mp4', extension: 'mp4',
+    primingFrames: 1024, packetFrames: 1024, args: ['-c:a', 'aac', '-b:a', '128k', ...mp4],
+  },
+} satisfies Record<string, FragmentedEncoder>
+
+export type FragmentedProfile = keyof typeof fragmentedEncoders | 'copy_mp4'
+export type LegacyProfile = Exclude<TranscodeProfile, FragmentedProfile>
+
 /**
  * Every transcode profile. Encoders are ffmpeg's native `aac`, `libopus` and `libmp3lame`,
  * which the macOS builds and Ubuntu's `ffmpeg` package all include.
@@ -28,7 +63,7 @@ export type ProfileSpec = {
  *   stream is final as written. WebM would need its header rewritten at the end.
  * - MP3 is constant bitrate without a Xing frame, which ffmpeg can only fill in by seeking.
  */
-export const profiles: Record<TranscodeProfile, ProfileSpec> = {
+export const profiles = {
   aac_256: {
     codec: 'aac', bitrate: 256_000, maxSampleRate: 48_000, mime: 'audio/aac', extension: 'aac',
     args: ['-c:a', 'aac', '-b:a', '256k', '-f', 'adts', '-write_id3v2', '1'],
@@ -45,6 +80,14 @@ export const profiles: Record<TranscodeProfile, ProfileSpec> = {
     codec: 'mp3', bitrate: 192_000, maxSampleRate: 48_000, mime: 'audio/mpeg', extension: 'mp3',
     args: ['-c:a', 'libmp3lame', '-b:a', '192k', '-f', 'mp3', '-write_xing', '0', '-id3v2_version', '3'],
   },
+  ...fragmentedEncoders,
+  copy_mp4: { mime: 'audio/mp4', extension: 'mp4', args: ['-c:a', 'copy', ...mp4] },
+} satisfies Record<LegacyProfile, EncoderSpec> & Record<FragmentedProfile, { mime: string; extension: string; args: string[] }>
+
+export const isFragmented = (profile: StreamProfile): profile is FragmentedProfile => profile === 'copy_mp4' || Object.hasOwn(fragmentedEncoders, profile)
+
+export function fragmentedEncoder(profile: TranscodeProfile): FragmentedEncoder | undefined {
+  return isFragmented(profile) && profile !== 'copy_mp4' ? fragmentedEncoders[profile] : undefined
 }
 
 /** What a client is assumed to decode when it sends no codec list: any current browser or OS. */
@@ -104,15 +147,40 @@ export function mimeFor(file: Pick<MediaFile, 'relPath'>): string {
   return mimeByExtension[extensionOf(file)] ?? 'application/octet-stream'
 }
 
+export function sourceSampleRate(file: Pick<MediaFile, 'sampleRate' | 'decodedRate' | 'container'>): number | null {
+  const rate = file.decodedRate ?? file.sampleRate
+  // Tag readers can report the DSD bit rate, while the decoder reports its PCM rate.
+  return file.container.toLowerCase() === 'dsf' && rate && rate >= 2_822_400 ? rate / 8 : rate
+}
+
 /**
- * The sample rate a transcode is written at: the source rate when the encoder takes it,
- * otherwise the highest rate of the same family (88.2 kHz becomes 44.1). Opus always runs
- * at 48 kHz. Null when the source rate is unknown, which leaves the choice to ffmpeg.
+ * The sample rate a transcode is written at: the source rate when the encoder takes it.
+ * Opus always runs at 48 kHz. Null leaves the choice to ffmpeg.
  */
-export function outputSampleRate(file: Pick<MediaFile, 'sampleRate'>, profile: TranscodeProfile): number | null {
-  const { maxSampleRate } = profiles[profile]
-  if (profile === 'opus_128') return maxSampleRate
+export function outputSampleRate(file: Pick<MediaFile, 'sampleRate' | 'decodedRate' | 'container'>, profile: TranscodeProfile): number | null {
+  if (profile === 'copy_mp4') return file.decodedRate ?? file.sampleRate
+  const { maxSampleRate, codec } = profiles[profile]
+  if (codec === 'opus') return maxSampleRate
+  if (isFragmented(profile)) {
+    const source = sourceSampleRate(file)
+    if (profile === 'flac_mp4') {
+      if (file.container.toLowerCase() === 'dsf') return source && source > 352_800 ? 176_400 : 88_200
+      if (!source || source <= maxSampleRate) return source
+      return source % 44_100 === 0 ? 176_400 : maxSampleRate
+    }
+    if (!source) return null
+    // AAC accepts only the MPEG-4 sampling frequencies.
+    const rates = [48_000, 44_100, 32_000, 24_000, 22_050, 16_000, 12_000, 11_025, 8000, 7350]
+    if (source > maxSampleRate && source % 44_100 === 0) return 44_100
+    return rates.find((rate) => rate <= source) ?? 7350
+  }
   const source = file.sampleRate
   if (!source || source <= maxSampleRate) return source
   return source % 44_100 === 0 ? 44_100 : maxSampleRate
+}
+
+export function outputBitDepth(file: Pick<MediaFile, 'bitDepth'>, profile: TranscodeProfile): number | null {
+  if (profile === 'copy_mp4') return file.bitDepth
+  if (profile === 'flac_mp4') return file.bitDepth !== null && file.bitDepth >= 8 && file.bitDepth <= 16 ? 16 : 24
+  return null
 }

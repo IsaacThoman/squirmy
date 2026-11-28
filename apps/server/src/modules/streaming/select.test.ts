@@ -40,6 +40,21 @@ describe('profile decisions', () => {
     expect(chooseProfile(file, quality, codecs)).toBe(expected)
   })
 
+  it('negotiates originals and remuxes independently of the lossy encoder', () => {
+    const containers = 'fmp4'
+    const mse = parseCodecs('aac,flac,mp3')
+    expect(chooseProfile(mp3(320), 'original', mse, { containers })).toBe('original')
+    expect(chooseProfile(mp3(320), 'original', parseCodecs('aac,mp3_mp4'), { containers })).toBe('copy_mp4')
+    expect(chooseProfile(mp3(320), 'original', parseCodecs('aac'), { containers })).toBe('aac_mp4_256')
+    expect(chooseProfile(mp3(128), 'high', mse, { containers })).toBe('original')
+    expect(chooseProfile(mp3(320), 'high', mse, { containers })).toBe('aac_mp4_256')
+    expect(chooseProfile(flac, 'original', mse, { containers })).toBe('copy_mp4')
+    expect(chooseProfile(alac, 'original', mse, { containers })).toBe('flac_mp4')
+    expect(chooseProfile(alac, 'original', avPlayer, { containers, engine: 'native' })).toBe('original')
+    expect(chooseProfile(flac, 'data_saver', avPlayer, { containers, engine: 'native' })).toBe('aac_mp4_256')
+    expect(chooseProfile({ ...vorbis(96), codec: 'Opus' }, 'original', parseCodecs('aac,opus'), { containers, engine: 'mse' })).toBe('aac_mp4_256')
+  })
+
   it('names codecs and content types', () => {
     expect(codecFamily(mp3(320))).toBe('mp3')
     expect(codecFamily({ codec: 'MPEG-4/AAC', container: 'M4A', relPath: 'x.m4a' })).toBe('aac')

@@ -24,6 +24,20 @@ Each client says which formats it decodes. The iOS app lists FLAC, ALAC, AAC, MP
 
 Conversions are done with ffmpeg and sent as they are encoded, so playback can start while the rest of the file is being converted. The server reserves at most half the CPU cores (at least two) for encoders, with up to four concurrent conversions started by each user. New playback gets priority over preloading, cache fills and downloads. If a download or cache fill is interrupted to make room for playback, its conversion starts over when requested again. Subsonic apps can also ask for MP3 at 320 or 192 kbps. See [Subsonic clients](./subsonic.md#streaming-and-transcoding).
 
+#### Fragmented MP4
+
+Playback engines that can decode fragmented MP4 can add `containers=fmp4` to the playback descriptor request. The `codecs` list still describes which codecs the engine accepts. Opus signals native playback by default. Engines can specify `engine=native` or `engine=mse` when they need to override that default.
+
+| Quality | Native | Web Media Source Extensions (MSE) |
+|---|---|---|
+| **Original** | The original if supported, with a lossless FLAC conversion available for unsupported lossless formats | Compatible FLAC and AAC packets repackaged as fragmented MP4, with a FLAC conversion available for formats such as ALAC |
+| **High** | Opus at 192 kbps or AAC at 256 kbps | AAC at 256 kbps |
+| **Data saver** | Opus at 96 kbps or AAC at 256 kbps | AAC at 128 kbps |
+
+MSE clients advertise `mp3` for an MPEG byte stream and `mp3_mp4` for MP3 packets in MP4. The server can deliver either form or convert to AAC. A compatible lossy source within the requested bitrate can be delivered directly or repackaged. Lossless FLAC conversions preserve the source sample rate up to 192 kHz and up to 24 bits. DSD converts to 88.2 or 176.4 kHz PCM.
+
+After the source has been measured, the descriptor's `gapless` object gives the delivered sample rate, the priming frames to account for at the start and the exact playable frame count. Clients can use those values to trim at track boundaries. Originals and completed conversions support HTTP Range. To seek before a fragmented conversion completes, the client can append `start` in milliseconds to the signed stream URL. The response's `X-Squirmy-Start-Frame` says where its audio begins. A repackaged stream starts ahead of the requested position so the decoder can warm up, and the client discards those earlier frames. Offset streams do not fill the cache.
+
 ### Seeing what plays
 
 Now Playing shows a **Lossless** badge while the device playing receives a lossless file as it is, and **Hi-Res Lossless** when that file is above 48 kHz or 16-bit. A lossy stream has no badge, and neither has a lossless file converted on its way (by **High**, **Data saver**, or a device that can't play its format). The badge and **Track info** in the song's menu open the song's details: its file (format, sample rate, bit depth, bitrate, channels, size), what the device receives (the file as it is, or a conversion and why), the volume normalization applied, and the device playing. Each device says this itself, so a phone controlling a TV shows what the TV plays. A device running an older version of Squirmy doesn't say, and its listeners see no badge.
