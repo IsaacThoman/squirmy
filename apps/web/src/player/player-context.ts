@@ -1,5 +1,5 @@
 import { type AwayDevice, deviceLabel, listedDevices, readsUnavailable, type DeviceLabel, type SessionMoveResult, type SessionOutage } from '@squirmy/client-core'
-import type { DeviceInfo, Lyrics, PlaybackContext, QueueEntry, RepeatMode, SignalPath, TrackSummary } from '@squirmy/contracts'
+import type { DeviceInfo, Lyrics, PlaybackContext, QueueEntry, RepeatMode, SignalPath, SleepTimer, SleepTimerRequest, TrackSummary } from '@squirmy/contracts'
 import { createContext, useContext, useLayoutEffect, useState, useSyncExternalStore } from 'react'
 import type { PlayerStatus } from './status'
 
@@ -54,6 +54,12 @@ export type PlayerState = {
   outage?: SessionOutage | null
   /** What the playing device plays, as it plays it (client-core's `SessionClientSnapshot.signal`). Left out by fixtures. */
   signal?: SignalPath | null
+  /** The session's sleep timer, while one is set: it stops whichever device plays. */
+  sleepTimer?: SleepTimer
+  /** The server takes a sleep timer, so the player offers one. */
+  canSetSleepTimer?: boolean
+  /** The server's clock, which a sleep timer's end is told in. Left out by fixtures: this browser's. */
+  serverNow?: () => number
 }
 
 export type LyricsStatus = 'none' | 'loading' | 'failed' | 'ready'
@@ -76,6 +82,8 @@ export type PlayerControls = {
   setShuffle: (value: boolean) => void
   cycleRepeat: () => void
   setAutoplay: (value: boolean) => void
+  /** Sets the session's sleep timer, or turns it off with null. */
+  setSleepTimer: (timer: SleepTimerRequest | null) => void
   /** Replaces the queue with the playable `tracks`, starting at `startIndex` (or shuffled). */
   playTracks: (tracks: TrackSummary[], startIndex?: number, context?: PlaybackContext, options?: PlayOptions) => void
   enqueue: (tracks: TrackSummary[], placement: 'next' | 'last') => void

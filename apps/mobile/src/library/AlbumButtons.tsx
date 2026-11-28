@@ -1,5 +1,6 @@
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { RowAction } from './BrowseControls';
+import { useMenuSheet } from '../MenuSheet';
 import { Icon } from '../ui';
 import { createThemedStyles, useColors } from '../theme';
 import { useBrowseBackLabel } from './links';
@@ -32,13 +33,12 @@ export type AlbumPlaybackProps = {
 export function AlbumNavButton({ icon, label, onPress, menu, selected, busy, failed }: AlbumNavProps) {
   const colors = useColors();
   const styles = useStyles();
-  const open = menu ? () => Alert.alert(label, undefined, [
-    ...menu.map(action => ({ text: action.title, onPress: action.onPress })),
-    { text: 'Cancel', style: 'cancel' as const },
-  ], { cancelable: true }) : onPress;
+  const sheet = useMenuSheet();
+  const open = menu ? () => sheet.open(label, menu) : onPress;
   return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={selected === undefined ? { busy } : { selected, busy }}
     style={({ pressed }) => [styles.nav, pressed && styles.pressed]} onPress={open}>
     {busy ? <ActivityIndicator color={colors.text} /> : <Icon name={icon} size={20} color={failed ? colors.danger : selected ? colors.accent : colors.text} />}
+    {sheet.sheet}
   </Pressable>;
 }
 

@@ -53,6 +53,11 @@ export type MenuItem = {
   disabled?: boolean
   danger?: boolean
   shortcut?: string
+  /**
+   * One of a set of choices (a sleep timer's lengths): the item is a radio item, checked or
+   * not, with a check mark in place of an icon while it is the one chosen.
+   */
+  checked?: boolean
 }
 
 /** How long an item says it worked before its menu closes. */
@@ -163,6 +168,8 @@ function Entries({ parts, entries, path = '' }: { parts: Parts; entries: MenuEnt
         key={index}
         disabled={entry.disabled}
         onSelect={event => select(key, entry, event)}
+        // Spread only for a choice: an undefined role would take away the item's own.
+        {...(entry.checked === undefined ? {} : { role: 'menuitemradio', 'aria-checked': entry.checked })}
         aria-busy={shown?.state === 'pending' || undefined}
         data-variant={entry.danger ? 'danger' : undefined}
         data-feedback={shown?.state}
@@ -171,7 +178,8 @@ function Entries({ parts, entries, path = '' }: { parts: Parts; entries: MenuEnt
         {shown?.state === 'pending' ? <Spinner label={null} className="size-4 shrink-0" />
           : shown?.state === 'done' ? <Check className="text-primary" />
             : shown?.state === 'failed' ? <CircleAlert className="text-destructive" />
-              : entry.icon}
+              : entry.checked === undefined ? entry.icon
+                : entry.checked ? <Check className="text-primary" /> : <span aria-hidden className="size-4 shrink-0" />}
         {shown?.state === 'failed'
           ? <span className="flex min-w-0 flex-col"><Label text={entry.label} /><span className="text-xs text-destructive">{shown.text}</span></span>
           : <Label text={shown?.state === 'done' ? shown.text! : entry.label} />}
