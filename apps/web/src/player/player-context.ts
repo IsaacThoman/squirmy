@@ -1,5 +1,5 @@
 import { type AwayDevice, deviceLabel, listedDevices, readsUnavailable, type DeviceLabel, type SessionMoveResult, type SessionOutage } from '@squirmy/client-core'
-import type { DeviceInfo, Lyrics, PlaybackContext, QueueEntry, RepeatMode, TrackSummary } from '@squirmy/contracts'
+import type { DeviceInfo, Lyrics, PlaybackContext, QueueEntry, RepeatMode, SignalPath, TrackSummary } from '@squirmy/contracts'
 import { createContext, useContext, useLayoutEffect, useState, useSyncExternalStore } from 'react'
 import type { PlayerStatus } from './status'
 
@@ -52,6 +52,8 @@ export type PlayerState = {
   radioPending?: RadioSeed | null
   /** Why playback stopped on a failed current entry, when the server said (client-core's `SessionOutage`). */
   outage?: SessionOutage | null
+  /** What the playing device plays, as it plays it (client-core's `SessionClientSnapshot.signal`). Left out by fixtures. */
+  signal?: SignalPath | null
 }
 
 export type LyricsStatus = 'none' | 'loading' | 'failed' | 'ready'

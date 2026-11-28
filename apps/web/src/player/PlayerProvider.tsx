@@ -326,6 +326,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     status: statusLine,
     radioPending,
     outage: snapshot.outage,
+    signal: snapshot.signal,
   }
   const nowPlaying = useNowPlayingStore(state)
 
