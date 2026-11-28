@@ -132,6 +132,10 @@ describe('queue operations', () => {
     const track = album.tracks[i % album.tracks.length]!
     return { trackId: track.recordingId, albumId: album.albumId, durationMs: 0 }
   })
+  /** Waits until each peer has the state of `version`: whatever it was sent before has arrived. */
+  async function reached(peers: Peer[], version: number): Promise<void> {
+    for (const peer of peers) await eventually(() => expect(peer.events<{ version: number }>('session:state').at(-1)?.version).toBe(version))
+  }
   const ok = (reply: SessionMoveAck) => {
     if (!reply.ok) throw new Error(`refused: ${reply.error}`)
     return reply
@@ -150,14 +154,14 @@ describe('queue operations', () => {
     expect((await a.send({ type: 'enqueue', tracks: seeds(1), placement: 'last' })).ok).toBe(true)
     const before = await getSnapshot(user.id)
     expect(before.queue.queue).toHaveLength(10_000)
-    await eventually(() => expect(old.events<QueueUpdate>('session:queue').at(-1)?.queueVersion).toBe(before.queueVersion))
+    // Everything up to now has arrived, so what comes next is the track end alone.
+    await reached([a, old], before.version)
     a.clear()
     old.clear()
 
     expect((await a.send({ type: 'trackEnded', entryId: before.state.current!.id })).ok).toBe(true)
     const after = await getSnapshot(user.id)
-    await eventually(() => expect(a.events('session:state')).toHaveLength(1))
-    await eventually(() => expect(old.events('session:state')).toHaveLength(1))
+    await reached([a, old], after.version)
 
     // Operations, then the state, and no whole queue.
     expect(a.log.map(({ event }) => event)).toEqual(['session:queueOps', 'session:state'])
@@ -173,11 +177,9 @@ describe('queue operations', () => {
 
   it('sends the whole queue to everyone when the change is large', async () => {
     const a = await device('queue-ops-a-3')
-    await a.send({ type: 'playTracks', tracks: seeds(10), seed: 1 })
-    await eventually(() => expect(a.events('session:state')).toHaveLength(1))
+    await reached([a], (await a.send({ type: 'playTracks', tracks: seeds(10), seed: 1 }) as { version: number }).version)
     a.clear()
-    await a.send({ type: 'playTracks', tracks: seeds(600), seed: 2 })
-    await eventually(() => expect(a.events('session:state')).toHaveLength(1))
+    await reached([a], (await a.send({ type: 'playTracks', tracks: seeds(600), seed: 2 }) as { version: number }).version)
     expect(a.log.map(({ event }) => event)).toEqual(['session:queue', 'session:state'])
     expect(a.events<QueueUpdate>('session:queue')[0]!.queue).toEqual((await getSnapshot(user.id)).queue)
   })
@@ -196,7 +198,7 @@ describe('queue operations', () => {
     const shared = await device('queue-ops-shared-5')
     const x = await device('queue-ops-x-5')
     const xSecond = await device('queue-ops-x-5')
-    await shared.send({ type: 'playTracks', tracks: seeds(20), seed: 1 })
+    await reached([shared, x, xSecond], (await shared.send({ type: 'playTracks', tracks: seeds(20), seed: 1 }) as { version: number }).version)
 
     const detached = ok(await x.detach())
     expect(detached.snapshot.scope).toEqual({ type: 'device', deviceId: 'queue-ops-x-5' })
@@ -205,8 +207,7 @@ describe('queue operations', () => {
 
     // The own session's changes go to its device's sockets as operations of that session.
     const own = detached.snapshot
-    await x.send({ type: 'removeFromQueue', entryId: own.queue.queue[0]!.id })
-    await eventually(() => expect(xSecond.events('session:state')).toHaveLength(1))
+    await reached([x, xSecond], (await x.send({ type: 'removeFromQueue', entryId: own.queue.queue[0]!.id }) as { version: number }).version)
     for (const peer of [x, xSecond]) {
       const [update] = peer.events<SessionQueueOps>('session:queueOps')
       expect(update).toMatchObject({ scope: { type: 'device', deviceId: 'queue-ops-x-5' }, baseQueueVersion: own.queueVersion })
@@ -219,8 +220,8 @@ describe('queue operations', () => {
     const attached = ok(await x.attach(true))
     expect(attached.snapshot.scope).toEqual({ type: 'shared' })
     await eventually(() => expect(xSecond.events('session:moved')).toHaveLength(1))
-    await eventually(() => expect(shared.events('session:state')).toHaveLength(1))
     const sharedAfter = await getSnapshot(user.id)
+    await reached([shared], sharedAfter.version)
     const [change] = shared.log
     if (change!.event === 'session:queueOps') {
       const update = change!.payload as SessionQueueOps
@@ -234,8 +235,8 @@ describe('queue operations', () => {
     for (const peer of [shared, x, xSecond]) peer.clear()
     await shared.send({ type: 'next' })
     const latest = await getSnapshot(user.id)
+    await reached([shared, x, xSecond], latest.version)
     for (const peer of [shared, x, xSecond]) {
-      await eventually(() => expect(peer.events('session:state')).toHaveLength(1))
       const [update] = peer.events<SessionQueueOps>('session:queueOps')
       expect(update).toMatchObject({ scope: { type: 'shared' }, baseQueueVersion: sharedAfter.queueVersion })
       expect(applyQueueOps(sharedAfter.queue, update!.ops, update!.lengths)).toEqual(latest.queue)
