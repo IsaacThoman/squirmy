@@ -48,7 +48,7 @@ const capItem = accountItem<number | null>('downloadCap', 'device');
 function source(current: () => Api, serverUrl: string): DownloadSource {
   return {
     describe: (trackId, albumId, quality) => current().streaming.playback(trackId, {
-      albumId: albumId ?? undefined, quality, codecs: codecsFor(Platform.OS), download: true,
+      albumId: albumId ?? undefined, quality, codecs: codecsFor(Platform.OS), download: true, intent: 'download',
     }),
     url: descriptor => streamUrl(serverUrl, descriptor),
     artworkUrl: artwork => artworkUrl(serverUrl, artwork, keptArtSize),

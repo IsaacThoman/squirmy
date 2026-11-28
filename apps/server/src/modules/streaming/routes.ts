@@ -1,4 +1,4 @@
-import { Id, PlaybackQuery, StreamProfile, type PlaybackDescriptor } from '@squirmy/contracts'
+import { Id, PlaybackQuery, StreamIntent, StreamProfile, type PlaybackDescriptor } from '@squirmy/contracts'
 import { eq } from 'drizzle-orm'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { z } from 'zod'
@@ -6,6 +6,7 @@ import { db } from '../../database/client.js'
 import { mediaFiles } from '../../database/schema.js'
 import { requireUser } from '../../lib/auth.js'
 import { forbidden, notFound, unauthorized } from '../../lib/errors.js'
+import { streamSignal } from './files.js'
 import { buildPlaybackDescriptor, verifyStreamSignature } from './playback.js'
 import { openStream } from './stream.js'
 
@@ -16,12 +17,14 @@ const StreamQuery = z.object({
   uid: z.string().optional(),
   sig: z.string().optional(),
   download: z.stringbool().optional(),
+  intent: StreamIntent.default('play'),
 })
 
 /** A valid signature for this file and profile, or else a signed-in session. */
 async function authorizeStream(request: FastifyRequest, fileId: string, profile: StreamProfile, query: z.infer<typeof StreamQuery>) {
-  if (query.sig && await verifyStreamSignature(fileId, profile, query)) return
-  if (request.user) return
+  const signedUser = query.sig ? await verifyStreamSignature(fileId, profile, query) : null
+  if (signedUser) return signedUser
+  if (request.user) return request.user.id
   throw query.sig ? forbidden('This link is invalid or has expired', 'invalid_signature') : unauthorized()
 }
 
@@ -30,7 +33,7 @@ async function stream(request: FastifyRequest, reply: FastifyReply) {
   if (!params.success) throw notFound()
   const { fileId, profile } = params.data
   const query = StreamQuery.parse(request.query)
-  await authorizeStream(request, fileId, profile, query)
+  const userId = await authorizeStream(request, fileId, profile, query)
   const [file] = await db.select().from(mediaFiles).where(eq(mediaFiles.id, fileId))
   if (!file) throw notFound('No such file', 'not_available')
   const response = await openStream(file, profile, {
@@ -38,6 +41,9 @@ async function stream(request: FastifyRequest, reply: FastifyReply) {
     ifRange: [request.headers['if-range']].flat()[0],
     head: request.method === 'HEAD',
     download: query.download === true,
+    intent: query.intent,
+    userId,
+    signal: profile === 'original' ? undefined : streamSignal(reply.raw),
   })
   reply.code(response.status).headers(response.headers)
   return reply.send(response.body ?? undefined)

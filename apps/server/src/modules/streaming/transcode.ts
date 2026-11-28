@@ -2,7 +2,9 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { mkdir, open, rename, stat, unlink, type FileHandle } from 'node:fs/promises'
 import { availableParallelism } from 'node:os'
 import path from 'node:path'
-import { Readable } from 'node:stream'
+import { createInterface } from 'node:readline'
+import { addAbortSignal, Readable } from 'node:stream'
+import { StreamIntent } from '@squirmy/contracts'
 import { and, eq, lt } from 'drizzle-orm'
 import { getConfig } from '../../config.js'
 import { db } from '../../database/client.js'
@@ -48,11 +50,70 @@ class Transcode {
   written = 0
   finished = false
   error: Error | null = null
+  readonly started = deferred()
+  readonly ready = deferred()
   readonly done: Promise<void>
   private signal = deferred()
+  private readonly controller = new AbortController()
+  private readonly readers = new Set<{ intent: StreamIntent }>()
+  private idleTimer: NodeJS.Timeout | undefined
+  private lastIntent: StreamIntent
+  private cacheIntent: StreamIntent | undefined
+  private encodedMs = 0
+  private child: ChildProcess | undefined
+  private publishing = false
 
-  constructor(readonly file: MediaFile, readonly profile: TranscodeProfile) {
+  constructor(readonly file: MediaFile, readonly profile: TranscodeProfile, readonly userId: string | undefined, intent: StreamIntent) {
+    this.lastIntent = intent
     this.done = this.run()
+  }
+
+  get intent(): StreamIntent {
+    let intent = this.cacheIntent
+    for (const reader of this.readers) {
+      if (!intent || priority(reader.intent) < priority(intent)) intent = reader.intent
+    }
+    return intent ?? this.lastIntent
+  }
+
+  get cancelled() {
+    return this.controller.signal.aborted
+  }
+
+  get interruptible() {
+    return !this.cancelled && !this.publishing
+  }
+
+  get abandoned() {
+    const halfway = this.file.durationMs > 0 && this.encodedMs * 2 >= this.file.durationMs
+    return this.readers.size === 0 && !this.cacheIntent && !halfway
+  }
+
+  attach(intent: StreamIntent) {
+    const reader = { intent }
+    this.readers.add(reader)
+    clearTimeout(this.idleTimer)
+    if (intent === 'cache' || (intent === 'download' && !this.cacheIntent)) this.cacheIntent = intent
+    return () => {
+      this.lastIntent = this.intent
+      if (!this.readers.delete(reader)) return
+      if (this.interruptible && this.abandoned) {
+        if (slotQueue.has(this)) this.cancel()
+        else {
+          this.idleTimer = setTimeout(() => {
+            if (this.abandoned) this.cancel()
+          }, 10_000).unref()
+        }
+      }
+      scheduleEncoders()
+    }
+  }
+
+  cancel(error = transcoderBusy()) {
+    if (!this.interruptible) return
+    this.controller.abort(error)
+    this.started.resolve()
+    this.child?.kill('SIGKILL')
   }
 
   /** Resolves on the next write, failure or completion. */
@@ -68,119 +129,175 @@ class Transcode {
 
   private async run() {
     let handle: FileHandle | undefined
-    await acquireSlot()
+    let pending = false
+    const signal = this.controller.signal
+    const storagePath = storagePathFor(this.file, this.profile)
+    const rowKey = and(eq(transcodes.fileId, this.file.id), eq(transcodes.profile, this.profile), eq(transcodes.storagePath, storagePath))
+    await this.started.promise
     try {
-      if (stopping) throw new Error('The server is stopping')
+      signal.throwIfAborted()
       const input = await libraryPath(this.file)
-      const storagePath = storagePathFor(this.file, this.profile)
+      signal.throwIfAborted()
       const target = path.join(cacheRoot(), storagePath)
       await db.insert(transcodes).values({ id: newId(), fileId: this.file.id, profile: this.profile, storagePath, status: 'pending' })
         .onConflictDoUpdate({ target: [transcodes.fileId, transcodes.profile], set: { storagePath, status: 'pending', error: null, lastUsedAt: new Date() } })
+      pending = true
+      signal.throwIfAborted()
 
       // A unique name, so a second process encoding the same profile cannot interleave writes.
       const temp = path.join(path.dirname(target), `.${this.profile}.${randomToken(6)}.part`)
       handle = await createIn(temp)
       this.tempPath = temp
-      this.notify()
+      signal.throwIfAborted()
 
       const child = spawn(getConfig().FFMPEG_PATH, ffmpegArgs(input, this.file, this.profile), { stdio: ['ignore', 'pipe', 'pipe'] })
-      children.add(child)
-      const exited = new Promise<number | null>((resolve, reject) => {
-        child.once('error', reject)
-        child.once('close', (code) => resolve(code))
-      })
-      // Awaited below; this only keeps an early failure from being reported as unhandled.
-      exited.catch(() => {})
+      this.child = child
+      let processError: Error | undefined
+      child.once('error', (error) => { processError = error })
+      const exited = new Promise<number | null>((resolve) => child.once('close', resolve))
       let stderr = ''
-      child.stderr.setEncoding('utf8').on('data', (text: string) => {
-        stderr = (stderr + text).slice(-2000)
+      createInterface({ input: child.stderr }).on('line', (line) => {
+        if (line.startsWith('out_time_us=')) {
+          const microseconds = Number(line.slice('out_time_us='.length))
+          if (Number.isFinite(microseconds)) this.encodedMs = Math.max(this.encodedMs, microseconds / 1000)
+        } else if (!/^\w+=/.test(line)) {
+          stderr = `${stderr}
+${line}`.slice(-2000)
+        }
       })
       try {
         for await (const chunk of child.stdout as AsyncIterable<Buffer>) {
+          signal.throwIfAborted()
           await handle.write(chunk)
           this.written += chunk.length
+          this.ready.resolve()
           this.notify()
         }
         const code = await exited
+        signal.throwIfAborted()
+        if (processError) throw processError
         if (code !== 0) throw new Error(`ffmpeg exited with ${code ?? 'a signal'}: ${stderr.trim()}`)
       } finally {
-        // A failed write leaves ffmpeg running otherwise.
-        if (child.exitCode === null) child.kill('SIGKILL')
-        children.delete(child)
+        // Wait for process exit before handing the slot to another encoder.
+        if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
+        await exited
+        this.child = undefined
       }
+      signal.throwIfAborted()
+      this.publishing = true
       await handle.close()
       handle = undefined
       await rename(temp, target)
       // Readers that open after this point find the file under its final name.
       this.tempPath = target
       const { size } = await stat(target)
-      await db.update(transcodes).set({ status: 'ready', bytes: size, error: null, lastUsedAt: new Date() })
-        .where(and(eq(transcodes.fileId, this.file.id), eq(transcodes.profile, this.profile)))
+      await db.update(transcodes).set({ status: 'ready', bytes: size, error: null, lastUsedAt: new Date() }).where(rowKey)
     } catch (error) {
-      this.error = error as Error
+      this.error = signal.aborted ? signal.reason as Error : error as Error
       await handle?.close().catch(() => {})
       if (this.tempPath) await unlink(this.tempPath).catch(() => {})
-      await db.update(transcodes).set({ status: 'failed', error: this.error.message.slice(0, 2000) })
-        .where(and(eq(transcodes.fileId, this.file.id), eq(transcodes.profile, this.profile), eq(transcodes.status, 'pending')))
-        .catch(() => {})
+      if (pending) {
+        const where = and(rowKey, eq(transcodes.status, 'pending'))
+        if (this.cancelled) await db.delete(transcodes).where(where).catch(() => {})
+        else await db.update(transcodes).set({ status: 'failed', error: this.error.message.slice(0, 2000) }).where(where).catch(() => {})
+      }
     } finally {
-      releaseSlot()
+      clearTimeout(this.idleTimer)
       active.delete(keyOf(this.file.id, this.profile))
+      slotQueue.delete(this)
+      running.delete(this)
       this.finished = true
+      this.ready.resolve()
       this.notify()
+      scheduleEncoders()
     }
   }
 }
 
+const priority = (intent: StreamIntent) => StreamIntent.options.indexOf(intent)
 const keyOf = (fileId: string, profile: TranscodeProfile) => `${fileId}/${profile}`
 const active = new Map<string, Transcode>()
-const children = new Set<ChildProcess>()
+const slotQueue = new Set<Transcode>()
+const running = new Set<Transcode>()
+const liveByUser = new Map<string, number>()
+let liveSlots = 0
 let stopping = false
 
 // ffmpeg is CPU bound; leave room for the API and the database on small machines.
 const defaultSlotLimit = Math.max(2, Math.floor(availableParallelism() / 2))
+const encodesPerUser = 4
 let slotLimit = defaultSlotLimit
-let slotsInUse = 0
-const slotQueue: (() => void)[] = []
+const hasFreeSlot = () => running.size + liveSlots < slotLimit
 
 /** Changes how many encoders may run at once; null restores the default. For tests. */
 export function setTranscodeSlotLimit(limit: number | null) {
   slotLimit = limit ?? defaultSlotLimit
-  while (slotQueue.length > 0 && slotsInUse < slotLimit) {
-    slotsInUse++
-    slotQueue.shift()!()
-  }
+  scheduleEncoders()
 }
 
-async function acquireSlot() {
-  if (slotsInUse < slotLimit) {
-    slotsInUse++
-    return
+function lowestPriority(jobs: Iterable<Transcode>, eligible: (job: Transcode) => boolean) {
+  let lowest: Transcode | undefined
+  for (const job of jobs) {
+    if (job.interruptible && eligible(job) && (!lowest || priority(job.intent) > priority(lowest.intent))) lowest = job
   }
-  await new Promise<void>((resolve) => slotQueue.push(resolve))
+  return lowest
 }
 
-function releaseSlot() {
-  const next = slotsInUse <= slotLimit ? slotQueue.shift() : undefined
-  if (next) next()
-  else slotsInUse--
+function scheduleEncoders() {
+  if (stopping) return
+  let waitingPlay = false
+  // Stable sort keeps arrivals in order within a priority.
+  for (const job of [...slotQueue].sort((a, b) => priority(a.intent) - priority(b.intent))) {
+    if (job.cancelled) continue
+    const own = job.userId ? [...running].filter((encode) => encode.userId === job.userId) : []
+    if (job.userId && own.length + (liveByUser.get(job.userId) ?? 0) >= encodesPerUser) {
+      if (own.some((encode) => encode.cancelled)) continue
+      const victim = lowestPriority(own, (encode) => encode.intent !== 'play' || (job.intent === 'play' && encode.abandoned))
+      if (victim) victim.cancel()
+      else if (own.every((encode) => encode.interruptible)) job.cancel(tooManyEncodes())
+      continue
+    }
+    if (!hasFreeSlot()) {
+      waitingPlay ||= job.intent === 'play'
+      continue
+    }
+    slotQueue.delete(job)
+    running.add(job)
+    job.started.resolve()
+  }
+
+  if (!waitingPlay || [...running].some((job) => !job.interruptible)) return
+  const victim = lowestPriority(running, (job) => priority(job.intent) > priority('next'))
+    // A skip can fill every slot with abandoned plays before the reconnect grace expires.
+    ?? lowestPriority(running, (job) => job.abandoned)
+  victim?.cancel()
 }
 
 /**
- * Takes an encoder slot without waiting, for encodes that answer a client now or not at
- * all. Returns the function that gives it back (calling it again does nothing), or null
- * when every slot is taken.
+ * Takes a slot without waiting for a Subsonic live encode. These requests retain their own
+ * limit inside the combined per-user cap and let queued streams take freed slots first.
  */
-export function tryAcquireSlot(): (() => void) | null {
-  if (slotsInUse >= slotLimit) return null
-  slotsInUse++
+export function tryAcquireSlot(userId: string, liveLimit: number): (() => void) | null {
+  const live = liveByUser.get(userId) ?? 0
+  if (live >= liveLimit || live + [...running].filter((job) => job.userId === userId).length >= encodesPerUser) {
+    throw tooManyEncodes()
+  }
+  if (stopping || !hasFreeSlot()) return null
+  liveByUser.set(userId, live + 1)
+  liveSlots++
   let released = false
   return () => {
     if (released) return
     released = true
-    releaseSlot()
+    const count = liveByUser.get(userId)!
+    if (count === 1) liveByUser.delete(userId)
+    else liveByUser.set(userId, count - 1)
+    liveSlots--
+    scheduleEncoders()
   }
 }
+
+const tooManyEncodes = () => new AppError(429, 'too_many_live_encodes', 'Too many streams are being converted for this user; try again shortly')
 
 /** Every encoder slot is taken: 503 `transcoder_busy`. */
 export const transcoderBusy = () => new AppError(503, 'transcoder_busy', 'Too many transcodes are running; try again shortly')
@@ -204,7 +321,7 @@ function ffmpegArgs(input: string, file: MediaFile, profile: TranscodeProfile): 
   ]
   const sampleRate = outputSampleRate(file, profile)
   return [
-    '-v', 'error', '-nostdin', ...audioInput(input),
+    '-v', 'error', '-nostdin', '-progress', 'pipe:2', ...audioInput(input),
     '-map', '0:a:0', '-vn', '-sn', '-dn', '-map_metadata', '-1', '-map_chapters', '-1',
     ...metadata.flatMap(([key, value]) => value === undefined || value === '' ? [] : ['-metadata', `${key}=${value}`]),
     ...(sampleRate ? ['-ar', String(sampleRate)] : []),
@@ -216,15 +333,16 @@ function ffmpegArgs(input: string, file: MediaFile, profile: TranscodeProfile): 
 /**
  * A readable over a running transcode, from its first byte. It reads what the encoder has
  * written so far, then waits for more; it ends when the encoder does and errors if it fails.
- * Destroying it (a client that went away) closes the descriptor and leaves the encoder running.
+ * Destroying it closes the descriptor and releases this reader's interest in the encoder.
  */
-function follow(job: Transcode): Readable {
+function follow(job: Transcode, detach: () => void): Readable {
   let handle: FileHandle | undefined
   let position = 0
   return new Readable({
     async read(size) {
       try {
         for (;;) {
+          if (job.cancelled && job.error) throw job.error
           if (!handle && job.tempPath) {
             const opened = await openEither(job)
             if (this.destroyed) {
@@ -253,6 +371,7 @@ function follow(job: Transcode): Readable {
       }
     },
     destroy(error, callback) {
+      detach()
       const current = handle
       handle = undefined
       if (!current) return callback(error)
@@ -288,15 +407,18 @@ async function createIn(file: string): Promise<FileHandle> {
   }
 }
 
-/** The running transcode for (file, profile), starting one when none is running in this process. */
-function startTranscode(file: MediaFile, profile: TranscodeProfile): Transcode {
-  const key = keyOf(file.id, profile)
-  let job = active.get(key)
-  if (!job) {
-    job = new Transcode(file, profile)
-    active.set(key, job)
+/** Wait without keeping a closed request attached to the work. */
+async function waitForEncode(promise: Promise<void>, signal?: AbortSignal) {
+  if (!signal) return promise
+  signal.throwIfAborted()
+  const aborted = deferred()
+  signal.addEventListener('abort', aborted.resolve, { once: true })
+  try {
+    await Promise.race([promise, aborted.promise])
+    signal.throwIfAborted()
+  } finally {
+    signal.removeEventListener('abort', aborted.resolve)
   }
-  return job
 }
 
 /** True while this process is encoding (fileId, profile). */
@@ -361,11 +483,32 @@ export async function openTranscode(file: MediaFile, profile: TranscodeProfile, 
   const source = await requireSource(file)
   const live = { 'content-type': profiles[profile].mime, 'accept-ranges': 'none', 'cache-control': 'private', ...headers }
   if (request.head) return { status: 200, headers: live, body: null }
-  const job = startTranscode(source, profile)
-  // Wait for the first bytes so an encoder that fails at once becomes an error response.
-  while (job.written === 0 && !job.finished) await job.changed()
-  if (job.error && job.written === 0) throw transcodeFailed(job.error)
-  return { status: 200, headers: live, body: follow(job) }
+  const { signal, intent = 'play', userId } = request
+  const key = keyOf(source.id, profile)
+  signal?.throwIfAborted()
+  let job = active.get(key)
+  while (job?.cancelled) {
+    await waitForEncode(job.done, signal)
+    job = active.get(key)
+  }
+  if (stopping) throw transcoderBusy()
+  if (!job) {
+    job = new Transcode(source, profile, userId, intent)
+    active.set(key, job)
+    slotQueue.add(job)
+  }
+  const detach = job.attach(intent)
+  scheduleEncoders()
+  try {
+    // Wait for the first bytes so an encoder that fails at once becomes an error response.
+    await waitForEncode(job.ready.promise, signal)
+    if (job.error && job.written === 0) throw transcodeFailed(job.error)
+    const body = follow(job, detach)
+    return { status: 200, headers: live, body: signal ? addAbortSignal(signal, body) : body }
+  } catch (error) {
+    detach()
+    throw error
+  }
 }
 
 const transcodeFailed = (error: Error) => error instanceof AppError ? error : new AppError(500, 'transcode_failed', 'The file could not be transcoded')
@@ -373,7 +516,7 @@ const transcodeFailed = (error: Error) => error instanceof AppError ? error : ne
 /** Kills every running encoder and waits for each to clean up. For shutdown. */
 export async function stopTranscodes() {
   stopping = true
-  for (const child of children) child.kill('SIGKILL')
+  for (const job of active.values()) job.cancel()
   await Promise.all([...active.values()].map((job) => job.done))
   stopping = false
 }

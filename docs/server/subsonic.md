@@ -74,7 +74,7 @@ By default an app gets the original file, with byte ranges, so seeking works.
 - `maxBitRate` caps the bitrate. A file above it is transcoded to MP3 at 320 or 192 kbps; lower caps are encoded live at that bitrate.
 - `format=mp3`, `opus` (or `ogg`) and `aac` (or `m4a`) pick the codec. `format=raw` always sends the original.
 - Transcodes at the standard bitrates are cached, so the second play seeks like an original. Live encodes (below 192 kbps, or from a `timeOffset`) are not cached.
-- Live encodes share the server's encoders with the other transcodes (at most half the CPU cores, at least two) and do not wait for one: when all are busy, `stream` answers a Subsonic error (code 0) asking to try again shortly. One user runs at most three live encodes at a time.
+- Live encodes share the server's encoders with the other transcodes (at most half the CPU cores, at least two). When all are busy, `stream` immediately answers a Subsonic error (code 0) asking to try again shortly. Each user's live encodes have a limit of three and count toward the combined limit of four concurrent encodes.
 - `timeOffset` starts a transcode that many seconds in, for apps that seek while transcoding.
 - `estimateContentLength=true` sends a Content-Length for transcodes, estimated from the duration and bitrate.
 

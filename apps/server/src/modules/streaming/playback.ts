@@ -1,4 +1,4 @@
-import { API_PREFIX, type PlaybackDescriptor, type PlaybackQuery, type StreamProfile } from '@squirmy/contracts'
+import { API_PREFIX, type PlaybackDescriptor, type PlaybackQuery, type StreamIntent, type StreamProfile } from '@squirmy/contracts'
 import { and, eq, isNull } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { users } from '../../database/schema.js'
@@ -20,13 +20,14 @@ const signedMessage = (fileId: string, profile: StreamProfile, userId: string, e
 
 /**
  * A relative stream URL for one user, valid for 12 hours. The signature binds the file,
- * the profile, the user and the expiry; `download=1` only changes the response headers.
+ * the profile, the user and the expiry. Download and scheduling hints can be added separately.
  */
-export function signStreamUrl(fileId: string, profile: StreamProfile, userId: string, options: { download?: boolean; now?: number } = {}) {
+export function signStreamUrl(fileId: string, profile: StreamProfile, userId: string, options: { download?: boolean; intent?: StreamIntent; now?: number } = {}) {
   const expiresAt = new Date((options.now ?? Date.now()) + STREAM_URL_TTL_MS)
   const exp = Math.floor(expiresAt.getTime() / 1000)
   const params = new URLSearchParams({ exp: String(exp), uid: userId, sig: sign('stream', signedMessage(fileId, profile, userId, exp)) })
   if (options.download) params.set('download', '1')
+  if (options.intent) params.set('intent', options.intent)
   const suffix = profile === 'original' ? '' : `/${profile}`
   return { url: `${API_PREFIX}/stream/${fileId}${suffix}?${params}`, expiresAt: new Date(exp * 1000) }
 }
@@ -57,7 +58,7 @@ export async function buildPlaybackDescriptor(userId: string, recordingId: strin
   const selection = await selectFile(target, { albumId, codecs: query.codecs, quality: query.quality })
   if (!selection) throw notFound('No file of this track is available', 'not_available')
   const { file, profile } = selection
-  const { url, expiresAt } = signStreamUrl(file.id, profile, userId, { download: query.download })
+  const { url, expiresAt } = signStreamUrl(file.id, profile, userId, query)
   const base = {
     trackId: recordingId,
     albumId: file.albumId,
