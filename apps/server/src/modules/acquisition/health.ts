@@ -13,7 +13,7 @@
  * Fetches still go to it: the first one it delivers ends the outage.
  */
 import { sql } from 'drizzle-orm'
-import { db } from '../../database/client.js'
+import { db, type Transaction } from '../../database/client.js'
 import { uuidArray } from '../catalog/sql.js'
 import { announceOutcome } from './outcomes.js'
 import { isFailing } from './providers.js'
@@ -30,7 +30,14 @@ export const OUTAGE_REASON = 'The server can’t fetch music on demand right now
  * recorded for the streak's recordings since it began are dropped and their tracks refreshed.
  */
 export async function noteProviderFailure(providerId: string, message: string, recordingIds: readonly string[] = []): Promise<boolean> {
-  const rows = await db.execute<{ failingSince: Date | string; failing: string[] }>(sql`
+  const { outage, restored } = await db.transaction((tx) => recordProviderFailure(tx, providerId, message, recordingIds))
+  await announceAvailability(restored)
+  return outage
+}
+
+/** Keep the streak and the misses it clears in the same transaction as a job's failure. */
+export async function recordProviderFailure(tx: Transaction, providerId: string, message: string, recordingIds: readonly string[]) {
+  const rows = await tx.execute<{ failingSince: Date | string; failing: string[] }>(sql`
     update acquisition_providers set
       last_error = ${message.slice(0, 500)},
       failing_since = coalesce(failing_since, now()),
@@ -42,19 +49,18 @@ export async function noteProviderFailure(providerId: string, message: string, r
     where id = ${providerId}
     returning failing_since as "failingSince", failing_recordings as failing`)
   const row = rows[0]
-  if (!row) return false
+  if (!row) return { outage: false, restored: [] }
   const since = new Date(row.failingSince)
-  if (!isFailing({ failingSince: since, failingRecordings: row.failing })) return false
-  const cleared = await db.execute<{ id: string }>(sql`
+  if (!isFailing({ failingSince: since, failingRecordings: row.failing })) return { outage: false, restored: [] }
+  const cleared = await tx.execute<{ id: string }>(sql`
     delete from acquisition_misses
     where provider_id = ${providerId} and entity_type = 'recording'
       and entity_id = any(${uuidArray(row.failing)}) and created_at >= ${since.toISOString()}
     returning entity_id as id`)
   const ids = cleared.map((miss) => miss.id)
-  await announceAvailability(ids)
   // Sessions skipped those tracks as not available: they are playable after all.
-  await announceOutcome({ restored: ids })
-  return true
+  await announceOutcome({ restored: ids }, tx)
+  return { outage: true, restored: ids }
 }
 
 /** The provider delivered: whatever streak of failures it had is over. */

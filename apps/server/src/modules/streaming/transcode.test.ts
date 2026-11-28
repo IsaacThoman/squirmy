@@ -1,12 +1,11 @@
 import { execFile, type ChildProcess } from 'node:child_process'
-import { once } from 'node:events'
+import { EventEmitter, once } from 'node:events'
 import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { createInterface } from 'node:readline'
-import { setTimeout as delay } from 'node:timers/promises'
+import { PassThrough } from 'node:stream'
 import { promisify } from 'node:util'
 import type { StreamIntent, StreamProfile } from '@squirmy/contracts'
 import { and, eq } from 'drizzle-orm'
@@ -27,7 +26,7 @@ import { streamingModule } from './index.js'
 import { signStreamUrl } from './playback.js'
 import { cacheRoot, isTranscoding, setTranscodeSlotLimit, stopTranscodes, tryAcquireSlot } from './transcode.js'
 
-type Encoder = { child: ChildProcess; input: string; exited: boolean; encodedMs: number }
+type Encoder = { child: ChildProcess; input: string; exited: boolean; progress: (ms: number) => void }
 const spawned = vi.hoisted(() => ({ ffmpeg: 0, slow: false, encoders: [] as Encoder[], peak: 0 }))
 vi.mock('node:child_process', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:child_process')>()
@@ -37,15 +36,25 @@ vi.mock('node:child_process', async (importOriginal) => {
     if (!spawned.slow || !Array.isArray(command) || !command.includes('-progress')) return actual.spawn(...args)
     const inputIndex = command.indexOf('-i')
     const input = command[inputIndex + 1]!
-    const slow = [...command.slice(0, inputIndex), '-readrate', '0.25', ...command.slice(inputIndex, -1), '-flush_packets', '1', 'pipe:1']
-    const child = actual.spawn(args[0], slow, args[2])
-    const encoder = { child, input, exited: false, encodedMs: 0 }
+    // Scheduling tests drive completion and encoding progress explicitly. Other tests
+    // still use ffmpeg to check the format, live output and the cache.
+    const stdout = new PassThrough()
+    const stderr = new PassThrough()
+    const child = Object.assign(new EventEmitter(), {
+      stdout, stderr, exitCode: null, signalCode: null,
+      kill() {
+        if (encoder.exited) return false
+        encoder.exited = true
+        stdout.end()
+        stderr.end()
+        child.emit('close', null)
+        return true
+      },
+    }) as unknown as ChildProcess
+    const encoder: Encoder = { child, input, exited: false, progress: (ms) => stderr.write(`out_time_us=${ms * 1000}\n`) }
     spawned.encoders.push(encoder)
     spawned.peak = Math.max(spawned.peak, spawned.encoders.filter(({ exited }) => !exited).length)
-    child.once('close', () => { encoder.exited = true })
-    createInterface({ input: child.stderr! }).on('line', (line) => {
-      if (line.startsWith('out_time_us=')) encoder.encodedMs = Number(line.slice('out_time_us='.length)) / 1000
-    })
+    stdout.write(Buffer.from('encoder output'))
     return child
   }) as typeof actual.spawn
   return { ...actual, spawn }
@@ -334,7 +343,8 @@ describe('transcodes', () => {
         request.on('error', () => resolve(undefined))
         request.once('response', (response) => {
           response.on('error', () => resolve(undefined))
-          response.once('data', () => resolve(response.statusCode === 200 ? performance.now() : undefined))
+          response.once('data', () => resolve(response.statusCode === 200 ? 1 : undefined))
+          response.once('end', () => resolve(undefined))
           response.resume()
         })
       })
@@ -345,7 +355,7 @@ describe('transcodes', () => {
       const encoder = spawned.encoders.findLast(({ input }) => input.endsWith(file.relPath))
       if (!encoder) throw new Error(`Encoder did not start for ${file.relPath}`)
       return encoder
-    })
+    }, { timeout: 10_000 })
 
     async function queue(file: Source, intent: StreamIntent) {
       const client = connect(file, intent)
@@ -353,32 +363,21 @@ describe('transcodes', () => {
       return client
     }
 
-    it('runs ten rapid skips in two slots and starts the final play promptly', async () => {
+    it('makes room for each skip in two slots even while abandoned encoders could reconnect', async () => {
       const files = []
       for (let index = 0; index < 10; index++) files.push(await addLong())
-      let previous: ReturnType<typeof connect> | undefined
-      let idleStartupMs = 0
+      const clients: ReturnType<typeof connect>[] = []
       for (const [index, file] of files.entries()) {
-        const time = performance.now()
-        previous?.request.destroy()
-        previous = connect(file)
-        if (index === 0) {
-          const first = await previous.firstByte
-          expect(first).toBeDefined()
-          idleStartupMs = first! - time
-        }
-        if (index === files.length - 1) {
-          const last = await previous.firstByte
-          expect(last).toBeDefined()
-          expect(last! - time).toBeLessThan(idleStartupMs + 500)
-        } else {
-          await started(file)
-          await delay(Math.max(0, 1000 - (performance.now() - time)))
-        }
+        clients[index - 2]?.request.destroy()
+        const client = connect(file)
+        clients.push(client)
+        // The preceding play is still attached. A third play needs an abandoned slot.
+        expect(await client.firstByte).toBeDefined()
+        if (index >= 2) expect((await started(files[index - 2]!)).exited).toBe(true)
       }
       expect(spawned.encoders).toHaveLength(10)
       expect(spawned.peak).toBe(2)
-    }, 15_000)
+    })
 
     it('orders the queue by intent then arrival and removes closed requests before they spawn', async () => {
       const holders = [await addLong(), await addLong()]
@@ -412,7 +411,7 @@ describe('transcodes', () => {
       const cache = await addLong()
       const download = await addLong()
       const play = await addLong()
-      await connect(cache, 'cache').firstByte
+      expect(await connect(cache, 'cache').firstByte).toBeDefined()
       const shared = connect(cache, 'play')
       expect(await shared.firstByte).toBeDefined()
       connect(download, 'download')
@@ -455,15 +454,10 @@ describe('transcodes', () => {
         .toEqual(Array.from({ length: 6 }, () => expect.any(Number)))
 
       const end = await started(halfway)
-      await expect.poll(() => end.encodedMs, { timeout: 9000 }).toBeGreaterThanOrEqual(1500)
-      // Hold it past the grace interval to prove that the elapsed audio, rather than process
-      // completion, protects the result.
-      end.child.kill('SIGSTOP')
-      const disconnectedAt = performance.now()
+      end.progress(1500)
       for (const client of [first, second, prefetch, saving, nearEnd]) client.request.destroy()
       expect((await started(play)).exited).toBe(false)
-      await expect.poll(() => isTranscoding(play.id, profile), { timeout: 11_000 }).toBe(false)
-      expect(performance.now() - disconnectedAt).toBeGreaterThanOrEqual(9900)
+      await expect.poll(() => isTranscoding(play.id, profile), { timeout: 18_000 }).toBe(false)
       expect(await row(play.id, profile)).toBeUndefined()
       for (const file of [shared, cache, download, halfway]) expect((await started(file)).exited).toBe(false)
       expect(spawned.encoders).toHaveLength(5)

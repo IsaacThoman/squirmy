@@ -1,6 +1,7 @@
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ApiError } from '@squirmy/client-core'
+import { queryKeys } from '@squirmy/contracts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from '@/App'
 import { album, allTracks } from '@/fixtures/catalog'
@@ -19,8 +20,8 @@ async function playAlbum() {
 describe('PlayerProvider', () => {
   it('says on the player that a radio is starting, and why one did not, with no second request meanwhile', async () => {
     const { services, api } = fakeServices()
-    let fail: (error: Error) => void = () => {}
-    const track = vi.fn(() => new Promise<never>((_resolve, reject) => { fail = reject }))
+    const request = Promise.withResolvers<never>()
+    const track = vi.fn(() => request.promise)
     Object.assign(api, { radio: { track, artist: vi.fn() } })
     renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
     const song = blueHour.discs[0].tracks[0]
@@ -31,21 +32,27 @@ describe('PlayerProvider', () => {
     const player = screen.getByRole('region', { name: 'Player' })
     expect(await within(player).findByText('Starting radio…')).toBeInTheDocument()
     expect(track).toHaveBeenCalledOnce()
-    act(() => fail(new Error('Boom')))
-    expect(await within(player).findByText('Couldn’t start a radio from this song. Try again.')).toBeInTheDocument()
+    await act(async () => { request.reject(new Error('Boom')) })
+    expect(within(player).getByText('Couldn’t start a radio from this song. Try again.')).toBeInTheDocument()
     expect(within(player).queryByText('Starting radio…')).toBeNull()
   })
 
   it('starts a radio of songs that sound like a song', async () => {
-    const { services, api } = fakeServices()
-    const sonic = vi.fn(() => new Promise<never>(() => {}))
-    Object.assign(api, { radio: { track: vi.fn(), artist: vi.fn(), sonic } })
-    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    const { services, api, socket } = fakeServices()
     const song = blueHour.discs[0].tracks[0]
+    const related = blueHour.discs[0].tracks[1]
+    const radio = {
+      context: { type: 'radio' as const, id: `sonic:${song.id}`, title: null },
+      tracks: [{ trackId: related.id, durationMs: related.durationMs }],
+    }
+    const sonic = vi.fn(async () => radio)
+    Object.assign(api.radio, { sonic })
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
     await userEvent.click(await screen.findByRole('button', { name: `More options for ${song.title}` }))
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Songs that sound like this' }))
-    expect(await within(screen.getByRole('region', { name: 'Player' })).findByText('Starting radio…')).toBeInTheDocument()
+    await waitFor(() => expect(socket.session.current?.trackId).toBe(related.id))
     expect(sonic).toHaveBeenCalledWith(song.id)
+    expect(socket.session.context).toEqual(radio.context)
   })
 
   it('plays an album through the session, never sending what cannot play', async () => {
@@ -138,14 +145,15 @@ describe('PlayerProvider', () => {
 
   it('says what a command from elsewhere told it on the status line, under the song', async () => {
     const { services, api } = fakeServices()
-    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    const target = album('glass-city')
+    const { queryClient } = renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    // This test exercises the status line. Leave retry and backoff to the query client's tests.
+    queryClient.setQueryDefaults(queryKeys.album(target.id), { retry: false })
     await playAlbum()
-    // A card's Play whose album does not load says so where playback is told.
     api.catalog.album.mockRejectedValue(new ApiError(503, 'unavailable', 'The server is busy.'))
     await userEvent.click(screen.getByRole('link', { name: 'Home' }))
-    // Not Blue Hour, which just played: its album is already loaded.
-    const card = (await screen.findAllByRole('button', { name: /^Play / })).find(button => button.closest('[class*="group/card"]') && button.getAttribute('aria-label') !== 'Play Blue Hour')!
-    await userEvent.click(card)
+    const rail = await screen.findByRole('region', { name: 'Recently played' })
+    await userEvent.click(await within(rail).findByRole('button', { name: `Play ${target.title}` }))
     const player = screen.getByRole('region', { name: 'Player' })
     expect(await within(player).findByText(/^Couldn’t play “.+”\. /)).toBeInTheDocument()
     expect(within(player).getByText(/The server is busy\./)).toBeInTheDocument()

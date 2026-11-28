@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import { eq, inArray, sql } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { db } from '../../database/client.js'
 import { mediaFiles, releaseLoudness } from '../../database/schema.js'
 import { drainJobs, enqueue, jobs, startJobs, stopJobs } from '../../jobs/index.js'
@@ -12,8 +12,10 @@ import { makeTone, writeHostileInputs } from '../../test/audio.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createLibraryRoot } from '../../test/factories.js'
 import { loudnessModule } from './index.js'
-import { measureAlbumLoudness, measureLoudness, parseEbur128 } from './measure.js'
+import { measureAlbumLoudness, measureLoudness, measureRelease, parseEbur128 } from './measure.js'
 import { normalizationFor, normalizationValues, SILENT_LUFS } from './normalization.js'
+
+vi.mock(import('./measure.js'), { spy: true })
 
 const run = promisify(execFile)
 
@@ -161,7 +163,21 @@ describe('loudness', () => {
     await makeTone(brokenRoot, tone)
     // When the scanner sees new content, it clears the error and queues the library pipeline.
     await db.update(mediaFiles).set({ probeError: null, probeStage: 2, mtime: (await stat(damaged)).mtime }).where(eq(mediaFiles.id, fileId))
-    await enqueue('loudness.sweep', {})
+    const releaseAlbumJob = Promise.withResolvers<void>()
+    vi.mocked(measureRelease).mockClear()
+    vi.mocked(measureRelease).mockImplementationOnce(() => releaseAlbumJob.promise)
+    // An existing album job has already seen the incomplete file. Keep its singleton
+    // active while the repaired track finishes so its follow-up has to survive that job.
+    await enqueue('loudness.album', { releaseId }, { singletonKey: releaseId })
+    try {
+      await expect.poll(() => vi.mocked(measureRelease).mock.calls, { timeout: 10_000 }).toContainEqual([releaseId])
+      await enqueue('loudness.sweep', {})
+      await expect.poll(attempts, { timeout: 10_000 }).toEqual(expect.arrayContaining([
+        { state: 'completed', retry_count: 0 },
+      ]))
+    } finally {
+      releaseAlbumJob.resolve()
+    }
     await drainJobs()
     const repaired = await readFile()
     expect(repaired.probeError).toBeNull()

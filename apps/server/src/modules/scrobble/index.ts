@@ -9,6 +9,7 @@ import { scrobbleRoutes } from './routes.js'
 export { scrobblingStatus } from './status.js'
 
 let unsubscribe: (() => void) | null = null
+const announcements = new Set<Promise<void>>()
 
 function report(error: unknown): void {
   if (getConfig().LOG_LEVEL !== 'silent') console.error('[scrobble]', error)
@@ -30,10 +31,14 @@ export const scrobbleModule: ServerModule = {
   async start({ role }) {
     if (role !== 'api') await enqueue('scrobble.sweep', {}, { singletonKey: 'sweep' })
     // Sessions live in the API process, so that is where plays start.
-    if (role !== 'worker') unsubscribe = onPlayStart((userId, play) => void announceNowPlaying(userId, play).catch(report))
+    if (role !== 'worker') unsubscribe = onPlayStart((userId, play) => {
+      const pending = announceNowPlaying(userId, play).catch(report).finally(() => announcements.delete(pending))
+      announcements.add(pending)
+    })
   },
-  stop() {
+  async stop() {
     unsubscribe?.()
     unsubscribe = null
+    await Promise.all(announcements)
   },
 }

@@ -192,6 +192,7 @@ ${line}`.slice(-2000)
       this.tempPath = target
       const { size } = await stat(target)
       await db.update(transcodes).set({ status: 'ready', bytes: size, error: null, lastUsedAt: new Date() }).where(rowKey)
+      published++
     } catch (error) {
       this.error = signal.aborted ? signal.reason as Error : error as Error
       await handle?.close().catch(() => {})
@@ -217,6 +218,7 @@ ${line}`.slice(-2000)
 const priority = (intent: StreamIntent) => StreamIntent.options.indexOf(intent)
 const keyOf = (fileId: string, profile: TranscodeProfile) => `${fileId}/${profile}`
 const active = new Map<string, Transcode>()
+let published = 0
 const slotQueue = new Set<Transcode>()
 const running = new Set<Transcode>()
 const liveByUser = new Map<string, number>()
@@ -384,10 +386,15 @@ function follow(job: Transcode, detach: () => void): Readable {
 async function openEither(job: Transcode): Promise<FileHandle> {
   for (;;) {
     const file = job.tempPath!
+    const changed = job.changed()
     try {
       return await open(file, 'r')
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT' || job.tempPath === file) throw error
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      if (job.tempPath !== file) continue
+      if (job.finished) throw job.error ?? error
+      // The rename can have happened on disk before its callback updates tempPath.
+      await changed
     }
   }
 }
@@ -478,6 +485,7 @@ function requireSource(file: MediaFile): Promise<MediaFile> {
  * length, `Accept-Ranges: none`. HEAD reports those headers without starting anything.
  */
 export async function openTranscode(file: MediaFile, profile: TranscodeProfile, request: StreamRequest, headers: Record<string, string> = {}): Promise<StreamResponse> {
+  let cacheVersion = published
   const cached = await serveCached(file, profile, request, headers)
   if (cached) return cached
   const source = await requireSource(file)
@@ -486,16 +494,30 @@ export async function openTranscode(file: MediaFile, profile: TranscodeProfile, 
   const { signal, intent = 'play', userId } = request
   const key = keyOf(source.id, profile)
   signal?.throwIfAborted()
-  let job = active.get(key)
-  while (job?.cancelled) {
-    await waitForEncode(job.done, signal)
-    job = active.get(key)
-  }
-  if (stopping) throw transcoderBusy()
-  if (!job) {
+  let job: Transcode
+  for (;;) {
+    signal?.throwIfAborted()
+    if (stopping) throw transcoderBusy()
+    const existing = active.get(key)
+    if (existing) {
+      if (existing.cancelled) {
+        await waitForEncode(existing.done, signal)
+        continue
+      }
+      job = existing
+      break
+    }
+    // A simultaneous encode may have published and left the active map since our miss.
+    if (cacheVersion !== published) {
+      cacheVersion = published
+      const refreshed = await serveCached(source, profile, request, headers)
+      if (refreshed) return refreshed
+      continue
+    }
     job = new Transcode(source, profile, userId, intent)
     active.set(key, job)
     slotQueue.add(job)
+    break
   }
   const detach = job.attach(intent)
   scheduleEncoders()
