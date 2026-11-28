@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type Ref } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useLyrics } from '../data/queries';
+import { useTrackLyrics } from './useTrackLyrics';
 import { secondaryFontScale } from '../fontScale';
 import { usePlaybackState, usePosition } from '../playback';
 import { createThemedStyles, useColors } from '../theme';
@@ -33,7 +33,7 @@ export default function LyricsPage({ selected }: LyricsProps) {
   const shown = usePlayerShown();
   const visible = selected && shown;
   const { track, actions } = usePlaybackState();
-  const lyrics = useLyrics(track);
+  const lyrics = useTrackLyrics(track);
   const { lines, synced } = lyricLines(lyrics.data);
   const position = usePosition(visible && synced);
   const active = synced ? Math.max(0, activeLine(lines, position)) : -1;

@@ -122,6 +122,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [{ client, setQuality }] = useState(() => createSession(api, socket!, tab.device, engine, store, status, picked))
   const [listening] = useState(() => new Listening(client, engine))
   const [clock] = useState(() => new PositionClock(() => listening.position()))
+  const serverNow = useMemo(() => () => client.serverNow(), [client])
   const snapshot = useSyncExternalStore(client.subscribe, client.getSnapshot)
   // What can be heard follows the engine as well as the session: the session says playing long before the first sample.
   const subscribeAudible = useCallback((listener: () => void) => {
@@ -223,6 +224,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         dispatch({ type: 'setRepeat', value: repeat === 'off' ? 'all' : repeat === 'all' ? 'one' : 'off' })
       },
       setAutoplay: value => dispatch({ type: 'setAutoplay', value }),
+      setSleepTimer: timer => dispatch({ type: 'setSleepTimer', timer }),
       playTracks: (tracks, startIndex = 0, context, options = {}) => {
         // A song by name stays put if it cannot be had; a list played whole moves on past it.
         const byName = !options.shuffle && !options.collection
@@ -326,6 +328,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     status: statusLine,
     radioPending,
     outage: snapshot.outage,
+    sleepTimer: session.sleepTimer,
+    canSetSleepTimer: snapshot.canSetSleepTimer,
+    serverNow,
   }
   const nowPlaying = useNowPlayingStore(state)
 

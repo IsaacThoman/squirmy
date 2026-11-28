@@ -1,6 +1,6 @@
 import { ApiError } from '@squirmy/client-core';
 import type {
-  AcquireQuery, AcquireResponse, AlbumDetail, Artwork, PlaybackDescriptor, PlaylistDetail, StreamQuality, TrackSummary,
+  AcquireQuery, AcquireResponse, AlbumDetail, Artwork, Lyrics, PlaybackDescriptor, PlaylistDetail, StreamQuality, TrackSummary,
 } from '@squirmy/contracts';
 import {
   acquireOutcome, afterAcquire, afterFailure, albumCollectionId, checkIntervalMs, collectionDownload, concurrency, dueFetches,
@@ -61,6 +61,8 @@ export type DownloadSource = {
   acquireTrack(trackId: string, query: AcquireQuery): Promise<AcquireResponse>;
   /** `POST /albums/:id/acquire`: the same for an album's missing songs. */
   acquireAlbum(albumId: string, query: Omit<AcquireQuery, 'albumId'>): Promise<AcquireResponse>;
+  /** `GET /tracks/:id/lyrics`, null when the server has none (a 404). */
+  lyrics(trackId: string): Promise<Lyrics | null>;
 };
 
 /** `canFetch`: the user may have the server get songs it does not have (client-core's `canFetch`). */
@@ -271,6 +273,25 @@ export class DownloadManager {
     return { ...row.descriptor, url: this.ports.files.uri(row.file), expiresAt: farFuture };
   }
 
+  /**
+   * The lyrics kept with a downloaded track: null when the server has none, undefined when
+   * the track is not downloaded or its lyrics were never asked for.
+   */
+  lyrics(trackId: string): Lyrics | null | undefined {
+    const row = this.rows.get(trackId);
+    return row?.file ? row.lyrics : undefined;
+  }
+
+  /**
+   * Keeps lyrics read elsewhere (the Lyrics page, online) with a downloaded track, so they are
+   * there offline and follow the server's latest. Nothing for a track that is not downloaded.
+   */
+  keepLyrics(trackId: string, lyrics: Lyrics | null): void {
+    const row = this.rows.get(trackId);
+    if (!row?.file || JSON.stringify(row.lyrics) === JSON.stringify(lyrics)) return;
+    this.put([{ ...row, lyrics }]);
+  }
+
   /** The kept cover, when one is on the device. */
   artworkUri(artworkId: string): string | null {
     const name = artName(artworkId);
@@ -389,6 +410,7 @@ export class DownloadManager {
       }
       await this.checkSongs();
       await this.checkFiles();
+      await this.fetchMissingLyrics();
     })().finally(() => {
       this.syncing = null;
       this.pump();
@@ -656,6 +678,38 @@ export class DownloadManager {
     job.transfer?.finish();
     this.filesChanged();
     this.pump();
+    if (current.lyrics === undefined) void this.fetchLyrics(trackId);
+  }
+
+  /**
+   * Asks for a downloaded track's lyrics and keeps them with it. A failure leaves them
+   * unasked, for the next sync; a track the server says has none is not asked about.
+   */
+  private async fetchLyrics(trackId: string): Promise<void> {
+    const row = this.rows.get(trackId);
+    if (!row?.file || this.disposed) return;
+    if (!row.track.hasLyrics) {
+      if (row.lyrics !== null) this.put([{ ...row, lyrics: null }]);
+      return;
+    }
+    let lyrics: Lyrics | null;
+    try {
+      lyrics = await this.ports.source.lyrics(trackId);
+    } catch {
+      return;
+    }
+    const current = this.rows.get(trackId);
+    if (!current?.file || this.disposed) return;
+    this.put([{ ...current, lyrics }]);
+  }
+
+  /** Lyrics for downloads made before lyrics were kept, or whose request failed: a few at a time. */
+  private async fetchMissingLyrics(): Promise<void> {
+    const due = [...this.rows.values()].filter(row => row.file && row.lyrics === undefined).map(row => row.trackId);
+    for (let start = 0; start < due.length; start += checkConcurrency) {
+      if (!this.online || this.disposed) return;
+      await Promise.all(due.slice(start, start + checkConcurrency).map(trackId => this.fetchLyrics(trackId)));
+    }
   }
 
   private failed(trackId: string, job: Job, error: unknown): void {

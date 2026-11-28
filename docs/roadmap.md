@@ -16,6 +16,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 
 - [x] Server core: auth, users, invites, settings, jobs, realtime transport
 - [x] Library scan, tag reading, local-only catalog rows
+- [x] Recording credits, classical works and file advisories in the catalog and web app
 - [x] Artwork store and renditions
 - [x] Library and catalog read API, home
 - [x] Streaming: playback descriptor, signed URLs, Range, transcode cache
@@ -32,6 +33,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Reconnect rule and device-lost handling
 - [x] Device presence: only devices that are open and answering the heartbeat are listed
 - [x] Live invalidations on web and mobile
+- [x] Sleep timer held by the session: set anywhere, enforced by the server, faded out on the device that plays
 
 ## 4. Identify and reorganize
 
@@ -70,7 +72,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Upload screen in the web app: folders, files and zips with progress, pause and cancel; the imports list and detail; import settings
 - [x] A personal library: the library is what you heart (uploads hearted for their uploader), the server's music on Home and On this server, an opt-in to include all of it; Your uploads and Admin → Uploads to delete uploaded music (web; iOS next)
 - [x] Fingerprinting for untagged files
-- [x] Offline downloads on mobile
+- [x] Offline downloads on mobile, with their lyrics, and search over what the phone holds while offline
 
 ## 8. Providers and extras
 
@@ -91,7 +93,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] tvOS target and TestFlight upload pipeline under the existing Squirmy bundle ID
 - [x] Rebuilt on Expo Router (`tv-app/`) for tvOS 17, with the system sidebar, context menus, search field and focus effects through native modules
 - [x] Typed server connection and sign-in, remote navigation and library browsing
-- [x] Now Playing, lyrics, queue and Connect playback transfer
+- [x] Now Playing, lyrics, queue and Connect playback transfer, and AirPlay from the playback device panel
 - [x] Settings in the system's style: account, playback, library and scrobbling state
 - [x] Layered app icon and Top Shelf images
 - [ ] First tvOS TestFlight distribution

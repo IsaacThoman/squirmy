@@ -10,7 +10,7 @@
 import { and, eq, inArray, isNull, notInArray, sql } from 'drizzle-orm'
 import type { Transaction } from '../../database/client.js'
 import {
-  albumArtists, albums, artists, mediaFiles, recordingArtists, recordings, releases, releaseTracks, type MatchSource,
+  albumArtists, albums, artists, mediaFiles, recordingArtists, recordingCredits, recordings, recordingWorks, releases, releaseTracks, works, type MatchSource,
 } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { creditKey, matchKey } from '../../lib/text.js'
@@ -47,7 +47,7 @@ function allCredits(release: MbRelease): MbArtistCredit[] {
   return [
     ...release.releaseGroup.artistCredit,
     ...release.artistCredit,
-    ...release.mediums.flatMap((medium) => medium.tracks.flatMap((track) => [...track.artistCredit, ...track.recording.artistCredit])),
+    ...release.mediums.flatMap((medium) => medium.tracks.flatMap((track) => [...track.artistCredit, ...track.recording.artistCredit, ...(track.recording.relationshipCredits ?? [])])),
   ]
 }
 
@@ -244,6 +244,7 @@ export async function upsertRelease(tx: Transaction, release: MbRelease, adoptio
   const adoptableRecordings = new Set(localRecordingIds.length === 0 ? [] : (await tx.select({ id: recordings.id }).from(recordings)
     .where(and(inArray(recordings.id, localRecordingIds), isNull(recordings.mbid), isNull(recordings.mergedIntoId)))).map((row) => row.id))
   const tracks = new Map<string, { recordingId: string; releaseTrackId: string }>()
+  const related = new Map<string, MbRelease['mediums'][number]['tracks'][number]['recording']>()
   for (const medium of release.mediums) {
     for (const track of medium.tracks) {
       const mb = track.recording
@@ -278,7 +279,10 @@ export async function upsertRelease(tx: Transaction, release: MbRelease, adoptio
         await tx.insert(recordings).values({ id: newId(), ...values, isrcs: mb.isrcs }).onConflictDoNothing()
         recordingId = (await byMbid(tx, recordings, mb.mbid))!
       }
-      if (!redirected) await replaceCredits(tx, recordingArtists, recordingId, mb.artistCredit, artistIds)
+      if (!redirected) {
+        await replaceCredits(tx, recordingArtists, recordingId, mb.artistCredit, artistIds)
+        if (mb.relationshipCredits || mb.works) related.set(recordingId, mb)
+      }
 
       const trackValues = {
         mbid: track.mbid,
@@ -297,7 +301,33 @@ export async function upsertRelease(tx: Transaction, release: MbRelease, adoptio
   // A track MusicBrainz no longer lists on this release.
   const kept = [...tracks.values()].map((track) => track.releaseTrackId)
   await tx.delete(releaseTracks).where(and(eq(releaseTracks.releaseId, releaseId), kept.length > 0 ? notInArray(releaseTracks.id, kept) : undefined))
+  await writeRecordingRelationships(tx, related, artistIds)
   return { albumId, releaseId, mergedAlbumIds, artistIds, tracks }
+}
+
+async function writeRecordingRelationships(
+  tx: Transaction,
+  related: ReadonlyMap<string, MbRelease['mediums'][number]['tracks'][number]['recording']>,
+  artistIds: ReadonlyMap<string, string>,
+) {
+  if (related.size === 0) return
+  const ids = [...related.keys()]
+  await tx.delete(recordingCredits).where(inArray(recordingCredits.recordingId, ids))
+  await tx.delete(recordingWorks).where(inArray(recordingWorks.recordingId, ids))
+  const workRows = new Map([...related.values()].flatMap((recording) => (recording.works ?? []).map((work) => [work.mbid, work] as const)))
+  const storedWorks = workRows.size > 0
+    ? await tx.insert(works).values([...workRows.values()].map(({ mbid, title }) => ({ id: newId(), mbid, title })))
+      .onConflictDoUpdate({ target: works.mbid, set: { title: sql`excluded.title` } }).returning({ id: works.id, mbid: works.mbid })
+    : []
+  const workIds = new Map(storedWorks.map(({ mbid, id }) => [mbid, id]))
+  const credits = [...related].flatMap(([recordingId, recording]) => (recording.relationshipCredits ?? []).map(({ mbid, role, instrument }) => ({
+    recordingId, artistId: artistIds.get(mbid)!, role, instrument,
+  })))
+  const links = [...related].flatMap(([recordingId, recording]) => (recording.works ?? []).map(({ mbid, movementName, movementNumber }) => ({
+    recordingId, workId: workIds.get(mbid)!, movementName, movementNumber,
+  })))
+  if (credits.length > 0) await tx.insert(recordingCredits).values(credits).onConflictDoNothing()
+  if (links.length > 0) await tx.insert(recordingWorks).values(links).onConflictDoNothing()
 }
 
 /**
@@ -329,7 +359,8 @@ export async function applyMatch(tx: Transaction, input: ApplyInput): Promise<Ap
     .where(and(inArray(mediaFiles.releaseId, localReleaseIds), notInArray(mediaFiles.id, input.fileIds)))).map((row) => row.id))
 
   // Artists credited on the local rows are the ones that may be adopted.
-  const localArtistIds = new Set(localAlbums.flatMap((album) => (album.primaryArtistId ? [album.primaryArtistId] : [])))
+  const tagArtists = await tx.selectDistinct({ id: recordingCredits.artistId }).from(recordingCredits).where(inArray(recordingCredits.fileId, input.fileIds))
+  const localArtistIds = new Set([...tagArtists.map(({ id }) => id), ...localAlbums.flatMap((album) => (album.primaryArtistId ? [album.primaryArtistId] : []))])
   if (localAlbums.length > 0) {
     for (const row of await tx.select({ id: albumArtists.artistId }).from(albumArtists).where(inArray(albumArtists.albumId, localAlbums.map((album) => album.id)))) localArtistIds.add(row.id)
   }
