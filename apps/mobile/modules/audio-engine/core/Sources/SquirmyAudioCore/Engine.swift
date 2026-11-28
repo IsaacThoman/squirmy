@@ -24,6 +24,9 @@ enum EngineEvent {
   /// The interruption of `entryId` is over and the system says to carry on.
   case resumed(entryId: String)
   case log(String)
+  /// A stream with a cache key is whole, or was given up. From `StreamStore`, not the engine,
+  /// on the same path to JavaScript.
+  case cache(CacheReport)
 }
 
 /// The audio session, on iOS and tvOS (`AudioSessionController`).

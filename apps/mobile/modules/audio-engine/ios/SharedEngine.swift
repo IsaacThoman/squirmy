@@ -18,7 +18,20 @@ final class SharedEngine {
   private let lock = NSLock()
   private var listeners: [UUID: (EngineEvent) -> Void] = [:]
   private var made: Engine?
+  private var madeStore: StreamStore?
   private var session: AudioSessionController?
+
+  /// Where streams are downloaded to. Emptied when the store is made: files of an earlier
+  /// run that the app never took are of no use.
+  private static let directory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+    .appendingPathComponent("squirmy-engine", isDirectory: true)
+
+  /// The streams, made now if it is the first time. Prefetches need no engine.
+  var store: StreamStore {
+    lock.lock()
+    defer { lock.unlock() }
+    return makeStore()
+  }
 
   /// The engine, made now if it is the first time.
   var engine: Engine {
@@ -28,7 +41,7 @@ final class SharedEngine {
     let queue = DispatchQueue(label: "squirmy.audio.feed", qos: .userInteractive)
     let rate = AVAudioSession.sharedInstance().sampleRate
     let output = RendererOutput(sampleRate: rate > 0 ? rate : 48_000, queue: queue)
-    let engine = Engine(output: output, factory: NetworkSources { [weak self] message in self?.dispatch(.log(message)) }, queue: queue)
+    let engine = Engine(output: output, factory: makeStore(), queue: queue)
     engine.listener = { [weak self] event in self?.dispatch(event) }
     session = AudioSessionController(engine: engine) { [weak self] message in self?.dispatch(.log(message)) }
     engine.session = session
@@ -50,6 +63,19 @@ final class SharedEngine {
     lock.unlock()
   }
 
+  /// With the lock held.
+  private func makeStore() -> StreamStore {
+    if let madeStore { return madeStore }
+    try? FileManager.default.removeItem(at: Self.directory)
+    let store = StreamStore(loader: URLSessionByteLoader(), directory: Self.directory, log: { [weak self] message in
+      self?.dispatch(.log(message))
+    }, report: { [weak self] report in
+      self?.dispatch(.cache(report))
+    })
+    madeStore = store
+    return store
+  }
+
   private func dispatch(_ event: EngineEvent) {
     lock.lock()
     let all = Array(listeners.values)
@@ -63,33 +89,5 @@ final class SharedEngine {
       }
       all.forEach { $0(event) }
     }
-  }
-}
-
-/**
- * Where an item's bytes come from: a file on the device (a download) as it is, or the network
- * through a cache file in `Caches/squirmy-engine`, deleted once the engine is done with it.
- * Keeping those files as the streaming cache is the next step.
- */
-final class NetworkSources: SourceFactory {
-  private let loader = URLSessionByteLoader()
-  private let directory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("squirmy-engine", isDirectory: true)
-  private let log: (String) -> Void
-
-  init(log: @escaping (String) -> Void) {
-    self.log = log
-    // Files of an earlier run that ended before it could delete them.
-    try? FileManager.default.removeItem(at: directory)
-  }
-
-  func source(for item: EngineItem) throws -> ByteSource {
-    if item.url.isFileURL { return try FileByteSource(url: item.url) }
-    let entryId = item.entryId
-    let log = log
-    return try ByteCache(url: item.url, loader: loader, file: directory.appendingPathComponent(UUID().uuidString)) { message in log("\(entryId) \(message)") }
-  }
-
-  func discard(_ source: ByteSource) {
-    if let cache = source as? ByteCache { cache.discard() } else { source.cancel() }
   }
 }

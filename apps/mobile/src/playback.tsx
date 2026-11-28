@@ -18,9 +18,8 @@ import { useLibraryActions, useLikeChanges, useTrack, useTrackStore } from './da
 import { useUserSettings } from './data/queries';
 import { useRealtime } from './data/realtime';
 import { useAvailability, useDownloadManager } from './downloads/DownloadsProvider';
-import { connectAudioSession, connectNowPlaying, createPlayerEngine } from './player/engine';
+import { connectAudioSession, connectNowPlaying, createPlayerEngine, runningEngine } from './player/engine';
 import { favoriteState } from './player/engine/favorite';
-import { storedEngine } from './player/engine/setting';
 import { wordsStarted } from './player/lyrics';
 import { loadSession, sessionSaver } from './player/savedSession';
 import {
@@ -115,7 +114,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
           const { session, isActiveDevice } = client.getSnapshot();
           if (isActiveDevice && !session.playing && session.current?.id === entryId) send({ type: 'play' });
         },
-      }, storedEngine());
+      }, runningEngine());
       const stopAudioSession = connectAudioSession(engine);
       const saved = loadSession(account);
       if (saved) tracks.prime(saved.tracks);
@@ -146,7 +145,9 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
               server: (item, quality) => {
                 const { api } = live.current;
                 if (!api) return Promise.reject(new Error('Signed out'));
-                return api.streaming.playback(item.trackId, { albumId: item.albumId ?? undefined, quality, codecs: codecsFor(Platform.OS) });
+                return api.streaming.playback(item.trackId, { albumId: item.albumId ?? undefined, quality, codecs: codecsFor(Platform.OS) })
+                  // The native engine keeps what it streams, under the key the cache gives the stream.
+                  .then(descriptor => ({ ...descriptor, cacheKey: live.current.cache?.streamKey(item, quality, descriptor) ?? null }));
               },
             }, live.current.offline);
           },

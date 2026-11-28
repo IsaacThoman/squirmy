@@ -19,7 +19,7 @@ import {
   type SignalPath,
 } from '@squirmy/contracts'
 import { ApiError, streamUrl } from '../api/client.js'
-import type { EngineEvent, EngineMedia, EngineState, EngineStatus, PlayerEngine } from '../engine.js'
+import type { EngineEvent, EngineMedia, EngineState, EngineStatus, PlayerEngine, ResolvedPlayback } from '../engine.js'
 import { appliedGain } from '../normalization.js'
 import { signalReport } from '../signal.js'
 import { clearRepeating, setRepeating, setTimer } from '../timers.js'
@@ -106,8 +106,11 @@ export type SessionMoveResult = { ok: true } | { ok: false; error: string }
 /** Audio output of a device that can play. */
 export type SessionPlayer = {
   engine: PlayerEngine
-  /** Fetches `GET /tracks/:id/playback` for an entry (with the entry's album and the device's quality and codecs). */
-  resolvePlayback: (entry: QueueEntry) => Promise<PlaybackDescriptor>
+  /**
+   * Fetches `GET /tracks/:id/playback` for an entry (with the entry's album and the device's
+   * quality and codecs), with the stream's cache key when the app keeps what the engine streams.
+   */
+  resolvePlayback: (entry: QueueEntry) => Promise<ResolvedPlayback>
   /** Server root the descriptor's `url` is relative to; see `streamUrl`. */
   baseUrl: string
   /** Initial normalization mode (the user's setting). Defaults to `auto`. */
@@ -346,7 +349,7 @@ export class SessionClient {
   private lastReport: string | null = null
   /** Command id the next `trackEnded` of this entry will use, fixed in advance so the preload predicts its entry ids. */
   private endCommand: { entryId: string; commandId: string } | null = null
-  private readonly descriptors = new Map<string, PlaybackDescriptor>()
+  private readonly descriptors = new Map<string, ResolvedPlayback>()
   /**
    * What the engine's loaded and preloaded entries were resolved to, by entry id. Their gain
    * comes from here, so it holds while they play, whatever is forgotten meanwhile.
@@ -1225,7 +1228,7 @@ export class SessionClient {
     return this.endCommand.commandId
   }
 
-  private async describe(entry: QueueEntry): Promise<PlaybackDescriptor> {
+  private async describe(entry: QueueEntry): Promise<ResolvedPlayback> {
     const key = descriptorKey(entry)
     const cached = this.descriptors.get(key)
     if (cached && Date.parse(cached.expiresAt) - DESCRIPTOR_MARGIN_MS > this.serverNow()) return cached
@@ -1355,8 +1358,8 @@ function isRefusal(error: unknown): boolean {
   return error instanceof ApiError && error.status >= 400 && error.status < 500 && error.status !== 408 && error.status !== 429
 }
 
-function mediaOf(descriptor: PlaybackDescriptor): EngineMedia {
-  return { transcoded: descriptor.transcoded, gapless: descriptor.gapless ?? null }
+function mediaOf(descriptor: ResolvedPlayback): EngineMedia {
+  return { transcoded: descriptor.transcoded, gapless: descriptor.gapless ?? null, cacheKey: descriptor.cacheKey ?? null }
 }
 
 function descriptorKey(entry: QueueEntry): string {

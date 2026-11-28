@@ -10,7 +10,8 @@ struct EngineItem {
   var decoder: DecoderKind
   /// For `DecoderKind.stream`; the file reader reads a file's own.
   var gapless: Gapless?
-  /// Names the stream in the streaming cache; unused until the engine fills it.
+  /// Names the stream in the app's streaming cache: a load, the preload and a prefetch with
+  /// the same key read one download, whose file the app keeps once it is whole.
   var cacheKey: String?
 }
 

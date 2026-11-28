@@ -4,7 +4,7 @@ import NativeAudio from '../../../modules/audio-engine';
 import NowPlaying, { type AudioOutput } from '../../../modules/now-playing';
 import { ExpoAudioEngine, type ExpoAudioEngineOptions } from './ExpoAudioEngine';
 import { NativeEngine } from './NativeEngine';
-import type { PlaybackEngineKind } from './setting';
+import { storedEngine, type PlaybackEngineKind } from './setting';
 
 export { ExpoAudioEngine } from './ExpoAudioEngine';
 export { NativeEngine } from './NativeEngine';
@@ -40,6 +40,18 @@ function ensureAudioMode(): void {
     audioMode = undefined;
     console.warn('Couldn’t set the audio mode; trying again with the next track.', error);
   });
+}
+
+let running: PlaybackEngineKind | undefined;
+
+/**
+ * The engine this run of the app plays with, decided once: the setting applies from the next
+ * launch, and `native` only when this build has the native engine and it starts. The streaming
+ * cache follows it too, since the native engine keeps what it streams.
+ */
+export function runningEngine(): PlaybackEngineKind {
+  running ??= storedEngine() === 'native' && startNative() ? 'native' : 'classic';
+  return running;
 }
 
 /**
