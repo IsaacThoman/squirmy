@@ -18,13 +18,13 @@ import { useLibraryActions, useLikeChanges, useTrack, useTrackStore } from './da
 import { useUserSettings } from './data/queries';
 import { useRealtime } from './data/realtime';
 import { useAvailability, useDownloadManager } from './downloads/DownloadsProvider';
-import { connectAudioSession, connectNowPlaying, createPlayerEngine, runningEngine } from './player/engine';
+import { connectAudioSession, connectNowPlaying, createPlayerEngine, playbackRequest, runningEngine } from './player/engine';
 import { favoriteState } from './player/engine/favorite';
 import { followOutputSettings } from './player/engine/output';
 import { wordsStarted } from './player/lyrics';
 import { loadSession, sessionSaver } from './player/savedSession';
 import {
-  codecsFor, deviceRows, findEntry, isRemote, nextDownloaded, nextRepeat, outputDevice, playableSeeds,
+  deviceRows, findEntry, isRemote, nextDownloaded, nextRepeat, outputDevice, playableSeeds,
   qualityFor, seedOf,
 } from './player/session';
 import { watchLoading, type LoadingPhase, type LoadingWatch } from './player/loading';
@@ -172,7 +172,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
               server: (item, quality) => {
                 const { api } = live.current;
                 if (!api) return Promise.reject(new Error('Signed out'));
-                return api.streaming.playback(item.trackId, { albumId: item.albumId ?? undefined, quality, codecs: codecsFor(Platform.OS) })
+                return api.streaming.playback(item.trackId, { albumId: item.albumId ?? undefined, quality, ...playbackRequest() })
                   // The native engine keeps what it streams, under the key the cache gives the stream.
                   .then(descriptor => ({ ...descriptor, cacheKey: live.current.cache?.streamKey(item, quality, descriptor) ?? null }));
               },

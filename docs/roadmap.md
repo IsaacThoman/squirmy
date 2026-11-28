@@ -115,7 +115,8 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 
 - [x] tvOS target and TestFlight upload pipeline under the existing Squirmy bundle ID
 - [x] Rebuilt on Expo Router (`tv-app/`) for tvOS 17, with the system sidebar, context menus, search field and focus effects through native modules
-- [x] Typed server connection and sign-in, remote navigation and library browsing
+- [x] Manual server connection and password sign-in, remote navigation and library browsing
+- [x] Bonjour server discovery and phone-approved QR sign-in
 - [x] Now Playing, lyrics, queue and Connect playback transfer, and AirPlay from the playback device panel
 - [x] Settings in the system's style: account, playback, library and scrobbling state
 - [x] Layered app icon and Top Shelf images
@@ -133,7 +134,7 @@ Designed in [audio-engine.md](./audio-engine.md); each item is a pull request fr
 - [ ] C2. Undoing queue edits
 - [x] M1. The native iOS and tvOS engine, behind a setting
 - [x] M2. Streaming to the cache in one pass
-- [ ] M3. Fragmented MP4 transcodes and live seeking on iOS
+- [x] M3. Fragmented MP4 transcodes and live seeking on iOS
 - [x] M4. Normalization with boost and a true-peak limiter, with a target setting
 - [x] M5. Equalizer, with presets on the phone and the TV and a custom curve on the phone
 - [x] M6. Crossfade, never within an album played in order
@@ -143,7 +144,7 @@ Designed in [audio-engine.md](./audio-engine.md); each item is a pull request fr
 - [x] W1. Ramped gain changes on the web
 - [x] W2. Gapless web playback through Media Source Extensions (Chromium; Firefox and Safari keep today's engine)
 - [x] W3. Limiter, equalizer and output device on the web
-- [ ] W4. Crossfade on the web
+- [x] W4. Crossfade on the web
 
 ## Deferred
 

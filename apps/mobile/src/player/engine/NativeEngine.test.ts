@@ -128,7 +128,7 @@ describe('NativeEngine', () => {
     const { native, engine } = setup();
     expect(engine.crossfade).toBe(true);
     engine.setCrossfade(6);
-    engine.preload({ entryId: 'b', url: 'https://music.test/stream/b', gain: 1, albumRun: true });
+    engine.preload({ entryId: 'b', url: 'https://music.test/stream/b', gain: 1, continuesAlbum: true });
     expect(native.preloaded).toMatchObject({ entryId: 'b', albumRun: true });
     engine.preload({ entryId: 'c', url: 'https://music.test/stream/c', gain: 1 });
     expect(native.preloaded).toMatchObject({ entryId: 'c', albumRun: false });

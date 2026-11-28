@@ -140,7 +140,7 @@ export class NativeEngine implements PlayerEngine {
   }
 }
 
-function item(request: Omit<EngineLoad, 'autoplay'> & { albumRun?: boolean }): NativeItem {
+function item(request: Omit<EngineLoad, 'autoplay'> & { continuesAlbum?: boolean }): NativeItem {
   return {
     entryId: request.entryId,
     url: request.url,
@@ -151,6 +151,6 @@ function item(request: Omit<EngineLoad, 'autoplay'> & { albumRun?: boolean }): N
     // Every server transcode goes through the stream decoder and every original through the
     // file reader, so a format never alternates between two decoders.
     decoder: request.media?.transcoded ? 'stream' : 'file',
-    albumRun: request.albumRun ?? false,
+    albumRun: request.continuesAlbum ?? false,
   };
 }

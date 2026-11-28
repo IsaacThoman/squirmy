@@ -8,10 +8,11 @@ Open your Squirmy TestFlight invitation on an iPhone or iPad signed into the sam
 
 ## Connect and sign in
 
-1. Select **Server address** and type the address of your Squirmy server, such as `music.example.com` or `http://192.168.1.20:4747` on your home network. Choose **Continue**. If Apple TV asks for Local Network access, allow it so the app can reach a server on your network.
-2. Type your Squirmy username and password and choose **Sign In**. With an invite code you can choose **Create Account** instead.
+1. Allow Local Network access if Apple TV asks. Choose your server if it appears nearby. Otherwise enter its **Server address**, such as `music.example.com` or `http://192.168.1.20:4747`, and choose **Continue**. Server administrators can [enable LAN discovery](../server/authentication.md#lan-discovery).
+2. Scan the QR code with your phone’s Camera. In the browser, sign in to the indicated Squirmy server if prompted. You can also choose **Open in Squirmy for iOS**, or enter the code under **Account → Sign in a TV…** in the iOS app while signed in to that server.
+3. Check the TV name, address, code, and account on your phone, then choose **Approve TV**. The Apple TV signs in on its own. Codes last ten minutes. If one expires, choose **Get a New Code** on the TV.
 
-When a field opens the keyboard, Apple TV also offers it on your iPhone: accept the notification and type there. Use the web app to [set up the server](../server/quick-start.md) or [create an account from an invite](../server/users.md) first if you need to. For a server outside your home, use [HTTPS](../server/reverse-proxy.md).
+If password sign-in is allowed, **Use Password** opens the username and password form, including account creation for an invite. Older servers go straight to that form. When a field opens the keyboard, Apple TV also offers it on your iPhone. Use the web app to [set up the server](../server/quick-start.md) if it is new, and use [HTTPS](../server/reverse-proxy.md) for a server outside your home.
 
 ## Getting around
 

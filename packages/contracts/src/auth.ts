@@ -53,6 +53,7 @@ export const SetupStatus = z.object({
   sharingEnabled: z.boolean().default(false),
   /** Older servers omit this and accept TVs that identify as `other`. */
   supportsTvDevices: z.literal(true).optional(),
+  supportsTvPairing: z.literal(true).optional(),
   /** Whether the sign-in page can offer passkeys: PUBLIC_URL is an https address (or localhost). */
   passkeysAvailable: z.boolean().default(false),
   /** The single sign-on provider's name for "Sign in with …", or null when it is off. */
@@ -87,6 +88,44 @@ export type RegisterRequest = z.infer<typeof RegisterRequest>
  */
 export const AuthResponse = z.object({ user: User, token: z.string() })
 export type AuthResponse = z.infer<typeof AuthResponse>
+
+/** Eight characters with ambiguous glyphs removed, with an optional dash when entered. */
+export const pairingAlphabet = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'
+export const PairingUserCode = z.string().trim().toUpperCase()
+  .regex(/^[2-9A-HJ-NP-Z]{4}-?[2-9A-HJ-NP-Z]{4}$/, 'Enter the eight characters shown on the TV.')
+  .transform(code => code.replace('-', ''))
+const PairingDeviceCode = z.string().regex(/^[A-Za-z0-9_-]{43}$/)
+
+export const StartTvPairing = z.object({
+  device: ClientDevice.extend({ kind: z.literal('tv'), name: ClientDevice.shape.name.trim().min(1) }),
+})
+export const TvPairing = z.object({
+  deviceCode: PairingDeviceCode,
+  userCode: z.string(),
+  verificationUrl: z.url(),
+  qrCode: z.string(),
+  expiresAt: IsoDateTime,
+  expiresInSeconds: z.number().int().positive(),
+  intervalSeconds: z.number().int().positive(),
+})
+export type TvPairing = z.infer<typeof TvPairing>
+
+export const PollTvPairing = z.object({ deviceCode: PairingDeviceCode })
+export const TvPairingPoll = z.discriminatedUnion('status', [
+  z.object({ status: z.enum(['pending', 'slow_down']), intervalSeconds: z.number().int().positive() }),
+  z.object({ status: z.literal('approved'), session: AuthResponse }),
+])
+export type TvPairingPoll = z.infer<typeof TvPairingPoll>
+
+export const LookupTvPairing = z.object({ code: PairingUserCode })
+export const TvPairingPreview = z.object({
+  id: Id,
+  deviceName: z.string(),
+  ipAddress: z.string(),
+})
+export type TvPairingPreview = z.infer<typeof TvPairingPreview>
+
+export const ApproveTvPairing = LookupTvPairing.extend({ id: Id })
 
 /**
  * Changing the password also deletes the account's app passwords, since one minted by
@@ -192,7 +231,7 @@ export type CreateAppPasswordRequest = z.infer<typeof CreateAppPasswordRequest>
  * How a session was signed in. Null for sessions from before the server recorded it. Values a
  * newer server adds read as null, so an older client still lists the session.
  */
-export const SignInMethod = z.enum(['password', 'two_factor', 'recovery_code', 'passkey', 'sso'])
+export const SignInMethod = z.enum(['password', 'two_factor', 'recovery_code', 'passkey', 'sso', 'tv_pairing'])
 export type SignInMethod = z.infer<typeof SignInMethod>
 
 /** One signed-in browser or app. `current` is the session making the request. */

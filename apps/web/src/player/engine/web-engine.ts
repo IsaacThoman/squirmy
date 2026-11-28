@@ -3,7 +3,7 @@ import type { PlaybackQuery } from '@squirmy/contracts'
 import { playableCodecs } from '@/lib/codecs'
 import type { EqGains } from './equalizer'
 import { AUDIO_BLOCKED_MESSAGE, clampPosition, mediaErrorMessage, playFailure } from './errors'
-import { EngineOutput, supportsLimiter, type OutputOptions } from './output'
+import { EngineOutput, supportsLimiter, type AttachOutput, type OutputOptions } from './output'
 import type { BrowserEngine } from './types'
 
 type Entry = { entryId: string; url: string; gain: number }
@@ -23,6 +23,8 @@ export type WebEngineOptions = {
   limiter?: boolean
   /** Makes the limiter node (see `OutputOptions`). */
   createLimiter?: OutputOptions['createLimiter']
+  /** Plays into a stage of another's graph instead of a chain of its own (`CrossfadeEngine`). */
+  attachOutput?: AttachOutput
   /** How long a suspended `AudioContext` gets to resume before audio counts as blocked. */
   resumeTimeoutMs?: number
   /** Playing without the position moving for this long counts as buffering. */
@@ -237,6 +239,12 @@ export class WebPlayerEngine implements BrowserEngine {
     return this.output.setSink(sinkId)
   }
 
+  /** The loaded entry's length, once the element knows it. */
+  entryDurationMs(): number | null {
+    const { audio, entry } = this.current
+    return entry && Number.isFinite(audio.duration) ? audio.duration * 1000 : null
+  }
+
   /** Stops playback and releases the elements and the audio context. */
   dispose(): void {
     this.stop()
@@ -398,14 +406,13 @@ export class WebPlayerEngine implements BrowserEngine {
   private ensureContext(): AudioContext {
     if (this.context) return this.context
     const context = this.options.createContext?.() ?? new AudioContext()
-    const destination = this.options.output?.(context) ?? context.destination
     // Set first: `applyGain` needs the context, or the loaded entry would play at unity gain.
     this.context = context
-    const chain = this.output.attach(context, destination, {
-      createLimiter: this.limiter ? this.options.createLimiter : null,
-      // In the chain, the limiter lets a boost through; gone, it holds gains to 1 again.
-      onLimiterChange: () => { for (const voice of [this.current, this.spare]) this.applyGain(voice) },
-    })
+    // In the chain, the limiter lets a boost through; gone, it holds gains to 1 again.
+    const onLimiterChange = () => { for (const voice of [this.current, this.spare]) this.applyGain(voice) }
+    const chain = this.options.attachOutput?.(context, onLimiterChange)
+      ?? this.output.attach(context, this.options.output?.(context) ?? context.destination, { createLimiter: this.limiter ? this.options.createLimiter : null, onLimiterChange })
+    if (this.options.attachOutput) this.output.adopt(chain)
     for (const voice of [this.current, this.spare]) {
       voice.gain = context.createGain()
       context.createMediaElementSource(voice.audio).connect(voice.gain).connect(chain.input)

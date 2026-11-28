@@ -39,10 +39,10 @@ export interface PlayerEngine {
    * Without a preload, it emits `ended` and stays on the finished entry in state
    * `ended` at its end position.
    *
-   * An engine that crossfades starts the preloaded entry up to the fade's length before
-   * the loaded one ends (unless it is an `albumRun`), and `ended` goes out when the
-   * preloaded entry's first sample plays: before the finished entry's last one, which
-   * fades out under it.
+   * An engine that crossfades starts the preloaded entry up to the fade's length before the
+   * loaded one ends, and emits `ended` for the loaded one when the preloaded one's first
+   * sample plays; `getStatus()` reports the new entry from then on. It never crossfades into
+   * an entry that `continuesAlbum`.
    */
   preload(request: EnginePreload | null): void
   /** Starts or resumes the loaded entry. No-op without one or while `loading`/`playing`. */
@@ -87,10 +87,11 @@ export type EnginePreload = {
   gain: number
   media?: EngineMedia
   /**
-   * The entry continues the loaded one's album in album order (the session's context is that
-   * album and shuffle is off), so an engine that crossfades plays into it gapless instead.
+   * The preloaded entry is the next song of the loaded one's album in album order (the
+   * session's context is that album and shuffle is off), so it follows gaplessly, never
+   * crossfaded.
    */
-  albumRun?: boolean
+  continuesAlbum?: boolean
 }
 
 /**

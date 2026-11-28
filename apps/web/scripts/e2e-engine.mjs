@@ -2,7 +2,8 @@
 // on the /dev/engine page with the tones from scripts/dev-audio.mjs: `WebPlayerEngine` (two
 // elements) and `MseEngine` (one timeline through Media Source Extensions). It runs the output
 // chain's true-peak limiter (the AudioWorklet) and equalizer on the iOS engine's test values,
-// rendered offline, so silently and sample for sample. With a fixture
+// rendered offline, so silently and sample for sample, and records a crossfade between two
+// tones (the iOS engine's test values: power within 0.5 dB through a 4 s fade). With a fixture
 // library it also measures MseEngine through the server's own streams, recorded sample by
 // sample through an AudioWorklet: the boundary between the two halves of a split tone,
 // seeks inside and outside the buffer, and a background tab through three track changes.
@@ -178,6 +179,7 @@ try {
   await browser.close()
 }
 for (const kind of kinds) if (browserName === 'chromium') await blockedAutoplay(kind)
+if (browserName === 'chromium') for (const kind of kinds) await crossfade(kind)
 if (fixtures && kinds.includes('mse')) await measure(fixtures)
 
 console.log(`\n${results.length - failed} of ${results.length} checks passed`)
@@ -487,6 +489,69 @@ async function blockedAutoplay(kind) {
   }
 }
 
+/** The amplitude of a sine at `frequency` in `frames` frames of the left channel from `from`: a whole number of cycles. */
+function amplitudeAt(samples, from, frames, frequency, rate) {
+  let re = 0, im = 0
+  for (let frame = 0; frame < frames; frame += 1) {
+    const angle = 2 * Math.PI * frequency * frame / rate
+    const value = samples[2 * (from + frame)] ?? 0
+    re += value * Math.cos(angle)
+    im -= value * Math.sin(angle)
+  }
+  return 2 * Math.hypot(re, im) / frames
+}
+
+/**
+ * A 4 s crossfade between two tones of the same level (880 Hz from 2 s into its 8, then 330
+ * Hz), recorded from the graph: the level stays within 0.5 dB through the fade (equal power),
+ * the fade takes the setting and ends as the first tone does, and `ended` comes as the second
+ * one starts. Muted.
+ */
+async function crossfade(kind) {
+  const browser = await chromium.launch({ args: launchArgs })
+  try {
+    const { page } = await openEngine(browser, `engine=${kind}&rate=44100&muted=1&crossfade=4`)
+    const result = await page.evaluate(async () => {
+      const { engine, until, wait, source } = window.t
+      engine.warm()
+      await until(() => window.squirmyEngine.recorder, 5000)
+      const recording = window.squirmyEngine.recorder()
+      let atEnded = null
+      const off = engine.subscribe(event => { if (event.type === 'ended' && !atEnded) atEnded = engine.getStatus() })
+      engine.load({ entryId: 'd1', ...source('d'), startMs: 2000, autoplay: true, gain: 1 })
+      engine.preload({ entryId: 'e1', ...source('e'), gain: 1 })
+      await until(() => atEnded, 15_000)
+      await wait(5000)
+      off()
+      engine.stop()
+      await wait(100)
+      return { samples: await recording.stop(), atEnded }
+    })
+    const samples = channels(result.samples)
+    const rate = 44_100, window = 4410, hop = 2205, full = 0.02
+    const windows = []
+    for (let from = 0; from + window < samples.length / 2; from += hop) {
+      windows.push({ at: from / rate, rms: rms(samples, from, null, 0, window), outgoing: amplitudeAt(samples, from, window, 880, rate), incoming: amplitudeAt(samples, from, window, 330, rate) })
+    }
+    const sounding = windows.filter(({ rms: level }) => level > full / 10)
+    // Away from where the first tone starts and the second is stopped.
+    const steady = sounding.slice(4, -4)
+    const levels = steady.map(({ rms: level }) => 20 * Math.log10(level / (full / Math.SQRT2)))
+    // Each tone over -40 dB of its level: 98.7% of an equal-power fade.
+    const both = windows.filter(({ outgoing, incoming }) => outgoing > full / 100 && incoming > full / 100)
+    const fadeSeconds = both.length ? both.at(-1).at - both[0].at + window / rate : 0
+    const start = sounding[0]?.at ?? 0
+    const outgoingEnd = windows.filter(({ outgoing }) => outgoing > full / 100).at(-1)?.at ?? 0
+    check(`${kind}: a 4 s crossfade keeps the power within 0.5 dB`, levels.length > 100 && Math.max(...levels.map(Math.abs)) <= 0.5,
+      `${Math.min(...levels).toFixed(2)} to ${Math.max(...levels).toFixed(2)} dB over ${(steady.length * hop / rate).toFixed(1)} s`)
+    check(`${kind}: the fade takes the setting and ends with the first tone`, Math.abs(fadeSeconds - 4) < 0.35 && Math.abs(outgoingEnd + window / rate - start - 6) < 0.3,
+      `both tones heard for ${fadeSeconds.toFixed(2)} s, the first ending ${(outgoingEnd + window / rate - start).toFixed(2)} s after it started`)
+    check(`${kind}: ended comes as the second tone starts`, result.atEnded?.entryId === 'e1' && result.atEnded.state === 'playing' && result.atEnded.positionMs < 300, JSON.stringify(result.atEnded))
+  } finally {
+    await browser.close()
+  }
+}
+
 /** Interleaved 32-bit float stereo, decoded by ffmpeg at `rate`. */
 function decode(file, rate) {
   const bytes = execFileSync(process.env.FFMPEG_PATH ?? 'ffmpeg', ['-v', 'error', '-i', file, '-ar', String(rate), '-ac', '2', '-f', 'f32le', '-acodec', 'pcm_f32le', '-'], { maxBuffer: 256 * 1024 * 1024 })
@@ -692,7 +757,19 @@ async function measure(dir) {
       const detail = `${descriptors[0].profile}, boundary ${second.gap} samples, ${wrong} samples wrong (largest difference ${largest})${first}`
       // Lossy: an entry's first frame is no further from the original than ffmpeg's decode of it (within 1 dB).
       const accurate = !settle || found.every(part => part.carried <= part.fresh * 1.12)
-      if (label === 'flac_mp4') check(`${label}: the halves meet at 0 samples with no sample wrong`, second.gap === 0 && wrong === 0, detail)
+      if (label === 'flac_mp4') {
+        check(`${label}: the halves meet at 0 samples with no sample wrong`, second.gap === 0 && wrong === 0, detail)
+        // The next song of an album never crossfades.
+        const faded = await openEngine(measureBrowser, 'engine=mse&rate=44100&muted=1&crossfade=4')
+        await faded.page.evaluate(async () => {
+          window.t.engine.warm()
+          await window.t.until(() => window.squirmyEngine.recorder, 5000)
+        })
+        const album = entries.map(item => ({ ...item, load: { ...item.load, continuesAlbum: true } }))
+        const [, joined] = boundaries(channels((await play(faded.page, album)).samples), album.map(item => item.reference)) ?? []
+        check(`${label}: with crossfade on, an album's halves still meet at 0 samples`, joined?.gap === 0 && joined.wrong === 0, `boundary ${joined?.gap} samples, ${joined?.wrong} wrong`)
+        await faded.context.close()
+      }
       else if (label === 'aac_mp4_256') check(`${label}: the halves meet at 0 samples, every sample after each first frame as decoded, those frames as accurate`, second.gap === 0 && wrong === 0 && accurate, detail)
       else console.log(`info  ${label}: ${detail}`)
     }

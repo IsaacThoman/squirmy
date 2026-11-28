@@ -1299,7 +1299,7 @@ export class SessionClient {
         this.hold(next.id, descriptor)
         engine.preload({
           entryId: next.id, url: streamUrl(baseUrl, descriptor), gain: this.gainOf(next, descriptor, predicted), media: mediaOf(descriptor),
-          albumRun: this.continuesAlbum(current, next, session, predicted),
+          continuesAlbum: this.followsInAlbum(current, next, session, predicted),
         })
       },
       error => {
@@ -1361,7 +1361,7 @@ export class SessionClient {
    * it (`inAlbumContext`) and `next` was not slotted in with Play next. Such a pair is never
    * crossfaded, so an album meant to play gapless does.
    */
-  private continuesAlbum(current: QueueEntry, next: QueueEntry, session: Session, predicted: Session): boolean {
+  private followsInAlbum(current: QueueEntry, next: QueueEntry, session: Session, predicted: Session): boolean {
     return !next.queued && current.albumId !== null && current.albumId === next.albumId && this.inAlbumContext(current, session) && this.inAlbumContext(next, predicted)
   }
 

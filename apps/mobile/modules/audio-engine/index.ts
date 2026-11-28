@@ -54,6 +54,11 @@ export type SquirmyAudio = {
   setFade?(level: number): void;
   /** Synchronous, with the position read from the clock now. */
   getStatus(): NativeStatus;
+  /**
+   * The codecs to send in `/tracks/:id/playback`, such as `['flac', 'alac', 'aac', 'mp3', 'wav',
+   * 'aiff', 'opus']`: Opus only when this device decodes it, decided once per run.
+   */
+  probeCodecs?(): string[];
   /** A TestFlight build, which shows the engine setting as development builds do. */
   readonly isTestFlight?: boolean;
   /**

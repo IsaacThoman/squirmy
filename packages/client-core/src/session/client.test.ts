@@ -845,6 +845,22 @@ describe('SessionClient engine', () => {
     expect(context.calls('preload').at(-1)?.[1]).toMatchObject({ media: { transcoded: true, gapless } })
   })
 
+  it('says when the preloaded entry is the next song of the album playing, which an engine never crossfades into', async () => {
+    const context = setup()
+    await context.settle()
+    const ALBUM = '00000000-0000-4000-8000-0000000000a1'
+    const album = (...ns: number[]) => seeds(...ns).map(seed => ({ ...seed, albumId: ALBUM }))
+    context.client.dispatch({ type: 'playTracks', tracks: album(1, 2, 3), seed: 1, context: { type: 'album', id: ALBUM, title: 'One' } })
+    await context.settle()
+    expect(context.calls('preload').at(-1)?.[1]).toMatchObject({ continuesAlbum: true })
+    context.client.dispatch({ type: 'playTracks', tracks: album(1, 2, 3), seed: 1, shuffle: true, context: { type: 'album', id: ALBUM, title: 'One' } })
+    await context.settle()
+    expect(context.calls('preload').at(-1)?.[1]).toMatchObject({ continuesAlbum: false })
+    context.client.dispatch({ type: 'playTracks', tracks: album(1, 2, 3), seed: 1, context: { type: 'playlist', id: 'list-1', title: 'Mix' } })
+    await context.settle()
+    expect(context.calls('preload').at(-1)?.[1]).toMatchObject({ continuesAlbum: false })
+  })
+
   it('passes the cache key the app gave a stream on to the engine', async () => {
     const context = setup()
     context.resolvePlayback.mockImplementation(async entry => ({ ...descriptor(entry), cacheKey: `${entry.trackId}:original` }))
@@ -2067,21 +2083,21 @@ describe('SessionClient crossfade', () => {
     context.client.dispatch(command)
     for (const next of then) context.client.dispatch(next)
     await context.settle()
-    return context.engine.preloaded as (FakeEngine['preloaded'] & { albumRun?: boolean }) | null
+    return context.engine.preloaded as (FakeEngine['preloaded'] & { continuesAlbum?: boolean }) | null
   }
 
   it('marks the next song of the album it plays in order, which is never crossfaded into', async () => {
     const preload = await preloaded({ type: 'playTracks', tracks: fromAlbum(1, 2, 3), seed: 1, context: albumContext })
-    expect(preload).toMatchObject({ albumRun: true })
+    expect(preload).toMatchObject({ continuesAlbum: true })
   })
 
   it('crossfades anything else: another context, shuffle, a song slotted in with Play next', async () => {
     expect(await preloaded({ type: 'playTracks', tracks: fromAlbum(1, 2, 3), seed: 1, context: { type: 'playlist', id: 'p', title: 'P' } }))
-      .toMatchObject({ albumRun: false })
+      .toMatchObject({ continuesAlbum: false })
     expect(await preloaded({ type: 'playTracks', tracks: fromAlbum(1, 2, 3), seed: 1, shuffle: true, context: albumContext }))
-      .toMatchObject({ albumRun: false })
+      .toMatchObject({ continuesAlbum: false })
     expect(await preloaded({ type: 'playTracks', tracks: fromAlbum(1, 2, 3), seed: 1, context: albumContext }, [
       { type: 'enqueue', tracks: fromAlbum(3), placement: 'next' },
-    ])).toMatchObject({ albumRun: false })
+    ])).toMatchObject({ continuesAlbum: false })
   })
 })

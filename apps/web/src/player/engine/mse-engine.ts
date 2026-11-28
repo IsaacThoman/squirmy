@@ -3,7 +3,7 @@ import type { PlaybackQuery, StreamIntent, StreamProfile } from '@squirmy/contra
 import { mseTypesFor } from '@/lib/codecs'
 import type { EqGains } from './equalizer'
 import { AUDIO_BLOCKED_MESSAGE, clampPosition, mediaErrorMessage, playFailure } from './errors'
-import { EngineOutput, supportsLimiter, type OutputOptions } from './output'
+import { EngineOutput, supportsLimiter, type AttachOutput, type OutputOptions } from './output'
 import type { BrowserEngine } from './types'
 
 export type MseEngineOptions = {
@@ -15,6 +15,8 @@ export type MseEngineOptions = {
   limiter?: boolean
   /** Makes the limiter node (see `OutputOptions`). */
   createLimiter?: OutputOptions['createLimiter']
+  /** Plays into a stage of another's graph instead of a chain of its own (`CrossfadeEngine`). */
+  attachOutput?: AttachOutput
   createMediaSource?: () => MediaSource
   createObjectUrl?: (source: MediaSource) => string
   fetch?: typeof fetch
@@ -373,6 +375,11 @@ export class MseEngine implements BrowserEngine {
 
   setOutputDevice(sinkId: string): Promise<void> {
     return this.output.setSink(sinkId)
+  }
+
+  /** The loaded entry's length: exact from the descriptor's numbers, or the descriptor's estimate. */
+  entryDurationMs(): number | null {
+    return this.current?.durationMs || null
   }
 
   dispose(): void {
@@ -1127,13 +1134,12 @@ export class MseEngine implements BrowserEngine {
   private ensureContext(): AudioContext {
     if (this.context) return this.context
     const context = this.options.createContext?.() ?? new AudioContext()
-    const destination = this.options.output?.(context) ?? context.destination
     this.context = context
-    const chain = this.output.attach(context, destination, {
-      createLimiter: this.limiter ? this.options.createLimiter : null,
-      // In the chain, the limiter lets a boost through; gone, it holds gains to 1 again.
-      onLimiterChange: () => this.applyGain(),
-    })
+    // In the chain, the limiter lets a boost through; gone, it holds gains to 1 again.
+    const onLimiterChange = () => this.applyGain()
+    const chain = this.options.attachOutput?.(context, onLimiterChange)
+      ?? this.output.attach(context, this.options.output?.(context) ?? context.destination, { createLimiter: this.limiter ? this.options.createLimiter : null, onLimiterChange })
+    if (this.options.attachOutput) this.output.adopt(chain)
     this.gainNode = context.createGain()
     context.createMediaElementSource(this.audio).connect(this.gainNode).connect(chain.input)
     this.applyGain()

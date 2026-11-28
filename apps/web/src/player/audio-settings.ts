@@ -1,19 +1,23 @@
 import { useSyncExternalStore } from 'react'
+import { CROSSFADE_SECONDS } from './engine/crossfade-engine'
 import { DEFAULT_EQUALIZER, parseEqualizer, type Equalizer } from './engine/equalizer'
 
 /**
  * How this browser plays, rather than the account: the equalizer and the output device belong
- * to the speakers or headphones in front of it. Kept in localStorage, per browser, and followed
- * across its tabs; `EngineProvider` applies them to the page's engine.
+ * to the speakers or headphones in front of it, and crossfade is per device on every app.
+ * Kept in localStorage, per browser, and followed across its tabs; `EngineProvider` applies
+ * them to the page's engine.
  */
 export type AudioSettings = {
   equalizer: Equalizer
   /** `setSinkId`'s id of the output device, '' for the system's default. */
   outputDevice: string
+  /** Seconds songs crossfade over, 0 for off (`CROSSFADE_SECONDS`). */
+  crossfadeSeconds: number
 }
 
 export const AUDIO_STORAGE_KEY = 'squirmy.audio'
-const DEFAULTS: AudioSettings = { equalizer: DEFAULT_EQUALIZER, outputDevice: '' }
+const DEFAULTS: AudioSettings = { equalizer: DEFAULT_EQUALIZER, outputDevice: '', crossfadeSeconds: 0 }
 
 let current: AudioSettings = DEFAULTS
 let started = false
@@ -26,6 +30,7 @@ function read(): AudioSettings {
     return {
       equalizer: parseEqualizer(stored.equalizer),
       outputDevice: typeof stored.outputDevice === 'string' ? stored.outputDevice : '',
+      crossfadeSeconds: (CROSSFADE_SECONDS as readonly unknown[]).includes(stored.crossfadeSeconds) ? stored.crossfadeSeconds as number : 0,
     }
   } catch {
     return DEFAULTS

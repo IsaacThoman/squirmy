@@ -4,6 +4,7 @@ import { Row } from '@/components/ui/section'
 import { Select, type SelectOption } from '@/components/ui/select'
 import { Slider } from '@/components/ui/slider'
 import { setAudioSettings, useAudioSettings } from '@/player/audio-settings'
+import { CROSSFADE_SECONDS } from '@/player/engine/crossfade-engine'
 import { EQ_BANDS, EQ_MAX_DB, EQ_PRESETS, eqGains, type EqPreset } from '@/player/engine/equalizer'
 
 const presetOptions: SelectOption<EqPreset>[] = [
@@ -11,23 +12,29 @@ const presetOptions: SelectOption<EqPreset>[] = [
   { value: 'custom', label: 'Custom' },
 ]
 
+// The select's values are strings; the setting is a number of seconds.
+const crossfadeOptions: SelectOption<string>[] = CROSSFADE_SECONDS.map(seconds => ({ value: String(seconds), label: seconds ? `${seconds} seconds` : 'Off' }))
+
 /** Radix's select has no empty value, which is `setSinkId`'s default. */
 const DEFAULT_DEVICE = 'default'
 
 const formatGain = (gain: number) => (gain > 0 ? `+${gain}` : gain < 0 ? `−${-gain}` : '0')
 const formatBand = (frequency: number) => (frequency >= 1000 ? `${frequency / 1000}k` : String(frequency))
 
-/** Settings → Playback, for this browser: the equalizer and, where the browser can send Web Audio to one (`choosesOutput`), the output device. */
+/** Settings → Playback, for this browser: crossfade, the equalizer and, where the browser can send Web Audio to one (`choosesOutput`), the output device. */
 export function SoundSettings({ choosesOutput }: { choosesOutput: boolean }) {
-  const { equalizer, outputDevice } = useAudioSettings()
+  const { equalizer, outputDevice, crossfadeSeconds } = useAudioSettings()
   const gains = eqGains(equalizer)
   const bandsLabel = useId()
   return (
     <>
+      <Row htmlFor="crossfade" label="Crossfade" description="Fades each song into the next. Songs of an album played in order still follow each other without a gap. Kept in this browser.">
+        <Select id="crossfade" label="Crossfade" value={String(crossfadeSeconds)} options={crossfadeOptions} onValueChange={seconds => setAudioSettings({ crossfadeSeconds: Number(seconds) })} className="w-40" />
+      </Row>
       <Row htmlFor="equalizer" label="Equalizer" description="Shapes the sound for the speakers or headphones this browser plays through. Kept in this browser.">
         <Select id="equalizer" label="Equalizer" value={equalizer.preset} options={presetOptions} onValueChange={preset => setAudioSettings({ equalizer: { ...equalizer, preset } })} className="w-40" />
       </Row>
-      {equalizer.preset !== 'flat' && (
+      {equalizer.preset !== 'off' && (
         <div role="group" aria-labelledby={bandsLabel} className="rounded-lg border p-3">
           <div id={bandsLabel} className="sr-only">Equalizer bands</div>
           <div className="grid grid-cols-10 gap-0.5 @sm:gap-1">
