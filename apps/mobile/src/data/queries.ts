@@ -397,6 +397,10 @@ export function useUpdateSettings() {
       if (change.libraryIncludesServerMusic !== undefined) {
         return Promise.all([queryKeys.library(), queryKeys.home()].map(queryKey => queryClient.invalidateQueries({ queryKey })));
       }
+      // The user says whether explicit songs play (`allowsExplicit`), which grays them everywhere.
+      if (change.allowExplicit !== undefined) {
+        return Promise.all([queryKeys.me(), queryKeys.home(), ['album']].map(queryKey => queryClient.invalidateQueries({ queryKey })));
+      }
     },
   });
 }
