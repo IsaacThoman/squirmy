@@ -390,6 +390,7 @@ function InlineFeedback() {
         <PlayerStatusLine status={{ message: 'Skipped “Blue in the Dark” — not available', tone: 'info', key: 'demo' }} />
         <PlayerStatusLine status={{ message: 'Couldn’t play separately.', detail: 'Try again.', tone: 'error', key: 'demo' }} />
         <PlayerStatusLine status={{ message: 'Starting radio…', tone: 'busy', key: 'demo' }} />
+        <PlayerStatusLine status={{ message: 'Removed “Blue in the Dark”', tone: 'info', key: 'demo', action: { label: 'Undo', run: () => {} } }} />
       </div>
     </LibraryFailuresContext>
   )

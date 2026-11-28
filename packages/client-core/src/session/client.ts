@@ -15,7 +15,11 @@ import {
   type SessionMoveAck,
   type SessionQueue,
   type ServerEvent,
+  SessionQueueOps,
+  type SessionScope,
+  type SessionSnapshot,
   type SessionState,
+  type SessionSyncAck,
   type SignalPath,
 } from '@squirmy/contracts'
 import { ApiError, streamUrl } from '../api/client.js'
@@ -24,6 +28,7 @@ import { appliedGain } from '../normalization.js'
 import { signalReport } from '../signal.js'
 import { clearRepeating, setRepeating, setTimer } from '../timers.js'
 import { followsJam, memberCommandRoute } from './jam.js'
+import { applyQueueOps } from './queue-ops.js'
 import { createInitialSession, joinSession, positionAt, reduceParsedSession, type Session, splitSession } from './reducer.js'
 import { sleepFade } from './sleep.js'
 import type { SessionTransport } from './transport.js'
@@ -54,6 +59,8 @@ export type SessionClientSnapshot = {
   detached: boolean
   /** Detaching is possible: this device can play and the server said it supports it. False until a hello has. */
   canDetach: boolean
+  /** The server takes `undo` (see "Undo" in the session contract). False until a hello has said so. */
+  canUndo: boolean
   /** The server takes `setSleepTimer` (the `sleepTimer` capability). False until a hello has said so. */
   canSetSleepTimer: boolean
   /** The server takes `session:jam` (the `jam` capability): listening together. False until a hello has said so. */
@@ -262,6 +269,12 @@ type Move = {
  * waiting to be sent are dropped, because they were made for the other session. While
  * detached, everything above applies to the device's own session unchanged.
  *
+ * **Queue diffs.** The hello accepts `queueOps`, so a server that can sends most queue
+ * changes as operations on the queue held here (see "Queue diffs" in the session contract).
+ * The client tracks the `queueVersion` it holds; operations for another version or session,
+ * or that do not apply, make it ask for the whole session with `session:sync`. Until the
+ * answer it applies states with the queue it has, and drops further operations.
+ *
  * **Engine.** While active, the client loads the current entry, preloads the one that
  * would follow it, follows play/pause/seek, applies `volumes[device] × normalization`,
  * and on the engine's `ended` advances locally with `trackEnded` without waiting for the
@@ -283,6 +296,7 @@ export class SessionClient {
   /** The server state held is this device's own session. */
   private detached = false
   private serverDetaches = false
+  private serverUndoes = false
   /** The server takes and passes on `session:signal`. */
   private serverSignals = false
   /** The last signal path the server passed on, from whichever device sent it. */
@@ -295,6 +309,12 @@ export class SessionClient {
   private fadeTimer: unknown = null
   private move: Move | null = null
   private heldQueue: { version: number; queue: SessionQueue } | null = null
+  /** The `queueVersion` of the newest queue held (`heldQueue`'s, else the server state's). Null before the first hello. */
+  private queueVersion: number | null = null
+  /** Queue operations did not apply: the whole session has been asked for (`session:sync`). */
+  private outOfSync = false
+  /** A `session:sync` is waiting for its answer. */
+  private syncing = false
   private pending: Pending[] = []
   /**
    * The pause and seek `restore` adds for a session this device was playing, and the
@@ -368,7 +388,7 @@ export class SessionClient {
     const { state, queue } = splitSession(this.local)
     this.snapshot = {
       session: state, queue, devices: this.devices, connection: this.connection, isActiveDevice: this.isActive(),
-      detached: this.detached, canDetach: this.canDetach(), canSetSleepTimer: false, canJam: false, outage: null, away: null, signal: null,
+      detached: this.detached, canDetach: this.canDetach(), canSetSleepTimer: false, canUndo: false, canJam: false, outage: null, away: null, signal: null,
     }
   }
 
@@ -388,6 +408,7 @@ export class SessionClient {
       transport.onConnectionChange(connected => (connected ? this.connect() : this.disconnected())),
       transport.on('session:state', update => this.onState(update)),
       transport.on('session:queue', update => this.onQueue(update)),
+      transport.on('session:queueOps', update => this.onQueueOps(update)),
       transport.on('session:moved', update => {
         // Before the hello is answered there is nothing to replace; its answer says the same.
         if (this.connection === 'online') this.onMoved(update)
@@ -441,19 +462,22 @@ export class SessionClient {
   }
 
   /**
-   * Applies a command locally at once and sends it (now, or after reconnecting).
+   * Applies a command locally at once and sends it (now, or after reconnecting). Returns
+   * the command's id, which `undo` names it by; null when it was not sent.
    * Throws a ZodError when the command does not match `SessionCommand`.
    */
-  dispatch(command: SessionCommand): void {
+  dispatch(command: SessionCommand): string | null {
     const parsed = SessionCommand.parse(command)
     // The server refuses these. Applying one until it does would stop this device's audio
     // for the round trip, so it is not tried at all.
-    if (parsed.type === 'transfer' && this.outOfSession(parsed.deviceId)) return
+    if (parsed.type === 'transfer' && this.outOfSession(parsed.deviceId)) return null
     // The same for what only a jam's host may do, while this user follows someone's jam.
-    if (followsJam(this.local) && !this.memberMay(parsed)) return
-    this.enqueue(parsed, this.newCommandId())
+    if (followsJam(this.local) && !this.memberMay(parsed)) return null
+    const commandId = this.newCommandId()
+    this.enqueue(parsed, commandId)
     this.recompute(parsed.type === 'seek')
     this.flush()
+    return commandId
   }
 
   /**
@@ -622,7 +646,7 @@ export class SessionClient {
     const attempt = ++this.attempt
     this.setConnection('connecting')
     const sentAt = this.now()
-    const hello = { device: this.device, canPlay: Boolean(this.player), detached: this.detached }
+    const hello = { device: this.device, canPlay: Boolean(this.player), detached: this.detached, accepts: ['queueOps'] }
     this.transport.request('session:hello', hello, REQUEST_TIMEOUT_MS, (_error, reply) => {
       if (attempt !== this.attempt) return
       if (reply) return this.onHello(reply, sentAt, attempt)
@@ -686,9 +710,13 @@ export class SessionClient {
     const { snapshot } = reply
     this.server = { version: snapshot.version, session: joinSession(snapshot.state, snapshot.queue) }
     this.heldQueue = null
+    this.queueVersion = snapshot.queueVersion
+    this.outOfSync = false
+    this.syncing = false
     this.setDevices(reply.devices)
     this.detached = snapshot.scope?.type === 'device'
     this.serverDetaches = reply.capabilities?.includes('detach') ?? false
+    this.serverUndoes = reply.capabilities?.includes('undo') ?? false
     this.serverSignals = reply.capabilities?.includes('signal') ?? false
     this.remoteSignal = reply.signal ?? null
     // The server may have restarted, or this device moved session: it hears it again.
@@ -832,9 +860,66 @@ export class SessionClient {
     this.offset = serverTime - (sentAt + rtt / 2)
   }
 
-  private onQueue(update: { version: number; queue: SessionQueue }): void {
+  private onQueue(update: { version: number; queueVersion: number; queue: SessionQueue }): void {
     if (this.server && update.version <= this.server.version) return
-    if (!this.heldQueue || update.version >= this.heldQueue.version) this.heldQueue = update
+    if (this.heldQueue && update.version < this.heldQueue.version) return
+    this.heldQueue = { version: update.version, queue: update.queue }
+    // The whole queue: whatever was missing, this is it.
+    this.queueVersion = update.queueVersion
+    this.outOfSync = false
+  }
+
+  /** Operations on the queue held, held like a whole queue until the state of the same version. */
+  private onQueueOps(update: SessionQueueOps): void {
+    if (!this.server || update.version <= this.server.version || this.outOfSync) return
+    if (this.heldQueue && update.version < this.heldQueue.version) return
+    // Small, so checked whole: a server's mistake asks for the queue rather than corrupting it.
+    const parsed = SessionQueueOps.safeParse(update)
+    const base = this.heldQueue?.queue ?? splitSession(this.server.session).queue
+    const queue = parsed.success && update.baseQueueVersion === this.queueVersion && this.holdsScope(update.scope)
+      ? applyQueueOps(base, parsed.data.ops, parsed.data.lengths)
+      : null
+    if (!queue) {
+      this.outOfSync = true
+      return this.requestSync()
+    }
+    this.heldQueue = { version: update.version, queue }
+    this.queueVersion = update.queueVersion
+  }
+
+  /** `scope` is the session held here: a detached device's own counts versions of its own. */
+  private holdsScope(scope: SessionScope | undefined): boolean {
+    if (!scope) return !this.detached
+    return this.detached ? scope.type === 'device' && scope.deviceId === this.device.id : scope.type === 'shared'
+  }
+
+  /** Asks for the whole session after operations did not apply, again every few seconds until it comes. */
+  private requestSync(): void {
+    if (this.syncing || this.connection !== 'online') return
+    this.syncing = true
+    const epoch = this.epoch
+    this.transport.request('session:sync', {}, REQUEST_TIMEOUT_MS, (_error: Error | null, reply?: SessionSyncAck) => {
+      // A hello since answered with the whole session.
+      if (epoch !== this.epoch) return
+      this.syncing = false
+      if (!this.outOfSync) return
+      if (reply?.ok && this.adoptSync(reply.snapshot)) return
+      setTimer(() => {
+        if (epoch === this.epoch && this.outOfSync) this.requestSync()
+      }, RETRY_MS)
+    })
+  }
+
+  /** Makes a `session:sync` answer the server state held here, when it is of this session and not older. */
+  private adoptSync(snapshot: SessionSnapshot): boolean {
+    if (!this.server || !this.holdsScope(snapshot.scope) || snapshot.version < this.server.version) return false
+    this.server = { version: snapshot.version, session: joinSession(snapshot.state, snapshot.queue) }
+    if (this.heldQueue && this.heldQueue.version <= snapshot.version) this.heldQueue = null
+    this.queueVersion = snapshot.queueVersion
+    this.outOfSync = false
+    this.prune()
+    this.recompute()
+    return true
   }
 
   private onState(update: { version: number; state: SessionState }): void {
@@ -915,6 +1000,7 @@ export class SessionClient {
     const queueHalf = shallowEqual(previous.queue, queue) ? previous.queue : queue
     const isActiveDevice = this.isActive()
     const canDetach = this.canDetach()
+    const canUndo = this.serverUndoes
     const outage = this.outage()
     const away = this.away(previous.away)
     const signal = this.signal(previous.signal)
@@ -922,12 +1008,12 @@ export class SessionClient {
     if (
       session === previous.session && queueHalf === previous.queue && this.devices === previous.devices
       && this.connection === previous.connection && isActiveDevice === previous.isActiveDevice
-      && this.detached === previous.detached && canDetach === previous.canDetach && this.serverSleeps === previous.canSetSleepTimer
+      && this.detached === previous.detached && canDetach === previous.canDetach && this.serverSleeps === previous.canSetSleepTimer && canUndo === previous.canUndo
       && this.serverJams === previous.canJam && outage === previous.outage && away === previous.away && signal === previous.signal
     ) return
     this.snapshot = {
       session, queue: queueHalf, devices: this.devices, connection: this.connection, isActiveDevice, detached: this.detached, canDetach,
-      canSetSleepTimer: this.serverSleeps, canJam: this.serverJams, outage, away, signal,
+      canSetSleepTimer: this.serverSleeps, canUndo, canJam: this.serverJams, outage, away, signal,
     }
     for (const listener of [...this.listeners]) listener()
   }

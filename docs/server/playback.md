@@ -55,9 +55,11 @@ Albums are mastered at very different levels. Normalization evens them out so yo
 
 ## Listening history
 
-Squirmy records app plays with less than five seconds of listening as early skips when the play closes. They stay out of listening history, Home's Recently played and Most played, and scrobbles. Radio and Autoplay slightly lower a track's ranking if you skipped it early at least twice in the past 30 days. They also use the [sonic analysis](./sonic-analysis.md#how-radio-uses-it) to keep to songs that sound alike and to let tempo, key and energy flow.
+Squirmy records app plays with less than five seconds of listening as early skips when the play closes. They stay out of listening history, Home's rows, Subsonic's recently and frequently played albums, and scrobbles. Radio and Autoplay slightly lower a track's ranking if you skipped it early at least twice in the past 30 days.
 
-Home's **Most played** counts the past 90 days of plays that reached half the song or four minutes, whichever came first. Scrobbles use the same listening threshold.
+Home's **Most played** counts the past 90 days of plays that reached half the song or four minutes, whichever came first; so do mixes, **Your top artists** (30 days) and **Rediscover**, and Subsonic's `frequent` album list (all time). Scrobbles use the same listening threshold. **Jump back in** and Subsonic's `recent` list count every play but early skips.
+
+Mixes, **Because you listened to**, **Your top artists**, **Rediscover** and the time-of-day order are worked out once a day per listener, in the background: at 05:00 (server time) for everyone who played something in the past 90 days, and when someone opens Home after listening since theirs were made on an earlier day (or over an hour ago, when that run made no mixes). Similar artists come from the same sources as radio (Deezer, and ListenBrainz with a token; see [Metadata and privacy](./metadata-and-privacy.md)); with both off, mixes go by genres and listening alone and **Because you listened to** is not shown.
 
 ## The queue
 

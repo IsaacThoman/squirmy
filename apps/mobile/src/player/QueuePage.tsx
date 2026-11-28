@@ -241,7 +241,7 @@ function SortableRows({ entries, scrollGesture, onTrackMenu, autoplay = false }:
           offset={offset}
           onCommit={commit}
           onPlay={() => actions.playQueueEntry(entry.id)}
-          onRemove={() => actions.removeFromQueue(entry.id)}
+          onRemove={() => actions.removeWithUndo(entry.id, tracks.get(entry.trackId, entry.albumId)?.title)}
           onPromote={() => actions.promote(entry, tracks.get(entry.trackId, entry.albumId), autoplay)}
           openSwipe={openSwipe}
           scrollGesture={scrollGesture}

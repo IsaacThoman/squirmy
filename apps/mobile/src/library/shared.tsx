@@ -1,8 +1,7 @@
 import { albumPresentation, type Viewer } from '@squirmy/client-core';
-import type { AlbumSummary, ArtistSummary, Artwork, PlaylistSummary } from '@squirmy/contracts';
+import type { AlbumSummary } from '@squirmy/contracts';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import type { Href } from 'expo-router';
 import { useCallback, useMemo } from 'react';
 import {
   ActivityIndicator, FlatList, StyleSheet, Text, useWindowDimensions, View, type StyleProp, type ViewStyle, type NativeScrollEvent, type NativeSyntheticEvent,
@@ -10,10 +9,10 @@ import {
 import { loadFailure } from '../data/errors';
 import { useRealtime } from '../data/realtime';
 import { useKeptCollections, useViewer } from '../downloads/DownloadsProvider';
+import type { Collection } from './collections';
 import { Cover, Icon } from '../ui';
 import { BrowseButton, CollectionTile } from './BrowseControls';
 import { useCollectionActions } from './collectionActions';
-import type { Page } from './links';
 import { mosaicCovers } from './mosaic';
 import { displayFontScale, secondaryFontScale } from '../fontScale';
 import { createThemedStyles, useColors } from '../theme';
@@ -53,68 +52,17 @@ export function tapFeedback() {
   void Haptics.selectionAsync();
 }
 
-/** Anything the browse screens show as a tile or row: an album, artist, playlist, or one of the built-in lists. */
-export type Collection = {
-  key: string;
-  kind: 'album' | 'artist' | 'playlist' | 'liked' | 'recent';
-  title: string;
-  subtitle: string;
-  href: Href;
-  artwork?: Artwork | null;
-  /** A playlist's covers, shown as a mosaic. */
-  artworks?: readonly Artwork[];
-  special?: 'liked' | 'recent' | 'playlist';
-  round?: boolean;
-  /** Nothing on it plays for this viewer, or not downloaded while offline: drawn gray, cover and title alike. */
-  dim?: boolean;
-  /** An album's availability, which `useCollectionDim` reads with the viewer's rights. */
-  availability?: AlbumSummary['availability'];
-  /** An album's credited artists, for its menu's "Go to artist". */
-  artists?: readonly { id: string; name: string; href: Href }[];
-  /** `artists` leaves out the artist whose page the tile is on, so its menu names each one left. */
-  otherArtists?: boolean;
-  /** Pinned to the top of the Library; known only for the Library's own list, whose first page starts with the pins. */
-  pinned?: boolean;
-};
-
-type Link = (page: Page, id: string) => Href;
-
-export const likedId = 'liked';
-export const recentId = 'recent';
-
-/** An album as a tile. Gray when nothing on it plays for anyone; `useCollectionDim` adds what the viewer can't fetch. */
-export function albumCollection(album: AlbumSummary, link: Link, subtitle = album.artistCredit): Collection {
-  return {
-    key: album.id, kind: 'album', title: album.title, subtitle, href: link('album', album.id), artwork: album.artwork,
-    dim: album.availability === 'none', availability: album.availability,
-    artists: album.artists.map(artist => ({ id: artist.id, name: artist.name, href: link('artist', artist.id) })),
-  };
-}
-
-/** An artist as a tile. Never gray online: an artist's page lists their music whether or not it is in the library. */
-export function artistCollection(artist: ArtistSummary, link: Link): Collection {
-  return { key: artist.id, kind: 'artist', title: artist.name, subtitle: 'Artist', href: link('artist', artist.id), artwork: artist.image, round: true };
-}
-
-export function playlistCollection(playlist: PlaylistSummary, link: Link): Collection {
-  return {
-    key: playlist.id, kind: 'playlist', title: playlist.name, subtitle: `Playlist · ${playlist.ownerName}`, href: link('playlist', playlist.id),
-    artworks: playlist.artworks, special: 'playlist',
-  };
-}
-
-export function likedCollection(link: Link): Collection {
-  return { key: likedId, kind: 'liked', title: 'Liked Songs', subtitle: 'Playlist', href: link('playlist', likedId), special: 'liked' };
-}
-
-export function recentCollection(link: Link): Collection {
-  return { key: recentId, kind: 'recent', title: 'Recently Played', subtitle: 'Listening history', href: link('playlist', recentId), special: 'recent' };
-}
+export {
+  albumCollection, artistCollection, homeItemCollection, likedCollection, likedId, mixCollection, playlistCollection, radioCollection,
+  recentCollection, recentId, type Collection,
+} from './collections';
 
 const gradients = {
   liked: { colors: ['#C6B4FA', '#7862B4', '#30274A'], icon: 'heart.fill' },
   recent: { colors: ['#49665F', '#324747', '#212F3B'], icon: 'clock.arrow.circlepath' },
   playlist: { colors: ['#6C5A8E', '#47395F', '#272033'], icon: 'music.note.list' },
+  mix: { colors: ['#5E5A7A', '#3D3A56', '#252338'], icon: 'waveform' },
+  radio: { colors: ['#7A5A5E', '#563A3D', '#382325'], icon: 'dot.radiowaves.left.and.right' },
 } as const;
 
 export function CollectionCover({ item, size, radius = 13 }: { item: Collection; size: number; radius?: number }) {

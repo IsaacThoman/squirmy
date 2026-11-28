@@ -1,4 +1,5 @@
 export * from './session/reducer.js'
+export * from './session/queue-ops.js'
 export * from './session/scope.js'
 export * from './session/sleep.js'
 export * from './session/jam.js'

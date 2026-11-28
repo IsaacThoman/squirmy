@@ -78,6 +78,25 @@ describe('PlayerProvider', () => {
     expect(within(next).queryByRole('button', { name: 'Play Soft Signal' })).toBeNull()
   })
 
+  it('offers Undo on the status line after a queue edit, and the server puts it back', async () => {
+    const { services, socket } = fakeServices()
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    await playAlbum()
+    await userEvent.click(screen.getByRole('button', { name: 'Queue' }))
+    const panel = await screen.findByRole('complementary', { name: 'Queue' })
+    await waitFor(() => expect(within(panel).getByRole('button', { name: 'Remove Soft Signal from queue' })).toBeInTheDocument())
+    const queued = socket.session.queue.map(entry => entry.id)
+    await userEvent.click(within(panel).getByRole('button', { name: 'Remove Soft Signal from queue' }))
+
+    const player = screen.getByRole('region', { name: 'Player' })
+    expect(await within(player).findByText('Removed “Soft Signal”')).toBeInTheDocument()
+    await userEvent.click(within(player).getByRole('button', { name: 'Undo' }))
+    await waitFor(() => expect(socket.session.queue.map(entry => entry.id)).toEqual(queued))
+    expect(socket.commands.at(-1)).toEqual({ type: 'undo', commandId: expect.any(String) })
+    expect(within(player).queryByText('Removed “Soft Signal”')).toBeNull()
+    expect(await within(panel).findByRole('button', { name: 'Play Soft Signal' })).toBeInTheDocument()
+  })
+
   it('changes the playing track’s heart at once and tells the server', async () => {
     const { services, api } = fakeServices()
     const first = blueHour.discs[0].tracks[0]
