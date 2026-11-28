@@ -14,6 +14,7 @@ export type RemoteControls = {
   onNext: () => void;
   onPrevious: () => void;
   onSeek: (positionMs: number) => void;
+  queueFor?: (entryId: string) => { index: number; count: number } | null;
   /**
    * The star (Apple Music's favorite), which is the heart. `favoriteFor` says how it shows
    * for an entry; a tap asks `onFavorite` for the other way, saved or not.
@@ -34,11 +35,25 @@ export function connectNowPlaying(
   engine: PlayerEngine,
   itemFor: (entryId: string) => NowPlayingItem | null,
   controls: RemoteControls,
-): { refresh: () => void; refreshFavorite: () => void; hold: (entryId: string | null) => void; disconnect: () => void } {
+): {
+  refresh: () => void; refreshFavorite: () => void; refreshQueue: () => void;
+  setCarPlayConnected: (connected: boolean) => void; hold: (entryId: string | null) => void; disconnect: () => void;
+} {
   const native = NowPlaying;
-  if (!native) return { refresh: () => undefined, refreshFavorite: () => undefined, hold: () => undefined, disconnect: () => undefined };
+  if (!native) return {
+    refresh: () => undefined, refreshFavorite: () => undefined, refreshQueue: () => undefined,
+    setCarPlayConnected: () => undefined, hold: () => undefined, disconnect: () => undefined,
+  };
   let shown: string | null = null;
   let held: string | null = null;
+  let carPlayConnected = false;
+  let queuePosition: { index: number; count: number } | null = null;
+  const refreshQueue = () => {
+    const next = carPlayConnected && shown ? controls.queueFor?.(shown) ?? null : null;
+    if (next?.index === queuePosition?.index && next?.count === queuePosition?.count) return;
+    queuePosition = next;
+    void native.setQueuePosition?.(next?.index ?? null, next?.count ?? null);
+  };
   // What the star shows, so a heart change sends only what changed.
   let favorite = noFavorite;
 
@@ -51,6 +66,7 @@ export function connectNowPlaying(
   const hide = () => {
     if (shown) void native.clear();
     shown = null;
+    queuePosition = null;
     // Clearing hides the star too.
     favorite = noFavorite;
   };
@@ -64,6 +80,7 @@ export function connectNowPlaying(
       shown = status.entryId;
       void native.setItem(item);
       showFavorite();
+      refreshQueue();
     }
     // While buffering the clock stands still, so the lock screen should not run ahead.
     void native.setPlayback(status.state === 'playing', status.positionMs);
@@ -96,12 +113,20 @@ export function connectNowPlaying(
   return {
     refresh: () => show(engine.getStatus(), true),
     refreshFavorite: showFavorite,
+    refreshQueue,
+    setCarPlayConnected: connected => {
+      if (connected === carPlayConnected) return;
+      carPlayConnected = connected;
+      void native.setCarPlayConnected?.(connected);
+      refreshQueue();
+    },
     hold: entryId => {
       if (entryId === held) return;
       held = entryId;
       show(engine.getStatus());
     },
     disconnect: () => {
+      void native.setCarPlayConnected?.(false);
       commands.remove();
       unsubscribe();
       hide();

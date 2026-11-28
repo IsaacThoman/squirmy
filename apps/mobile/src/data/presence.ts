@@ -20,6 +20,8 @@ export class BackgroundPresence {
   private closed = false;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private playing = false;
+  private carPlayActive = false;
+  private mediaRequest = false;
 
   /** `foreground`: where the app is now. An app that starts in the background with nothing playing closes too. */
   constructor(private readonly socket: Socket, private foreground: boolean, private readonly delayMs = PARK_DELAY_MS) {
@@ -46,6 +48,20 @@ export class BackgroundPresence {
     this.follow();
   }
 
+  /** The car's scene can be foreground while the phone is locked. */
+  setCarPlayActive(active: boolean): void {
+    if (active === this.carPlayActive) return;
+    this.carPlayActive = active;
+    this.follow();
+  }
+
+  /** Siri can wake the phone briefly to look up what the user asked to play. */
+  setMediaRequest(active: boolean): void {
+    if (active === this.mediaRequest) return;
+    this.mediaRequest = active;
+    this.follow();
+  }
+
   dispose(): void {
     clearTimeout(this.timer);
   }
@@ -53,7 +69,7 @@ export class BackgroundPresence {
   private follow(): void {
     clearTimeout(this.timer);
     this.timer = undefined;
-    if (this.foreground || this.playing) {
+    if (this.foreground || this.playing || this.carPlayActive || this.mediaRequest) {
       if (!this.closed) return;
       this.closed = false;
       this.socket.connect();

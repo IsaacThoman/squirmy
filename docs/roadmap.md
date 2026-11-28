@@ -71,6 +71,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] A personal library: the library is what you heart (uploads hearted for their uploader), the server's music on Home and On this server, an opt-in to include all of it; Your uploads and Admin → Uploads to delete uploaded music (web; iOS next)
 - [x] Fingerprinting for untagged files
 - [x] Offline downloads on mobile
+- [x] iPhone CarPlay browsing, playback and Siri media requests ([iOS guide](./use/ios.md#carplay))
 
 ## 8. Providers and extras
 

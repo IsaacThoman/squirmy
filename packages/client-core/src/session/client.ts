@@ -245,6 +245,7 @@ export class SessionClient {
   /** The server state held is this device's own session. */
   private detached = false
   private serverDetaches = false
+  private serverPlaysHere = false
   private move: Move | null = null
   private heldQueue: { version: number; queue: SessionQueue } | null = null
   private pending: Pending[] = []
@@ -388,12 +389,18 @@ export class SessionClient {
    */
   dispatch(command: SessionCommand): void {
     const parsed = SessionCommand.parse(command)
+    if ('playHere' in parsed && parsed.playHere && !this.serverPlaysHere) return
     // The server refuses these. Applying one until it does would stop this device's audio
     // for the round trip, so it is not tried at all.
     if (parsed.type === 'transfer' && this.outOfSession(parsed.deviceId)) return
     this.enqueue(parsed, this.newCommandId())
     this.recompute(parsed.type === 'seek')
     this.flush()
+  }
+
+  /** The server understands an atomic play command that claims its sending device. */
+  supportsPlayHere(): boolean {
+    return this.serverPlaysHere
   }
 
   /**
@@ -616,6 +623,10 @@ export class SessionClient {
     this.setDevices(reply.devices)
     this.detached = snapshot.scope?.type === 'device'
     this.serverDetaches = reply.capabilities?.includes('detach') ?? false
+    this.serverPlaysHere = reply.capabilities?.includes('play-here') ?? false
+    // A server downgraded while the client was away would ignore playHere. Do not send
+    // those old commands without their output rule.
+    if (!this.serverPlaysHere) this.pending = this.pending.filter(({ command }) => !('playHere' in command && command.playHere))
   }
 
   /**

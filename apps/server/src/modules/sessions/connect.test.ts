@@ -121,7 +121,7 @@ describe('sessions end to end', () => {
     await eventually(() => expect(target.client.getSnapshot().connection).toBe('offline'))
   }
 
-  const playAlbum = (): SessionCommand => ({
+  const playAlbum = (): Extract<SessionCommand, { type: 'playTracks' }> => ({
     type: 'playTracks',
     tracks: album.tracks.map((track) => ({ trackId: track.recordingId, albumId: album.albumId, durationMs: 0 })),
     seed: 1,
@@ -191,6 +191,41 @@ describe('sessions end to end', () => {
     await eventually(() => expect(engineState(b)).toEqual({ entryId: second, state: 'playing', positionMs: 15_000 }))
     expect(b.client.getSnapshot().isActiveDevice).toBe(true)
     await eventually(() => expect(a.client.getSnapshot().devices.find((item) => item.isActive)?.id).toBe('device-b-e2e1'))
+  })
+
+  it('starts selections on their sending device and leaves remote playback alone on an unsolicited Play', async () => {
+    const speaker = await device('carplay-speaker')
+    const phone = await device('carplay-phone')
+    expect(phone.client.supportsPlayHere()).toBe(true)
+    speaker.client.dispatch(playAlbum())
+    await settled()
+    const earlier = current(speaker)!
+
+    const resume = await phone.socket.emitWithAck('session:command', {
+      commandId: newId(), command: { type: 'play', playHere: true },
+    })
+    expect(resume.ok).toBe(true)
+    expect((await getSnapshot(userId)).state).toMatchObject({ activeDeviceId: speaker.id, playing: true, current: earlier })
+    expect(engineState(phone).state).toBe('idle')
+
+    phone.client.dispatch({ ...playAlbum(), startIndex: 1, playHere: true })
+    await settled()
+    expect((await getSnapshot(userId)).state).toMatchObject({
+      activeDeviceId: phone.id, playing: true, current: { trackId: album.tracks[1]!.recordingId },
+    })
+    await eventually(() => expect(engineState(phone).state).toBe('playing'))
+    expect(engineState(speaker).state).toBe('idle')
+
+    const third = phone.client.getSnapshot().queue.queue[0]!
+    speaker.client.dispatch({ type: 'playQueueEntry', entryId: third.id, playHere: true })
+    await settled()
+    expect((await getSnapshot(userId)).state).toMatchObject({ activeDeviceId: speaker.id, playing: true, current: { id: third.id } })
+
+    speaker.client.dispatch({ type: 'pause' })
+    await settled()
+    phone.client.dispatch({ type: 'play', playHere: true })
+    await settled()
+    expect((await getSnapshot(userId)).state).toMatchObject({ activeDeviceId: phone.id, playing: true, current: { id: third.id } })
   })
 
   it('lets a device advance while offline and applies its commands when it returns', async () => {

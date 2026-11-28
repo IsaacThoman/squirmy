@@ -50,7 +50,7 @@ const UNAVAILABLE_BEFORE_PAUSE = 5
 const MAX_DETACHED = 8
 /** An own session is discarded once its device has not been seen for this long. */
 const DETACHED_KEEP_MS = 7 * 24 * 60 * 60_000
-const CAPABILITIES: SessionCapability[] = ['detach']
+const CAPABILITIES: SessionCapability[] = ['detach', 'play-here']
 
 /** Schedules and cancels the grace timers. */
 export type SessionTimers = { set: (callback: () => void, ms: number) => unknown; clear: (handle: unknown) => void }
@@ -826,7 +826,9 @@ export function runCommand(userId: string, deviceId: string | null, raw: unknown
     if (!device) return ack({ ok: false, error: 'hello_required' })
     const record = await sessionOf(userId, device.id)
     if (record.commandIds.has(commandId)) return ack({ ok: true, version: record.version })
-    const command = await checkCommand(record, device.id, envelope.data.command)
+    const requested = envelope.data.command
+    if ('playHere' in requested && requested.playHere && !device.canPlay) return ack({ ok: false, error: 'cannot_play' })
+    const command = await checkCommand(record, device.id, requested)
     if (typeof command === 'string') return ack({ ok: false, error: command })
     const next = reduceSession(record.session, { command, now: settings.now(), commandId, deviceId: device.canPlay ? device.id : undefined })
     rememberCommand(record, commandId)

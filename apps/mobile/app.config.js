@@ -36,6 +36,8 @@ module.exports = ({ config }) => {
     };
   }
 
+  plugins.push(['./modules/carplay/app.plugin.js', { enabled: process.env.SQUIRMY_IOS_CARPLAY === '1' }]);
+
   if (!development) {
     return {
       ...config,

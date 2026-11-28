@@ -6,6 +6,7 @@ import { Platform, PlatformColor } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AccountProvider, createQueryClient, useAccount } from '../src/account/AccountProvider';
+import { CarPlayController } from '../src/carplay/CarPlayController';
 import { LibraryProvider } from '../src/data/library';
 import { RealtimeProvider } from '../src/data/realtime';
 import { DownloadsProvider } from '../src/downloads/DownloadsProvider';
@@ -43,6 +44,7 @@ export default function RootLayout() {
                   <DownloadsProvider>
                     <StreamingCacheProvider>
                       <PlaybackProvider>
+                        <CarPlayController />
                         <StatusBar style={appearance === 'dark' ? 'light' : 'dark'} />
                         <Routes />
                       </PlaybackProvider>
