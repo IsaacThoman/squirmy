@@ -93,7 +93,7 @@ export function albumIsMember(album: string, userId: Members): SQL {
 }
 
 /** Condition: the recording (expression) is in the library; see `albumIsMember`. */
-function recordingIsMember(recording: string, userId: Members): SQL {
+export function recordingIsMember(recording: string, userId: Members): SQL {
   return sql`exists (
     select 1 from media_files collected
     where collected.recording_id = ${sql.raw(recording)} and ${collectionFile('collected')} and ${collectionCounts(userId)}
