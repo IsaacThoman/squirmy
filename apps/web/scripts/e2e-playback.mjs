@@ -378,7 +378,7 @@ await step('playlists', async () => {
   await page.getByRole('link', { name: 'Underwater Light', exact: true }).waitFor()
   const playing = await advancing(page)
   const session = await api(a.context, 'GET', '/me/session')
-  check('playing the playlist starts it', session.state.context?.type === 'playlist' && playing)
+  check('playing the playlist starts it', session.state.context?.type === 'playlist' && playing, `context ${session.state.context?.type ?? 'none'}, ${playing ? 'advancing' : 'not advancing'}`)
 })
 
 await step('lyrics', async () => {
