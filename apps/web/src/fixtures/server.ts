@@ -59,6 +59,7 @@ export const publicShare: PublicShare = {
 
 export const userSettings: UserSettings = {
   normalization: 'auto',
+  normalizationTarget: -18,
   qualityWifi: 'original',
   qualityCellular: 'high',
   downloadQuality: 'original',

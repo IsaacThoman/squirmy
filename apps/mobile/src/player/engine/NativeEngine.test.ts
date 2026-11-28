@@ -243,6 +243,12 @@ describe('NativeEngine', () => {
     expect(engine.getStatus()).toEqual({ entryId: null, state: 'idle' satisfies EngineState, positionMs: 0 });
   });
 
+  it('boosts, behind the engine\'s limiter', () => {
+    const { engine } = setup();
+    expect(engine.canBoost).toBe(true);
+    expect(engine.limiter).toBe(true);
+  });
+
   it('stops listening when disposed', () => {
     const { native, engine, events } = setup();
     expect(native.listenerCount).toBe(6);

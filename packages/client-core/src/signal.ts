@@ -1,5 +1,6 @@
 import type { NormalizationMode, PlaybackDescriptor, PlaybackSource, SignalReport, StreamProfile, TranscodeReason } from '@squirmy/contracts'
 import { formatBytes } from './format.js'
+import { REFERENCE_LUFS, type AppliedGain } from './normalization.js'
 
 /**
  * The quality badge of Now Playing. `hi_res_lossless`: lossless above 48 kHz or 16 bits, as
@@ -27,13 +28,13 @@ export function audioQualityLabel(quality: AudioQuality): string {
 
 /**
  * What a device that plays `descriptor` for `entryId` reports (see "Signal path" in the
- * session contract). `normalization` is what the device applies to it; `local` that it
- * plays a copy on the device.
+ * session contract). `normalization` is what the device applies to it (`appliedGain`'s
+ * answer, with the device's mode and target); `local` that it plays a copy on the device.
  */
 export function signalReport(
   entryId: string,
   descriptor: PlaybackDescriptor,
-  normalization: { mode: NormalizationMode; applied: 'track' | 'album' | null; gain: number },
+  normalization: AppliedGain & { mode: NormalizationMode; targetLufs?: number },
   local: boolean,
 ): SignalReport {
   const applied = normalization.mode === 'off' ? null : normalization.applied
@@ -56,10 +57,14 @@ export function signalReport(
       mode: normalization.mode,
       applied,
       // Rounded so a report is sent again only when the change can be heard.
-      gainDb: applied ? Math.round(20 * Math.log10(normalization.gain) * 10) / 10 : null,
+      gainDb: applied ? tenths(20 * Math.log10(normalization.gain)) : null,
+      ...applied && normalization.targetLufs !== undefined ? { targetLufs: normalization.targetLufs } : {},
+      ...applied && normalization.limitDb !== undefined ? { limitDb: normalization.limitDb === null ? null : tenths(normalization.limitDb) } : {},
     },
   }
 }
+
+const tenths = (value: number) => Math.round(value * 10) / 10
 
 /** An older server's descriptor of an original describes the file, all but its channels. */
 function sourceOfOriginal(descriptor: PlaybackDescriptor): PlaybackSource {
@@ -103,6 +108,11 @@ const reasonNames: Record<TranscodeReason, string> = {
 }
 
 const modeNames: Record<NormalizationMode, string> = { off: 'Off', track: 'Per song', album: 'Per album', auto: 'Automatic' }
+
+/** `-14` → `−14 LUFS`. */
+export function formatLoudness(lufs: number): string {
+  return `${lufs < 0 ? '−' : ''}${Math.abs(lufs)} LUFS`
+}
 
 /** `-3.24` → `−3.2 dB`, `1` → `+1.0 dB`. */
 export function formatGain(db: number): string {
@@ -158,10 +168,17 @@ export function signalSections(signal: SignalReport): TrackInfoSection[] {
           ? `${applied === 'album' ? 'Album' : 'Song'} level, ${formatGain(normalization.gainDb)}`
           : 'None: no loudness data for this song',
       },
-      applied ? { label: 'Target', value: '−18 LUFS' } : null,
+      applied ? { label: 'Target', value: formatLoudness(normalization.targetLufs ?? REFERENCE_LUFS) } : null,
+      applied && normalization.limitDb !== undefined ? { label: 'Peak limiter', value: limiterValue(normalization.limitDb) } : null,
     ]),
   })
   return sections
+}
+
+/** What the limiter does to the song: nothing, how much at most, or unknown without its peak. */
+function limiterValue(limitDb: number | null): string {
+  if (limitDb === null) return 'On'
+  return limitDb > 0 ? `Turns the loudest peaks down by up to ${limitDb.toFixed(1)} dB` : 'Not needed for this song'
 }
 
 function compact<T>(items: (T | null)[]): T[] {

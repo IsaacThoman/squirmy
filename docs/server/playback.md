@@ -50,22 +50,37 @@ Completed conversions are kept in `<data>/transcodes/`, so the second play of a 
 
 Albums are mastered at very different levels. Normalization evens them out so you do not reach for the volume between songs.
 
-**What is measured.** Each file's integrated loudness and true peak are measured with ffmpeg's EBU R128 filter, in the background at low priority. The same decode records the exact number of audio frames and the source's encoder delay and trailing padding as reported by ffmpeg. The server decodes the tracks of an album one at a time into a continuous measurement. The album true peak is the highest of the track true peaks. The target is -18 LUFS, the ReplayGain reference.
+**What is measured.** Each file's integrated loudness and true peak are measured with ffmpeg's EBU R128 filter, in the background at low priority. The same decode records the exact number of audio frames and the source's encoder delay and trailing padding as reported by ffmpeg. The server decodes the tracks of an album one at a time into a continuous measurement. The album true peak is the highest of the track true peaks. The gains the server sends bring each song to -18 LUFS, the ReplayGain reference; your target loudness (below) moves them from there.
 
 **While a file awaits measurement.** The server uses its ReplayGain tags when present. Without tagged gains, the track gain is estimated from the median track gain of the library, when available. Streaming the track moves its measurement ahead of the background queue. Playback descriptors requested after measurement carry the track's own gain.
 
 **Decode failures.** After retries, the server records the error for the file and clears its measured gains and exact length, along with its release's album measurement. The next scan that detects a change to the file retries measurement. Check the failed `loudness.measure` job when investigating an unreadable file.
 
-**The modes**, per user in **Settings → Playback → Volume normalization** (web) or **Normalize Volume** (iOS):
+**The modes**, per user in **Settings → Playback → Volume normalization** (web) or **Volume Normalization** (iOS and Apple TV):
 
-| Mode (web / iOS) | Gain used |
+| Mode | Gain used |
 |---|---|
 | **Automatic** (default) | The album's gain when you play an album in order; each song's own gain otherwise (playlists, shuffle, radio). |
-| **Per song** / **Track** | Each song's own gain. |
-| **Per album** / **Album** | The album's gain, falling back to the song's. |
+| **Per song** | Each song's own gain. |
+| **Per album** | The album's gain, falling back to the song's. |
 | **Off** | None. |
 
-**How clients apply it.** The gain is applied on the device and capped using the peak for the selected gain. If the chosen gain is unavailable, clients try the other gain. When neither is available, playback uses the current volume with no normalization adjustment. The web app can raise quiet tracks as well as lower loud ones. The iOS app can only lower volume.
+**Target loudness**, per user beside the mode (**Target loudness** on the web, **Target Loudness** on iOS and Apple TV, shown while normalization is on), is how loud normalized songs play:
+
+| Target | Loudness | Gain against the server's |
+|---|---|---|
+| **Loud** | -14 LUFS, about as loud as most streaming services | +4 dB |
+| **Medium** | -16 LUFS | +2 dB |
+| **Standard** (default) | -18 LUFS, the ReplayGain reference | none |
+| **Quiet** | -23 LUFS, broadcast level (EBU R 128) | -5 dB |
+
+A louder target turns more songs up, and a quiet song turned up can have peaks above full scale.
+
+**How clients apply it.** The gain is applied on the device. If the chosen gain is unavailable, clients try the other gain. When neither is available, playback uses the current volume with no normalization adjustment. What happens to a song that needs turning up depends on the device:
+
+- **iOS and Apple TV with the Native engine** turn songs up as far as the target asks. A true-peak limiter at the end of the engine keeps every peak, between samples too, under -1 dBTP: it turns down over 1.5 ms ahead of a peak and comes back over 50 to 150 ms. While nothing goes over it does nothing, and the sound passes untouched. With normalization off the engine plays the file as it is. **Track info** says how far the limiter turns the song's loudest peak down, or that it isn't needed.
+- **The web app** turns songs up only as far as the peak of the gain in use allows without clipping. A song whose gain the server estimated (not yet measured, no tags) is not turned up at all, as its peak is unknown.
+- **iOS and Apple TV with the classic engine** only turn songs down: a louder target turns loud songs down less.
 
 ## Listening history
 

@@ -1,5 +1,6 @@
 import {
-  isLastFmReturn, queryKeys, type NormalizationMode, type ScrobbleService, type ScrobblingStatus, type StreamQuality, type UpdateUserSettings,
+  isLastFmReturn, queryKeys, type NormalizationMode, type NormalizationTarget, type ScrobbleService, type ScrobblingStatus, type StreamQuality,
+  type UpdateUserSettings, type UserSettings,
 } from '@squirmy/contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
@@ -21,13 +22,44 @@ export const normalizationOptions: readonly { value: NormalizationMode; label: s
   { value: 'off', label: 'Off' },
 ];
 
+/** The loudness normalization brings songs to, loudest first. */
+export const targetOptions: readonly { value: NormalizationTarget; label: string }[] = [
+  { value: -14, label: 'Loud (−14 LUFS)' },
+  { value: -16, label: 'Medium (−16 LUFS)' },
+  { value: -18, label: 'Standard (−18 LUFS)' },
+  { value: -23, label: 'Quiet (−23 LUFS)' },
+];
+
+/** The user's target; settings kept from before there was one say nothing, which is Standard. */
+export function normalizationTarget(settings: Pick<UserSettings, 'normalizationTarget'>): NormalizationTarget {
+  return settings.normalizationTarget ?? -18;
+}
+
 export const qualityOptions: readonly { value: StreamQuality; label: string }[] = [
   { value: 'original', label: 'Original' },
   { value: 'high', label: 'High' },
   { value: 'data_saver', label: 'Data Saver' },
 ];
 
-export const normalizationNote = 'Plays every song at a similar volume. Automatic keeps an album’s own dynamics when you play it in order. Squirmy only turns songs down, never up.';
+/**
+ * What turning songs up comes to: `boosts` when the engine playing can (the native one, which
+ * has a limiter); the classic engine only turns songs down.
+ */
+function boostNote(boosts: boolean): string {
+  return boosts
+    ? 'Quiet songs are turned up to it, with a limiter so their loudest moments don’t distort.'
+    : 'Squirmy turns loud songs down to it but never turns quiet ones up.';
+}
+
+/** Under the normalization settings. */
+export function normalizationNote(boosts: boolean): string {
+  return `Plays every song at a similar volume. Automatic keeps an album’s own dynamics when you play it in order. Target Loudness sets that volume: Loud is about as loud as most streaming services. ${boostNote(boosts)}`;
+}
+
+/** The target's own word, where it has one (the TV's). */
+export function targetNote(boosts: boolean): string {
+  return `How loud songs play with volume normalization on. Loud is about as loud as most streaming services; Quiet leaves the most room for loud moments. ${boostNote(boosts)}`;
+}
 export const lastFmAdminNote = 'Last.fm scrobbling isn’t set up on this server. As an admin, you can add a Last.fm API key in the web app’s server settings.';
 
 /** Where a ListenBrainz user finds the token to paste. */

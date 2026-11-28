@@ -12,6 +12,10 @@ export { connectNowPlaying, type NowPlayingItem, type RemoteControls } from './n
 
 /** What the app asks of either engine beyond the `PlayerEngine` contract. */
 export type AppEngine = PlayerEngine & {
+  /** Its gain can turn a song up (`SessionPlayer.canBoost`). */
+  readonly canBoost: boolean;
+  /** It limits true peaks after the gain (`SessionPlayer.limiter`). */
+  readonly limiter: boolean;
   holdAudioSession(hold: boolean): void;
   isTryingToPlay(): boolean;
   dispose?(): void;
