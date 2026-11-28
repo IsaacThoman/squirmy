@@ -1,5 +1,5 @@
 {
-  "id": "41a6dd42-af23-4b02-a57e-43c3c4e926d3",
+  "id": "75205c3a-6824-41ac-8783-ff1f55839205",
   "prevId": "eeb3233a-dbe9-4ad6-97e7-521364f05db7",
   "version": "7",
   "dialect": "postgresql",
@@ -729,13 +729,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "artwork_locked": {
-          "name": "artwork_locked",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
         "canonical_release_id": {
           "name": "canonical_release_id",
           "type": "uuid",
@@ -850,6 +843,21 @@
               "asc": true,
               "nulls": "last",
               "opclass": "gin_trgm_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        },
+        "albums_match_key_unicode": {
+          "name": "albums_match_key_unicode",
+          "columns": [
+            {
+              "expression": "search_unicode_bigrams(\"match_key\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
             }
           ],
           "isUnique": false,
@@ -1350,6 +1358,21 @@
               "asc": true,
               "nulls": "last",
               "opclass": "gin_trgm_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        },
+        "artists_name_key_unicode": {
+          "name": "artists_name_key_unicode",
+          "columns": [
+            {
+              "expression": "search_unicode_bigrams(\"name_key\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
             }
           ],
           "isUnique": false,
@@ -3490,7 +3513,24 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "lyrics_search": {
+          "name": "lyrics_search",
+          "columns": [
+            {
+              "expression": "to_tsvector('simple', search_lyric_text(\"plain\", \"synced\"))",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "not \"lyrics\".\"instrumental\"",
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "lyrics_recording_id_recordings_id_fk": {
           "name": "lyrics_recording_id_recordings_id_fk",
@@ -3920,30 +3960,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "health_checked_at": {
-          "name": "health_checked_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "health_status": {
-          "name": "health_status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "health_detail": {
-          "name": "health_detail",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "health_requested_at": {
-          "name": "health_requested_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
         "missing_since": {
           "name": "missing_since",
           "type": "timestamp with time zone",
@@ -4004,44 +4020,6 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "media_files_health_due": {
-          "name": "media_files_health_due",
-          "columns": [
-            {
-              "expression": "coalesce(\"health_checked_at\", '-infinity'::timestamptz)",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "\"media_files\".\"missing_since\" is null and not \"media_files\".\"cached\"",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "media_files_health_requested": {
-          "name": "media_files_health_requested",
-          "columns": [
-            {
-              "expression": "health_requested_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "\"media_files\".\"health_requested_at\" is not null",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -5641,6 +5619,21 @@
               "asc": true,
               "nulls": "last",
               "opclass": "gin_trgm_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        },
+        "recordings_match_key_unicode": {
+          "name": "recordings_match_key_unicode",
+          "columns": [
+            {
+              "expression": "search_unicode_bigrams(\"match_key\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
             }
           ],
           "isUnique": false,

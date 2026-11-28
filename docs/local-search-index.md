@@ -75,21 +75,31 @@ Known gaps, all a consequence of what the dump contains:
 - A compilation whose every track is canonical somewhere else (a greatest-hits album) has no row in the main file, so it is not indexed.
 - An artist who only ever appears in shared credits ("A feat. B") has no credit name of their own and is not indexed as an artist; their recordings are.
 - The dump holds canonical recordings only. A live version with the same title as the studio one is folded into it.
+- The dump supplies artist credit names. Artist aliases are absent.
 
 ## How search works
 
 `searchCatalogIndex(query, { kinds, limit })` in `search.ts` returns up to `limit` results of each kind with a relevance score. `isCatalogIndexReady()` says whether an index is in place. Both the query and the names are compared as `matchKey`s, so case, punctuation and diacritics never matter ("beyonce" finds Beyoncé).
 
-Two lookups run per kind and their results are merged:
+Indexed lookups gather candidates before ranking.
 
 1. **Fuzzy, over the popular head.** The 250,000 most popular artists, the 250,000 most popular albums and the 1,000,000 most popular recordings carry a trigram index. A trigram word-similarity match tolerates typos ("beatels") and matches any word from its first few letters ("bohe"). Because the head has a fixed size, this costs the same whatever the size of the dump. Rows are stored in popularity order and read through a bitmap scan, which returns them in that order, so the 300 candidates taken are the most popular matches.
 2. **Exact prefix, over everything.** A btree over every name finds the rows whose whole name starts with the query, so typing an obscure title in full always finds it.
+3. **Composite readings, over everything.** The query splits into title and context, in either order. A context can be the artist credit or, for a recording, its release title. A btree finds title prefixes within each matching context. “Karma Police OK Computer” can find the track even if it is outside the fuzzy head.
 
 Candidates are ranked by text quality (word similarity, plus bonuses when a word starts with the query and when the name is the query, ignoring a leading "the"), scaled by popularity. A famous near match beats an obscure one; an exact name beats a fuzzy one of similar fame.
 
-Fuzzy matching of names in non-Latin scripts needs a database whose locale is UTF-8 (the official Postgres image's default). Under the `C` locale, trigram search ignores non-ASCII letters, so those names are found by prefix only.
+Queries with non-ASCII characters use a GIN index of character bigrams for fuzzy candidates. This works under PostgreSQL's `C` locale, where `pg_trgm` can omit entire scripts. The bigrams fold katakana to hiragana and recompose Hangul syllables. ASCII queries keep the trigram path.
+
+### Upgrading an existing index
+
+A worker builds the Unicode and composite search indexes in the background after an upgrade. The server can listen while the builds run. Existing catalog prefix and ASCII trigram search remain available, and each new lookup starts working as soon as its index is valid. The admin API reports `searchUpgrade` as `pending`, `building` or `ready` for an active import. The worker uses the imported data in place. A fresh import builds the indexes before it swaps in the new table.
+
+The worker keeps finished indexes across restarts and rebuilds any invalid index left by an interruption. The builds read the existing catalog and need disk space for the new indexes and PostgreSQL's build work. A refresh can prepare its replacement alongside a build and waits for the current catalog index build before swapping. If removal returns a maintenance conflict, retry after the current build finishes.
 
 ### Why this design
+
+The measurements below predate the composite and Unicode indexes. They describe the name-only design it builds on.
 
 Measured on synthetic dumps of 5 and 10 million rows shaped like the real one (real vocabulary and name lengths from the first 161,607 rows of the 17 November dump, a power-law number of recordings per artist, 10% shared credits), with Postgres 17 at default settings (128 MB shared buffers) on an Apple-silicon laptop. Latencies are warm, for one call searching all three kinds, over about 20 queries of 1 to 16 characters:
 
@@ -104,6 +114,8 @@ The prefix btree costs 36 bytes per row and answers in under a millisecond; a tr
 Names are stored as `name_key` (the `matchKey` of the name) rather than relying on `unaccent` or `lower` in SQL, so matching uses the same normalization as the rest of Squirmy, needs no extra extension, and the indexes stay plain.
 
 ## Costs
+
+The figures below predate the composite and Unicode indexes. Allow additional disk and time for those indexes during import and on the first upgrade with an active dump.
 
 | | 10 M row slice (measured) | Full dump (estimated) |
 |---|---|---|
@@ -128,7 +140,7 @@ Everything is behind admin routes under `/api/v1`:
 
 | Route | What it does |
 |---|---|
-| `GET /admin/catalog-index` | `CatalogIndexStatus`: ready, dump date, row counts, size on disk, the active import and the newest other import with its phase, progress and how often it was resumed (`resumes`, `resumedAt`) |
+| `GET /admin/catalog-index` | `CatalogIndexStatus` includes readiness, dump date, row counts, size on disk, upgrade state, and import phase, progress and resume history |
 | `POST /admin/catalog-index/import` | Queues the `catalog-index.import` job and answers 202. Body (all optional): `source`, a dump URL or a path on the server (default: the newest dump); `recordingsPerArtist` |
 | `DELETE /admin/catalog-index/import` | Cancels the running or interrupted import; the index in use stays. 409 when there is none |
 | `DELETE /admin/catalog-index` | Cancels a running import and empties the index |
