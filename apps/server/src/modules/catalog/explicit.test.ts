@@ -234,7 +234,7 @@ describe('explicit content controls', () => {
     })
 
     it('hides explicit songs from the personal Home\'s Rediscover and from mixes', async () => {
-      const songs = [curses.tracks[0]!, loud.tracks[1]!].map((track) => ({ id: track.recordingId, albumId: track.albumId }))
+      const songs = [{ id: curses.tracks[0]!.recordingId, albumId: curses.albumId }, { id: loud.tracks[1]!.recordingId, albumId: loud.albumId }]
       for (const user of [kid, adult]) {
         await db.insert(homePicks).values({ userId: user.id, generatedAt: new Date(), rediscover: songs })
           .onConflictDoUpdate({ target: homePicks.userId, set: { generatedAt: new Date(), rediscover: songs } })
