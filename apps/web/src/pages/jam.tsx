@@ -1,6 +1,7 @@
 import { queryKeys } from '@squirmy/contracts'
 import { useQuery } from '@tanstack/react-query'
 import { Users } from 'lucide-react'
+import { useEffect } from 'react'
 import { Link, useParams } from 'react-router'
 import { useApi } from '@/api/services'
 import { Page } from '@/components/layout/Page'
@@ -19,6 +20,9 @@ export function JoinJamPage() {
   const api = useApi()
   const preview = useQuery({ queryKey: queryKeys.jam(id), queryFn: () => api.sessions.jam(id), retry: false })
   const { join, error, pending, joined, canJam } = useJoinJam(id)
+  // Who is listening changes as this user joins or leaves, so the page asks again.
+  const { refetch } = preview
+  useEffect(() => { void refetch() }, [joined, refetch])
   usePageTitle('Listen together')
   const home = <Button asChild variant="outline"><Link to="/">Go home</Link></Button>
   if (preview.isPending) return <Page><EmptyState icon={<Users />} title="Listen together" description="Looking up this listening session…" headingLevel={1} /></Page>
