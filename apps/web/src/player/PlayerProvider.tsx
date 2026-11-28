@@ -1,5 +1,5 @@
 import {
-  followsJam, PlaybackNoticeWatcher, planChanges, randomSeed, refreshFetchedTracks, SessionClient, skipNotice, TrackStore, unavailableNotice, type ApiClient, type PlaybackNotice, type SessionClientSnapshot,
+  followsJam, PlaybackNoticeWatcher, planChanges, randomSeed, refreshFetchedTracks, SessionClient, sitOutNotice, skipNotice, TrackStore, unavailableNotice, type ApiClient, type PlaybackNotice, type SessionClientSnapshot,
 } from '@squirmy/client-core'
 import { createSocketTransport, type SquirmySocket } from '@squirmy/client-core/socket'
 import { queryKeys, type ClientDevice, type EntityChanges, type QueueEntry, type QueueSeed, type SessionCommand, type StreamQuality, type TrackSummary } from '@squirmy/contracts'
@@ -60,9 +60,15 @@ function couldNotPlay(title: string | undefined, detail?: string): PlaybackNotic
 /**
  * What happens when this tab cannot play the current song: the song the listener just picked
  * stays, paused, and the player says why (pressing Play tries again); any other is skipped,
- * as continuous playback goes on.
+ * as continuous playback goes on. In someone else's jam, where skipping and pausing are the
+ * host's, this tab sits the song out silently and plays along again from the next one
+ * (explicit songs, for a listener who has them off, end up here).
  */
-function failCurrent(client: SessionClient, status: StatusLine, picked: Picked, entryId: string, title: string | undefined, why?: string) {
+function failCurrent(client: SessionClient, status: StatusLine, picked: Picked, entryId: string, title: string | undefined, why?: string, error?: unknown) {
+  if (followsJam(client.getSnapshot().session)) {
+    status.show({ ...sitOutNotice(title, error), tone: 'info', key: NOTICE_STATUS }, STATUS_ERROR_MS)
+    return
+  }
   if (picked.is(entryId)) {
     status.show({ ...couldNotPlay(title, why), tone: 'error', key: STOP_STATUS })
     client.dispatch({ type: 'pause' })
@@ -103,9 +109,9 @@ function createSession(api: ApiClient, socket: SquirmySocket, device: ClientDevi
       resolvePlayback: entry => api.streaming.playback(entry.trackId, { albumId: entry.albumId ?? undefined, quality, codecs: playableCodecs().join(',') }),
       // A failure that may pass is retried by the client. A track the server refused to stream
       // (gone, or not allowed) is told once and skipped, as one the browser cannot play.
-      onLoadError: (entry, _error, willRetry) => {
+      onLoadError: (entry, error, willRetry) => {
         if (willRetry || client.getSnapshot().session.current?.id !== entry.id) return
-        failCurrent(client, status, picked, entry.id, store.get(entry.trackId, entry.albumId)?.title)
+        failCurrent(client, status, picked, entry.id, store.get(entry.trackId, entry.albumId)?.title, undefined, error)
       },
     },
   })

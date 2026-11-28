@@ -5,6 +5,7 @@ import { db } from '../../database/client.js'
 import { plays } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { invalidate } from '../../realtime/index.js'
+import { explicitAllowed } from '../catalog/explicit.js'
 import { alignedTrackSummaries } from '../catalog/summaries.js'
 
 /**
@@ -118,12 +119,16 @@ export function isCompleted(msPlayed: number, durationMs: number): boolean {
  * of its queue entry: an on-demand track queued from a catalog stub album lands on the
  * album its fetched file was filed under, and identification may merge the recording
  * while it plays. The entry's ids would leave plays on empty stubs and merged-away rows.
+ *
+ * A song the user may not hear (explicit, with explicit content off) is not written: their
+ * device sat it out, as a member of a jam does when the host plays one.
  */
 export async function savePlay(userId: string, play: OpenPlay, { closed = true } = {}): Promise<void> {
   const skipped = play.msPlayed < SKIP_MS
   if (skipped && !closed) return
   const msPlayed = Math.round(play.msPlayed)
   const [track] = await alignedTrackSummaries(userId, [{ id: play.recordingId }])
+  if (track?.explicit === true && !(await explicitAllowed(userId))) return
   await insertPlay({
     id: play.id,
     userId,

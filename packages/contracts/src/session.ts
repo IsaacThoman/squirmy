@@ -174,6 +174,10 @@ export type SleepTimerRequest = z.infer<typeof SleepTimerRequest>
  *   `session:queueOps` and `session:sync` work on it as on any session; a member's device that
  *   does not accept queue operations gets the whole queue. Each listener's active device
  *   reports its own signal path, kept on and shown in that listener's session alone.
+ * - **A song a member cannot play.** The playback descriptor of an entry may be refused for a
+ *   member (explicit content off for them, `explicit_not_allowed`): their device sits it out,
+ *   silent, and plays along again when the jam moves on. It does not skip or pause, which
+ *   are the host's, and the server records no play of it for them.
  * - **Track ends.** Any listener's `trackEnded` near the end of the jam's current entry
  *   advances the jam, so the first device to finish moves everyone on.
  * - **Joining.** By the jam's `id`, which the invite link carries: any signed-in user of the

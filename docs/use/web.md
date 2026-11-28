@@ -173,7 +173,7 @@ Every open tab can play in your one playback session, one at a time. When playba
 
 To listen with someone else on your server, open **Devices** and choose **Listen together**, then **Start listening together**. The dialog has the invite link to copy and send, and a list of the server's other people with **Invite** beside each; they get an invite wherever they are signed in and choose **Join**. A link opens a page that says whose session it is, with **Join**. While a session is on, the player bar shows the listeners' initials; click them for the dialog, which lists who is listening (the host can remove people), **Who can add songs** (the host chooses **Everyone** or **Only me**), and **End for everyone** or **Leave**.
 
-As a member, the host controls playback, so the play, skip and seek controls are dimmed. Playing a song adds it to the queue for everyone, when the host lets everyone add. The queue shows who added each song. Queue edits have no **Undo** for members; the host's **Undo** changes the queue for everyone. See [Listening together](../server/playback.md#listening-together).
+As a member, the host controls playback, so the play, skip and seek controls are dimmed. Playing a song adds it to the queue for everyone, when the host lets everyone add. The queue shows who added each song. Queue edits have no **Undo** for members; the host's **Undo** changes the queue for everyone. A song your tab can't play, such as an explicit one while [explicit content](#explicit-content) is off for you, isn't skipped for everyone: your tab stays quiet, the player says **“…” isn’t playing for you**, and you hear the next song with everyone. See [Listening together](../server/playback.md#listening-together).
 
 ### Playing separately on one device
 
