@@ -1,0 +1,31 @@
+{
+  "note": "Trimmed recording response for the fingerprint fallback test, using the recorded OK Computer release.",
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/recording/4a7fea2e-545b-4c63-bc9a-9943cc3a29d7?inc=artist-credits+isrcs+releases+release-groups&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": {
+      "id": "4a7fea2e-545b-4c63-bc9a-9943cc3a29d7",
+      "title": "Airbag",
+      "length": 284400,
+      "releases": [
+        {
+          "id": "52709206-8816-3c12-9ff6-f957f2f1eecf",
+          "title": "OK Computer",
+          "status": "Official",
+          "date": "1997-06-16",
+          "release-group": {
+            "id": "b1392450-e666-3926-a536-22c65f834433",
+            "title": "OK Computer",
+            "primary-type": "Album"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -591,3 +591,10 @@ export async function findReleasesByBarcode(barcode: string): Promise<MbReleaseS
   const data = await get<{ releases: RawRelease[] }>('release', { query: `barcode:${wanted} OR barcode:0${wanted}`, limit: '25' }, searchTtl)
   return (data?.releases ?? []).filter((release) => release.barcode?.replace(/^0+/, '') === wanted).map(releaseSummary)
 }
+
+/** Recordings with an exact ISRC. Indexed results include the track counts of their releases. */
+export async function findRecordingsByIsrc(isrc: string): Promise<MbRecording[]> {
+  if (!/^[A-Z]{2}[A-Z0-9]{3}[0-9]{7}$/.test(isrc)) return []
+  const data = await get<{ recordings: RawRecording[] }>('recording', { query: `isrc:${isrc}`, limit: '25' }, searchTtl)
+  return (data?.recordings ?? []).map(recording)
+}

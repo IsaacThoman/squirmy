@@ -42,7 +42,7 @@ export type LikeEntityType = 'recording' | 'album' | 'artist'
 export type LibraryRootMode = 'read_only' | 'managed'
 export type MatchStatus = 'pending' | 'matched' | 'review' | 'unmatched'
 /** How a file's links were decided. `request`: the file was delivered for an acquisition request that named them. */
-export type MatchSource = 'tags' | 'tags-mbid' | 'search' | 'acoustid' | 'manual' | 'request'
+export type MatchSource = 'tags' | 'tags-mbid' | 'tags-barcode' | 'tags-isrc' | 'search' | 'acoustid' | 'manual' | 'request'
 export type ImportKind = 'upload' | 'inbox' | 'acquisition'
 export type AcquisitionOrigin = 'play' | 'prefetch' | 'download' | 'library'
 export type ImportStatus = 'receiving' | 'processing' | 'completed' | 'failed'
