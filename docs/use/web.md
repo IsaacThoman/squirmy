@@ -6,7 +6,7 @@ To open it like an app, install it from your browser (**Install** in Chrome or E
 
 ## Getting around
 
-The sidebar has **Home**, **Search**, **Library**, the **Wantlist** (when your server has the Wantlist turned on) and **Add music** (for admins and people who may upload). Below them are your **Playlists**, with **Liked Songs** first. **New playlist** (the **+** next to Playlists) makes one, and the **Playlists** heading opens the page with all of them. Right-click a playlist to **Play** it.
+The sidebar has **Home**, **Search**, **Library**, **Replay**, the **Wantlist** (when your server has the Wantlist turned on) and **Add music** (for admins and people who may upload). Below them are your **Playlists**, with **Liked Songs** first. **New playlist** (the **+** next to Playlists) makes one, and the **Playlists** heading opens the page with all of them. Right-click a playlist to **Play** it.
 
 The button with your name, at the foot of the sidebar, opens the account menu: **Settings**, **Admin panel** (for admins) and **Log out**.
 
@@ -95,6 +95,24 @@ Library's **Recently played** follows what you start playing from and what you a
 - Adding something counts too: an album or artist you heart, Liked Songs when you heart a song, a playlist you create, and an album you upload go to the top. Taking a heart back with Undo puts it back where it was, and hearting something already in your library doesn't move it.
 
 Music played before your server had this feature isn't in the order: it fills in as you play.
+
+## Replay
+
+Open **Replay** from the sidebar for your listening time, plays, top tracks, artists, albums and genres. The listening clock shows play counts by day and hour in your browser's time zone. A streak is a run of consecutive days with a play. The current streak can still continue if you last listened yesterday. **New discoveries** are artists you first played during the selected period.
+
+Choose **This week**, **This month**, **This year**, **All time** or **Year in Review** and pick a year. Weeks start Monday. Calendar comparisons use the full previous period, even while the current one is still in progress. Early skips are left out. Each credited artist gets the play, and an album with multiple genres can contribute to each genre.
+
+### Import or export listening history
+
+At the bottom of Replay, choose **Import history**, a source and one file of up to 128 MB. You can leave the page while the server works. **Recent imports** shows progress and how many rows matched, stayed unmatched, were duplicates or were ignored.
+
+- **ListenBrainz** accepts listens in a JSON array, in a JSON response containing `listens`, or in a JSON Lines file. If your export is a ZIP, extract it first and choose the files under `listens/` one at a time. [ListenBrainz export format](https://listenbrainz.readthedocs.io/en/latest/users/api/export.html)
+- **Last.fm** accepts a CSV with artist, album, track and timestamp, with or without the header. [LastFM to CSV](https://benjaminbenben.com/2014/05/29/lastfm-to-csv/)
+- **Spotify** accepts the audio JSON files from **Extended Streaming History**, such as `Streaming_History_Audio_*.json` or `endsong_*.json`. Choose each file separately. Squirmy estimates a play’s start by subtracting the listening duration from the end time. Rows without track metadata, such as podcasts, are ignored. [Spotify export details](https://support.spotify.com/sg-en/article/understanding-your-data/)
+
+Matched listens can link to and play from your server's catalog. Unmatched listens still count in Replay and stay in your private history, with no catalog entry created. If a listen has no duration, Squirmy uses the matched track's length when known and otherwise adds no listening time. Imports never scrobble. Uploading the same listens again from the same source keeps one copy. If an import fails partway through, any batches already processed remain in your history.
+
+**Export history** downloads your recorded plays, including skips and unmatched imports, in JSON or CSV. The JSON preserves the original text of each entry. CSV fields that spreadsheet apps might treat as formulas are prefixed with an apostrophe.
 
 ## Music that is not on the server yet
 
