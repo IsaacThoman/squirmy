@@ -3,6 +3,7 @@ import { PanelLeftOpen } from 'lucide-react'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
 import { Outlet, useLocation } from 'react-router'
 import { NowPlaying, type NowPlayingPane } from '@/components/player/NowPlaying'
+import { ListenTogetherProvider } from '@/components/player/ListenTogether'
 import { MiniPlayer, PlayerBar } from '@/components/player/PlayerBar'
 import { canPopOut, usePopOut } from '@/components/player/pop-out'
 import { PopOutPlayer } from '@/components/player/PopOutPlayer'
@@ -12,7 +13,7 @@ import { usePreloadNextArtwork } from '@/components/player/use-next-artwork'
 import { SettingsDialogContext, type SettingsOpenOptions, type SettingsSection } from '@/components/settings/settings-dialog'
 import { cn } from '@/lib/utils'
 import { useLibrary } from '@/player/library-context'
-import { usePlayer } from '@/player/player-context'
+import { hostControls, usePlayer } from '@/player/player-context'
 import { letterIsTaken } from '@/player/shortcuts'
 import { BackBreadcrumb } from './BackBreadcrumb'
 import { ErrorBoundary } from './ErrorBoundary'
@@ -330,119 +331,121 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
 
   return (
     <SettingsDialogContext value={settingsController}>
-      <a
-        href="#main-content"
-        className="sr-only rounded-lg border bg-popover text-sm font-medium text-popover-foreground shadow-lg outline-none focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-[60] focus:px-3 focus:py-2 focus-visible:ring-2 focus-visible:ring-ring"
-        onClick={event => {
-          event.preventDefault()
-          document.getElementById('main-content')?.focus()
-        }}
-      >
-        Skip to main content
-      </a>
-      {/*
-        * The page is drawn edge to edge (viewport-fit=cover); the shell keeps everything clear of
-        * a phone's notch and rounded corners. The player pads itself for the home indicator.
-        */}
-      <div ref={frame} data-shell-frame="" className="relative flex h-dvh overflow-hidden pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)]">
-        {mobile && (
-          <button
-            type="button"
-            // A pointer target only: the drawer's own close button and Escape close it from the keyboard.
-            aria-hidden
-            tabIndex={-1}
-            onClick={closeDrawer}
-            className={cn('fixed inset-0 z-30 bg-black/55 transition-opacity duration-200', drawerOpen ? 'opacity-100' : 'pointer-events-none opacity-0')}
-          />
-        )}
-        <Sidebar
-          user={user}
-          playlists={playlists}
-          likedCount={likedCount}
-          collapsed={!mobile && collapsed}
-          mobile={mobile}
-          mobileOpen={drawerOpen}
-          transitions={transitions && !tracking}
-          onToggle={onSidebarToggle}
-          onNavigate={closeDrawer}
-          onOpenSettings={onOpenSettings}
-          onPlayPlaylist={onPlayPlaylist}
-          onPlayLiked={onPlayLiked}
-          onLogout={onLogout}
-        />
-        {!mobile && (
-          <SidebarResizeHandle
-            width={sidebarWidth}
-            maxWidth={maxWidth}
-            collapsed={collapsed}
-            onTrackingChange={setTracking}
-            onOpenChange={open => setSidebarCollapsed(!open)}
-            onWidthChange={width => {
-              setPreferredWidth(width)
-              writeSidebarWidth(width)
-            }}
-          />
-        )}
-
-        {/* Everything behind the open drawer is inert. */}
-        <div className="flex min-w-0 flex-1 flex-col" inert={drawerShown}>
-          <div className="relative flex min-h-0 flex-1">
-            {/*
-              * A page with no header bar (an album, an artist, a playlist) has the drawer button
-              * floating over it; once it scrolls, a bar behind the button takes the page's title,
-              * so the list goes under the bar rather than under the button.
-              */}
-            {mobile && topBar !== null && (
-              <div aria-hidden className="absolute inset-x-0 top-0 z-20 flex h-12 items-center border-b bg-background/85 pl-12 pr-4 backdrop-blur-md">
-                <span dir="auto" className="truncate text-sm font-semibold">{topBar}</span>
-              </div>
-            )}
-            {mobile && (
-              <button
-                ref={opener}
-                type="button"
-                onClick={() => setDrawerOpen(true)}
-                aria-label="Open sidebar"
-                aria-expanded={drawerOpen}
-                // The only way to the navigation on a phone: a 44px touch target around the 32px button.
-                className="absolute left-2 top-2 z-30 flex size-8 items-center justify-center rounded-md bg-background/70 text-foreground outline-none backdrop-blur-md after:absolute after:-inset-1.5 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <PanelLeftOpen aria-hidden className="size-5" />
-              </button>
-            )}
-            <main
-              id="main-content"
-              ref={setScroller}
+      <ListenTogetherProvider>
+        <a
+          href="#main-content"
+          className="sr-only rounded-lg border bg-popover text-sm font-medium text-popover-foreground shadow-lg outline-none focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-[60] focus:px-3 focus:py-2 focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={event => {
+            event.preventDefault()
+            document.getElementById('main-content')?.focus()
+          }}
+        >
+          Skip to main content
+        </a>
+        {/*
+          * The page is drawn edge to edge (viewport-fit=cover); the shell keeps everything clear of
+          * a phone's notch and rounded corners. The player pads itself for the home indicator.
+          */}
+        <div ref={frame} data-shell-frame="" className="relative flex h-dvh overflow-hidden pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)]">
+          {mobile && (
+            <button
+              type="button"
+              // A pointer target only: the drawer's own close button and Escape close it from the keyboard.
+              aria-hidden
               tabIndex={-1}
-              // Its own layer: a sticky page header stays under the floating queue's backdrop.
-              // The scroll padding keeps what takes focus clear of a sticky header or the bar above.
-              className="relative isolate min-w-0 flex-1 scroll-pt-14 overflow-y-auto outline-none [--gutter:1rem] has-[>[data-back-breadcrumb]]:[--breadcrumb-space:0.75rem] md:[--gutter:1.5rem]"
-            >
-              <ScrollContainerContext value={scroller}>
-                <BackBreadcrumb />
-                {/* A page that fails shows a message in its place; the next page starts afresh. */}
-                <ErrorBoundary resetKey={pathname}>
-                  <Outlet />
-                </ErrorBoundary>
-              </ScrollContainerContext>
-            </main>
+              onClick={closeDrawer}
+              className={cn('fixed inset-0 z-30 bg-black/55 transition-opacity duration-200', drawerOpen ? 'opacity-100' : 'pointer-events-none opacity-0')}
+            />
+          )}
+          <Sidebar
+            user={user}
+            playlists={playlists}
+            likedCount={likedCount}
+            collapsed={!mobile && collapsed}
+            mobile={mobile}
+            mobileOpen={drawerOpen}
+            transitions={transitions && !tracking}
+            onToggle={onSidebarToggle}
+            onNavigate={closeDrawer}
+            onOpenSettings={onOpenSettings}
+            onPlayPlaylist={onPlayPlaylist}
+            onPlayLiked={onPlayLiked}
+            onLogout={onLogout}
+          />
+          {!mobile && (
+            <SidebarResizeHandle
+              width={sidebarWidth}
+              maxWidth={maxWidth}
+              collapsed={collapsed}
+              onTrackingChange={setTracking}
+              onOpenChange={open => setSidebarCollapsed(!open)}
+              onWidthChange={width => {
+                setPreferredWidth(width)
+                writeSidebarWidth(width)
+              }}
+            />
+          )}
 
-            <QueueDock open={queueOpen} onClose={closeQueue} />
+          {/* Everything behind the open drawer is inert. */}
+          <div className="flex min-w-0 flex-1 flex-col" inert={drawerShown}>
+            <div className="relative flex min-h-0 flex-1">
+              {/*
+                * A page with no header bar (an album, an artist, a playlist) has the drawer button
+                * floating over it; once it scrolls, a bar behind the button takes the page's title,
+                * so the list goes under the bar rather than under the button.
+                */}
+              {mobile && topBar !== null && (
+                <div aria-hidden className="absolute inset-x-0 top-0 z-20 flex h-12 items-center border-b bg-background/85 pl-12 pr-4 backdrop-blur-md">
+                  <span dir="auto" className="truncate text-sm font-semibold">{topBar}</span>
+                </div>
+              )}
+              {mobile && (
+                <button
+                  ref={opener}
+                  type="button"
+                  onClick={() => setDrawerOpen(true)}
+                  aria-label="Open sidebar"
+                  aria-expanded={drawerOpen}
+                  // The only way to the navigation on a phone: a 44px touch target around the 32px button.
+                  className="absolute left-2 top-2 z-30 flex size-8 items-center justify-center rounded-md bg-background/70 text-foreground outline-none backdrop-blur-md after:absolute after:-inset-1.5 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <PanelLeftOpen aria-hidden className="size-5" />
+                </button>
+              )}
+              <main
+                id="main-content"
+                ref={setScroller}
+                tabIndex={-1}
+                // Its own layer: a sticky page header stays under the floating queue's backdrop.
+                // The scroll padding keeps what takes focus clear of a sticky header or the bar above.
+                className="relative isolate min-w-0 flex-1 scroll-pt-14 overflow-y-auto outline-none [--gutter:1rem] has-[>[data-back-breadcrumb]]:[--breadcrumb-space:0.75rem] md:[--gutter:1.5rem]"
+              >
+                <ScrollContainerContext value={scroller}>
+                  <BackBreadcrumb />
+                  {/* A page that fails shows a message in its place; the next page starts afresh. */}
+                  <ErrorBoundary resetKey={pathname}>
+                    <Outlet />
+                  </ErrorBoundary>
+                </ScrollContainerContext>
+              </main>
+
+              <QueueDock open={queueOpen} onClose={closeQueue} />
+            </div>
+
+            <div ref={bottom} className="shrink-0">
+              <ShellPlayer mobile={mobile} queueOpen={queueOpen} setQueueOpen={setQueueOpen} nowPlaying={nowPlaying} setNowPlaying={setNowPlaying} onTogglePopOut={commands.togglePopOut} poppedOut={commands.poppedOut} />
+            </div>
           </div>
 
-          <div ref={bottom} className="shrink-0">
-            <ShellPlayer mobile={mobile} queueOpen={queueOpen} setQueueOpen={setQueueOpen} nowPlaying={nowPlaying} setNowPlaying={setNowPlaying} onTogglePopOut={commands.togglePopOut} poppedOut={commands.poppedOut} />
-          </div>
+          <ShellNowPlaying nowPlaying={nowPlaying} setNowPlaying={setNowPlaying} />
+          <ShellNotices />
         </div>
-
-        <ShellNowPlaying nowPlaying={nowPlaying} setNowPlaying={setNowPlaying} />
-        <ShellNotices />
-      </div>
-      <ShellShortcuts commands={commands} onSearch={openSearch} />
-      <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
-      {popOut.popped && <PopOutPlayer target={popOut.popped} />}
-      {renderSearch({ open: searchOpen, onOpenChange: onSearchOpenChange, commands })}
-      {renderSettings({ open: settings.open, section: settings.section, lastFm: settings.lastFm, onOpenChange: onSettingsOpenChange, onSectionChange: onSettingsSectionChange })}
+        <ShellShortcuts commands={commands} onSearch={openSearch} />
+        <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+        {popOut.popped && <PopOutPlayer target={popOut.popped} />}
+        {renderSearch({ open: searchOpen, onOpenChange: onSearchOpenChange, commands })}
+        {renderSettings({ open: settings.open, section: settings.section, lastFm: settings.lastFm, onOpenChange: onSettingsOpenChange, onSectionChange: onSettingsSectionChange })}
+      </ListenTogetherProvider>
     </SettingsDialogContext>
   )
 })
@@ -479,8 +482,9 @@ function ShellShortcuts({ commands, onSearch }: { commands: ShellCommands; onSea
       const deviceId = state.activeDeviceId ?? state.thisDeviceId
       const run: Record<string, (() => void) | undefined> = {
         m: () => toggleMute(state.volume, deviceId, volume => controls.setVolume(volume)),
-        s: () => controls.setShuffle(!state.shuffle),
-        r: controls.cycleRepeat,
+        // The host's in a jam this user follows, as their buttons are.
+        s: hostControls(state) ? undefined : () => controls.setShuffle(!state.shuffle),
+        r: hostControls(state) ? undefined : controls.cycleRepeat,
         l: track && (() => void library.setSaved({ type: 'track', id: track.id, title: track.title }, !track.liked)),
         q: commands.toggleQueue,
         y: track && commands.toggleLyrics,

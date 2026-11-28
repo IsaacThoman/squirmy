@@ -1,7 +1,7 @@
 import { SessionHello } from '@squirmy/contracts'
 import { tokenBucket } from '../../lib/token-bucket.js'
 import type { Realtime } from '../../realtime/index.js'
-import { applyReport, applySignal, attach, detach, emitDevices, greet, leave, noteSeen, runCommand, setRealtimeServer, sync } from './service.js'
+import { applyReport, applySignal, attach, detach, emitDevices, greet, leave, noteSeen, runCommand, runJam, setRealtimeServer, sync } from './service.js'
 
 /**
  * Per-socket budgets. A user's events run one at a time, so one socket flooding them
@@ -10,7 +10,8 @@ import { applyReport, applySignal, attach, detach, emitDevices, greet, leave, no
  * once per connection, and say what they play once or twice a track. Detaching and attaching share one budget: each writes to the
  * database and copies a whole session, and a person moves a device now and then. A sync
  * sends a whole session, like a hello, and is only asked for when queue operations did
- * not apply, which should be rare.
+ * not apply, which should be rare. Jam requests (start, join, invite and the rest) are as
+ * rare as moves, and a join reaches another user's queue.
  */
 const budgets = {
   command: { capacity: 40, perSecond: 20 },
@@ -18,6 +19,7 @@ const budgets = {
   signal: { capacity: 10, perSecond: 1 },
   hello: { capacity: 5, perSecond: 0.2 },
   move: { capacity: 10, perSecond: 0.5 },
+  jam: { capacity: 10, perSecond: 0.5 },
   sync: { capacity: 5, perSecond: 0.2 },
 }
 
@@ -32,6 +34,7 @@ export function registerSessionSockets(realtime: Realtime): void {
     const signals = tokenBucket(budgets.signal)
     const hellos = tokenBucket(budgets.hello)
     const moves = tokenBucket(budgets.move)
+    const jams = tokenBucket(budgets.jam)
     const syncs = tokenBucket(budgets.sync)
 
     socket.on('session:hello', (raw, ack) => {
@@ -75,6 +78,12 @@ export function registerSessionSockets(realtime: Realtime): void {
       if (!moves.take()) return ack({ ok: false, error: 'rate_limited' })
       noteSeen(userId, deviceId)
       void attach(userId, deviceId, socket.id, raw, ack)
+    })
+    socket.on('session:jam', (raw, ack) => {
+      if (typeof ack !== 'function') return
+      if (!jams.take()) return ack({ ok: false, error: 'rate_limited' })
+      noteSeen(userId, deviceId)
+      void runJam(userId, deviceId, raw, ack)
     })
     // Refused rather than dropped: the client tries again a few seconds later.
     socket.on('session:sync', (_raw, ack) => {

@@ -1,19 +1,22 @@
 import {
-  type AnySessionCommand, bringSession, diffQueue, forkSession, leftBehind, positionAt, queueChanged, queueLengths, reduceSession, type Session, splitSession,
+  type AnySessionCommand, bringSession, diffQueue, followJam, followsJam, forkSession, JAM_END_SLACK_MS, leaveJam, leftBehind, memberCommandRoute, memberJam,
+  withoutJam, positionAt, queueChanged, queueLengths, reduceSession, type Session, splitSession,
 } from '@squirmy/client-core'
 import {
-  COMMAND_TRACK_LIMIT, CommandEnvelope, DEVICE_GRACE_MS, EngineReport, QUEUE_LIMIT, SessionAttach, SessionDetach, SignalReport,
-  type PlaybackControl, type CommandAck, type EntryFailure, type DeviceInfo, type QueueEntry, type SessionCapability, type SessionCommand, type SessionHello, type SessionHelloAck,
-  type SessionMoveAck, type SessionQueue, type SessionSnapshot, type SessionSyncAck, type SignalPath,
+  COMMAND_TRACK_LIMIT, CommandEnvelope, DEVICE_GRACE_MS, EngineReport, JAM_DRIFT_MS, QUEUE_LIMIT, SessionAttach, SessionDetach, SignalReport,
+  type PlaybackControl, type CommandAck, type EntryFailure, type DeviceInfo, JAM_MEMBER_LIMIT, type JamAck, type JamInfo, JamRequest, type JamPreview, type JamPerson, type QueueEntry,
+  type QueueSeed, type SessionCapability, type SessionCommand, type SessionHello, type SessionHelloAck, type SessionMoveAck, type SessionQueue, type SessionSnapshot,
+  type SessionSyncAck, type SignalPath,
 } from '@squirmy/contracts'
-import { and, eq } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
 import { getConfig } from '../../config.js'
 import { db } from '../../database/client.js'
-import { devices } from '../../database/schema.js'
+import { devices, playbackSessions, users } from '../../database/schema.js'
+import { randomToken } from '../../lib/crypto.js'
+import { conflict, forbidden, notFound } from '../../lib/errors.js'
 import { newId } from '../../lib/ids.js'
-import type { RealtimeServer } from '../../realtime/index.js'
+import { publish, type RealtimeServer } from '../../realtime/index.js'
 import { requestRecording } from '../acquisition/coverage.js'
-import { conflict } from '../../lib/errors.js'
 import { emitPlaybackWebhook } from '../integrations/playback.js'
 import { rememberDevice } from '../auth/service.js'
 import { suggestAutoplay } from '../radio/suggest.js'
@@ -53,7 +56,7 @@ const UNAVAILABLE_BEFORE_PAUSE = 5
 const MAX_DETACHED = 8
 /** An own session is discarded once its device has not been seen for this long. */
 const DETACHED_KEEP_MS = 7 * 24 * 60 * 60_000
-const CAPABILITIES: SessionCapability[] = ['detach', 'signal', 'sleepTimer', 'queueOps', 'undo']
+const CAPABILITIES: SessionCapability[] = ['detach', 'signal', 'sleepTimer', 'queueOps', 'undo', 'jam']
 /** Longest a sleep timer's wait is scheduled in one go; a longer one is scheduled again when this runs out. */
 const MAX_TIMER_MS = 2 ** 31 - 1
 
@@ -78,6 +81,8 @@ const refreshedFor = new Map<string, string>()
 /** Work started outside the per-user queues, which shutdown waits for. */
 const background = new Set<Promise<void>>()
 let stopping = false
+/** The host of each jam whose session is loaded, by jam id (see `noteJam`). */
+const jamHosts = new Map<string, string>()
 let io: RealtimeServer | null = null
 
 /**
@@ -121,6 +126,8 @@ function load(userId: string): Promise<SessionRecord> {
  * be ready or unavailable by now, and its active device may not come back.
  */
 async function recheck(record: SessionRecord): Promise<void> {
+  // A member's session takes everything from the host's, which does this work itself.
+  if (following(record)) return refollow(record)
   await refreshEntries(record, entriesOf(record.session))
   const preparing = [...new Set(entriesOf(record.session).filter(entry => entry.state === 'preparing').map(entry => entry.trackId))]
   const tracks = await lookupTracks(preparing)
@@ -231,6 +238,7 @@ type Change = { queue: boolean; devices: boolean; base: { queue: SessionQueue; q
  */
 function commit(record: SessionRecord, next: Session, now = settings.now()): Change | null {
   const previous = record.session
+  next = withHost(record, next)
   if (next === previous) return null
   const queue = queueChanged(previous, next)
   const base = queue ? { queue: splitSession(previous).queue, queueVersion: record.queueVersion } : null
@@ -249,6 +257,7 @@ function commit(record: SessionRecord, next: Session, now = settings.now()): Cha
   if (record.deviceId !== null && connectedDevice(record.userId, record.deviceId)) record.lastSeenAt = now
   schedulePersist(record, report)
   if (previous.sleepTimer !== next.sleepTimer) armSleepTimer(record)
+  if (record.deviceId === null && (previous.jam?.role === 'host' || next.jam?.role === 'host')) noteJam(record.userId, previous, next)
   const devices = record.deviceId === null
     ? previous.activeDeviceId !== next.activeDeviceId
     : JSON.stringify(ownSummary(previous)) !== JSON.stringify(ownSummary(next))
@@ -351,6 +360,7 @@ function applyServer(record: SessionRecord, command: AnySessionCommand, now = se
 
 /** Work that follows a change without holding it up: preparing on-demand entries, refilling autoplay, catching up with the catalog. */
 function afterChange(record: SessionRecord): void {
+  if (following(record)) return
   requestUpcoming(record)
   refillAutoplay(record)
   refreshUpcoming(record)
@@ -483,6 +493,7 @@ export type FetchFailure = { failure: EntryFailure; reason?: string }
  */
 function applyFailure(record: SessionRecord, trackId: string, { failure, reason }: FetchFailure): void {
   const { session } = record
+  if (following(record)) return
   if (!entriesOf(session).some(entry => entry.trackId === trackId && entry.state !== 'failed')) return
   const room = io?.to(sessionRoom(record))
   room?.emit('event', { type: 'playback.failed', trackId, failure })
@@ -629,6 +640,8 @@ function startGrace(record: SessionRecord, deviceId: string, lostAt = settings.n
  */
 function stopClock(record: SessionRecord, key: string, at: number): void {
   const { session } = record
+  // A member's device going away does not stop the jam's clock.
+  if (following(record)) return
   const { current } = session
   if (!current || current.state !== 'ready' || !session.playing || session.stalled) return
   const positionMs = positionAt(session, at)
@@ -788,7 +801,8 @@ export function detach(userId: string, deviceId: string | null, socketId: string
     const wasActive = shared.session.activeDeviceId === device.id
     // Written before anything changes: if the write fails, the device stays where it was.
     const own = await createOwn(userId, device.id, {
-      session: forkSession(shared.session, device.id, now),
+      // A device's own session is its alone: a jam stays with the shared one.
+      session: withoutJam(forkSession(shared.session, device.id, now)),
       version: shared.version,
       queueVersion: shared.queueVersion,
       // A command applied before the copy is in it; one re-sent after must not apply twice.
@@ -892,7 +906,9 @@ export function attach(userId: string, deviceId: string | null, socketId: string
       shared.autoplayAskedFor = own.autoplayAskedFor
       // The shared queue is replaced: its edits are no longer there to undo.
       shared.undo = []
-      change = commit(shared, bringSession(shared.session, own.session, { now, commandId: newId(), deviceId: device.canPlay ? device.id : undefined }))
+      const brought = bringSession(shared.session, own.session, { now, commandId: newId(), deviceId: device.canPlay ? device.id : undefined })
+      // The jam belongs to the shared session: a host brings a queue into it, a member's follows it still.
+      change = commit(shared, shared.session.jam ? { ...brought, jam: shared.session.jam } : brought)
       if (change) void persist(shared).catch(report)
     } else {
       closePlay(own)
@@ -950,6 +966,11 @@ export function runCommand(userId: string, deviceId: string | null, raw: unknown
     if (!device) return ack({ ok: false, error: 'hello_required' })
     const record = await sessionOf(userId, device.id)
     if (record.commandIds.has(commandId)) return ack({ ok: true, version: record.version })
+    if (following(record)) {
+      const route = memberCommandRoute(envelope.data.command)
+      if (route === 'jam') return toJam(record, device.id, commandId, envelope.data.command, ack)
+      if (route !== 'own') return ack({ ok: false, error: route })
+    }
     const command = await checkCommand(record, device.id, envelope.data.command)
     if (typeof command === 'string') return ack({ ok: false, error: command })
     const now = settings.now()
@@ -1016,7 +1037,9 @@ async function checkCommand(record: SessionRecord, deviceId: string, command: Se
     case 'setVolume':
       return await isKnownDevice(userId, command.deviceId) ? command : 'unknown_device'
     case 'playTracks': {
-      const { seeds, indexes } = await trustSeeds(userId, command.tracks)
+      const trusted = await trustSeeds(userId, command.tracks)
+      const { indexes } = trusted
+      const seeds = addedBy(session, trusted.seeds, userId)
       if (!seeds.length) return 'nothing_playable'
       if (command.startIndex === undefined) return { ...command, tracks: seeds }
       // A start track that was dropped gives way to the next playable one, else the first.
@@ -1024,7 +1047,7 @@ async function checkCommand(record: SessionRecord, deviceId: string, command: Se
       return { ...command, tracks: seeds, startIndex }
     }
     case 'enqueue': {
-      const { seeds } = await trustSeeds(userId, command.tracks)
+      const seeds = addedBy(session, (await trustSeeds(userId, command.tracks)).seeds, userId)
       if (!seeds.length) return 'nothing_playable'
       // Checked here as well as in the reducer, which would only ignore it, so the client can say why.
       return session.queue.length + seeds.length > QUEUE_LIMIT ? 'queue_full' : { ...command, tracks: seeds }
@@ -1032,6 +1055,11 @@ async function checkCommand(record: SessionRecord, deviceId: string, command: Se
     default:
       return command
   }
+}
+
+/** Marks seeds as added by `userId` while the session is in a jam, for "who added this". */
+function addedBy(session: Session, seeds: QueueSeed[], userId: string): QueueSeed[] {
+  return session.jam ? seeds.map(seed => ({ ...seed, addedBy: userId })) : seeds
 }
 
 async function isKnownDevice(userId: string, deviceId: string): Promise<boolean> {
@@ -1054,12 +1082,16 @@ export function applyReport(userId: string, deviceId: string | null, raw: unknow
     const record = loadedOwn(userId, deviceId) ?? loadedRecord(userId)
     const session = record?.session
     if (!record || !session || session.activeDeviceId !== deviceId) return
+    // A member's device follows the jam's clock rather than setting it.
+    if (following(record)) return
     if (session.current?.id !== engine.entryId || session.current.state !== 'ready') return
     const at = Math.min(engine.at, settings.now())
     // A report from before the last change, or one that has not caught up with play/pause yet.
     if (at < session.anchorAt || (engine.status !== 'paused') !== session.playing) return
     const stalled = engine.status === 'buffering' || engine.status === 'error'
-    if (stalled === session.stalled && Math.abs(engine.positionMs - positionAt(session, at)) <= DRIFT_THRESHOLD_MS) return
+    // A jam's members follow this clock, so it keeps closer to the host's audio.
+    const threshold = session.jam ? JAM_DRIFT_MS : DRIFT_THRESHOLD_MS
+    if (stalled === session.stalled && Math.abs(engine.positionMs - positionAt(session, at)) <= threshold) return
     applyServer(record, { type: 'syncPosition', entryId: engine.entryId, positionMs: engine.positionMs, stalled }, at)
   }).catch(report)
 }
@@ -1082,6 +1114,328 @@ export function applySignal(userId: string, deviceId: string | null, raw: unknow
   }).catch(report)
 }
 
+// Listen together (see "Listen together" in the session contract)
+
+/** A member's shared session, following a jam someone else hosts. */
+function following(record: SessionRecord): boolean {
+  return record.deviceId === null && followsJam(record.session)
+}
+
+/**
+ * `next` for a member's session: what the jam holds comes from the host's session, so
+ * whatever changed the member's (their own command, a device lost, a mirror of the host's)
+ * ends up in step with it. Unchanged for every other session, and while the host's session
+ * is not loaded (`refollow` catches up when it is).
+ */
+function withHost(record: SessionRecord, next: Session): Session {
+  if (record.deviceId !== null || next.jam?.role !== 'member') return next
+  const host = loadedRecord(next.jam.hostUserId)
+  if (host?.session.jam?.id !== next.jam.id) return next
+  return followJam(next, host.session)
+}
+
+/**
+ * A host's session changed: keeps the index of jams and brings every member's session in
+ * step, those no longer listed included, who leave. Each member's runs in their own queue,
+ * after this; a host's queue never waits on a member's, so two users never wait on each other.
+ */
+function noteJam(hostId: string, previous: Session, next: Session): void {
+  const before = previous.jam?.role === 'host' ? previous.jam : undefined
+  const after = next.jam?.role === 'host' ? next.jam : undefined
+  if (before && before.id !== after?.id) jamHosts.delete(before.id)
+  if (after) jamHosts.set(after.id, hostId)
+  const members = new Map<string, string>()
+  for (const jam of [before, after]) {
+    for (const member of jam?.members ?? []) if (member.userId !== hostId) members.set(member.userId, jam!.id)
+  }
+  for (const [userId, jamId] of members) void serial(userId, () => mirror(userId, jamId)).catch(report)
+}
+
+/** Brings a member's loaded session in step with the jam, or out of it when the jam ended or no longer lists them. */
+function mirror(userId: string, jamId: string): void {
+  const record = loadedRecord(userId)
+  const jam = record?.session.jam
+  if (!record || jam?.role !== 'member' || jam.id !== jamId) return
+  const host = loadedRecord(jam.hostUserId)
+  if (!host) return
+  const hostJam = host.session.jam
+  if (hostJam?.role !== 'host' || hostJam.id !== jamId) return dropMember(record, 'ended')
+  if (!hostJam.members.some(member => member.userId === userId)) return dropMember(record, 'removed')
+  const change = commit(record, record.session)
+  if (change) broadcast(record, change)
+}
+
+/** Takes a member's session out of the jam, paused where it was, and tells its sockets why first. */
+function dropMember(record: SessionRecord, reason: 'ended' | 'removed'): void {
+  const jamId = record.session.jam!.id
+  io?.to(sessionRoom(record)).emit('event', { type: 'jam.left', jamId, reason })
+  finish(record, leaveJam(record.session, settings.now()), settings.now())
+}
+
+/**
+ * A member's session read from the database: loads the host's (in the host's queue, not
+ * awaited) and then catches up with it, or leaves a jam that ended meanwhile.
+ */
+function refollow(record: SessionRecord): void {
+  const jam = record.session.jam!
+  void serial(jam.hostUserId, () => load(jam.hostUserId))
+    .then(() => serial(record.userId, () => {
+      if (recordOf(record.key) === record) mirror(record.userId, jam.id)
+    }))
+    .catch(report)
+  const active = record.session.activeDeviceId
+  if (active && !connectedDevice(record.userId, active)) startGrace(record, active)
+}
+
+/**
+ * Leaves the jam a member's session follows: paused where it was, and the host's session
+ * forgets them (in the host's queue, after this).
+ */
+function leaveFollowed(record: SessionRecord): void {
+  const jam = record.session.jam!
+  finish(record, leaveJam(record.session, settings.now()), settings.now())
+  void serial(jam.hostUserId, () => removeMember(jam.hostUserId, jam.id, record.userId)).catch(report)
+}
+
+function removeMember(hostId: string, jamId: string, userId: string): void {
+  const host = loadedRecord(hostId)
+  const jam = host?.session.jam
+  if (!host || jam?.role !== 'host' || jam.id !== jamId) return
+  const members = jam.members.filter(member => member.userId !== userId)
+  if (members.length !== jam.members.length) finish(host, { ...host.session, jam: { ...jam, members } }, settings.now())
+}
+
+/**
+ * A member's command for the jam (`memberCommandRoute`): runs on the host's session under the
+ * jam's rules, in the host's queue, then the member's session takes the result and the
+ * command is acked with its version. Not awaited in the member's queue (see `noteJam`).
+ */
+function toJam(record: SessionRecord, deviceId: string, commandId: string, command: SessionCommand, ack: (reply: CommandAck) => void): void {
+  const { userId } = record
+  const jam = record.session.jam!
+  if (command.type === 'trackEnded' && record.session.activeDeviceId !== deviceId) return ack({ ok: false, error: 'not_active_device' })
+  void serial(jam.hostUserId, async (): Promise<string | null> => {
+    const host = loadedRecord(jam.hostUserId)
+    const hostJam = host?.session.jam
+    if (!host || hostJam?.id !== jam.id || !hostJam.members.some(member => member.userId === userId)) return 'not_in_jam'
+    if (host.commandIds.has(commandId)) return null
+    const checked = await jamCommand(host, userId, command)
+    if (typeof checked === 'string') return checked
+    if (!checked) return null
+    const now = settings.now()
+    const next = reduceSession(host.session, { command: checked, now, commandId })
+    rememberCommand(host, commandId)
+    finish(host, next, now)
+    return null
+  }).then(error => serial(userId, () => {
+    if (error) return ack({ ok: false, error })
+    const latest = loadedRecord(userId)
+    if (!latest) return ack({ ok: false, error: 'internal_error' })
+    rememberCommand(latest, commandId)
+    const change = commit(latest, latest.session)
+    ack({ ok: true, version: latest.version })
+    if (change) broadcast(latest, change)
+  })).catch((error: unknown) => {
+    report(error)
+    ack({ ok: false, error: 'internal_error' })
+  })
+}
+
+/**
+ * The jam's rules for a member's command, on the host's session: the command to apply, null
+ * for one that changes nothing, or the error it is refused with.
+ */
+async function jamCommand(host: SessionRecord, memberId: string, command: SessionCommand): Promise<SessionCommand | string | null> {
+  const { session } = host
+  const jam = session.jam!
+  switch (command.type) {
+    case 'enqueue': {
+      if (jam.queuePolicy !== 'everyone') return 'jam_host_only'
+      // What the member may play, and of that what the host's session may hold: it fetches what is missing on the host's behalf.
+      const mine = (await trustSeeds(memberId, command.tracks)).seeds
+      const seeds = mine.length ? addedBy(session, (await trustSeeds(host.userId, mine)).seeds, memberId) : []
+      if (!seeds.length) return 'nothing_playable'
+      return session.queue.length + seeds.length > QUEUE_LIMIT ? 'queue_full' : { ...command, tracks: seeds }
+    }
+    case 'removeFromQueue': {
+      const entry = [...session.queue, ...session.autoplayQueue].find(item => item.id === command.entryId)
+      if (!entry) return null
+      return jam.queuePolicy === 'everyone' && entry.addedBy === memberId ? command : 'jam_host_only'
+    }
+    case 'trackEnded': {
+      // Every listener plays to the same clock, so the first to finish moves everyone on; one
+      // that ends well before the jam does (a shorter file, a device that ran ahead) does not.
+      const { current } = session
+      if (!current || current.id !== command.entryId) return null
+      const left = current.durationMs - positionAt(session, settings.now())
+      return current.durationMs > 0 && left <= JAM_END_SLACK_MS ? command : null
+    }
+    default:
+      return 'jam_host_only'
+  }
+}
+
+/** The host of a jam, by its id: from memory while their session is loaded, else from the stored sessions. */
+async function hostOfJam(jamId: string): Promise<string | null> {
+  const known = jamHosts.get(jamId)
+  if (known) return known
+  const jam = sql`${playbackSessions.state} -> 'state' -> 'jam'`
+  const [row] = await db.select({ userId: playbackSessions.userId }).from(playbackSessions)
+    .where(sql`${jam} ->> 'id' = ${jamId} and ${jam} ->> 'role' = 'host'`).limit(1)
+  return row?.userId ?? null
+}
+
+/** A user's name as a jam shows it. */
+async function nameOf(userId: string): Promise<string> {
+  const [row] = await db.select({ username: users.username, displayName: users.displayName }).from(users).where(eq(users.id, userId))
+  return row?.displayName || row?.username || 'Someone'
+}
+
+/**
+ * `session:jam` from `deviceId`: starts, joins, leaves, ends or changes the user's jam (see
+ * `JamRequest`). Acks, then the sessions' own updates follow as `session:state`.
+ */
+export function runJam(userId: string, deviceId: string | null, raw: unknown, ack: (reply: JamAck) => void): Promise<void> {
+  const parsed = JamRequest.safeParse(raw)
+  if (!parsed.success) {
+    ack({ ok: false, error: 'invalid_request' })
+    return Promise.resolve()
+  }
+  const request = parsed.data
+  return serial(userId, async () => {
+    const device = deviceId ? connectedDevice(userId, deviceId) : undefined
+    if (!device) return ack({ ok: false, error: 'hello_required' })
+    const shared = await load(userId)
+    const jam = shared.session.jam
+    const now = settings.now()
+    switch (request.action) {
+      case 'start': {
+        if (jam?.role === 'host') return ack({ ok: true, jam })
+        if (loadedOwn(userId, device.id)) return ack({ ok: false, error: 'jam_detached' })
+        const started: JamInfo = {
+          id: randomToken(16),
+          hostUserId: userId,
+          members: [{ userId, name: await nameOf(userId), joinedAt: now }],
+          queuePolicy: request.queuePolicy ?? 'everyone',
+          startedAt: now,
+          role: 'host',
+        }
+        if (jam) leaveFollowed(shared)
+        finish(shared, { ...shared.session, jam: started }, now)
+        return ack({ ok: true, jam: started })
+      }
+      case 'join':
+        return join(shared, device.id, request.jamId, ack)
+      case 'leave':
+        if (jam?.role !== 'member') return ack({ ok: false, error: 'not_in_jam' })
+        leaveFollowed(shared)
+        return ack({ ok: true, jam: null })
+    }
+    if (!jam) return ack({ ok: false, error: 'not_in_jam' })
+    if (jam.role !== 'host') return ack({ ok: false, error: 'jam_host_only' })
+    switch (request.action) {
+      case 'end':
+        finish(shared, leaveJam(shared.session, now), now)
+        return ack({ ok: true, jam: null })
+      case 'settings': {
+        if (request.queuePolicy === jam.queuePolicy) return ack({ ok: true, jam })
+        const changed = { ...jam, queuePolicy: request.queuePolicy }
+        finish(shared, { ...shared.session, jam: changed }, now)
+        return ack({ ok: true, jam: changed })
+      }
+      case 'remove': {
+        if (request.userId === userId) return ack({ ok: false, error: 'invalid_request' })
+        removeMember(userId, jam.id, request.userId)
+        return ack({ ok: true, jam: shared.session.jam ?? null })
+      }
+      case 'invite': {
+        const listed = new Set(jam.members.map(member => member.userId))
+        const wanted = request.userIds.filter(id => !listed.has(id))
+        const invited = wanted.length
+          ? await db.select({ id: users.id }).from(users).where(and(inArray(users.id, wanted), isNull(users.disabledAt)))
+          : []
+        if (invited.length) {
+          const hostName = jam.members.find(member => member.userId === userId)?.name ?? await nameOf(userId)
+          await publish(invited.map(({ id }) => ({ user: id })), { type: 'jam.invite', jamId: jam.id, hostName })
+        }
+        return ack({ ok: true, jam })
+      }
+    }
+  }).catch((error: unknown) => {
+    report(error)
+    ack({ ok: false, error: 'internal_error' })
+  })
+}
+
+/**
+ * Joins `jamId` from `deviceId`: the host's session lists the user (in the host's queue),
+ * then the user's shared session follows it, with the joining device active when it can play.
+ * A member of another jam leaves that one first.
+ */
+async function join(record: SessionRecord, deviceId: string, jamId: string, ack: (reply: JamAck) => void): Promise<void> {
+  const { userId } = record
+  const jam = record.session.jam
+  if (jam?.id === jamId) return ack({ ok: true, jam })
+  if (jam?.role === 'host') return ack({ ok: false, error: 'jam_hosting' })
+  if (loadedOwn(userId, deviceId)) return ack({ ok: false, error: 'jam_detached' })
+  const hostId = await hostOfJam(jamId)
+  if (!hostId || hostId === userId) return ack({ ok: false, error: 'jam_not_found' })
+  const name = await nameOf(userId)
+  if (jam) leaveFollowed(record)
+  void serial(hostId, async (): Promise<string | null> => {
+    const host = await load(hostId)
+    const hostJam = host.session.jam
+    if (hostJam?.role !== 'host' || hostJam.id !== jamId) return 'jam_not_found'
+    if (hostJam.members.some(member => member.userId === userId)) return null
+    if (hostJam.members.length >= JAM_MEMBER_LIMIT) return 'jam_full'
+    const now = settings.now()
+    finish(host, { ...host.session, jam: { ...hostJam, members: [...hostJam.members, { userId, name, joinedAt: now }] } }, now)
+    return null
+  }).then(error => serial(userId, async () => {
+    if (error) return ack({ ok: false, error })
+    const latest = await load(userId)
+    const hostJam = loadedRecord(hostId)?.session.jam
+    // Meanwhile the user started a jam of their own, or the host ended theirs.
+    if (latest.session.jam?.role === 'host' || hostJam?.role !== 'host' || hostJam.id !== jamId) {
+      void serial(hostId, () => removeMember(hostId, jamId, userId)).catch(report)
+      return ack({ ok: false, error: latest.session.jam?.role === 'host' ? 'jam_hosting' : 'jam_not_found' })
+    }
+    const joined = memberJam(hostJam)
+    if (latest.session.jam?.id !== jamId) {
+      const device = connectedDevice(userId, deviceId)
+      const activeDeviceId = device?.canPlay && !loadedOwn(userId, deviceId) ? deviceId : latest.session.activeDeviceId
+      // The member's queue becomes the jam's: the edits kept for undo were to the one it replaces.
+      latest.undo = []
+      finish(latest, { ...latest.session, jam: joined, activeDeviceId }, settings.now())
+    }
+    ack({ ok: true, jam: latest.session.jam ?? joined })
+  })).catch((error: unknown) => {
+    report(error)
+    ack({ ok: false, error: 'internal_error' })
+  })
+}
+
+/** What an invite link shows (`GET /jams/:id`). */
+export async function getJamPreview(jamId: string): Promise<JamPreview> {
+  const hostId = await hostOfJam(jamId)
+  const jam = hostId ? await serial(hostId, async () => (await load(hostId)).session.jam) : undefined
+  if (!jam || jam.role !== 'host' || jam.id !== jamId) throw notFound('This listening session has ended', 'jam_not_found')
+  const host = loadedRecord(jam.hostUserId)
+  return {
+    id: jam.id,
+    hostName: jam.members.find(member => member.userId === jam.hostUserId)?.name ?? 'Someone',
+    members: jam.members.map(({ userId, name }) => ({ userId, name })),
+    trackId: host?.session.current?.trackId ?? null,
+  }
+}
+
+/** The server's other active users, whom a host may invite (`GET /jams/people`). */
+export async function jamPeople(userId: string): Promise<JamPerson[]> {
+  const rows = await db.select({ id: users.id, username: users.username, displayName: users.displayName }).from(users)
+    .where(and(ne(users.id, userId), isNull(users.disabledAt))).orderBy(asc(users.usernameKey))
+  return rows.map(row => ({ userId: row.id, name: row.displayName || row.username }))
+}
+
 // Service functions for other modules
 
 /** Sessions with a connected player, for the integrations bridge. */
@@ -1101,6 +1455,8 @@ export function controlPlayback(userId: string, command: PlaybackControl, device
     if (!active || (deviceId && active !== deviceId) || !connectedDevice(userId, active)?.canPlay) {
       throw conflict('There is no active playback device', 'device_unavailable')
     }
+    // A jam member's transport is the host's, as over the socket; their own volume stays theirs.
+    if (command.type !== 'volume' && following(record)) throw forbidden('Only the host controls playback in a jam', 'jam_host_only')
     applyServer(record, command.type === 'volume' ? { type: 'setVolume', deviceId: active, value: command.value } : command)
     return snapshotOf(record)
   })
@@ -1128,6 +1484,8 @@ export function getDevices(userId: string, currentDeviceId: string | null = null
 export function replaceQueue(userId: string, request: { trackIds: readonly string[]; currentId?: string | null; positionMs?: number }): Promise<SessionSnapshot> {
   return serial(userId, async () => {
     const record = await load(userId)
+    // The queue is the jam's, which only its host changes.
+    if (following(record)) return snapshotOf(record)
     // A client may save more ids than one playTracks carries or one query can bind. Tracks
     // before the current one are not queued, so the window starts there.
     const from = Math.max(0, request.currentId ? request.trackIds.indexOf(request.currentId) : 0)
@@ -1211,7 +1569,8 @@ async function setRecordingState(recordingId: string, failure: FetchFailure | nu
   // that queues it again asks again instead of waiting on an answer that already came.
   // A session that asked for a recording under an id merged since is answered under the
   // surviving one: those are looked up again first.
-  await Promise.all([...loadedRecords()].filter(record => record.requested.has(recordingId) || holds(record, recordingId) || awaitsOther(record, recordingId))
+  await Promise.all([...loadedRecords()].filter(record => !following(record))
+    .filter(record => record.requested.has(recordingId) || holds(record, recordingId) || awaitsOther(record, recordingId))
     .map(({ userId, key }) => serial(userId, async () => {
       const asked = recordOf(key)
       if (asked && !holds(asked, recordingId)) await refreshEntries(asked, entriesOf(asked.session).filter(entry => asked.requested.has(entry.trackId)))
@@ -1233,7 +1592,7 @@ async function setRecordingState(recordingId: string, failure: FetchFailure | nu
  * plays again, not while fetching is still down. A current entry it held stays paused.
  */
 export async function markRecordingRestored(recordingId: string): Promise<void> {
-  await Promise.all([...loadedRecords()].filter(record => holds(record, recordingId))
+  await Promise.all([...loadedRecords()].filter(record => !following(record) && holds(record, recordingId))
     .map(({ userId, key }) => serial(userId, () => {
       const record = recordOf(key)
       const entries = record ? entriesOf(record.session).filter(entry => entry.trackId === recordingId) : []
@@ -1273,6 +1632,7 @@ async function finishSessions(): Promise<void> {
   for (const { handle } of sleepTimers.values()) settings.timers.clear(handle)
   sleepTimers.clear()
   awayClocks.clear()
+  jamHosts.clear()
   refreshedFor.clear()
   opsSockets.clear()
   for (const record of loadedRecords()) {

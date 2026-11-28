@@ -11,7 +11,7 @@ import { TRACK_ROW_HEIGHT, useDensity } from '@/lib/density'
 import { formatDuration, formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useViewer } from '@/player/on-demand-context'
-import { PlayerControlsContext, useTrackPlayback } from '@/player/player-context'
+import { PlayerControlsContext, useJamRights, useTrackPlayback } from '@/player/player-context'
 import { ArtistLinks } from './ArtistLinks'
 import { Cover } from './Cover'
 import { Equalizer } from './Equalizer'
@@ -171,6 +171,7 @@ export function TrackRow({ track, index, selectionKey, number, movementName, add
   }, [present, index, onMenuRow])
   const viewer = useViewer()
   const controls = useContext(PlayerControlsContext)
+  const rights = useJamRights()
   const rowSelection = useContext(SelectionContext)
   const picked = usePickedTracks()
   const selected = useSelected(selectionKey)
@@ -201,7 +202,7 @@ export function TrackRow({ track, index, selectionKey, number, movementName, add
   // Album rows are on that album's page already. One of several picked rows opens their menu.
   const menu = () => (selected && picked?.several()
     ? picked.menu()
-    : trackMenuEntries(track, { unavailable, wanted, playlists, ratings, act, navigate, canShare, extraMenu, reorder: reorder && { index, count: reorder.count }, onAlbumPage: variant === 'album' }))
+    : trackMenuEntries(track, { unavailable, wanted, playlists, ratings, act, navigate, canShare, extraMenu, reorder: reorder && { index, count: reorder.count }, onAlbumPage: variant === 'album', rights }))
 
   const onDragOver = (event: DragEvent) => {
     const drag = draggedTracks(event)
