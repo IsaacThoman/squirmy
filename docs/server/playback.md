@@ -6,7 +6,7 @@ This page explains how Squirmy streams audio, when it converts it, how volume no
 
 A client asks the server how to play a track and gets back a signed URL, valid for 12 hours, that works without any other credentials. Browsers, iOS's player and download managers can all use it directly, with HTTP Range requests for seeking.
 
-When an album has several files for the same track, the server picks the file on the album being played first, then lossless over lossy, then the higher bitrate.
+When the server has several files of a song, it plays, in order: the version the user picked for that song in **Track info**, the copy on the album being played, the version the user picked for its album ([Several copies of one album](./library.md#several-copies-of-one-album)), then the copy that reaches the device best: lossless delivered first (a device that cannot play FLAC gets an Apple Lossless copy as it is rather than a transcode of the FLAC), then the finer one, then a file sent as it is over a transcode. Ties go to lossless, then the higher bitrate, then the newest file. Subsonic apps get the same choice, without the step that depends on what the device plays.
 
 When the server has measured the original file, its playback descriptor includes the exact decoded frame count, sample rate and source priming. Clients that use those values can identify the track's exact boundary.
 
