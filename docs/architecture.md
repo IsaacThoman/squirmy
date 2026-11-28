@@ -540,6 +540,7 @@ Catalog data reaches views through props typed with the contracts; session state
 ```
 apps/mobile/
   app/                   expo-router routes; the root layout gates connect → sign-in → (tabs)
+  tv-app/                the Apple TV's expo-router routes (with EXPO_TV=1): the same gate, then the sidebar tabs
   src/account/           server address, auth state machine, AccountProvider, connect, sign-in and settings screens
   src/data/              query hooks, the persisted cache, RealtimeProvider, LibraryProvider (likes and their offline queue, playlists, TrackStore)
   src/downloads/         DownloadManager (queue, sync, removal), its SQLite index and file adapters, DownloadsProvider, the Downloads screen
@@ -550,10 +551,13 @@ apps/mobile/
   src/playback.tsx       PlaybackProvider: the SessionClient, its hooks (usePlaybackState, usePosition)
   src/*.tsx              the tab shell's screens and parts: Now Playing, Library, mini-player, sheets, theme, shared UI
   src/native/            SwiftUI controls (buttons, menus) for the .ios screens
-  src/tv/                Apple TV shell, typed sign-in, browse pages and Now Playing
+  src/tv/                the Apple TV app: its kit (theme, focus, covers, shelves, rows, buttons, menus), screens, pages, Now Playing, Settings
   src/dev/               development-only screens (the engine bench at /dev/engine)
   modules/now-playing/   local Expo module: Now Playing info and remote commands as JS events
   modules/scroll-edges/  local Expo module: turns off iOS 26's scroll edge effects in every scroll view
+  modules/tv-artwork/    tvOS only: a cover that takes the system's focus lift, tilt and shine from its focusable parent
+  modules/tv-menu/       tvOS only: the system's long-press context menu, and its UIButton (with an optional menu on click)
+  modules/tv-search/     tvOS only: the system's search field with the one-row tvOS keyboard
 ```
 
 - **Accounts.** `AccountProvider` owns the auth state: it restores the stored session and opens the app from it at once (the `me` query confirms it in the background), creates the API client with the bearer token, and returns to sign-in on a 401. The token and device id go through `Keychain` (`src/account/keychain.ts`), which never rejects: what the keychain refuses is kept in memory for the launch, and the account sheet (and sign-in, if it happens there) says the next launch will need a sign-in (`AccountContext.unsaved`). The server's name, version, invite rule and wantlist switch are read again from `GET /setup/status` whenever a server is chosen, and when the server invalidates it, so they stay current. While the wantlist is off (`useWantlistEnabled`), no screen, menu or Home row mentions it.
@@ -585,11 +589,17 @@ apps/mobile/
 
 **Apple TV**
 
-- `EXPO_TV=1` selects the TV entry in Metro and configures the generated `ios/` directory as a tvOS project. Regenerate the project with `--clean` to switch between iOS and tvOS. The Apple TV app uses the same bundle ID as iOS.
-- `src/tv/` owns the TV routes and directional focus. It shares the account, query, realtime and playback providers. The native Now Playing module feeds remote commands through the shared session. tvOS uses the session volume for playback gain.
-- Servers advertise `supportsTvDevices` in `GET /setup/status`. A TV identifies itself as `tv` on those servers and `other` on older ones.
-- The TV build streams music, with storage treated as disposable caches. The Keychain holds credentials. See the [Apple TV guide](./use/apple-tv.md) for building the app and installing a TestFlight build.
-- The config plugin builds the tvOS icon stack and Top Shelf image sets from `apps/mobile/assets/tv/`. After changing the iOS mascot layers, run `swift apps/mobile/assets/tv/render.swift` to regenerate the TV artwork.
+- **Build.** One `apps/mobile` makes both apps, and the generated `ios/` folder holds one of them at a time. `EXPO_TV=1` at prebuild makes it the tvOS project (`npm run tv:prebuild`; `npm run ios:prebuild` goes back). `app.config.js` then adds `@react-native-tvos/config-tv` with a tvOS 17.0 deployment target (Pods too), points expo-router at `tv-app/` instead of `app/`, and sets the landscape, always-dark splash. Xcode's bundling phase does not pass `EXPO_TV` on, so the config also recognises a tvOS build from Xcode's `PLATFORM_NAME`. There is no custom entry or Metro configuration. Both apps use the bundle ID `com.isaacthoman.squirmy`, one App Store Connect record with two platforms.
+- **Why tvOS 17.** The system's context menus on focusable views and the menu buttons need it, and every Apple TV that ran tvOS 16 runs 17.
+- **Routes.** `tv-app/` has the phone's gate (`connect`, `sign-in`, then `(tabs)`) and a transparent `devices` panel. `(tabs)` are expo-router's JavaScript tabs with no tab bar: Search, Home, Library, Now Playing, Settings. Search, Home and Library are stacks of the same album, artist, playlist, genre, releases and songs pages; Settings is a stack whose choices open as pushed lists. Route files only re-export screens from `src/tv/`.
+- **Sidebar.** The system's media apps put their tabs in a sidebar since tvOS 26, which UIKit offers only to SwiftUI (`UITabBarController`'s sidebar mode is unavailable on tvOS), so `src/tv/Sidebar.tsx` draws one: a glass pill naming the tab at the top left of a tab's first page, which scrolls away with it, and a Liquid Glass panel of the tabs (a blur before tvOS 26). The focus engine does not move focus out of the screen on show (each tab and page is a view controller of its own), so the pill and the panel are drawn inside each tab's first screen (`Page` does it, other screens wrap themselves in `TabRoot`), with their state in `SidebarProvider`. Up from a page's first row lands on a focus guide under the pill and opens the panel; Menu on a tab's first page scrolls it back to its top, then opens the panel; with the panel open the system takes Menu and leaves the app; moving right closes it. Menu on a page pushed over a tab goes back natively. A screen with something of its own to close (Now Playing's lyrics or queue) takes Menu with `useMenuKey` meanwhile.
+- **Focus.** `hasTVPreferredFocus` places a screen's first focus and is let go once that element is focused (`Focusable`), or it would pull focus back from the sidebar and menus. A long press opens the context menu, so `Focusable` gives every press a long press of its own, or its release would also select.
+- **Kit.** `src/tv/theme.ts` has the tokens on the 1920 × 1080 canvas (an 80 pt gutter, 260 pt covers). `Focusable` grows the focused thing and lifts it on a shadow; `Artwork` draws covers with `tv-artwork`, so they move with focus as the system's posters do; `Lockup`, `CollectionLockup`, `Shelf` and `SongRow` build the pages; `Button` is a React Native button and `SystemButton` the native one; `Menu` and `menus.ts` give every song, album, artist and playlist the long-press menu the phone's long-press has. Screens use the phone's data and playback hooks (`src/data/`, `src/playback.tsx`, `src/library/`, `src/player/`), not copies.
+- **Native modules.** `tv-artwork`, `tv-menu` and `tv-search` are local Expo modules for tvOS only; each JavaScript wrapper returns null in a build without its view, and the kit falls back to React Native parts. `now-playing` gives the TV its Now Playing info and the Siri Remote's commands, which become session commands as on the phone.
+- **Playback.** The TV plays through the shared session like the phone. It streams at the Wi-Fi quality (Ethernet included), keeps no downloads, and treats its storage as a cache that tvOS may clear. The Keychain holds the session. Servers advertise `supportsTvDevices` in `GET /setup/status`; a TV identifies itself as `tv` on those servers and `other` on older ones.
+- **Settings.** `src/tv/Settings.tsx` uses the phone's `useSettingsScreen`. Connecting ListenBrainz or Last.fm needs a browser or a pasted token, so the TV shows their state, turns a connected one on or off, and sends the user to the phone or the web to connect. `src/account/settings.ts` loads `expo-web-browser` only when it is used, since tvOS has none.
+- **Artwork.** `apps/mobile/assets/tv/render.mjs` draws the layered icon (the worm's eyes, its body, a violet back with rings of sound) and the Top Shelf images from the iOS icon's mascot layers in `assets/Squirmy.icon`. Run `node apps/mobile/assets/tv/render.mjs` from the repository root after changing them, then prebuild the TV project again; `brand-assets.cjs` lists the files for the config plugin.
+- See the [Apple TV guide](./use/apple-tv.md) for using the app and building it.
 
 ## Testing
 
@@ -609,9 +619,9 @@ apps/mobile/
 
 ### TestFlight
 
-After semantic-release publishes a version on `main`, CI builds and uploads iOS and tvOS from the release tag in separate jobs. Each build uses the release version and a UTC Unix timestamp as its build number. If an upload fails, rerun the failed job from the release's CI run. The Apple TV workflow compiles the unsigned tvOS app on pull requests that change the mobile app or its shared dependencies.
+After semantic-release publishes a version on `main`, CI builds and uploads iOS and tvOS from the release tag in separate jobs. Each build uses the release version and a UTC Unix timestamp as its build number. The tvOS job prebuilds with `EXPO_TV=1` and archives for `generic/platform=tvOS`; `apps/mobile/scripts/upload-testflight.sh ios|tvos` refuses to archive when `ios/` holds the other platform's project. If an upload fails, rerun the failed job from the release's CI run. The Apple apps workflow (`apple.yml`) compiles both apps, unsigned, on pull requests that change the mobile app or its shared dependencies, since they share `apps/mobile` and its native modules.
 
-Use the Squirmy app record in App Store Connect with bundle ID `com.isaacthoman.squirmy`. In the app's sidebar, choose **Add Platform → tvOS** for the Apple TV build. In the repository's `testflight` GitHub Actions environment, allow deployments from `main` and set the `APPLE_TEAM_ID` variable to the Apple Developer team ID. Add these environment secrets:
+Use the Squirmy app record in App Store Connect with bundle ID `com.isaacthoman.squirmy`. In the app's sidebar, choose **Add Platform → tvOS** for the Apple TV build. The Apple Development certificate and the team's automatic signing cover both platforms; development signing needs at least one Apple TV registered to the team. In the repository's `testflight` GitHub Actions environment, allow deployments from `main` and set the `APPLE_TEAM_ID` variable to the Apple Developer team ID. Add these environment secrets:
 
 - `APP_STORE_CONNECT_API_KEY_ID` and `APP_STORE_CONNECT_API_ISSUER_ID` for a team API key with access to automatic signing and TestFlight uploads.
 - `APP_STORE_CONNECT_API_PRIVATE_KEY` with the complete contents of that key's `.p8` file.

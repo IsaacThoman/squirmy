@@ -182,7 +182,9 @@ Purchasing (priced offers, caps, budgets) is deferred. The protocol reserves an 
 **Apple TV**
 
 - Typed server address and account sign-in with the tvOS keyboard.
+- Laid out and moving like the system's music app: the sidebar, shelves of covers that lift with focus, long-press menus, tvOS 17 and later.
 - Remote-first browsing, search and Now Playing with lyrics, queue and playback transfer.
+- Settings for the account, playback and the library; scrobbling services are connected from the phone or the web.
 - Shares the iOS app record in TestFlight. Streams from the same Squirmy server and joins the same playback session.
 
 **Web**

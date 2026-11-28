@@ -1,89 +1,135 @@
-import { formatDuration } from '@squirmy/client-core';
-import { useCallback, useState } from 'react';
-import { Pressable, StyleSheet, Text, TVFocusGuideView, useTVEventHandler, View } from 'react-native';
-import { usePlaybackActions, usePositionEvery } from '../../playback';
-import { tvColors } from '../ui';
+import { formatDuration, formatRemaining } from '@squirmy/client-core';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { Animated, Pressable, StyleSheet, Text, TVFocusGuideView, useTVEventHandler, View, type TVRemoteEvent } from 'react-native';
+import { useCurrentDurationMs, usePlaybackActions, usePositionEvery } from '../../playback';
+import { seekLanded } from '../../player/scrub';
+import { colors, tv } from '../theme';
+import { elapsedLeft, progressOf, seekSettleMs, seekStep, steppedPosition } from './model';
 
-const seekStepMs = 10_000;
-const seekSteps: Readonly<Partial<Record<string, number>>> = {
-  left: -seekStepMs,
-  right: seekStepMs,
-  swipeLeft: -seekStepMs,
-  swipeRight: seekStepMs,
-  longLeft: -60_000,
-  longRight: 60_000,
+const barWidth = 1920 - tv.gutter * 2;
+const barHeight = 14;
+/** Resting, the bar is a hairline; focused, it thickens to its full height, as the system's does. */
+const restingScale = 0.3;
+const timeWidth = 120;
+
+type Props = {
+  /** False while the controls are faded away: the first press only brings them back. */
+  awake: () => boolean;
+  disabled?: boolean;
+  /** Ticks only while Now Playing is on screen. */
+  live: boolean;
+  hasTVPreferredFocus?: boolean;
 };
 
-/** Select to set a preview position with the remote's arrows, then select again to seek. */
-export function TvScrubber({ duration, disabled }: { duration: number; disabled: boolean }) {
-  const position = usePositionEvery(250);
-  const { seek } = usePlaybackActions();
+/**
+ * The playhead, the only part of Now Playing that changes with the clock, so the only part that
+ * re-renders four times a second. Focused, left and right on the remote move the playhead ten
+ * seconds a press (thirty while held), and playback follows once the presses stop; select plays
+ * and pauses, as in the system's players.
+ */
+export const Scrubber = memo(function Scrubber({ awake, disabled, live, hasTVPreferredFocus }: Props) {
+  const position = usePositionEvery(250, live);
+  const duration = useCurrentDurationMs();
+  const actions = usePlaybackActions();
   const [focused, setFocused] = useState(false);
+  // Where the remote has moved the playhead, before playback seeks there.
   const [preview, setPreview] = useState<number | null>(null);
-  const shown = Math.min(duration, Math.max(0, preview ?? position));
-  const adjusting = preview !== null;
+  // Where playback was sent, shown until it reports a position near it.
+  const [landing, setLanding] = useState<number | null>(null);
+  const settle = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const thickness = useRef(new Animated.Value(restingScale)).current;
   const seekable = !disabled && duration > 0;
-  const progress = duration > 0 ? shown / duration : 0;
-  const clamp = useCallback((value: number) => Math.max(0, Math.min(duration, value)), [duration]);
 
-  useTVEventHandler(useCallback<Parameters<typeof useTVEventHandler>[0]>(event => {
-    if (!focused || !adjusting || !seekable || String(event.eventKeyAction) === '0') return;
-    const step = seekSteps[event.eventType];
-    if (step) setPreview(previous => previous === null ? null : clamp(previous + step));
-  }, [adjusting, clamp, focused, seekable]));
+  useEffect(() => {
+    if (landing !== null && seekLanded(position, landing)) setLanding(null);
+  }, [landing, position]);
+  // A seek that never lands (refused, or another device gone) lets the clock show again.
+  useEffect(() => {
+    if (landing === null) return;
+    const timer = setTimeout(() => setLanding(null), 4000);
+    return () => clearTimeout(timer);
+  }, [landing]);
+  useEffect(() => () => clearTimeout(settle.current), []);
+  useEffect(() => {
+    Animated.spring(thickness, { toValue: focused ? 1 : restingScale, speed: 20, bounciness: 2, useNativeDriver: true }).start();
+  }, [focused, thickness]);
+
+  const shown = preview ?? landing ?? position;
+  const latest = useRef({ shown, seekable, duration, focused, actions });
+  latest.current = { shown, seekable, duration, focused, actions };
+
+  const commit = useCallback((to: number) => {
+    clearTimeout(settle.current);
+    setPreview(null);
+    setLanding(to);
+    latest.current.actions.seek(to);
+  }, []);
+
+  useTVEventHandler(useCallback((event: TVRemoteEvent) => {
+    const { focused: on, seekable: can, shown: from, duration: length } = latest.current;
+    if (!on || !can || !awake()) return;
+    const step = seekStep(event.eventType);
+    if (step === null) return;
+    // A tap reports once, when it ends; a hold reports when it begins and again when it ends.
+    const held = event.eventType.startsWith('long');
+    const action = String(event.eventKeyAction);
+    if (held ? action !== '0' : action === '0') return;
+    const to = steppedPosition(from, step, length);
+    setPreview(to);
+    clearTimeout(settle.current);
+    settle.current = setTimeout(() => commit(to), seekSettleMs);
+  }, [awake, commit]));
 
   const select = () => {
-    if (adjusting) {
-      seek(shown);
-      setPreview(null);
-    } else {
-      setPreview(shown);
-    }
+    if (!awake()) return;
+    if (preview !== null) return commit(preview);
+    actions.playPause();
   };
 
-  return (
-    <TVFocusGuideView trapFocusLeft={adjusting} trapFocusRight={adjusting}>
-      <Pressable
-        accessibilityRole="adjustable"
-        accessibilityLabel="Playback position"
-        accessibilityHint={adjusting ? 'Select again to seek' : 'Select to seek'}
-        accessibilityValue={{ text: `${formatDuration(shown)} of ${formatDuration(duration)}` }}
-        accessibilityActions={[{ name: 'decrement', label: 'Back 10 seconds' }, { name: 'increment', label: 'Forward 10 seconds' }]}
-        onAccessibilityAction={({ nativeEvent }) => {
-          if (!seekable) return;
-          if (nativeEvent.actionName === 'increment') seek(clamp(shown + seekStepMs));
-          if (nativeEvent.actionName === 'decrement') seek(clamp(shown - seekStepMs));
-        }}
-        disabled={!seekable}
-        tvParallaxProperties={{ enabled: false }}
-        onPress={select}
-        onFocus={() => setFocused(true)}
-        onBlur={() => { setFocused(false); setPreview(null); }}
-        style={[styles.scrubber, focused && styles.focused, adjusting && styles.adjusting]}
-      >
-        <View style={styles.track}>
-          <View style={[styles.fill, { width: `${progress * 100}%` }]} />
-          {focused && <View style={[styles.thumb, { left: `${progress * 100}%` }]} />}
-        </View>
-        <View style={styles.times}>
-          <Text style={[styles.time, focused && styles.focusText]}>{formatDuration(shown)}</Text>
-          {focused && <Text style={styles.hint}>{adjusting ? '←  10 seconds  →    ·    Select to seek' : 'Select to seek'}</Text>}
-          <Text style={[styles.time, focused && styles.focusText]}>{formatDuration(duration)}</Text>
-        </View>
-      </Pressable>
-    </TVFocusGuideView>
-  );
-}
+  const progress = progressOf(shown, duration);
+  const elapsed = formatDuration(Math.min(shown, duration || shown));
+  return <TVFocusGuideView trapFocusLeft trapFocusRight style={styles.guide}>
+    <Pressable
+      accessibilityRole="adjustable"
+      accessibilityLabel="Track position"
+      accessibilityValue={{ text: `${elapsed} of ${formatDuration(duration)}` }}
+      accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+      onAccessibilityAction={({ nativeEvent }) => {
+        if (!seekable) return;
+        commit(steppedPosition(shown, nativeEvent.actionName === 'increment' ? 10_000 : -10_000, duration));
+      }}
+      hasTVPreferredFocus={hasTVPreferredFocus}
+      onFocus={() => setFocused(true)}
+      onBlur={() => {
+        setFocused(false);
+        if (preview !== null) commit(preview);
+      }}
+      onPress={select}
+      tvParallaxProperties={{ enabled: false }}
+      style={styles.hit}
+    >
+      <Animated.View style={[styles.bar, { transform: [{ scaleY: thickness }] }]}>
+        <View style={[styles.fill, focused && styles.fillFocused, { width: `${progress * 100}%` }]} />
+      </Animated.View>
+      <View style={[styles.playhead, { left: progress * barWidth - 1.5 }, preview !== null && styles.playheadMoving]} />
+      <View style={styles.times}>
+        <Text style={[styles.time, focused && styles.timeFocused, { left: elapsedLeft(progress, barWidth, timeWidth) }]}>{elapsed}</Text>
+        <Text style={[styles.time, styles.remaining, focused && styles.timeFocused]}>{duration > 0 ? formatRemaining(shown, duration) : ''}</Text>
+      </View>
+    </Pressable>
+  </TVFocusGuideView>;
+});
 
 const styles = StyleSheet.create({
-  scrubber: { padding: 15, marginHorizontal: -15, borderRadius: 15, borderColor: 'transparent', borderWidth: 2, gap: 12 },
-  focused: { borderColor: '#FFFFFF8C', backgroundColor: '#FFFFFF12' },
-  adjusting: { borderColor: tvColors.accent, backgroundColor: '#CBC1FF1A' },
-  track: { height: 7, borderRadius: 4, backgroundColor: '#FFFFFF44', justifyContent: 'center' },
-  fill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 4, backgroundColor: tvColors.accent },
-  thumb: { position: 'absolute', width: 15, height: 15, borderRadius: 8, marginLeft: -7, backgroundColor: tvColors.text },
-  times: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  time: { color: tvColors.muted, fontSize: 20, fontVariant: ['tabular-nums'], fontWeight: '600' },
-  focusText: { color: tvColors.text },
-  hint: { color: tvColors.accent, fontSize: 18, textAlign: 'center', flexShrink: 1 },
+  guide: { width: barWidth, alignSelf: 'center' },
+  hit: { width: barWidth, height: 70, paddingTop: 14 },
+  bar: { height: barHeight, borderRadius: barHeight / 2, backgroundColor: 'rgba(255,255,255,0.2)', overflow: 'hidden' },
+  fill: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: 'rgba(255,255,255,0.32)' },
+  fillFocused: { backgroundColor: 'rgba(255,255,255,0.72)' },
+  playhead: { position: 'absolute', top: 14 - 3, width: 3, height: barHeight + 6, borderRadius: 1.5, backgroundColor: colors.text },
+  playheadMoving: { backgroundColor: colors.accent },
+  times: { height: 34, marginTop: 10 },
+  time: { position: 'absolute', top: 0, width: timeWidth, textAlign: 'center', fontSize: 25, fontWeight: '600', color: colors.secondary, fontVariant: ['tabular-nums'] },
+  remaining: { right: 0, textAlign: 'right' },
+  timeFocused: { color: colors.text },
 });
