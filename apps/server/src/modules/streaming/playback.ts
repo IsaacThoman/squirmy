@@ -7,6 +7,7 @@ import { notFound } from '../../lib/errors.js'
 import { assertFileAllowed } from '../catalog/explicit.js'
 import { resolveOne } from '../catalog/redirects.js'
 import { normalizationFor } from '../loudness/normalization.js'
+import { versionPicker } from '../sessions/versions.js'
 import { fragmentedSourceFrames } from './gapless.js'
 import { codecFamily, fragmentedEncoder, isFragmented, mimeFor, outputBitDepth, outputSampleRate, parseCodecs, profiles } from './profiles.js'
 import { selectFile } from './select.js'
@@ -58,7 +59,8 @@ export async function buildPlaybackDescriptor(userId: string, recordingId: strin
     resolveOne('recordings', recordingId).then((id) => id ?? recordingId),
     query.albumId ? resolveOne('albums', query.albumId).then((id) => id ?? query.albumId) : undefined,
   ])
-  const selection = await selectFile(target, { ...query, albumId, userId })
+  // A jam's members play the host's version of its songs (`versionPicker`).
+  const selection = await selectFile(target, { ...query, albumId, userId: versionPicker(userId, recordingId) })
   if (!selection) throw notFound('No file of this track is available', 'not_available')
   const { file, profile, versionId } = selection
   await assertFileAllowed(userId, file)

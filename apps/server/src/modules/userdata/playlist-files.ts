@@ -8,6 +8,7 @@ import { db } from '../../database/client.js'
 import { AppError, badRequest } from '../../lib/errors.js'
 import { creditKey, matchKey } from '../../lib/text.js'
 import { uuidArray } from '../catalog/sql.js'
+import { pickedBy } from '../catalog/versions.js'
 import { textArray } from '../search/keys.js'
 import { createPlaylist, getPlaylist, playlistFull } from './playlists.js'
 
@@ -249,13 +250,15 @@ const xml = (text: string) => text.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\ufffe\uf
 export async function exportPlaylist(userId: string, id: string, format: PlaylistExportFormat): Promise<string> {
   const playlist = await getPlaylist(userId, id)
   const refs = playlist.items.map(({ track }) => ({ id: track.id, albumId: track.album?.id ?? null }))
+  // The file the player picks (streaming/select.ts) less the device's part: the user's picks, then the album, then quality.
   const files = refs.length ? await db.execute<{ index: number; path: string }>(sql`
     select wanted.ordinality::int - 1 as index, best.rel_path as path
     from unnest(${uuidArray(refs.map((ref) => ref.id))}, ${uuidArray(refs.map((ref) => ref.albumId))})
       with ordinality as wanted(id, album_id, ordinality)
     cross join lateral (
       select f.rel_path from media_files f where f.recording_id = wanted.id and f.missing_since is null and not f.cached
-      order by (f.album_id = wanted.album_id) desc nulls last, f.lossless desc, f.id limit 1
+      order by ${pickedBy(userId, 'recording', 'f', sql`wanted.id`)} desc, (f.album_id = wanted.album_id) is true desc,
+        ${pickedBy(userId, 'album', 'f')} desc, f.lossless desc, f.bitrate desc nulls last, f.added_at desc, f.id limit 1
     ) best`) : []
   const paths = new Map(files.map((row) => [row.index, row.path]))
   const tracks = playlist.items.map(({ track }, index) => ({

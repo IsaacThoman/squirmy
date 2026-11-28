@@ -1,4 +1,4 @@
-import { AlbumDetail, Ok, PlaybackDescriptor, TrackVersions, type AudioTier } from '@squirmy/contracts'
+import { AlbumDetail, Ok, PlaybackDescriptor, PublicShare, ShareLink, ShareTrackPlayback, TrackVersions, type AudioTier } from '@squirmy/contracts'
 import { eq, inArray, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -16,7 +16,10 @@ import { applyMatch } from '../matching/apply.js'
 import { mergeAlbum } from '../matching/merge.js'
 import type { Evaluation } from '../matching/score.js'
 import type { MbRelease } from '../metadata/musicbrainz.js'
+import { openStreamKey } from '../share/playback.js'
 import { songs } from '../subsonic/songs.js'
+import { exportPlaylist } from '../userdata/playlist-files.js'
+import { createPlaylist } from '../userdata/playlists.js'
 import { albumVersions } from './versions.js'
 
 vi.mock('../enrichment/detail.js', () => ({
@@ -114,6 +117,15 @@ describe('album editions and versions', () => {
   const listed = (album: AlbumDetail) => album.discs.flatMap((disc) => disc.tracks.map((track) => track.id))
   const playback = async (trackId: string, query = '') => body(await get(`/tracks/${trackId}/playback?${query}`), PlaybackDescriptor)
   const tierOf = (versionId: string | null | undefined) => versionId?.split(':')[1] as AudioTier | undefined
+  const share = async (payload: Record<string, unknown>) => {
+    const link = body(await app.inject({ method: 'POST', url: '/api/v1/me/shares', headers: user.headers, payload }), ShareLink)
+    return link.url!.slice('/s/'.length)
+  }
+  /** The file a share link plays of a song, from the key its URL seals. */
+  const sharedFile = async (token: string, trackId: string) => {
+    const played = body(await app.inject({ url: `/api/v1/share/${token}/tracks/${trackId}/playback` }), ShareTrackPlayback)
+    return openStreamKey(played.url.split('key=').at(-1)!)!.fileId
+  }
 
   beforeAll(async () => {
     await startJobs({ work: false })
@@ -210,6 +222,25 @@ describe('album editions and versions', () => {
       expect(tierOf((await playback(first!, `albumId=${albumId}`)).source!.versionId)).toBe('hi_res_lossless')
     })
 
+    it('plays the sharer’s pick on their links and exports it in their playlists', async () => {
+      const album = await page(albumId)
+      const [first, second] = listed(album)
+      const [, cdVersion] = album.ownedVersions!
+      const token = await share({ kind: 'track', id: first!, albumId })
+      const playlist = await createPlaylist(user.id, { name: 'Versions' }, [{ trackId: first!, albumId }, { trackId: second!, albumId }])
+      const exported = async () => (JSON.parse(await exportPlaylist(user.id, playlist.id, 'json')) as { tracks: { path: string }[] }).tracks.map((track) => track.path)
+      expect(vinylFiles.map((file) => file.id)).toContain(await sharedFile(token, first!))
+      expect(await exported()).toEqual([expect.stringMatching(/^Vinyl\//), expect.stringMatching(/^Vinyl\//)])
+
+      body(await pick('album', albumId, cdVersion!.id), Ok)
+      expect(remasterFiles.map((file) => file.id)).toContain(await sharedFile(token, first!))
+      expect(await exported()).toEqual([expect.stringMatching(/^CD\//), expect.stringMatching(/^CD\//)])
+      body(await pick('track', second!, album.ownedVersions![0]!.id), Ok)
+      expect(await exported()).toEqual([expect.stringMatching(/^CD\//), expect.stringMatching(/^Vinyl\//)])
+      body(await pick('track', second!, null), Ok)
+      body(await pick('album', albumId, null), Ok)
+    })
+
     it('refuses a version the server does not hold, and ignores a pick whose files left until they return', async () => {
       const [, cdVersion] = (await page(albumId)).ownedVersions!
       expect(errorCode(await pick('album', albumId, `${mbid(999)}:lossless`), 404)).toBe('version_not_found')
@@ -260,6 +291,12 @@ describe('album editions and versions', () => {
       expect(album).toMatchObject({ releaseDate: '2018-09-28', label: 'EMI' })
       const played = await playback(remix[0]!, `albumId=${albumId}`)
       expect(played.source!.versionId).toBe(remixVersion.id)
+      // An album link shows and plays the edition its creator's page lists.
+      const token = await share({ kind: 'album', id: albumId })
+      const shared = body(await app.inject({ url: `/api/v1/share/${token}` }), PublicShare)
+      expect(new Set(shared.tracks.map((track) => track.id))).toEqual(new Set(remix))
+      const [file] = await db.select({ recordingId: mediaFiles.recordingId }).from(mediaFiles).where(eq(mediaFiles.id, await sharedFile(token, remix[0]!)))
+      expect(file!.recordingId).toBe(remix[0])
       body(await pick('album', albumId, null), Ok)
     })
   })
