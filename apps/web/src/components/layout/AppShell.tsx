@@ -21,7 +21,7 @@ import {
 } from './sidebar-state'
 
 /** `lastFm`: what Last.fm answered, while the dialog it opened stays open. */
-export type SettingsDialogState = { open: boolean; section: SettingsSection; lastFm?: string; onOpenChange: (open: boolean) => void; onSectionChange: (section: SettingsSection) => void }
+export type SettingsDialogState = { open: boolean; section: SettingsSection; lastFm?: string; sso?: string; onOpenChange: (open: boolean) => void; onSectionChange: (section: SettingsSection) => void }
 export type SearchDialogState = { open: boolean; onOpenChange: (open: boolean) => void }
 
 type AppShellProps = {
@@ -113,7 +113,7 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
   const [tracking, setTracking] = useState(false)
 
   const [searchOpen, setSearchOpen] = useState(false)
-  const [settings, setSettings] = useState<{ open: boolean; section: SettingsSection; lastFm?: string }>({ open: false, section: 'playback' })
+  const [settings, setSettings] = useState<{ open: boolean; section: SettingsSection; lastFm?: string; sso?: string }>({ open: false, section: 'playback' })
   const [queueOpen, setQueueOpen] = useState(false)
   const [nowPlaying, setNowPlaying] = useState<NowPlayingView>({ open: false, pane: 'art' })
 
@@ -121,7 +121,7 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
   const openSettings = useCallback((section: SettingsSection = 'playback', options: SettingsOpenOptions = {}) => {
     setDrawerOpen(false)
     setSearchOpen(false)
-    setSettings({ open: true, section, lastFm: options.lastFm })
+    setSettings({ open: true, section, lastFm: options.lastFm, sso: options.sso })
   }, [])
   const settingsController = useMemo(() => ({ openSettings }), [openSettings])
 
@@ -258,7 +258,7 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
   const closeQueue = useCallback(() => setQueueOpen(false), [])
   const onSearchOpenChange = useCallback((open: boolean) => setSearchOpen(open), [])
   // Last.fm's answer is for the visit it came back to: closing the dialog lets it go.
-  const onSettingsOpenChange = useCallback((open: boolean) => setSettings(current => ({ ...current, open, lastFm: open ? current.lastFm : undefined })), [])
+  const onSettingsOpenChange = useCallback((open: boolean) => setSettings(current => ({ ...current, open, lastFm: open ? current.lastFm : undefined, sso: open ? current.sso : undefined })), [])
   const onSettingsSectionChange = useCallback((section: SettingsSection) => setSettings(current => ({ ...current, section })), [])
 
   return (
@@ -372,7 +372,7 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
         <ShellNotices />
       </div>
       {renderSearch({ open: searchOpen, onOpenChange: onSearchOpenChange })}
-      {renderSettings({ open: settings.open, section: settings.section, lastFm: settings.lastFm, onOpenChange: onSettingsOpenChange, onSectionChange: onSettingsSectionChange })}
+      {renderSettings({ open: settings.open, section: settings.section, lastFm: settings.lastFm, sso: settings.sso, onOpenChange: onSettingsOpenChange, onSectionChange: onSettingsSectionChange })}
     </SettingsDialogContext>
   )
 })

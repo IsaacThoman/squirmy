@@ -101,6 +101,23 @@ describe('route guards', () => {
     vi.restoreAllMocks()
   })
 
+  it('offers single sign-on, says why it sent the visitor back, and hides passwords when they are off', async () => {
+    const assign = vi.fn()
+    vi.stubGlobal('location', { ...window.location, assign, origin: window.location.origin })
+    renderWithApp(app, '/login?next=%2Falbum%2Fx&sso_error=sso_no_account', fakeServices({ user: null, status: { ssoName: 'Authelia' } }).services)
+    expect(await screen.findByText(/no account here for you yet/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in with Authelia' }))
+    expect(assign).toHaveBeenCalledWith('/api/v1/auth/sso/start?next=%2Falbum%2Fx')
+    expect(screen.getByLabelText('Password')).toBeInTheDocument()
+    vi.unstubAllGlobals()
+    cleanup()
+
+    renderWithApp(app, '/login', fakeServices({ user: null, status: { ssoName: 'Authelia', passwordLoginEnabled: false } }).services)
+    await screen.findByRole('button', { name: 'Sign in with Authelia' })
+    expect(screen.queryByLabelText('Password')).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Create an account' })).toBeNull()
+  })
+
   it('goes back from the code to the password', async () => {
     const { services, api } = fakeServices({ user: null })
     renderWithApp(app, '/login', services)

@@ -327,11 +327,11 @@ function AccessFields({ value, onChange, roleLocked }: { value: Access; onChange
   )
 }
 
-const newUser = { username: '', password: '', displayName: '', role: 'member' as UserRole, canUpload: false, canAcquire: false }
+const newUser = { username: '', password: '', displayName: '', role: 'member' as UserRole, canUpload: false, canAcquire: false, email: '' }
 
 function CreateUserDialog({ open, onOpenChange, onCreate }: { open: boolean; onOpenChange: (open: boolean) => void; onCreate: UsersAdminProps['onCreateUser'] }) {
   const [value, setValue] = useState(newUser)
-  const form = useFormSubmit(CreateUserRequest, onCreate, { username_taken: 'username' })
+  const form = useFormSubmit(CreateUserRequest, onCreate, { username_taken: 'username', email_taken: 'email' })
   const close = (next: boolean) => {
     onOpenChange(next)
     if (!next) {
@@ -340,7 +340,7 @@ function CreateUserDialog({ open, onOpenChange, onCreate }: { open: boolean; onO
     }
   }
   const submit = async () => {
-    if (await form.submit({ ...value, displayName: value.displayName.trim() || null })) close(false)
+    if (await form.submit({ ...value, displayName: value.displayName.trim() || null, email: value.email.trim() || null })) close(false)
   }
   return (
     <Dialog open={open} onOpenChange={close}>
@@ -351,6 +351,9 @@ function CreateUserDialog({ open, onOpenChange, onCreate }: { open: boolean; onO
           </Field>
           <Field label="Display name (optional)" htmlFor="new-display-name" error={form.errors.displayName}>
             <Input id="new-display-name" value={value.displayName} onChange={event => setValue({ ...value, displayName: event.target.value })} aria-invalid={!!form.errors.displayName} />
+          </Field>
+          <Field label="Email (optional)" htmlFor="new-email" error={form.errors.email} hint="For single sign-on: someone signing in with this verified address gets this account.">
+            <Input id="new-email" type="email" value={value.email} onChange={event => setValue({ ...value, email: event.target.value })} autoComplete="off" spellCheck={false} aria-invalid={!!form.errors.email} />
           </Field>
           <Field label="Password" htmlFor="new-password" error={form.errors.password} hint="At least 8 characters.">
             <Input id="new-password" type="password" autoComplete="new-password" value={value.password} onChange={event => setValue({ ...value, password: event.target.value })} aria-invalid={!!form.errors.password} />
@@ -363,10 +366,10 @@ function CreateUserDialog({ open, onOpenChange, onCreate }: { open: boolean; onO
 }
 
 function EditUserDialog({ user, isSelf, onOpenChange, onSave }: { user: User; isSelf: boolean; onOpenChange: (open: boolean) => void; onSave: (patch: UpdateUserRequest) => Promise<unknown> }) {
-  const [value, setValue] = useState({ displayName: user.displayName ?? '', role: user.role, canUpload: user.canUpload, canAcquire: user.canAcquire })
-  const form = useFormSubmit(UpdateUserRequest, onSave)
+  const [value, setValue] = useState({ displayName: user.displayName ?? '', email: user.email ?? '', role: user.role, canUpload: user.canUpload, canAcquire: user.canAcquire })
+  const form = useFormSubmit(UpdateUserRequest, onSave, { email_taken: 'email' })
   const submit = async () => {
-    if (await form.submit({ ...value, displayName: value.displayName.trim() || null })) onOpenChange(false)
+    if (await form.submit({ ...value, displayName: value.displayName.trim() || null, email: value.email.trim() || null })) onOpenChange(false)
   }
   return (
     <Dialog open onOpenChange={onOpenChange}>
@@ -374,6 +377,9 @@ function EditUserDialog({ user, isSelf, onOpenChange, onSave }: { user: User; is
         <DialogForm onSubmit={() => void submit()} errors={form.errors} pending={form.pending} submitLabel="Save">
           <Field label="Display name" htmlFor="edit-display-name" error={form.errors.displayName}>
             <Input id="edit-display-name" value={value.displayName} onChange={event => setValue({ ...value, displayName: event.target.value })} placeholder={user.username} aria-invalid={!!form.errors.displayName} autoFocus />
+          </Field>
+          <Field label="Email" htmlFor="edit-email" error={form.errors.email} hint="For single sign-on: someone signing in with this verified address gets this account.">
+            <Input id="edit-email" type="email" value={value.email} onChange={event => setValue({ ...value, email: event.target.value })} placeholder="Not set" spellCheck={false} aria-invalid={!!form.errors.email} />
           </Field>
           <OptionGroup>
             <AccessFields value={value} onChange={access => setValue({ ...value, ...access })} roleLocked={isSelf && value.role === 'member' ? 'You lose access to Admin when you save.' : undefined} />

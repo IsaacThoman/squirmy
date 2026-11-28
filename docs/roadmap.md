@@ -93,7 +93,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Docker health check on `/ready`, and the image reports its source version
 - [x] Sessions list and sign-out, TOTP two-factor with recovery codes (server, web, iOS and Apple TV sign-in) ([authentication.md](./server/authentication.md))
 - [x] Passkeys on the web: add, rename, remove, and username-less sign-in
-- [ ] OpenID Connect single sign-on
+- [x] OpenID Connect single sign-on (server, web, admin settings, iOS sign-in), linking accounts, and turning password sign-in off
 
 ## 9. Apple TV
 

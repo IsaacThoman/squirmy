@@ -1,5 +1,5 @@
 import { CreateLibraryRootRequest, LoginRequest, RegisterRequest, SecondFactorCode, SetupRequest, UpdateLibraryRootRequest, type DirectoryListing, type LibraryRoot } from '@squirmy/contracts'
-import { ArrowLeft, ArrowRight, Check, Folder, FolderOpen, FolderPlus, Info, KeyRound, RotateCw, ServerCrash } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, Folder, FolderOpen, FolderPlus, Info, KeyRound, LogIn, RotateCw, ServerCrash } from 'lucide-react'
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { z } from 'zod'
@@ -100,9 +100,15 @@ type LoginProps = {
   onSubmit: (credentials: Credentials) => Promise<unknown>
   /** Offered when the server and this browser can both use passkeys. Resolves once signed in, or quietly when cancelled. */
   onPasskey?: () => Promise<unknown>
+  /** The single sign-on provider, when the server has one: "Sign in with <name>". */
+  sso?: { name: string; onStart: () => void }
+  /** False when the server turned password sign-in off: only the other ways show. */
+  passwordLogin?: boolean
+  /** Why single sign-on sent the visitor back here. */
+  ssoError?: string | null
 }
 
-export function LoginView({ serverName, version, inviteRequired, notice, onSubmit, onPasskey }: LoginProps) {
+export function LoginView({ serverName, version, inviteRequired, notice, onSubmit, onPasskey, sso, passwordLogin = true, ssoError }: LoginProps) {
   const [value, setValue] = useState<Credentials>({ username: '', password: '' })
   const form = useFormSubmit(LoginRequest, onSubmit)
   const [passkeyPending, setPasskeyPending] = useState(false)
@@ -128,7 +134,8 @@ export function LoginView({ serverName, version, inviteRequired, notice, onSubmi
       title={`Sign in to ${serverName}`}
       description="Welcome back. Your music is where you left it."
       version={version}
-      footer={<>{inviteRequired ? 'Have an invite?' : 'New here?'} <Link to="/register" className={quietLinkClass}>Create an account</Link></>}
+      // Registration makes a password account, which cannot sign in while passwords are off.
+      footer={passwordLogin ? <>{inviteRequired ? 'Have an invite?' : 'New here?'} <Link to="/register" className={quietLinkClass}>Create an account</Link></> : undefined}
     >
       <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
         {notice && (
@@ -137,18 +144,30 @@ export function LoginView({ serverName, version, inviteRequired, notice, onSubmi
             <span>{notice}</span>
           </div>
         )}
-        <CredentialFields value={value} onChange={setValue} errors={form.errors} />
-        <FormError message={form.errors.form ?? passkeyError} />
-        <Button type="submit" variant="primary" className="mt-2 w-full" pending={form.pending}>Sign in</Button>
+        {ssoError && <FormError message={ssoError} />}
+        {sso && <Button variant={passwordLogin ? 'outline' : 'primary'} className="w-full" onClick={sso.onStart}><LogIn />Sign in with {sso.name}</Button>}
+        {sso && passwordLogin && <Divider />}
+        {passwordLogin && (
+          <>
+            <CredentialFields value={value} onChange={setValue} errors={form.errors} />
+            <FormError message={form.errors.form ?? passkeyError} />
+            <Button type="submit" variant="primary" className="mt-2 w-full" pending={form.pending}>Sign in</Button>
+          </>
+        )}
+        {!passwordLogin && <FormError message={passkeyError} />}
         {onPasskey && (
           <>
-            <div aria-hidden className="flex items-center gap-3 text-xs text-muted-foreground"><span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" /></div>
+            {(passwordLogin || sso) && <Divider />}
             <Button variant="outline" className="w-full" pending={passkeyPending} onClick={() => void signInWithPasskey()}><KeyRound />Sign in with a passkey</Button>
           </>
         )}
       </form>
     </AuthFrame>
   )
+}
+
+function Divider() {
+  return <div aria-hidden className="flex items-center gap-3 text-xs text-muted-foreground"><span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" /></div>
 }
 
 const TwoFactorForm = z.object({ code: SecondFactorCode })

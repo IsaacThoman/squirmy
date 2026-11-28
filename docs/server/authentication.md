@@ -7,6 +7,7 @@ How people sign in to a Squirmy server, and what an admin can do when something 
 | Username and password | yes | yes | no |
 | Password and an authenticator code ([two-factor](#two-factor-authentication)) | yes | yes | no |
 | [Passkey](#passkeys) | yes | not yet | no |
+| [Single sign-on](#single-sign-on-openid-connect) (OpenID Connect) | yes | iOS: yes; Apple TV: no | no |
 | [App password](./users.md#app-passwords) | no | no | yes |
 
 ## Sessions
@@ -75,3 +76,51 @@ The iOS and Apple TV apps don't offer passkeys yet: they need the app to be link
 ### Limits
 
 Passkey sign-ins are limited to 20 a minute per address. Each ceremony has its own challenge, which lasts 5 minutes and is used once. A passkey whose signature counter goes backwards (a sign of a copied authenticator) is refused.
+
+## Single sign-on (OpenID Connect)
+
+Squirmy can sign people in through an OpenID Connect provider you run or use: Authelia, Authentik, Keycloak, Kanidm, Pocket ID, Google and others. The sign-in page then shows **Sign in with …**, people can connect their existing accounts, and you can turn password sign-in off.
+
+It uses the authorization code flow with PKCE, state and nonce, and the provider's discovery document (`/.well-known/openid-configuration`). The ID token's signature, issuer, audience, expiry and nonce are checked; userinfo, when the provider has it, adds claims the ID token leaves out. A browser cookie ties each round trip to the browser that started it, so a callback link sent to someone else signs nobody in.
+
+### Setting it up
+
+1. Set [`PUBLIC_URL`](./configuration.md) to the address people use. The provider sends them back to `<PUBLIC_URL>/api/v1/auth/sso/callback`.
+2. At the provider, create a **confidential** client (OpenID Connect, authorization code) with that callback as its redirect URI, the scopes `openid profile email` (plus `groups` where the provider needs it to send groups), and client authentication `client_secret_basic` (`client_secret_post` also works when the provider offers only that).
+3. In **Admin → Server settings → Single sign-on**, enter the **Issuer URL** (the provider's address for this client, such as `https://auth.example.com` for Authelia, `https://auth.example.com/application/o/squirmy/` for Authentik, `https://keycloak.example.com/realms/home` for Keycloak, `https://accounts.google.com` for Google), the **Client ID** and the **Client secret**. The screen shows the callback address to copy.
+4. Choose **Test**: it loads the provider's configuration with what you saved.
+5. Turn on **Offer single sign-on**.
+
+An issuer on plain `http://` is accepted (a provider on the same private network), but use https wherever the traffic leaves the machine.
+
+### Who gets in, and as whom
+
+When someone signs in with the provider, Squirmy looks for:
+
+1. An account already **connected** to that provider account (by its issuer and subject).
+2. An account with the same **email address**, when the provider says it verified that address. Only admins set emails: **Admin → Users & invites → Add user** or **Manage → Edit…**. That account is then connected.
+3. Otherwise, with **Create accounts** on, a new member account. Its username comes from the **Username claim** (`preferred_username`; an email gives the part before the @, and characters a username cannot have become dashes). If that username is taken, sign-in says so instead of making a second account: give the existing account the person's email address. Accounts made this way have no password; their owners sign in with the provider or a passkey, and an admin can set a password with **Reset password…**.
+
+With **Create accounts** off, people need an account first (made by an admin with their email, or connected by them from their settings).
+
+**Allowed groups** limits sign-in to members of the listed groups, read from the **Groups claim** (`groups`; a dotted path such as `realm_access.roles` reaches into nested claims). It applies to every sign-in, not only new accounts.
+
+Signing in with the provider skips Squirmy's two-factor step: the provider decides how people prove who they are.
+
+### Connecting an existing account
+
+In **Settings → Security**, **Connect** (with your password) sends you to the provider and back; you can then sign in either way. **Disconnect** removes the link; an account without a password cannot remove its only way in. One provider account can be connected to one Squirmy account.
+
+### The iOS app
+
+The iOS app's sign-in shows **Sign In with …** and opens the provider in the system's sign-in sheet, which returns to the app with a one-time code (valid for two minutes, used once) that the app trades for a session. Only the app's own `squirmy://` address is accepted as a return address. The Apple TV app has no browser, so it cannot use single sign-on; with password sign-in off it cannot sign in.
+
+### Turning password sign-in off
+
+**Turn off password sign-in** makes the sign-in page offer only single sign-on and passkeys, and turns joining with an invite off (it would make a password account). App passwords for Subsonic apps keep working. To avoid locking everyone out, it can be turned on only while single sign-on is set up and on, and only by an admin whose own account is connected to the provider; single sign-on cannot be turned off while it is on.
+
+If the provider breaks and no admin can sign in, set the environment variable `SQUIRMY_ADMIN_PASSWORD_LOGIN=true` and restart: admins (only) can sign in with their password again, and turn the setting off. Remove the variable afterwards. An admin who has no password (made by single sign-on) needs another admin to set one first; on a server with only such an admin, set a password hash in the database, or turn the setting off there (`server_settings`, key `settings`, `passwordLoginDisabled`).
+
+### Errors
+
+The sign-in page says why single sign-on sent someone back: cancelled at the provider, too slow or started in another browser, not in an allowed group, no account and creating accounts off, a username already taken, a disabled account, or an answer that could not be checked (a wrong client secret, a clock far off, a misconfigured provider). The server log has the details of the last kind (`Single sign-on failed`).

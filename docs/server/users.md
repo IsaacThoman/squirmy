@@ -37,7 +37,7 @@ To make an account yourself instead, choose **Add user**, set a username, an opt
 
 Each user's **Manage** menu in **Admin → Users & invites** has:
 
-- **Edit…**: display name, role and permissions.
+- **Edit…**: display name, email, role and permissions. The email address lets [single sign-on](./authentication.md#who-gets-in-and-as-whom) find the account; only admins set it.
 - **Reset password…**: sets a new password, signs them out everywhere and deletes their app passwords, so whoever had the account keeps nothing that still works.
 - **Disable account…**: signs them out everywhere, deletes their app passwords and blocks sign-in until **Enable account**.
 - **Delete account…**: deletes their likes, playlists and history too. The shared library stays.

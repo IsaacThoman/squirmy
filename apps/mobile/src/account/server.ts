@@ -6,7 +6,13 @@ import { displayAddress, parseServerAddress } from './address';
  * `registrationRequiresInvite` is false when anyone may create an account. `wantlistEnabled`
  * is whether the server's admin turned the wantlist on; while it is off the app never shows it.
  */
-export type Server = { url: string; name: string; version: string; registrationRequiresInvite: boolean; wantlistEnabled: boolean; supportsTvDevices?: true };
+export type Server = {
+  url: string; name: string; version: string; registrationRequiresInvite: boolean; wantlistEnabled: boolean; supportsTvDevices?: true;
+  /** The server's single sign-on provider, for "Sign in with …". */
+  ssoName?: string;
+  /** Present when the server turned password sign-in off. */
+  passwordLogin?: false;
+};
 
 export type ConnectProblem = 'invalid' | 'unreachable' | 'notSquirmy' | 'serverError' | 'needsSetup' | 'cancelled';
 
@@ -25,6 +31,8 @@ export function serverFrom(url: string, status: SetupStatus): Server {
     // Release builds do not validate responses, and servers from before the setting leave it out.
     wantlistEnabled: status.wantlistEnabled === true,
     ...(status.supportsTvDevices === true && { supportsTvDevices: true as const }),
+    ...(typeof status.ssoName === 'string' && { ssoName: status.ssoName }),
+    ...(status.passwordLoginEnabled === false && { passwordLogin: false as const }),
   };
 }
 

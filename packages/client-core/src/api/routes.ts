@@ -30,6 +30,9 @@ export const apiRoutes = {
   'auth.deletePasskey': 'DELETE /auth/passkeys/:id',
   'auth.passkeyLoginOptions': 'POST /auth/passkey-login/options',
   'auth.loginWithPasskey': 'POST /auth/passkey-login',
+  'auth.linkSso': 'POST /auth/sso/link',
+  'auth.unlinkSso': 'DELETE /auth/sso/identities/:id',
+  'auth.ssoExchange': 'POST /auth/sso/exchange',
 
   'admin.users': 'GET /admin/users',
   'admin.createUser': 'POST /admin/users',
@@ -39,6 +42,7 @@ export const apiRoutes = {
   'admin.revokeUserSession': 'DELETE /admin/users/:id/sessions/:sessionId',
   'admin.revokeUserSessions': 'DELETE /admin/users/:id/sessions',
   'admin.resetTwoFactor': 'DELETE /admin/users/:id/two-factor',
+  'admin.testSso': 'POST /admin/sso/test',
   'admin.invites': 'GET /admin/invites',
   'admin.createInvite': 'POST /admin/invites',
   'admin.deleteInvite': 'DELETE /admin/invites/:id',

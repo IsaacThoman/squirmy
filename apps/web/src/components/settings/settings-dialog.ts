@@ -7,8 +7,11 @@ export function isSettingsSection(value: string | null | undefined): value is Se
   return SETTINGS_SECTIONS.includes(value as SettingsSection)
 }
 
-/** `lastFm`: Last.fm sent the browser back with this answer (`?lastfm=`), said in the Scrobbling section. */
-export type SettingsOpenOptions = { lastFm?: string }
+/**
+ * `lastFm`: Last.fm sent the browser back with this answer (`?lastfm=`), said in the Scrobbling section.
+ * `sso`: single sign-on sent it back from linking (`?sso=linked`, or `?sso_error=<code>`), said in Security.
+ */
+export type SettingsOpenOptions = { lastFm?: string; sso?: string }
 
 type SettingsDialogController = {
   /** Opens the settings dialog, on a section when one is given. */

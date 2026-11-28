@@ -63,7 +63,7 @@ describe('two-factor authentication and sessions', () => {
   it('enrols with a QR code and a confirming code, then asks for a code after the password', async () => {
     const { user, headers } = await account('ada')
     expect(body(await call({ url: '/api/v1/auth/security', headers }), AccountSecurity))
-      .toEqual({ hasPassword: true, twoFactor: { enabled: false, enabledAt: null, recoveryCodesRemaining: 0 }, passkeys: [] })
+      .toEqual({ hasPassword: true, twoFactor: { enabled: false, enabledAt: null, recoveryCodesRemaining: 0 }, passkeys: [], ssoIdentities: [] })
 
     expect(errorCode(await call({ method: 'POST', url: '/api/v1/auth/two-factor/setup', headers, payload: { currentPassword: 'wrong' } }), 403)).toBe('invalid_credentials')
     const setup = body(await call({ method: 'POST', url: '/api/v1/auth/two-factor/setup', headers, payload: { currentPassword: password } }), TwoFactorSetup)

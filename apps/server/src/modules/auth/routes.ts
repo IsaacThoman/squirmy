@@ -21,9 +21,11 @@ import { disconnectSockets } from '../../realtime/index.js'
 import {
   authenticationOptions, deletePasskey, listPasskeys, registerPasskey, registrationOptions, relyingParty, renamePasskey, verifyPasskeySignIn,
 } from './passkeys.js'
+import { reauthenticate } from './reauth.js'
+import { listSsoIdentities, ssoProvider } from './sso.js'
 import { consumeChallenge, createChallenge, dropUserChallenges, failChallenge, findChallenge } from './challenges.js'
 import {
-  countUsers, createAppPassword, createSession, deleteAppPassword, hashPassword, insertUser, listAppPasswords, listSessions, revokeAppPasswords,
+  countUsers, createAppPassword, hasPassword, createSession, deleteAppPassword, hashPassword, insertUser, listAppPasswords, listSessions, revokeAppPasswords,
   revokeSession, revokeUserSession, revokeUserSessions, toUser, usernameKey, verifyCredentials,
 } from './service.js'
 import {
@@ -41,7 +43,7 @@ const passkeyChallengeMs = 5 * 60 * 1000
  * A per-minute limit as a preHandler. Every limiter shares the plugin's store, so keys are
  * namespaced; counters live in this process only.
  */
-function limiter(app: FastifyInstance, name: string, max: number, key: (request: FastifyRequest) => string) {
+export function limiter(app: FastifyInstance, name: string, max: number, key: (request: FastifyRequest) => string) {
   const check = app.createRateLimit({ max, timeWindow: 60_000, keyGenerator: (request) => `${name}:${key(request)}` })
   return async (request: FastifyRequest, reply: FastifyReply) => {
     const result = await check(request)
@@ -49,6 +51,10 @@ function limiter(app: FastifyInstance, name: string, max: number, key: (request:
     reply.header('retry-after', result.ttlInSeconds)
     throw tooMany(result.ttlInSeconds)
   }
+}
+
+function passwordLoginDisabled(): AppError {
+  return forbidden('This server signs in with single sign-on or a passkey, not a password.', 'password_login_disabled')
 }
 
 function tooMany(seconds: number): AppError {
@@ -63,7 +69,7 @@ const isWeb = (request: FastifyRequest) => request.headers['x-squirmy-client'] =
  * PUBLIC_URL also counts for requests to its host name. Other names (a LAN address over
  * plain HTTP) keep a cookie browsers accept there.
  */
-function isHttps(request: FastifyRequest): boolean {
+export function isHttps(request: FastifyRequest): boolean {
   if (request.protocol === 'https') return true
   const publicUrl = getConfig().PUBLIC_URL
   if (!publicUrl?.startsWith('https://')) return false
@@ -71,7 +77,7 @@ function isHttps(request: FastifyRequest): boolean {
   return new URL(publicUrl).hostname.replace(/\.$/, '') === request.hostname.toLowerCase().replace(/\.$/, '')
 }
 
-function setSessionCookie(request: FastifyRequest, reply: FastifyReply, token: string) {
+export function setSessionCookie(request: FastifyRequest, reply: FastifyReply, token: string) {
   reply.setCookie(SESSION_COOKIE, token, {
     path: '/',
     httpOnly: true,
@@ -146,6 +152,8 @@ export async function authRoutes(app: FastifyInstance) {
       wantlistEnabled: settings.wantlistEnabled,
       supportsTvDevices: true,
       passkeysAvailable: relyingParty() !== null,
+      ssoName: await ssoProvider() ? settings.ssoName : null,
+      passwordLoginEnabled: !settings.passwordLoginDisabled,
     }
   })
 
@@ -162,6 +170,10 @@ export async function authRoutes(app: FastifyInstance) {
 
   app.post('/auth/login', { preHandler: loginPerIp }, async (request, reply): Promise<AuthResponse> => {
     const body = LoginRequest.parse(request.body)
+    // With password sign-in off, only the recovery switch lets a password through, and then only an admin's.
+    const passwordsOff = (await getServerSettings()).passwordLoginDisabled
+    const adminRecovery = passwordsOff && getConfig().SQUIRMY_ADMIN_PASSWORD_LOGIN
+    if (passwordsOff && !adminRecovery) throw passwordLoginDisabled()
     const name = usernameKey(body.username)
     const here = `${name}\n${addressKey(request.ip)}`
     const nearby = `${name}\n${networkKey(request.ip)}`
@@ -187,6 +199,7 @@ export async function authRoutes(app: FastifyInstance) {
     failuresAnywhere.undo(name)
     knownPlaces.add(here)
     if (user.disabledAt) throw forbidden('This account is disabled', 'account_disabled')
+    if (adminRecovery && user.role !== 'admin') throw passwordLoginDisabled()
     if (await twoFactorEnabled(user.id)) {
       // No session yet: the code comes next, with this challenge.
       const { token, expiresAt } = await createChallenge({ kind: 'two_factor', userId: user.id, ttlMs: twoFactorChallengeMs })
@@ -234,6 +247,8 @@ export async function authRoutes(app: FastifyInstance) {
   app.post('/auth/register', { preHandler: registerPerIp }, async (request, reply): Promise<AuthResponse> => {
     const body = RegisterRequest.parse(request.body)
     const settings = await getServerSettings()
+    // A new account would have only a password, which could not sign in.
+    if (settings.passwordLoginDisabled) throw passwordLoginDisabled()
     if ((await countUsers()) === 0) throw conflict('Set up the server first', 'setup_required')
     if (!body.inviteCode && settings.registrationRequiresInvite) throw badRequest('An invite code is required', 'invite_required')
     return db.transaction(async (tx) => {
@@ -265,6 +280,7 @@ export async function authRoutes(app: FastifyInstance) {
   app.post('/auth/password', { preHandler: passwordPerUser }, async (request): Promise<Ok> => {
     const current = requireUser(request)
     const body = ChangePasswordRequest.parse(request.body)
+    if (!await hasPassword(current.id)) throw forbidden('Your account signs in with single sign-on. Ask an admin to set a password.', 'no_password')
     await checkCurrentPassword(current, body.currentPassword)
     await db.transaction(async (tx) => {
       await tx.update(users).set({ passwordHash: await hashPassword(body.newPassword), updatedAt: new Date() }).where(eq(users.id, current.id))
@@ -282,13 +298,8 @@ export async function authRoutes(app: FastifyInstance) {
   })
 
   app.post('/auth/app-passwords', { preHandler: passwordPerUser }, async (request, reply): Promise<AppPassword> => {
-    const user = requireUser(request)
-    const sent = request.body as { currentPassword?: unknown } | undefined
-    if (typeof sent?.currentPassword !== 'string' || !sent.currentPassword) {
-      throw badRequest('Enter your current password to create an app password', 'current_password_required')
-    }
     const body = CreateAppPasswordRequest.parse(request.body)
-    await checkCurrentPassword(user, body.currentPassword)
+    const user = await reauthenticate(request, body.currentPassword)
     reply.code(201)
     return createAppPassword(user.id, body.name)
   })
@@ -332,7 +343,12 @@ export async function authRoutes(app: FastifyInstance) {
 
   app.get('/auth/security', async (request): Promise<AccountSecurity> => {
     const user = requireUser(request)
-    return { hasPassword: true, twoFactor: await twoFactorStatus(user.id), passkeys: await listPasskeys(user.id) }
+    return {
+      hasPassword: await hasPassword(user.id),
+      twoFactor: await twoFactorStatus(user.id),
+      passkeys: await listPasskeys(user.id),
+      ssoIdentities: await listSsoIdentities(user.id),
+    }
   })
 
   app.post('/auth/two-factor/setup', { preHandler: passwordPerUser }, async (request): Promise<TwoFactorSetup> => {
@@ -387,11 +403,10 @@ export async function authRoutes(app: FastifyInstance) {
   }
 
   app.post('/auth/passkeys/options', { preHandler: passwordPerUser }, async (request): Promise<PasskeyOptions> => {
-    const user = requireUser(request)
     const rp = requireRelyingParty()
     const body = StartPasskeyRequest.parse(request.body)
     // A passkey outlives the session it is added from, like an app password.
-    await checkCurrentPassword(user, body.currentPassword)
+    const user = await reauthenticate(request, body.currentPassword)
     const options = await registrationOptions(user, rp, (await getServerSettings()).serverName)
     const { token } = await createChallenge({ kind: 'passkey_register', userId: user.id, data: { challenge: options.challenge }, ttlMs: passkeyChallengeMs })
     return { challenge: token, options: options as unknown as Record<string, unknown> }

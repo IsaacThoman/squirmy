@@ -38,7 +38,7 @@ const textArray = (name: string) => text(name).array().notNull().default(sql`'{}
 
 export type UserRole = 'admin' | 'member'
 export type SignInMethod = 'password' | 'two_factor' | 'recovery_code' | 'passkey' | 'sso'
-export type AuthChallengeKind = 'two_factor' | 'passkey_register' | 'passkey_login'
+export type AuthChallengeKind = 'two_factor' | 'passkey_register' | 'passkey_login' | 'sso' | 'sso_exchange'
 export type CatalogEntityType = 'artist' | 'album' | 'release' | 'recording'
 export type LikeEntityType = 'recording' | 'album' | 'artist'
 export type LibraryRootMode = 'read_only' | 'managed'
@@ -105,7 +105,12 @@ export const users = pgTable('users', {
   /** Lowercased username; the unique identity. */
   usernameKey: text('username_key').notNull(),
   displayName: text('display_name'),
-  passwordHash: text('password_hash').notNull(),
+  /** argon2id. Null for an account made by single sign-on that never had a password set. */
+  passwordHash: text('password_hash'),
+  /** Set by an admin, or by single sign-on from a verified address; links a provider account to this one. */
+  email: text('email'),
+  /** Lowercased email; unique when set. */
+  emailKey: text('email_key'),
   role: text('role').$type<UserRole>().notNull().default('member'),
   canUpload: boolean('can_upload').notNull().default(false),
   canAcquire: boolean('can_acquire').notNull().default(false),
@@ -114,7 +119,25 @@ export const users = pgTable('users', {
   disabledAt: at('disabled_at'),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
-}, (t) => [uniqueIndex('users_username_key').on(t.usernameKey)])
+}, (t) => [
+  uniqueIndex('users_username_key').on(t.usernameKey),
+  uniqueIndex('users_email_key').on(t.emailKey).where(sql`${t.emailKey} is not null`),
+])
+
+/** Accounts at the single sign-on provider linked to Squirmy users, by the provider's issuer and subject. */
+export const ssoIdentities = pgTable('sso_identities', {
+  id: id(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  issuer: text('issuer').notNull(),
+  subject: text('subject').notNull(),
+  /** The address the provider reported, for the settings list. */
+  email: text('email'),
+  createdAt: createdAt(),
+  lastUsedAt: at('last_used_at'),
+}, (t) => [
+  uniqueIndex('sso_identities_subject').on(t.issuer, t.subject),
+  index('sso_identities_user').on(t.userId),
+])
 
 export const authSessions = pgTable('auth_sessions', {
   id: id(),

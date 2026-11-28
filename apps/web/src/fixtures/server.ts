@@ -67,6 +67,18 @@ export const serverSettings: ServerSettings = {
   importMaxActivePerUser: 3,
   wantlistEnabled: false,
   sonicAnalysisEnabled: true,
+  ssoEnabled: false,
+  ssoName: 'Single sign-on',
+  ssoIssuerUrl: null,
+  ssoClientId: null,
+  ssoClientSecretSet: false,
+  ssoScopes: 'openid profile email',
+  ssoUsernameClaim: 'preferred_username',
+  ssoGroupsClaim: 'groups',
+  ssoAllowedGroups: '',
+  ssoAutoCreateUsers: false,
+  passwordLoginDisabled: false,
+  ssoCallbackUrl: 'https://music.example.com/api/v1/auth/sso/callback',
 }
 
 export const jobs: JobQueueStats[] = [
@@ -96,6 +108,7 @@ export const accountSecurity: AccountSecurity = {
   passkeys: [
     { id: '00000000-0000-4000-8900-000000000001', name: 'MacBook', backedUp: true, createdAt: at('14T10:00'), lastUsedAt: at('26T09:30') },
   ],
+  ssoIdentities: [],
 }
 
 export const authSessions: AuthSession[] = [

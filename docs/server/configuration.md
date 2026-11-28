@@ -34,6 +34,7 @@ Every variable the server reads, from `apps/server/src/config.ts`. "Image" is th
 | `SQUIRMY_INBOX_PATH` | unset | A folder watched for music to import, used while the `inboxPath` server setting is unset. See [Adding music](./adding-music.md#the-inbox-folder). |
 | `SQUIRMY_WEB_DIST` | unset (image: `/app/apps/web/dist`) | The built web app to serve. Unset, the server serves only the API; the Vite dev server proxies to it during development. |
 | `SQUIRMY_READ_CACHE_MB` | `64` | Memory the API process may use to keep recent answers for Home, the library lists and album, artist and playlist pages, per user. Changes drop the affected answers at once; anything else is recomputed after five minutes at most. `0` turns the cache off. |
+| `SQUIRMY_ADMIN_PASSWORD_LOGIN` | unset | Recovery for a server with [password sign-in turned off](./authentication.md#turning-password-sign-in-off): `true` lets admins (only) sign in with their password again. Remove it once single sign-on works. |
 | `SQUIRMY_DB_POOL_SIZE` | `10` | Database connections each Squirmy process keeps for queries, from 2 to 200. Background jobs keep 6 more of their own, and each process uses one more for locks. Raise it only for a big install where the API is slow while many jobs run, and keep the total for every process under PostgreSQL's `max_connections` (100 by default). |
 | `LOG_LEVEL` | `info` | `fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`. |
 | `FFMPEG_PATH` | `ffmpeg` | The `ffmpeg` binary. Any build from FFmpeg 4 on works; files are opened with `-protocol_whitelist` and `-format_whitelist`, so only local files in audio formats are read. |
@@ -75,6 +76,14 @@ Stored in the `server_settings` table, from `ServerSettings` in `packages/contra
 | General | Server name | `serverName` | `Squirmy` | Shown on the web app's sign-in page and in the iOS app's connect and sign-in screens. |
 | | Wantlist | `wantlistEnabled` | off | Turns on the [wantlist](../use/wantlist.md), a list of music the server does not have yet. Off, the apps show no trace of it and wants stay stored, so turning it back on brings them back. |
 | Registration | Require an invite to join | `registrationRequiresInvite` | on | Off lets anyone who can reach the server create a member account. |
+| Single sign-on | Issuer URL, Client ID, Client secret | `ssoIssuerUrl`, `ssoClientId`, `ssoClientSecret` | not set | The OpenID Connect provider. See [Single sign-on](./authentication.md#single-sign-on-openid-connect). The secret is stored encrypted. |
+| | Button name | `ssoName` | `Single sign-on` | Shown as **Sign in with …**. |
+| | Scopes | `ssoScopes` | `openid profile email` | Must include `openid`. |
+| | Username claim, Groups claim | `ssoUsernameClaim`, `ssoGroupsClaim` | `preferred_username`, `groups` | Where a new account's username and a person's groups come from. |
+| | Allowed groups | `ssoAllowedGroups` | empty | Only members of one of these groups may sign in. Empty lets in everyone the provider accepts. |
+| | Create accounts | `ssoAutoCreateUsers` | off | Makes a member account for someone with none here. |
+| | Offer single sign-on | `ssoEnabled` | off | Shows **Sign in with …** and lets people connect their accounts. |
+| | Turn off password sign-in | `passwordLoginDisabled` | off | Single sign-on and passkeys only. See [Turning password sign-in off](./authentication.md#turning-password-sign-in-off). |
 | Metadata sources | MusicBrainz | `musicBrainzEnabled` | on | Identifies albums and fills in discographies. Off means nothing new is identified. |
 | | MusicBrainz server | `musicBrainzBaseUrl` | `https://musicbrainz.org` | Base URL of a MusicBrainz web service, a full `http://` or `https://` address. Only `musicbrainz.org` and its subdomains are rate limited, so a mirror lifts the limit. |
 | | Cover Art Archive | `coverArtArchiveEnabled` | on | Album covers. |

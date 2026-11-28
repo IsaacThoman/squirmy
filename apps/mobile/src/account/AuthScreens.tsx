@@ -4,8 +4,8 @@ import * as Haptics from 'expo-haptics';
 import { useEffect, useRef, useState } from 'react';
 import { Linking } from 'react-native';
 import { displayAddress, isExposedHttp } from './address';
-import { unsavedSignIn, useAccount } from './AccountProvider';
-import { signInErrorMessage } from './auth';
+import { SsoError, unsavedSignIn, useAccount } from './AccountProvider';
+import { signInErrorMessage, ssoErrorMessage } from './auth';
 import { AuthField, AuthLink, AuthPage, AuthSection, AuthServer, AuthSubmit, type FieldHandle } from './AuthForm';
 import { ConnectError, findServer } from './server';
 import { lastUsername, rememberUsername } from './storage';
@@ -61,7 +61,12 @@ export function ConnectScreen() {
 type Mode = 'signIn' | 'register';
 
 export function SignInScreen() {
-  const { state, unsaved, signIn, signInWithCode, register, switchServer } = useAccount();
+  const { state, unsaved, signIn, signInWithCode, signInWithSso, register, switchServer } = useAccount();
+  const sso = useMutation({
+    mutationFn: signInWithSso,
+    onSuccess: () => void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success),
+    onError: () => void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error),
+  });
   const [mode, setMode] = useState<Mode>('signIn');
   // Set once the password was right and the account wants a code from an authenticator app too.
   const [challenge, setChallenge] = useState<string | null>(null);
@@ -122,7 +127,11 @@ export function SignInScreen() {
   const ready = Boolean(username.trim() && password && (!registering || !inviteRequired || inviteCode.trim()));
   // Shown until the next attempt: on iOS, changing a section's footer rebuilds its fields,
   // which would cut off typing in the password field.
-  const error = attempt.error ? signInErrorMessage(attempt.error, server.name) : null;
+  const ssoName = server.ssoName ?? 'single sign-on';
+  const error = sso.error
+    ? sso.error instanceof SsoError ? ssoErrorMessage(sso.error.code, ssoName) : signInErrorMessage(sso.error, server.name)
+    : attempt.error ? signInErrorMessage(attempt.error, server.name) : null;
+  const passwordsOff = server.passwordLogin === false && !registering;
   const warning = isExposedHttp(server.url) ? 'This server doesn’t use HTTPS, so your password is sent unencrypted.' : null;
   const submit = () => {
     if (ready && !attempt.isPending) attempt.mutate();
@@ -149,6 +158,19 @@ export function SignInScreen() {
     </AuthPage>;
   }
 
+  const ssoButton = server.ssoName && !registering
+    ? <AuthSubmit title={`Sign In with ${server.ssoName}`} busyTitle="Signing In…" busy={sso.isPending} disabled={attempt.isPending}
+      onPress={() => { attempt.reset(); sso.mutate(); }} />
+    : null;
+
+  if (passwordsOff) {
+    // Only single sign-on (passkeys are web-only for now): what went wrong is said in the page's message.
+    return <AuthPage title="Sign in" message={error ?? notice ?? (server.ssoName ? `Sign in to listen to ${server.name}.` : `${server.name} doesn’t take passwords, and has no single sign-on set up.`)}>
+      <AuthServer server={server} onChange={switchServer} />
+      {ssoButton}
+    </AuthPage>;
+  }
+
   return <AuthPage title={registering ? 'Create an account' : 'Sign in'}
     // A keychain that refused here won't keep this sign-in either, so the page says so before it is typed.
     message={notice ?? (unsaved ? unsavedSignIn : registering
@@ -168,7 +190,8 @@ export function SignInScreen() {
         onChange={setPassword} onSubmit={submit} autoFocus={!registering && Boolean(remembered)} />
     </AuthSection>
     <AuthSubmit title={registering ? 'Create Account' : 'Sign In'} busyTitle={registering ? 'Creating Account…' : 'Signing In…'}
-      busy={attempt.isPending} disabled={!ready} onPress={submit} />
+      busy={attempt.isPending} disabled={!ready || sso.isPending} onPress={() => { sso.reset(); submit(); }} />
+    {ssoButton}
     <AuthSection>
       <AuthLink title={registering ? 'I already have an account' : inviteRequired ? 'Join with an invite code' : 'Create an account'}
         icon={registering ? 'person.crop.circle' : 'ticket'} onPress={() => {

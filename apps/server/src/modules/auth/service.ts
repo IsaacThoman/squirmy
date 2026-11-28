@@ -3,7 +3,7 @@ import { APP_PASSWORD_LIMIT, type AppPassword, type AuthSession, type ClientDevi
 import argon2 from 'argon2'
 import { and, count, desc, eq, getTableColumns, gt, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import { db, type Executor } from '../../database/client.js'
-import { appPasswords, authSessions, devices, users } from '../../database/schema.js'
+import { appPasswords, authSessions, devices, ssoIdentities, users } from '../../database/schema.js'
 import type { AuthUser } from '../../lib/auth.js'
 import { AppError, conflict } from '../../lib/errors.js'
 import { decrypt, encrypt, hashToken, randomToken } from '../../lib/crypto.js'
@@ -30,6 +30,7 @@ export function toUser(row: AuthUser): User {
     canAcquire: row.canAcquire,
     createdAt: row.createdAt.toISOString(),
     disabled: row.disabledAt !== null,
+    email: row.email,
   }
 }
 
@@ -67,7 +68,7 @@ let dummyHash: Promise<string> | undefined
  * Checks a username and password. An unknown username still costs one argon2 verification,
  * so response time does not reveal which usernames exist.
  */
-export async function verifyCredentials(username: string, password: string): Promise<(AuthUser & { passwordHash: string }) | null> {
+export async function verifyCredentials(username: string, password: string): Promise<(AuthUser & { passwordHash: string | null }) | null> {
   const [row] = await db.select().from(users).where(eq(users.usernameKey, usernameKey(username)))
   dummyHash ??= hashPassword(randomToken()).catch((error: unknown) => {
     dummyHash = undefined
@@ -78,7 +79,8 @@ export async function verifyCredentials(username: string, password: string): Pro
     if (error instanceof AppError) throw error
     return false
   })
-  return row && valid ? row : null
+  // An account without a password (made by single sign-on) never matches, at the same cost.
+  return row?.passwordHash && valid ? row : null
 }
 
 export type NewSession = { token: string; sessionId: string }
@@ -305,21 +307,77 @@ function isUniqueViolation(error: unknown) {
   return candidate.code === '23505' || candidate.cause?.code === '23505'
 }
 
-/** Creates an account. A taken username is a 409 `username_taken`. */
+/** The unique key of an email address, or null for none. */
+export function emailKey(email: string | null | undefined): string | null {
+  return email ? email.trim().toLowerCase() : null
+}
+
+function isUniqueViolationOf(error: unknown, constraint: string) {
+  const candidate = error as { constraint_name?: unknown; cause?: { constraint_name?: unknown } }
+  return isUniqueViolation(error) && (candidate.constraint_name === constraint || candidate.cause?.constraint_name === constraint)
+}
+
+/** A taken username or email as the 409 that says which. */
+export function uniqueUserConflict(error: unknown): never {
+  if (isUniqueViolationOf(error, 'users_email_key')) throw conflict('Another account has that email address', 'email_taken')
+  if (isUniqueViolation(error)) throw conflict('That username is taken', 'username_taken')
+  throw error
+}
+
+/** Creates an account. A taken username is a 409 `username_taken`, a taken email `email_taken`. */
 export async function insertUser(
   executor: Executor,
-  input: Omit<typeof users.$inferInsert, 'id' | 'usernameKey' | 'passwordHash'> & { password: string },
+  input: Omit<typeof users.$inferInsert, 'id' | 'usernameKey' | 'passwordHash' | 'emailKey'> & { password: string },
 ): Promise<typeof users.$inferSelect> {
   const { password, ...values } = input
   try {
     const [row] = await executor.insert(users)
-      .values({ ...values, id: newId(), usernameKey: usernameKey(values.username), passwordHash: await hashPassword(password) })
+      .values({ ...values, id: newId(), usernameKey: usernameKey(values.username), emailKey: emailKey(values.email), passwordHash: await hashPassword(password) })
       .returning()
     return row!
   } catch (error) {
-    if (isUniqueViolation(error)) throw conflict('That username is taken', 'username_taken')
-    throw error
+    return uniqueUserConflict(error)
   }
+}
+
+/**
+ * Creates a member for someone single sign-on let in, with no password, linked to their
+ * provider account. The email is kept only when the provider verified it and no one has it.
+ */
+export async function insertSsoUser(input: {
+  username: string
+  displayName: string | null
+  email: string | null
+  identity: { issuer: string; subject: string; claims: Record<string, unknown> }
+}): Promise<typeof users.$inferSelect> {
+  return db.transaction(async (tx) => {
+    const key = emailKey(input.email)
+    const [owner] = key ? await tx.select({ id: users.id }).from(users).where(eq(users.emailKey, key)) : []
+    let row
+    try {
+      [row] = await tx.insert(users).values({
+        id: newId(),
+        username: input.username,
+        usernameKey: usernameKey(input.username),
+        displayName: input.displayName,
+        email: owner ? null : input.email,
+        emailKey: owner ? null : key,
+        passwordHash: null,
+        role: 'member',
+      }).returning()
+    } catch (error) {
+      return uniqueUserConflict(error)
+    }
+    const reported = typeof input.identity.claims.email === 'string' ? input.identity.claims.email : null
+    await tx.insert(ssoIdentities).values({ id: newId(), userId: row!.id, issuer: input.identity.issuer, subject: input.identity.subject, email: reported, lastUsedAt: new Date() })
+    return row!
+  })
+}
+
+/** Whether the account has a password to sign in or confirm things with. */
+export async function hasPassword(userId: string): Promise<boolean> {
+  const [row] = await db.select({ passwordHash: users.passwordHash }).from(users).where(eq(users.id, userId))
+  return !!row?.passwordHash
 }
 
 export async function countUsers(executor: Executor = db): Promise<number> {

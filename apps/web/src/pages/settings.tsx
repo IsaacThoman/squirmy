@@ -21,10 +21,11 @@ const securityKey = ['account-security'] as const
 const sessionsKey = ['auth-sessions'] as const
 
 /** Settings → Security: the second factor and the signed-in devices, read while the dialog is open. */
-function useSecuritySettings(open: boolean): SecuritySettingsProps {
+function useSecuritySettings(open: boolean, ssoNotice: string | undefined): SecuritySettingsProps {
   const api = useApi()
   const queryClient = useQueryClient()
-  const serverPasskeys = useSetupStatus().data?.passkeysAvailable ?? false
+  const status = useSetupStatus().data
+  const serverPasskeys = status?.passkeysAvailable ?? false
   const security = useQuery({ queryKey: securityKey, queryFn: () => api.auth.security(), enabled: open })
   const sessions = useQuery({ queryKey: sessionsKey, queryFn: () => api.auth.sessions(), enabled: open })
   const refreshSecurity = () => queryClient.invalidateQueries({ queryKey: securityKey })
@@ -66,6 +67,10 @@ function useSecuritySettings(open: boolean): SecuritySettingsProps {
     },
     onRenamePasskey: (id, name) => api.auth.renamePasskey(id, { name }).then(refreshSecurity),
     onDeletePasskey: id => api.auth.deletePasskey(id).then(refreshSecurity),
+    sso: status?.ssoName ? { name: status.ssoName } : null,
+    onLinkSso: async request => window.location.assign((await api.auth.linkSso(request)).url),
+    onUnlinkSso: id => api.auth.unlinkSso(id).then(refreshSecurity),
+    ssoNotice,
   }
 }
 
@@ -121,7 +126,7 @@ function useScrobbleConnections() {
 }
 
 /** The settings dialog with the signed-in user's settings, connections and app passwords. */
-export function SettingsDialogHost({ open, section, lastFm, onOpenChange, onSectionChange }: SettingsDialogState) {
+export function SettingsDialogHost({ open, section, lastFm, sso, onOpenChange, onSectionChange }: SettingsDialogState) {
   const api = useApi()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -135,7 +140,7 @@ export function SettingsDialogHost({ open, section, lastFm, onOpenChange, onSect
   const connections = useScrobbleConnections()
   const [name, setName] = useState(browserName)
   const passwords = useQuery({ queryKey: appPasswordsKey, queryFn: () => api.auth.appPasswords(), enabled: open })
-  const security = useSecuritySettings(open)
+  const security = useSecuritySettings(open, sso)
   const refreshPasswords = () => queryClient.invalidateQueries({ queryKey: appPasswordsKey })
   const createPassword = useMutation({ mutationFn: api.auth.createAppPassword, onSuccess: refreshPasswords })
   // The revoked password leaves the list; the confirmation says a failure.

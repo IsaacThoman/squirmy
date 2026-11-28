@@ -1,4 +1,8 @@
 import {
+  type LinkSsoRequest,
+  type SsoExchangeRequest,
+  SsoLinkStart,
+  SsoTestResult,
   AccountSecurity,
   Passkey,
   type PasskeyLoginRequest,
@@ -377,6 +381,11 @@ export function createApiClient(options: ApiClientOptions) {
       /** Request options for `navigator.credentials.get`, for any passkey of this server. */
       passkeyLoginOptions: () => send('POST', '/auth/passkey-login/options', PasskeyOptions),
       loginWithPasskey: (body: PasskeyLoginRequest) => send('POST', '/auth/passkey-login', AuthResponse, body),
+      /** Where to send the browser to link the single sign-on account; it comes back to `/settings/security`. */
+      linkSso: (body: LinkSsoRequest) => send('POST', '/auth/sso/link', SsoLinkStart, body),
+      unlinkSso: (identityId: string) => send('DELETE', `/auth/sso/identities/${id(identityId)}`, Ok),
+      /** The app's half of single sign-on: the one-time code from `/auth/sso/start`'s redirect. */
+      ssoExchange: (body: SsoExchangeRequest) => send('POST', '/auth/sso/exchange', AuthResponse, body),
     },
     admin: {
       users: () => get('/admin/users', UserList),
@@ -387,6 +396,7 @@ export function createApiClient(options: ApiClientOptions) {
       revokeUserSession: (userId: string, sessionId: string) => send('DELETE', `/admin/users/${id(userId)}/sessions/${id(sessionId)}`, Ok),
       revokeUserSessions: (userId: string) => send('DELETE', `/admin/users/${id(userId)}/sessions`, Ok),
       resetTwoFactor: (userId: string) => send('DELETE', `/admin/users/${id(userId)}/two-factor`, Ok),
+      testSso: () => send('POST', '/admin/sso/test', SsoTestResult),
       invites: () => get('/admin/invites', InviteList),
       createInvite: (body: Input<typeof CreateInviteRequest> = {}) => send('POST', '/admin/invites', Invite, body),
       deleteInvite: (inviteId: string) => send('DELETE', `/admin/invites/${id(inviteId)}`, Ok),

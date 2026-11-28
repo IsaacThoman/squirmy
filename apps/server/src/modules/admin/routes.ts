@@ -3,7 +3,7 @@ import { homedir } from 'node:os'
 import path from 'node:path'
 import {
   CreateInviteRequest, CreateUserRequest, DirectoryQuery, Id, queryKeys, UpdateServerSettings, UpdateUserRequest,
-  type DirectoryListing, type Invite, type InviteList, type JobQueueStats, type Ok, type ServerSettings, type User, type UserList, type UserSecurity,
+  type DirectoryListing, type Invite, type InviteList, type JobQueueStats, type Ok, type ServerSettings, type SsoTestResult, type User, type UserList, type UserSecurity,
 } from '@squirmy/contracts'
 import { and, asc, desc, eq, isNull, ne, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
@@ -19,7 +19,8 @@ import { getServerSettings, invalidateServerSettings, updateServerSettings } fro
 import { getQueueStats } from '../../jobs/index.js'
 import { disconnectSockets, invalidate } from '../../realtime/index.js'
 import { dropUserChallenges } from '../auth/challenges.js'
-import { hashPassword, insertUser, listSessions, revokeAppPasswords, revokeUserSession, revokeUserSessions, toUser } from '../auth/service.js'
+import { forgetSsoDiscovery, hasSsoIdentity, ssoProvider, testSsoProvider } from '../auth/sso.js'
+import { emailKey, hashPassword, insertUser, listSessions, uniqueUserConflict, revokeAppPasswords, revokeUserSession, revokeUserSessions, toUser } from '../auth/service.js'
 import { listPasskeys, revokePasskeys } from '../auth/passkeys.js'
 import { disableTwoFactor, twoFactorEnabled } from '../auth/two-factor.js'
 import { markEnrichmentStale } from '../enrichment/stale.js'
@@ -115,6 +116,9 @@ export async function adminRoutes(app: FastifyInstance) {
     const { id } = IdParams.parse(request.params)
     const body = UpdateUserRequest.parse(request.body)
     const updated = await db.transaction(async (tx) => {
+      if (body.email !== undefined) {
+        await tx.update(users).set({ email: body.email, emailKey: emailKey(body.email) }).where(eq(users.id, id)).catch(uniqueUserConflict)
+      }
       const [current] = await tx.select().from(users).where(eq(users.id, id)).for('update')
       if (!current) throw notFound('No such user')
       const losesAdmin = current.role === 'admin' && !current.disabledAt && (body.role === 'member' || body.disabled === true)
@@ -225,9 +229,20 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get('/admin/settings', async (): Promise<ServerSettings> => getServerSettings())
 
   app.patch('/admin/settings', async (request): Promise<ServerSettings> => {
+    const admin = requireAdmin(request)
     const patch = await checkImportSettings(UpdateServerSettings.parse(request.body))
     invalidateServerSettings()
     const before = await getServerSettings()
+    // Password sign-in goes off only while single sign-on works and this admin can use it, so
+    // nobody locks the server's admins out with one switch.
+    const next = { ...before, ...patch }
+    if (next.passwordLoginDisabled && (patch.passwordLoginDisabled || patch.ssoEnabled === false || patch.ssoIssuerUrl !== undefined || patch.ssoClientId !== undefined)) {
+      const ready = next.ssoEnabled && next.ssoIssuerUrl && next.ssoClientId && before.ssoCallbackUrl
+      if (!ready || !await hasSsoIdentity(admin.id)) {
+        throw conflict('Turn password sign-in off once single sign-on is set up and you have signed in with it (Settings → Security → Connect).', 'sso_required')
+      }
+    }
+    if (Object.keys(patch).some((key) => key.startsWith('sso'))) forgetSsoDiscovery()
     const settings = await updateServerSettings(patch)
     // Owned by the enrichment module: music enriched without a source that is now on.
     await markEnrichmentStale(before, settings)
@@ -236,12 +251,27 @@ export async function adminRoutes(app: FastifyInstance) {
     // Owned by the sonic module: analysis switched on starts now.
     await queueSonicSweep(before, settings)
     await invalidate('admins', [queryKeys.admin()])
+    if (before.ssoEnabled !== settings.ssoEnabled || before.ssoName !== settings.ssoName || before.passwordLoginDisabled !== settings.passwordLoginDisabled) {
+      await invalidate('all', [queryKeys.setupStatus()])
+    }
     // Clients read the switch from the setup status, and Home and the wantlist answer
     // differently with it off, so open apps show or hide the wantlist without a reload.
     if (before.wantlistEnabled !== settings.wantlistEnabled) {
       await invalidate('all', [queryKeys.setupStatus(), queryKeys.home(), queryKeys.wants()])
     }
     return settings
+  })
+
+  /** Loads the provider's discovery document with the saved settings, so the admin knows before anyone signs in. */
+  app.post('/admin/sso/test', async (): Promise<SsoTestResult> => {
+    const provider = await ssoProvider({ evenIfOff: true })
+    if (!provider) return { ok: false, issuer: null, message: 'Set the issuer URL and the client ID first. PUBLIC_URL must be set too, for the callback address.' }
+    try {
+      const { issuer } = await testSsoProvider(provider)
+      return { ok: true, issuer, message: `Found ${issuer}.` }
+    } catch (error) {
+      return { ok: false, issuer: null, message: `Couldn’t load the provider’s configuration: ${(error as Error).message}` }
+    }
   })
 
   app.get('/admin/jobs', async (): Promise<JobQueueStats[]> => getQueueStats())

@@ -6,10 +6,11 @@ import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-route
 import { errorMessage } from '@/api/errors'
 import { useFolderListing } from '@/api/folders'
 import { useApi } from '@/api/services'
-import { setSetupDone, setSignedInUser, useMe, useSetupStatus, useSignInNotice } from '@/auth/session'
+import { safeNext, setSetupDone, setSignedInUser, useMe, useSetupStatus, useSignInNotice } from '@/auth/session'
 import { LoginView, RegisterView, SetupAccountView, SetupDoneView, SetupLibraryView, TwoFactorView } from '@/components/auth/AuthViews'
 import { webDevice } from '@/lib/device'
 import { browserSupportsPasskeys, getPasskey, passkeyCancelled } from '@/lib/passkeys'
+import { ssoMessage, startSso } from '@/lib/sso'
 
 /** Signing in only updates the session; the signed-out guard then moves on to `next`. */
 function useSignedIn() {
@@ -19,6 +20,8 @@ function useSignedIn() {
 
 export function LoginPage() {
   const api = useApi()
+  const [params] = useSearchParams()
+  const ssoError = params.get('sso_error')
   const { data: status } = useSetupStatus()
   const signedIn = useSignedIn()
   const notice = useSignInNotice()
@@ -65,6 +68,9 @@ export function LoginPage() {
       notice={notice}
       onSubmit={submitPassword}
       onPasskey={passkeys ? signInWithPasskey : undefined}
+      sso={status!.ssoName ? { name: status!.ssoName, onStart: () => startSso(safeNext(params.get('next'))) } : undefined}
+      passwordLogin={status!.passwordLoginEnabled}
+      ssoError={ssoError ? ssoMessage(ssoError) : null}
     />
   )
 }

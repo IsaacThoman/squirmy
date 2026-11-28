@@ -224,6 +224,9 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
       deletePasskey: vi.fn(async () => ({ ok: true as const })),
       passkeyLoginOptions: vi.fn(async () => ({ challenge: 'login-challenge', options: { challenge: 'abc' } })),
       loginWithPasskey: vi.fn(async () => ({ user: currentUser, token: 'token' })),
+      linkSso: vi.fn(async () => ({ url: 'https://sso.example.com/authorize' })),
+      unlinkSso: vi.fn(async () => ({ ok: true as const })),
+      ssoExchange: vi.fn(async () => ({ user: currentUser, token: 'token' })),
     },
     admin: {
       users: vi.fn(async () => list(users)),
@@ -234,6 +237,7 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
       revokeUserSession: vi.fn(async () => ({ ok: true as const })),
       revokeUserSessions: vi.fn(async () => ({ ok: true as const })),
       resetTwoFactor: vi.fn(async () => ({ ok: true as const })),
+      testSso: vi.fn(async () => ({ ok: true, issuer: 'https://sso.example.com', message: 'Found https://sso.example.com.' })),
       invites: vi.fn(async () => list(invites)),
       createInvite: vi.fn(async () => invites[0]),
       deleteInvite: vi.fn(async () => ({ ok: true as const })),

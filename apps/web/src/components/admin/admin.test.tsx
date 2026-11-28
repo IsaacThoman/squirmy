@@ -320,6 +320,16 @@ describe('users admin', () => {
     <UsersAdmin users={[user]} invites={[]} currentUserId={id(51)} inviteLink={() => ''} onCreateUser={ok()} onUpdateUser={onUpdateUser} onDeleteUser={ok()} onCreateInvite={vi.fn()} onRevokeInvite={ok()} {...securityProps} />,
   )
 
+  it('sets a user\'s email, for single sign-on to find them', async () => {
+    const onUpdateUser = vi.fn(async () => user)
+    render(onUpdateUser)
+    await userEvent.click(screen.getByRole('button', { name: 'Manage sam' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Edit…' }))
+    await userEvent.type(await screen.findByLabelText('Email'), 'sam@example.com')
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onUpdateUser).toHaveBeenCalledWith(user.id, expect.objectContaining({ email: 'sam@example.com' }))
+  })
+
   it('shows someone\'s sign-ins, signs one out and turns off their second factor', async () => {
     const onShowSecurity = vi.fn()
     const onRevokeUserSession = vi.fn(async () => {})

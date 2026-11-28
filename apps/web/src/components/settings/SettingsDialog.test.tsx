@@ -57,6 +57,9 @@ function props() {
       onAddPasskey: vi.fn(async () => {}),
       onRenamePasskey: vi.fn(async () => {}),
       onDeletePasskey: vi.fn(async () => {}),
+      sso: { name: 'Authelia' } as { name: string } | null,
+      onLinkSso: vi.fn(async () => {}),
+      onUnlinkSso: vi.fn(async () => {}),
     },
   } satisfies SettingsDialogProps
 }
@@ -367,7 +370,7 @@ describe('SettingsDialog', () => {
     })
 
     it('turns two-factor off with the password and a code', async () => {
-      const given = security({ security: { hasPassword: true, twoFactor: { enabled: true, enabledAt: '2026-11-20T10:00:00.000Z', recoveryCodesRemaining: 7 }, passkeys: [] } })
+      const given = security({ security: { hasPassword: true, twoFactor: { enabled: true, enabledAt: '2026-11-20T10:00:00.000Z', recoveryCodesRemaining: 7 }, passkeys: [], ssoIdentities: [] } })
       renderSettings({ section: 'security', security: given })
       expect(screen.getByText(/7 recovery codes left/)).toBeInTheDocument()
       await userEvent.click(screen.getByRole('button', { name: 'Turn off' }))
@@ -412,6 +415,40 @@ describe('SettingsDialog', () => {
       renderSettings({ section: 'security', security: security({ passkeys: { server: false, browser: true } }) })
       expect(screen.getByText(/Ask whoever runs it to set PUBLIC_URL/)).toBeInTheDocument()
       expect(screen.queryByRole('button', { name: 'Add passkey' })).toBeNull()
+    })
+
+    it('connects single sign-on after the password, and disconnects it', async () => {
+      const given = security()
+      renderSettings({ section: 'security', security: given })
+      await userEvent.click(screen.getByRole('button', { name: 'Connect' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Connect Authelia' })
+      await userEvent.type(within(dialog).getByLabelText('Your password'), 'hunter22')
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Continue' }))
+      expect(given.onLinkSso).toHaveBeenCalledWith({ currentPassword: 'hunter22' })
+    })
+
+    it('lists the connected provider account and says what the provider answered', async () => {
+      const identity = { id: '00000000-0000-4000-8a00-000000000001', issuer: 'https://auth.example.com', email: 'alex@example.com', createdAt: '2026-11-20T10:00:00.000Z', lastUsedAt: null }
+      const given = security({ security: { ...accountSecurity, ssoIdentities: [identity] }, ssoNotice: 'sso_linked_elsewhere' })
+      renderSettings({ section: 'security', security: given })
+      expect(screen.getByRole('status')).toHaveTextContent('already connected to another account')
+      expect(screen.getByText('alex@example.com')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Connect' })).toBeNull()
+      await userEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
+      await userEvent.click(within(await screen.findByRole('dialog', { name: 'Disconnect Authelia?' })).getByRole('button', { name: 'Disconnect' }))
+      expect(given.onUnlinkSso).toHaveBeenCalledWith(identity.id)
+    })
+
+    it('adds a passkey without a password on an account that has none', async () => {
+      const given = security({ security: { ...accountSecurity, hasPassword: false } })
+      renderSettings({ section: 'security', security: given })
+      expect(screen.getByText(/Your account has no password/)).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Turn on' })).toBeNull()
+      await userEvent.click(screen.getByRole('button', { name: 'Add passkey' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Add a passkey' })
+      expect(within(dialog).queryByLabelText('Your password')).toBeNull()
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Continue' }))
+      expect(given.onAddPasskey).toHaveBeenCalledWith({ name: 'Firefox on macOS', currentPassword: undefined })
     })
 
     it('lists where the account is signed in and signs one out, or all the others', async () => {

@@ -16,8 +16,12 @@ export const User = z.object({
   canAcquire: z.boolean(),
   createdAt: IsoDateTime,
   disabled: z.boolean(),
+  /** Set by an admin; single sign-on links a provider account with the same verified address. */
+  email: z.string().nullable().optional(),
 })
 export type User = z.infer<typeof User>
+
+export const Email = z.email().max(254)
 
 export const UserList = page(User)
 export type UserList = z.infer<typeof UserList>
@@ -38,6 +42,10 @@ export const SetupStatus = z.object({
   supportsTvDevices: z.literal(true).optional(),
   /** Whether the sign-in page can offer passkeys: PUBLIC_URL is an https address (or localhost). */
   passkeysAvailable: z.boolean().default(false),
+  /** The single sign-on provider's name for "Sign in with …", or null when it is off. */
+  ssoName: z.string().nullable().default(null),
+  /** False when the admin turned password sign-in off: sign-in offers single sign-on and passkeys only. */
+  passwordLoginEnabled: z.boolean().default(true),
 })
 export type SetupStatus = z.infer<typeof SetupStatus>
 
@@ -110,6 +118,7 @@ export const CreateUserRequest = z.object({
   role: UserRole.default('member'),
   canUpload: z.boolean().default(false),
   canAcquire: z.boolean().default(false),
+  email: Email.nullable().default(null),
 })
 export type CreateUserRequest = z.infer<typeof CreateUserRequest>
 
@@ -120,6 +129,7 @@ export const UpdateUserRequest = z.object({
   canAcquire: z.boolean().optional(),
   disabled: z.boolean().optional(),
   password: Password.optional(),
+  email: Email.nullable().optional(),
 })
 export type UpdateUserRequest = z.infer<typeof UpdateUserRequest>
 
@@ -142,9 +152,10 @@ export const APP_PASSWORD_LIMIT = 50
 /**
  * `currentPassword` is the account password: a borrowed session alone must not be able to
  * mint a credential that outlives it. Servers answer `current_password_required` to
- * clients that do not send it yet.
+ * clients that do not send it yet. An account without a password (made by single sign-on)
+ * leaves it out and needs a sign-in from the last few minutes instead.
  */
-export const CreateAppPasswordRequest = z.object({ name: z.string().trim().min(1).max(60), currentPassword: z.string().min(1).max(200) })
+export const CreateAppPasswordRequest = z.object({ name: z.string().trim().min(1).max(60), currentPassword: z.string().min(1).max(200).optional() })
 export type CreateAppPasswordRequest = z.infer<typeof CreateAppPasswordRequest>
 
 // ---------------------------------------------------------------------------
@@ -188,6 +199,16 @@ export const TwoFactorStatus = z.object({
 })
 export type TwoFactorStatus = z.infer<typeof TwoFactorStatus>
 
+/** A provider account linked to this one. */
+export const SsoIdentity = z.object({
+  id: Id,
+  issuer: z.string(),
+  email: z.string().nullable(),
+  createdAt: IsoDateTime,
+  lastUsedAt: IsoDateTime.nullable(),
+})
+export type SsoIdentity = z.infer<typeof SsoIdentity>
+
 /** Most passkeys one account may hold. */
 export const PASSKEY_LIMIT = 20
 
@@ -210,6 +231,7 @@ export const AccountSecurity = z.object({
   hasPassword: z.boolean(),
   twoFactor: TwoFactorStatus,
   passkeys: z.array(Passkey).default([]),
+  ssoIdentities: z.array(SsoIdentity).default([]),
 })
 export type AccountSecurity = z.infer<typeof AccountSecurity>
 
@@ -297,7 +319,7 @@ export const PasskeyCredential = z.looseObject({
 export type PasskeyCredential = z.infer<typeof PasskeyCredential>
 
 /** `POST /auth/passkeys/options`: a passkey outlives the session it is added from, so the password comes first. */
-export const StartPasskeyRequest = z.object({ currentPassword: z.string().min(1).max(200) })
+export const StartPasskeyRequest = z.object({ currentPassword: z.string().min(1).max(200).optional() })
 export type StartPasskeyRequest = z.infer<typeof StartPasskeyRequest>
 
 export const RegisterPasskeyRequest = z.object({ challenge: z.string().min(1).max(200), name: PasskeyName, response: PasskeyCredential })
@@ -308,3 +330,27 @@ export type RenamePasskeyRequest = z.infer<typeof RenamePasskeyRequest>
 
 export const PasskeyLoginRequest = z.object({ challenge: z.string().min(1).max(200), response: PasskeyCredential, device: ClientDevice.optional() })
 export type PasskeyLoginRequest = z.infer<typeof PasskeyLoginRequest>
+
+// ---------------------------------------------------------------------------
+// Single sign-on (OpenID Connect)
+// ---------------------------------------------------------------------------
+
+
+/** `POST /auth/sso/link`. The password, when the account has one. */
+export const LinkSsoRequest = z.object({ currentPassword: z.string().min(1).max(200).optional() })
+export type LinkSsoRequest = z.infer<typeof LinkSsoRequest>
+
+/** Where to send the browser to approve the link at the provider. */
+export const SsoLinkStart = z.object({ url: z.string() })
+export type SsoLinkStart = z.infer<typeof SsoLinkStart>
+
+/**
+ * `POST /auth/sso/exchange`: the iOS app trades the one-time code from its redirect for a
+ * session. `verifier` is required when the app sent a `challenge` to `/auth/sso/start`.
+ */
+export const SsoExchangeRequest = z.object({ code: z.string().min(1).max(200), verifier: z.string().min(43).max(128).optional(), device: ClientDevice.optional() })
+export type SsoExchangeRequest = z.infer<typeof SsoExchangeRequest>
+
+/** `POST /admin/sso/test`: whether the provider's discovery document loads with the saved settings. */
+export const SsoTestResult = z.object({ ok: z.boolean(), issuer: z.string().nullable(), message: z.string() })
+export type SsoTestResult = z.infer<typeof SsoTestResult>

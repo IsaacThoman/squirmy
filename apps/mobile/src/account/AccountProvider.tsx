@@ -4,13 +4,14 @@ import { focusManager, QueryClient, useQuery, useQueryClient } from '@tanstack/r
 import {
   createContext, useContext, useEffect, useMemo, useReducer, useRef, useState, type PropsWithChildren,
 } from 'react';
+import Constants from 'expo-constants';
 import { AppState, Platform } from 'react-native';
 import { removeAccountItems } from '../data/accountStorage';
 import { cacheBuster, cacheMaxAgeMs, detailMaxAgeMs, removeCache, restoreCache, restorePages, saveCache } from '../data/cache';
 import { HttpReach } from '../data/reachability';
 import { announce } from '../inlineFeedback';
 import { removeStreamingCache } from '../streamingCache/database';
-import { reduceAuth, type AuthEvent, type AuthState } from './auth';
+import { reduceAuth, ssoRedirectResult, type AuthEvent, type AuthState } from './auth';
 import { clientName, fetchWithTimeout, serverFrom, type Server } from './server';
 import { clientDevice, keychain, loadAccount, saveAccount } from './storage';
 
@@ -85,6 +86,11 @@ type AccountContextValue = {
    */
   signIn: (username: string, password: string) => Promise<{ twoFactor: string } | void>;
   signInWithCode: (challenge: string, code: string) => Promise<void>;
+  /**
+   * Signs in at the server's single sign-on provider in the system's sign-in sheet. Resolves
+   * quietly when the person closes it; rejects with the provider's error code as `SsoError`.
+   */
+  signInWithSso: () => Promise<void>;
   register: (inviteCode: string, username: string, password: string) => Promise<void>;
   signOut: () => void;
   switchServer: () => void;
@@ -189,6 +195,21 @@ export function AccountProvider({ children }: PropsWithChildren) {
         queryClient.clear();
         dispatch({ type: 'signedIn', token: response.token, user: response.user });
       },
+      signInWithSso: async () => {
+        const redirect = `${appScheme()}://auth/sso`;
+        const start = `${server!.url}/api/v1/auth/sso/start?client=native&redirect=${encodeURIComponent(redirect)}`;
+        const WebBrowser = await import('expo-web-browser');
+        // ASWebAuthenticationSession: the redirect comes back to this call only, not to any app
+        // that claims the scheme, and the one-time code works once, for two minutes.
+        const result = await WebBrowser.openAuthSessionAsync(start, redirect);
+        if (result.type !== 'success') return;
+        const answer = ssoRedirectResult(result.url);
+        if (!answer) return;
+        if ('error' in answer) throw new SsoError(answer.error);
+        const response = await api!.auth.ssoExchange({ code: answer.code, device: await clientDevice(server?.supportsTvDevices) });
+        queryClient.clear();
+        dispatch({ type: 'signedIn', token: response.token, user: response.user });
+      },
       signInWithCode: async (challenge, code) => {
         const response = await api!.auth.loginTwoFactor({ challenge, code, device: await clientDevice(server?.supportsTvDevices) });
         queryClient.clear();
@@ -207,6 +228,20 @@ export function AccountProvider({ children }: PropsWithChildren) {
   }, [api, buster, queryClient, reach, server, state, token, unsaved]);
 
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>;
+}
+
+/** The provider's error code from a single sign-on that came back without signing in. */
+export class SsoError extends Error {
+  override readonly name = 'SsoError';
+  constructor(readonly code: string) {
+    super(code);
+  }
+}
+
+/** The URL scheme this build answers to: `squirmy`, or `squirmy-dev` for development builds. */
+function appScheme(): string {
+  const scheme = Constants.expoConfig?.scheme;
+  return (Array.isArray(scheme) ? scheme[0] : scheme) ?? 'squirmy';
 }
 
 export function useAccount() {

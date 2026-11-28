@@ -1,8 +1,8 @@
 import {
-  ConfirmTwoFactorRequest, EnableTwoFactorRequest, PasskeyName, StartPasskeyRequest, StartTwoFactorRequest,
-  type AccountSecurity, type AuthSession, type Passkey, type RecoveryCodes, type TwoFactorSetup,
+  ConfirmTwoFactorRequest, EnableTwoFactorRequest, LinkSsoRequest, PasskeyName, StartPasskeyRequest, StartTwoFactorRequest,
+  type AccountSecurity, type AuthSession, type Passkey, type RecoveryCodes, type SsoIdentity, type TwoFactorSetup,
 } from '@squirmy/contracts'
-import { Check, Copy, KeyRound, Plus, ShieldCheck, ShieldOff } from 'lucide-react'
+import { AlertTriangle, Check, CircleCheck, Copy, KeyRound, Link2, Plus, ShieldCheck, ShieldOff } from 'lucide-react'
 import { z } from 'zod'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { errorMessage, useFormSubmit } from '@/api/errors'
@@ -13,6 +13,8 @@ import { Badge, Separator, Skeleton } from '@/components/ui/feedback'
 import { Field, FormError, Input } from '@/components/ui/input'
 import { Row } from '@/components/ui/section'
 import { formatDate, formatRelative, plural } from '@/lib/format'
+import { ssoMessage } from '@/lib/sso'
+import { cn } from '@/lib/utils'
 import { SessionList } from './SessionList'
 
 export type SecuritySettingsProps = {
@@ -34,17 +36,26 @@ export type SecuritySettingsProps = {
   /** What a new passkey is called until it is renamed: this browser's name. */
   defaultPasskeyName: string
   /** Asks the browser for a new passkey and saves it. Resolves quietly when the person cancels. */
-  onAddPasskey: (request: { currentPassword: string; name: string }) => Promise<unknown>
+  onAddPasskey: (request: { currentPassword?: string; name: string }) => Promise<unknown>
   onRenamePasskey: (id: string, name: string) => Promise<unknown>
   onDeletePasskey: (id: string) => Promise<unknown>
+  /** The server's single sign-on provider, or null when it has none. */
+  sso: { name: string } | null
+  /** Sends the browser to the provider to link the account; it comes back to this section. */
+  onLinkSso: (request: { currentPassword?: string }) => Promise<unknown>
+  onUnlinkSso: (id: string) => Promise<unknown>
+  /** What the provider's return said: `linked`, or an error code. */
+  ssoNotice?: string
 }
 
 /** Settings → Security: the second factor and where the account is signed in. */
 export function SecuritySettings({
   security, sessions, failures, onStartTwoFactor, onEnableTwoFactor, onDisableTwoFactor, onRegenerateRecoveryCodes, onRevokeSession, onRevokeOtherSessions,
-  passkeys, defaultPasskeyName, onAddPasskey, onRenamePasskey, onDeletePasskey,
+  passkeys, defaultPasskeyName, onAddPasskey, onRenamePasskey, onDeletePasskey, sso, onLinkSso, onUnlinkSso, ssoNotice,
 }: SecuritySettingsProps) {
-  const [dialog, setDialog] = useState<'enable' | 'disable' | 'codes' | 'passkey' | null>(null)
+  const [dialog, setDialog] = useState<'enable' | 'disable' | 'codes' | 'passkey' | 'sso' | null>(null)
+  const [unlinking, setUnlinking] = useState<SsoIdentity | null>(null)
+  const hasPassword = security?.hasPassword ?? true
   const [renaming, setRenaming] = useState<Passkey | null>(null)
   const [removing, setRemoving] = useState<Passkey | null>(null)
   const [othersPending, setOthersPending] = useState(false)
@@ -65,6 +76,33 @@ export function SecuritySettings({
   }
   return (
     <>
+      {ssoNotice && (
+        <p role="status" className={cn('flex items-start gap-2 rounded-md border px-3 py-2 text-sm', ssoNotice === 'linked' ? 'border-primary/30 bg-primary/10' : 'border-destructive/30 bg-destructive/10 text-destructive')}>
+          {ssoNotice === 'linked' ? <CircleCheck aria-hidden className="mt-0.5 size-4 shrink-0 text-primary" /> : <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />}
+          {ssoNotice === 'linked' ? `Connected. You can sign in with ${sso?.name ?? 'single sign-on'} now.` : ssoMessage(ssoNotice)}
+        </p>
+      )}
+      {sso && (
+        <>
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h3 className="text-sm font-medium">{sso.name}</h3>
+              <p className="mt-0.5 text-xs text-muted-foreground">Sign in through this server’s single sign-on.{hasPassword ? '' : ' Your account has no password: it signs in this way, or with a passkey.'}</p>
+            </div>
+            {security && security.ssoIdentities.length === 0 && <Button size="sm" variant="outline" onClick={() => setDialog('sso')}><Link2 />Connect</Button>}
+          </div>
+          {security?.ssoIdentities.map(identity => (
+            <Row
+              key={identity.id}
+              label={<span className="flex min-w-0 items-center gap-2"><Link2 aria-hidden className="size-4 shrink-0 text-muted-foreground" /><span className="truncate">{identity.email ?? hostOf(identity.issuer)}</span></span>}
+              description={`Connected ${formatDate(identity.createdAt)}${identity.lastUsedAt ? ` · last used ${formatRelative(identity.lastUsedAt)}` : ''}`}
+            >
+              <Button size="sm" variant="outline" onClick={() => setUnlinking(identity)}>Disconnect</Button>
+            </Row>
+          ))}
+          <Separator />
+        </>
+      )}
       <h3 className="text-sm font-medium">Two-factor authentication</h3>
       {twoFactor ? (
         <Row
@@ -77,7 +115,9 @@ export function SecuritySettings({
           )}
           description={twoFactor.enabled
             ? `On since ${formatDate(twoFactor.enabledAt!)} · ${plural(twoFactor.recoveryCodesRemaining, 'recovery code')} left. Signing in with your password asks for a code from the app.`
-            : 'Ask for a code from an app such as 1Password, Google Authenticator or Authy after your password.'}
+            : security.hasPassword
+              ? 'Ask for a code from an app such as 1Password, Google Authenticator or Authy after your password.'
+              : 'It protects password sign-in, and your account has no password. Your single sign-on provider decides how you prove who you are.'}
         >
           {twoFactor.enabled ? (
             <>
@@ -97,7 +137,7 @@ export function SecuritySettings({
           <h3 className="text-sm font-medium">Passkeys</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">Sign in with Face ID, Touch ID, Windows Hello or a security key instead of your password. A passkey doesn’t need an authenticator code.</p>
         </div>
-        {passkeys.server && passkeys.browser && security?.hasPassword && <Button size="sm" variant="outline" onClick={() => setDialog('passkey')}><Plus />Add passkey</Button>}
+        {passkeys.server && passkeys.browser && security && <Button size="sm" variant="outline" onClick={() => setDialog('passkey')}><Plus />Add passkey</Button>}
       </div>
       {!passkeys.server
         ? <p className="text-xs text-muted-foreground">Passkeys need this server’s public address to use HTTPS. Ask whoever runs it to set PUBLIC_URL.</p>
@@ -132,7 +172,16 @@ export function SecuritySettings({
         ? <SessionList sessions={sessions} onRevoke={session => onRevokeSession(session.id)} />
         : failures?.sessions ?? <Row label={<Skeleton className="h-5 w-40" />} description={<Skeleton className="mt-1 h-4 w-64 max-w-full" />} />}
 
-      <AddPasskeyDialog open={dialog === 'passkey'} onOpenChange={close} defaultName={defaultPasskeyName} onAdd={onAddPasskey} />
+      <AddPasskeyDialog open={dialog === 'passkey'} onOpenChange={close} defaultName={defaultPasskeyName} hasPassword={hasPassword} onAdd={onAddPasskey} />
+      {sso && <LinkSsoDialog open={dialog === 'sso'} onOpenChange={close} name={sso.name} hasPassword={hasPassword} onLink={onLinkSso} />}
+      <ConfirmDialog
+        open={!!unlinking}
+        onOpenChange={open => { if (!open) setUnlinking(null) }}
+        title={`Disconnect ${sso?.name ?? 'single sign-on'}?`}
+        description="You can’t sign in with it any more until you connect it again."
+        confirmLabel="Disconnect"
+        onConfirm={() => onUnlinkSso(unlinking!.id)}
+      />
       {renaming && <RenamePasskeyDialog passkey={renaming} onOpenChange={open => { if (!open) setRenaming(null) }} onRename={name => onRenamePasskey(renaming.id, name)} />}
       <ConfirmDialog
         open={!!removing}
@@ -321,17 +370,21 @@ function ConfirmTwoFactorDialog({ open, onOpenChange, title, description, submit
 
 const AddPasskeyForm = StartPasskeyRequest.extend({ name: PasskeyName })
 
+const hostOf = (issuer: string) => { try { return new URL(issuer).host } catch { return issuer } }
+
 /** The password, then the browser's own passkey prompt. */
-function AddPasskeyDialog({ open, onOpenChange, defaultName, onAdd }: {
+function AddPasskeyDialog({ open, onOpenChange, defaultName, hasPassword, onAdd }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   defaultName: string
+  /** Without a password, a recent sign-in stands in for it. */
+  hasPassword: boolean
   onAdd: SecuritySettingsProps['onAddPasskey']
 }) {
   const [value, setValue] = useState({ currentPassword: '', name: defaultName })
   const clear = () => setValue({ currentPassword: '', name: defaultName })
   const form = useFormSubmit(AddPasskeyForm, async request => {
-    await onAdd(request)
+    await onAdd({ name: request.name, currentPassword: hasPassword ? request.currentPassword : undefined })
     clear()
     onOpenChange(false)
   }, { invalid_credentials: 'currentPassword' })
@@ -344,18 +397,20 @@ function AddPasskeyDialog({ open, onOpenChange, defaultName, onAdd }: {
   }
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent title="Add a passkey" description="Enter your password, then follow your browser’s prompt. The passkey is kept by your device or password manager.">
-        <form onSubmit={(event: FormEvent) => { event.preventDefault(); void form.submit(value) }} className="flex flex-col gap-4" noValidate>
-          <Field label="Your password" htmlFor="passkey-password" error={form.errors.currentPassword}>
-            <Input id="passkey-password" type="password" autoComplete="current-password" value={value.currentPassword} onChange={event => setValue(current => ({ ...current, currentPassword: event.target.value }))} aria-invalid={!!form.errors.currentPassword} autoFocus />
-          </Field>
+      <DialogContent title="Add a passkey" description={hasPassword ? 'Enter your password, then follow your browser’s prompt. The passkey is kept by your device or password manager.' : 'Follow your browser’s prompt. The passkey is kept by your device or password manager.'}>
+        <form onSubmit={(event: FormEvent) => { event.preventDefault(); void form.submit(hasPassword ? value : { name: value.name }) }} className="flex flex-col gap-4" noValidate>
+          {hasPassword && (
+            <Field label="Your password" htmlFor="passkey-password" error={form.errors.currentPassword}>
+              <Input id="passkey-password" type="password" autoComplete="current-password" value={value.currentPassword} onChange={event => setValue(current => ({ ...current, currentPassword: event.target.value }))} aria-invalid={!!form.errors.currentPassword} autoFocus />
+            </Field>
+          )}
           <Field label="Name" htmlFor="passkey-name" error={form.errors.name} hint="So you can tell your passkeys apart.">
             <Input id="passkey-name" value={value.name} maxLength={60} onChange={event => setValue(current => ({ ...current, name: event.target.value }))} aria-invalid={!!form.errors.name} />
           </Field>
           <FormError message={form.errors.form} />
           <DialogFooter>
             <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-            <Button type="submit" variant="primary" pending={form.pending} disabled={!value.currentPassword || !value.name.trim()}>Continue</Button>
+            <Button type="submit" variant="primary" pending={form.pending} disabled={(hasPassword && !value.currentPassword) || !value.name.trim()}>Continue</Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -380,6 +435,43 @@ function RenamePasskeyDialog({ passkey, onOpenChange, onRename }: { passkey: Pas
           <DialogFooter>
             <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
             <Button type="submit" variant="primary" pending={form.pending} disabled={!name.trim()}>Save</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/** The password (when the account has one), then off to the provider, which sends the browser back here. */
+function LinkSsoDialog({ open, onOpenChange, name, hasPassword, onLink }: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  name: string
+  hasPassword: boolean
+  onLink: SecuritySettingsProps['onLinkSso']
+}) {
+  const [currentPassword, setCurrentPassword] = useState('')
+  const form = useFormSubmit(LinkSsoRequest, onLink, { invalid_credentials: 'currentPassword' })
+  const close = (next: boolean) => {
+    onOpenChange(next)
+    if (!next) {
+      setCurrentPassword('')
+      form.reset()
+    }
+  }
+  return (
+    <Dialog open={open} onOpenChange={close}>
+      <DialogContent title={`Connect ${name}`} description={`You’ll sign in at ${name} and come back here. Then you can sign in with it.`}>
+        <form onSubmit={(event: FormEvent) => { event.preventDefault(); void form.submit(hasPassword ? { currentPassword } : {}) }} className="flex flex-col gap-4" noValidate>
+          {hasPassword && (
+            <Field label="Your password" htmlFor="sso-password" error={form.errors.currentPassword}>
+              <Input id="sso-password" type="password" autoComplete="current-password" value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} aria-invalid={!!form.errors.currentPassword} autoFocus />
+            </Field>
+          )}
+          <FormError message={form.errors.form} />
+          <DialogFooter>
+            <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+            <Button type="submit" variant="primary" pending={form.pending} disabled={hasPassword && !currentPassword}>Continue</Button>
           </DialogFooter>
         </form>
       </DialogContent>

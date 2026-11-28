@@ -445,6 +445,7 @@ export function AdminSettingsPage() {
       managedRoots={managedOnly(roots.data)}
       onSave={patch => save.mutateAsync(patch)}
       status={save.isPending ? 'saving' : save.isSuccess ? 'saved' : 'idle'}
+      onTestSso={() => api.admin.testSso()}
     />
   )
 }
