@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { AlbumSummary, ArtistSummary, TrackSummary } from './catalog.js'
+import { AlbumSummary, ArtistSummary, TrackCredit, TrackSummary } from './catalog.js'
 import { Id } from './common.js'
 import { PlaylistSummary } from './userdata.js'
 
@@ -7,8 +7,9 @@ import { PlaylistSummary } from './userdata.js'
 export const SearchKind = z.enum(['artist', 'album', 'track'])
 export type SearchKind = z.infer<typeof SearchKind>
 
-export const SearchResultKind = z.enum([...SearchKind.options, 'playlist', 'lyrics'])
+export const SearchResultKind = z.enum([...SearchKind.options, 'playlist', 'lyrics', 'credits'])
 export type SearchResultKind = z.infer<typeof SearchResultKind>
+export const isCatalogSearchKind = (kind: SearchResultKind): kind is SearchKind => SearchKind.options.some((one) => one === kind)
 
 export const SearchFacets = z.object({
   /** Match a present source file. Hi-res means lossless with depth above 16 bits or rate above 48 kHz. */
@@ -86,12 +87,16 @@ export type SearchRanked = z.infer<typeof SearchRanked>
 export const LyricSearchResult = z.object({ track: TrackSummary, snippet: z.string() })
 export type LyricSearchResult = z.infer<typeof LyricSearchResult>
 
+export const CreditSearchResult = z.object({ track: TrackSummary, matched: z.array(TrackCredit) })
+export type CreditSearchResult = z.infer<typeof CreditSearchResult>
+
 export const SearchResults = z.object({
   artists: z.array(ArtistSummary),
   albums: z.array(AlbumSummary),
   tracks: z.array(TrackSummary),
   playlists: z.array(PlaylistSummary).optional(),
   lyrics: z.array(LyricSearchResult).optional(),
+  credits: z.array(CreditSearchResult).optional(),
   /** Which provider answered a catalog search: deezer, musicbrainz, local-index. */
   provider: z.string().nullable(),
   /**

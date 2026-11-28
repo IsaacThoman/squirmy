@@ -1,5 +1,5 @@
-import { continuesQuery, keepOrder, mergeSearch, playlistScore, searchItemKey, searchPageItems, type MergedSearch, type SearchItem } from '@squirmy/client-core'
-import { hasSearchFacets, queryKeys, type PlaylistSummary, type SearchFacets, type SearchResultKind, type SearchResults } from '@squirmy/contracts'
+import { continuesQuery, keepOrder, mergeSearch, playlistScore, searchItemKey, searchItemsOfKind, searchPageItems, type MergedSearch, type SearchItem } from '@squirmy/client-core'
+import { hasSearchFacets, isCatalogSearchKind, queryKeys, type PlaylistSummary, type SearchFacets, type SearchResultKind, type SearchResults } from '@squirmy/contracts'
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { useDebounced } from '@/lib/use-debounced'
@@ -161,7 +161,7 @@ export function useSearchPages(typed: string, kind: SearchResultKind | null, fac
   const viewer = useViewer()
   const term = useDebounced(typed, 250, typed).trim()
   const filters = filterKey(facets)
-  const withCatalog = kind !== 'playlist' && kind !== 'lyrics' && !hasSearchFacets(facets)
+  const withCatalog = kind !== null && isCatalogSearchKind(kind) && !hasSearchFacets(facets)
   const query = useInfiniteQuery({
     queryKey: [...queryKeys.search(), 'pages', kind, term, filters],
     enabled: kind !== null && term.length > 0,
@@ -192,10 +192,10 @@ export function useSearchPages(typed: string, kind: SearchResultKind | null, fac
     const list: SearchItem[] = []
     for (const page of query.data?.pages ?? []) {
       const merged = mergeSearch(page.library, page.catalog, viewer, { query: term })
-      for (const item of kind === 'lyrics' ? merged.lyricItems : merged.items) {
+      for (const item of searchItemsOfKind(merged, kind!)) {
         const key = searchItemKey(item)
         // An older server ignores `type` and answers every kind.
-        if ((kind === 'lyrics' || item.type === kind) && !seen.has(key)) {
+        if (!seen.has(key)) {
           seen.add(key)
           list.push(item)
         }

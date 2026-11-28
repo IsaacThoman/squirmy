@@ -44,10 +44,10 @@ const creditMatches = (alias: string) => sql.raw(`(k.context is null or (split_p
  */
 const fuzzyKeyLength = 24
 
-function fuzzy(key: string, column: SQL): SQL {
+export function fuzzyName(key: string, column: SQL): SQL {
   if (hasUnicode(key)) {
     return sql`search_unicode_bigrams(${column}) && search_unicode_bigrams(${key})
-      and ${similarity(key, column)} >= 0.5`
+      and ${nameSimilarity(key, column)} >= 0.5`
   }
   if (key.length < 3) return sql`false`
   let lookup = key
@@ -58,7 +58,7 @@ function fuzzy(key: string, column: SQL): SQL {
   return sql`${lookup} <% ${column} and cardinality(show_trgm(${lookup})) > 0`
 }
 
-function similarity(key: string, column: SQL): SQL {
+export function nameSimilarity(key: string, column: SQL): SQL {
   return hasUnicode(key)
     ? sql`search_unicode_score(search_unicode_bigrams(${key}), search_unicode_bigrams(${column}))`
     : sql`word_similarity(${key}, ${column})`
@@ -114,7 +114,7 @@ export function libraryQuery(kind: LibraryKind, userId: string, key: string, lim
   const recent = sql`select recording_id, album_id from plays where user_id = ${userId} and not skipped order by started_at desc limit ${recentPlays}`
 
   // Also walk saves directly so numerous similar catalog rows cannot crowd them out.
-  const similar = (column: string) => hasUnicode(key) ? fuzzy(key, sql.raw(column)) : key.length >= 3 ? sql`${key} <% ${sql.raw(column)}` : sql`false`
+  const similar = (column: string) => hasUnicode(key) ? fuzzyName(key, sql.raw(column)) : key.length >= 3 ? sql`${key} <% ${sql.raw(column)}` : sql`false`
   if (kind === 'artist') {
     const credited = scope === 'server' ? artistOwned('a') : sql`exists (
       select 1 from album_artists aa where aa.artist_id = a.id and ${albumIsMember('aa.album_id', userId)})`
@@ -128,7 +128,7 @@ export function libraryQuery(kind: LibraryKind, userId: string, key: string, lim
             and (starts_with(a.name_key, ${key}) or ${similar('a.name_key')})
           limit ${prefixCandidates})
         union
-        (select a.id from artists a where ${fuzzy(key, sql`a.name_key`)} and ${eligible} limit ${fuzzyCandidates})
+        (select a.id from artists a where ${fuzzyName(key, sql`a.name_key`)} and ${eligible} limit ${fuzzyCandidates})
       ),
       played as (
         select ra.artist_id as id, count(*)::int as plays from (${recent}) p join recording_artists ra on ra.recording_id = p.recording_id group by 1
@@ -136,7 +136,7 @@ export function libraryQuery(kind: LibraryKind, userId: string, key: string, lim
       select a.id from candidates c join artists a on a.id = c.id left join played on played.id = a.id
       where ${inGenre('artist', 'a', genre)}
       order by (a.name_key in (${key}, ${`the ${key}`}))::int * 2 + starts_with(a.name_key, ${key})::int desc,
-        ${similarity(key, sql`a.name_key`)} desc, coalesce(played.plays, 0) desc,
+        ${nameSimilarity(key, sql`a.name_key`)} desc, coalesce(played.plays, 0) desc,
         exists (select 1 from likes l where l.user_id = ${userId} and l.entity_type = 'artist' and l.entity_id = a.id) desc,
         a.name_key, a.id
       limit ${limit} offset ${offset}`
@@ -187,7 +187,7 @@ export function libraryQuery(kind: LibraryKind, userId: string, key: string, lim
       (select t.id from artists ar join ${table} t on t.primary_artist_id = ar.id
         where ar.name_key collate "C" >= ${key} and ar.name_key collate "C" < ${end} and ${eligible} limit ${fuzzyCandidates})
       union
-      (select t.id from ${table} t where ${fuzzy(key, sql`t.match_key`)} and ${eligible} limit ${fuzzyCandidates})
+      (select t.id from ${table} t where ${fuzzyName(key, sql`t.match_key`)} and ${eligible} limit ${fuzzyCandidates})
       union
       (select t.id from likes own join ${table} t on t.id = own.entity_id
         where own.user_id = ${userId} and own.entity_type = ${likeType} and t.merged_into_id is null ${facet}
@@ -206,7 +206,7 @@ export function libraryQuery(kind: LibraryKind, userId: string, key: string, lim
           when starts_with(t.title_key, k.title) and ${creditMatches('t')} then 1
           else 0 end) from k),
         (select starts_with(ar.name_key, ${key})::int from artists ar where ar.id = t.primary_artist_id)) desc,
-      ${similarity(key, sql`t.match_key`)} desc, coalesce(played.plays, 0) desc,
+      ${nameSimilarity(key, sql`t.match_key`)} desc, coalesce(played.plays, 0) desc,
       exists (select 1 from likes l where l.user_id = ${userId} and l.entity_type = ${likeType} and l.entity_id = t.id) desc,
       t.title_key, t.id
     limit ${limit} offset ${offset}`

@@ -2,7 +2,7 @@
  * Route containers for the music pages. Each one gathers its data with TanStack Query and
  * hands it to a view in components/views.
  */
-import { ApiError, filterKind, searchContext, searchFilters, type SearchFilter, type SearchItem } from '@squirmy/client-core'
+import { ApiError, filterKind, searchContext, searchFilters, searchItemsOfKind, type SearchFilter, type SearchItem } from '@squirmy/client-core'
 import type { HomeSection, Page as ListPage, PlaylistDetail } from '@squirmy/contracts'
 import { SearchFacets, queryKeys } from '@squirmy/contracts'
 import { useMutation, useQueryClient, type InfiniteData, type UseQueryResult } from '@tanstack/react-query'
@@ -354,7 +354,7 @@ export function SearchPage() {
     const allItems = all.results?.items ?? null
     if (filter === 'all') {
       return {
-        items: allItems, lyricItems: all.results?.lyricItems, stale: all.stale, pending: Boolean(allItems) && !all.stale && all.catalogPending,
+        items: allItems, lyricItems: all.results?.lyricItems, creditItems: all.results?.creditItems, stale: all.stale, pending: Boolean(allItems) && !all.stale && all.catalogPending,
         failed: all.failed, catalogFailed: all.catalogFailed, unavailable: all.unavailable, retry: all.retry, retrying: all.retrying,
       }
     }
@@ -363,9 +363,7 @@ export function SearchPage() {
       return { items: term ? matchingPlaylists(term, library.playlists) : [], stale: false, pending: false, failed: false, catalogFailed: false, unavailable: false, retry: () => {} }
     }
     // Until the filter's own first page arrives, the mixed list's rows of that kind stand in.
-    const standIn = pages.items === null && allItems && !all.stale
-      ? filter === 'lyrics' ? all.results?.lyricItems ?? null : allItems.filter(item => item.type === filter)
-      : null
+    const standIn = pages.items === null && all.results && !all.stale ? searchItemsOfKind(all.results, filter) : null
     return {
       items: pages.items ?? standIn, stale: pages.items !== null && pages.stale, pending: pages.loadingMore || (standIn !== null && pages.loading),
       failed: pages.failed, catalogFailed: pages.catalogFailed, unavailable: false, retry: pages.retry, retrying: pages.loading,

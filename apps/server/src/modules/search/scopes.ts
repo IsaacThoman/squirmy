@@ -1,4 +1,4 @@
-import type { LyricSearchResult, PlaylistSummary, SearchFacets } from '@squirmy/contracts'
+import type { CreditSearchResult, LyricSearchResult, PlaylistSummary, SearchFacets, TrackCredit } from '@squirmy/contracts'
 import { sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { recordingOwned } from '../catalog/availability.js'
@@ -6,7 +6,8 @@ import { recordingIsMember } from '../catalog/library.js'
 import { trackSummaries } from '../catalog/summaries.js'
 import { playlistSummaries } from '../userdata/playlists.js'
 import { searchFacetConditions } from './facets.js'
-import { hasUnicode } from './keys.js'
+import { hasUnicode, prefixEnd } from './keys.js'
+import { fuzzyName, nameSimilarity } from './library.js'
 
 export async function searchPlaylists(userId: string, key: string, limit: number, offset: number): Promise<PlaylistSummary[]> {
   // Each user's playlists are bounded; visibility is checked before scoring or paging.
@@ -46,5 +47,41 @@ export async function searchLyrics(
   return rows.flatMap(({ id, snippet }) => {
     const track = byId.get(id)
     return track ? [{ track, snippet: snippet.replace(/\s+/gu, ' ').trim() }] : []
+  })
+}
+
+export async function searchCredits(
+  userId: string, key: string, limit: number, offset: number, scope: 'library' | 'server', facets: SearchFacets,
+): Promise<CreditSearchResult[]> {
+  const similarity = nameSimilarity(key, sql`a.name_key`)
+  const eligible = scope === 'server' ? recordingOwned('t.id') : recordingIsMember('t.id', userId)
+  const rows = await db.execute<{ id: string; matched: TrackCredit[] }>(sql`
+    with matched_artists as (
+      select a.id, a.name, a.name_key from artists a
+      where a.merged_into_id is null and (
+        (a.name_key collate "C" >= ${key} and a.name_key collate "C" < ${prefixEnd(key)})
+        or ${fuzzyName(key, sql`a.name_key`)})
+      and exists (select 1 from recording_credits c where c.artist_id = a.id and c.role in ('composer', 'producer'))
+    ), matches as (
+      select coalesce(c.recording_id, f.recording_id) as recording_id,
+        a.id as artist_id, a.name, c.role,
+        (case when a.name_key = ${key} then 2 when starts_with(a.name_key, ${key}) then 1 else 0 end) + ${similarity} as score
+      from matched_artists a join recording_credits c on c.artist_id = a.id and c.role in ('composer', 'producer')
+      left join media_files f on f.id = c.file_id and f.missing_since is null
+    ), distinct_credits as (
+      select distinct recording_id, artist_id, name, role, score from matches
+    )
+    select t.id, jsonb_agg(jsonb_build_object('artist', jsonb_build_object('id', m.artist_id, 'name', m.name), 'role', m.role)
+      order by m.score desc, m.name, m.role, m.artist_id) as matched
+    from distinct_credits m join recordings t on t.id = m.recording_id
+    where t.merged_into_id is null and ${eligible} and ${searchFacetConditions('track', 't', userId, facets)}
+    group by t.id
+    order by max(m.score) desc, t.title_key, t.id
+    limit ${limit} offset ${offset}`)
+  const tracks = await trackSummaries(userId, rows.map(({ id }) => ({ id })))
+  const byId = new Map(tracks.map((track) => [track.id, track]))
+  return rows.flatMap(({ id, matched }) => {
+    const track = byId.get(id)
+    return track ? [{ track, matched }] : []
   })
 }

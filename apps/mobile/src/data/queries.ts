@@ -1,3 +1,4 @@
+import { isCatalogSearchKind } from '@squirmy/contracts';
 import { searchPageItems } from '@squirmy/client-core';
 import { ApiError } from '@squirmy/client-core';
 import {
@@ -283,6 +284,10 @@ function useDebounced<T>(value: T, delayMs: number): T {
  * keeps the previous answer on screen until the new one arrives. A server without the
  * search routes yet answers 404, which counts as no results.
  */
+const foundTracks = ({ tracks, lyrics, credits }: SearchResults) => [
+  ...tracks, ...[...(lyrics ?? []), ...(credits ?? [])].map(({ track }) => track),
+];
+
 export function useSearch(text: string) {
   const q = useDebounced(text.trim(), searchDelayMs);
   const api = useSignedInApi();
@@ -291,7 +296,7 @@ export function useSearch(text: string) {
     queryKey: [...queryKeys.search(), scope, q],
     queryFn: async () => {
       try {
-        return prime(await api!.search[scope]({ q, limit: 20, scope: 'server' }), results => [...results.tracks, ...(results.lyrics?.map(({ track }) => track) ?? [])]);
+        return prime(await api!.search[scope]({ q, limit: 20, scope: 'server' }), foundTracks);
       } catch (error) {
         if (error instanceof ApiError && error.status === 404) return emptyResults;
         throw error;
@@ -320,7 +325,7 @@ export function useSearchPages(text: string, kind: SearchResultKind | null) {
   const q = useDebounced(text.trim(), searchDelayMs);
   const api = useSignedInApi();
   const prime = usePrime();
-  const withCatalog = kind !== 'playlist' && kind !== 'lyrics';
+  const withCatalog = kind !== null && isCatalogSearchKind(kind);
   return useInfiniteQuery({
     queryKey: [...queryKeys.search(), 'pages', kind, q],
     enabled: Boolean(api && q && kind),
@@ -329,7 +334,7 @@ export function useSearchPages(text: string, kind: SearchResultKind | null) {
       const params = { q, limit: searchPageSize, type: kind!, offset, scope: 'server' as const };
       const [library, catalog] = await Promise.allSettled([api!.search.library(params), withCatalog ? api!.search.catalog(params) : null]);
       if (library.status === 'rejected' && (catalog.status === 'rejected' || !withCatalog)) throw library.reason;
-      const value = (result: PromiseSettledResult<SearchResults | null>) => (result.status === 'fulfilled' && result.value ? prime(result.value, answer => [...answer.tracks, ...(answer.lyrics?.map(({ track }) => track) ?? [])]) : null);
+      const value = (result: PromiseSettledResult<SearchResults | null>) => (result.status === 'fulfilled' && result.value ? prime(result.value, foundTracks) : null);
       const missing = catalog.status === 'rejected' && catalog.reason instanceof ApiError && catalog.reason.status === 404;
       return { offset, library: value(library), catalog: value(catalog), catalogFailed: catalog.status === 'rejected' && !missing };
     },

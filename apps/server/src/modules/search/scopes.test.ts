@@ -4,7 +4,7 @@ import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { likes, lyrics, mediaFiles } from '../../database/schema.js'
+import { likes, lyrics, mediaFiles, recordingCredits } from '../../database/schema.js'
 import { body, signIn } from '../../test/api.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createArtist } from '../../test/factories.js'
@@ -38,6 +38,7 @@ describe('universal search scopes', () => {
     expect(one.playlists?.map(({ id }) => id)).toEqual([own.id])
     expect(two.playlists?.map(({ id }) => id)).toEqual([shared.id])
     expect(one.tracks).toEqual([])
+    expect((await search('c', { type: 'playlist' })).playlists).toHaveLength(2)
     expect((await search('cafe selections')).playlists).toHaveLength(2)
     await updatePlaylist(other.id, shared.id, { isPublic: false })
     expect((await search('cafe selections')).playlists?.map(({ id }) => id)).toEqual([own.id])
@@ -65,6 +66,31 @@ describe('universal search scopes', () => {
     }
     expect((await search('lantern harbor', { type: 'lyrics', limit: '1', offset: '1' })).lyrics).toHaveLength(1)
     expect((await search('lantern harbor')).lyrics).toHaveLength(2)
+  })
+
+  it('finds composer and producer names from catalog relationships and present file tags', async () => {
+    const composer = await createArtist({ name: 'Harbor Hale' })
+    const performer = await createArtist({ name: 'Aria Quartet' })
+    const owned = await createAlbum({ artist: performer, title: 'A Different Place', owned: true, tracks: [
+      { title: 'First Movement' }, { title: 'Second Movement' }, { title: 'Third Movement' },
+    ] })
+    const [composed, produced, performed] = owned.tracks
+    await db.insert(recordingCredits).values([
+      { recordingId: composed!.recordingId, artistId: composer.id, role: 'composer' },
+      { fileId: composed!.fileId, artistId: composer.id, role: 'composer' },
+      { fileId: produced!.fileId, artistId: composer.id, role: 'producer' },
+      { recordingId: performed!.recordingId, artistId: composer.id, role: 'performer' },
+    ])
+    const answer = await search('harbor hale', { type: 'credits' })
+    expect(answer.tracks).toEqual([])
+    expect(answer.credits?.map(({ track, matched }) => [track.title, matched])).toEqual([
+      ['First Movement', [{ artist: { id: composer.id, name: composer.name }, role: 'composer' }]],
+      ['Second Movement', [{ artist: { id: composer.id, name: composer.name }, role: 'producer' }]],
+    ])
+    expect((await search('harbor hale')).credits).toHaveLength(2)
+    expect((await search('harbor hale', { type: 'credits', limit: '1', offset: '1' })).credits?.[0]?.track.title).toBe('Second Movement')
+    await db.update(mediaFiles).set({ missingSince: new Date() }).where(eq(mediaFiles.id, produced!.fileId!))
+    expect((await search('harbor hale', { type: 'credits' })).credits).toHaveLength(1)
   })
 
   it('combines source quality, album decade and the viewer’s likes before paging each kind', async () => {

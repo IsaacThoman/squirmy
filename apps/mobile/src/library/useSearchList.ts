@@ -1,4 +1,4 @@
-import { ApiError, mergeSearch, continuesQuery, filterKind, keepOrder, playlistScore, searchItemKey, type SearchFilter, type SearchItem } from '@squirmy/client-core';
+import { ApiError, mergeSearch, continuesQuery, filterKind, keepOrder, playlistScore, searchItemKey, searchItemsOfKind, type SearchFilter, type SearchItem } from '@squirmy/client-core';
 import {
   addRecentSearch, parseRecentSearches, recentSearchesStorageKey, type RecentSearch,
 } from '@squirmy/client-core';
@@ -90,10 +90,10 @@ export function useSearchList(text: string, filter: SearchFilter): SearchList {
     const items: SearchItem[] = [];
     for (const page of pages.data.pages) {
       const merged = mergeSearch(page.library, page.catalog, viewer, { query: term });
-      const rows: SearchItem[] = kind === 'lyrics' ? merged.lyricItems : merged.items;
+      const rows = searchItemsOfKind(merged, kind);
       for (const item of rows) {
         // An older server ignores `type` and answers every kind.
-        if ((kind === 'lyrics' || item.type === kind) && !seen.has(searchItemKey(item))) {
+        if (!seen.has(searchItemKey(item))) {
           seen.add(searchItemKey(item));
           items.push(item);
         }

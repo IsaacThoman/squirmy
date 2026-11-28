@@ -25,7 +25,7 @@ it('renders server playlist names and lyric-only tracks, with their excerpts', (
   const song = { ...track('lyric'), title: 'Low Tide' };
   const shown = searchItems(results({ playlists: [shared], lyrics: [{ track: song, snippet: 'A lantern in the harbor' }] }), undefined, null, 'harbor');
   expect(keys(shown)).toEqual(['playlist:public', 'track:lyric']);
-  expect(shown[1]).toMatchObject({ lyricSnippet: 'A lantern in the harbor' });
+  expect(shown[1]).toMatchObject({ matchDetail: 'A lantern in the harbor' });
 });
 
 describe('searchItems', () => {

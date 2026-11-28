@@ -93,6 +93,8 @@ Queries with non-ASCII characters use a GIN index of character bigrams for fuzzy
 
 ### Why this design
 
+The measurements below predate the composite and Unicode indexes. They describe the name-only design it builds on.
+
 Measured on synthetic dumps of 5 and 10 million rows shaped like the real one (real vocabulary and name lengths from the first 161,607 rows of the 17 November dump, a power-law number of recordings per artist, 10% shared credits), with Postgres 17 at default settings (128 MB shared buffers) on an Apple-silicon laptop. Latencies are warm, for one call searching all three kinds, over about 20 queries of 1 to 16 characters:
 
 | Approach | Slice | p50 | Worst | Notes |
@@ -106,6 +108,8 @@ The prefix btree costs 36 bytes per row and answers in under a millisecond; a tr
 Names are stored as `name_key` (the `matchKey` of the name) rather than relying on `unaccent` or `lower` in SQL, so matching uses the same normalization as the rest of Squirmy, needs no extra extension, and the indexes stay plain.
 
 ## Costs
+
+The figures below predate the composite and Unicode indexes. Allow additional disk and time for those indexes during import and on the first upgrade with an active dump.
 
 | | 10 M row slice (measured) | Full dump (estimated) |
 |---|---|---|

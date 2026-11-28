@@ -21,6 +21,7 @@ describe('SearchQuery facets', () => {
     expect(SearchQuery.parse({ q: 'moon', type: 'lyrics', quality: 'hi-res', decade: '1990', liked: 'true' }))
       .toMatchObject({ type: 'lyrics', quality: 'hi-res', decade: 1990, liked: true })
     expect(SearchQuery.safeParse({ q: 'moon', type: 'playlist' }).success).toBe(true)
+    expect(SearchQuery.safeParse({ q: 'moon', type: 'credits' }).success).toBe(true)
     expect(SearchQuery.safeParse({ q: 'moon', decade: '1995' }).success).toBe(false)
   })
 })

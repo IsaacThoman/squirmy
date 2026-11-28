@@ -33,6 +33,7 @@ export type SearchList = {
   /** Null until an answer that may be shown has arrived. */
   items: SearchItem[] | null
   lyricItems?: SearchItem[]
+  creditItems?: SearchItem[]
   /** The items answer an earlier query or filter and stay, faded, while the new answer loads. */
   stale: boolean
   /** More results for what is typed are on their way (the catalog's, or the next page). */
@@ -52,7 +53,7 @@ export type SearchList = {
   moreError?: unknown
 }
 
-const filterLabels: Record<SearchFilter, string> = { all: 'All', track: 'Songs', album: 'Albums', artist: 'Artists', playlist: 'Playlists', lyrics: 'Lyrics' }
+const filterLabels: Record<SearchFilter, string> = { all: 'All', track: 'Songs', album: 'Albums', artist: 'Artists', playlist: 'Playlists', lyrics: 'Lyrics', credits: 'Credits' }
 
 type SearchViewProps = {
   query: string
@@ -104,7 +105,7 @@ export function SearchView(props: SearchViewProps) {
       first.focus()
     } else if (event.key === 'Enter') {
       // Results of an earlier query are not what Enter should open.
-      const best = term && !list.stale ? (list.items?.[0] ?? list.lyricItems?.[0]) : undefined
+      const best = term && !list.stale ? (list.items?.[0] ?? list.lyricItems?.[0] ?? list.creditItems?.[0]) : undefined
       if (!best) return
       event.preventDefault()
       onChoose(best)
@@ -228,8 +229,8 @@ type ResultsProps = {
 }
 
 function Results({ term, filter, list, onChoose }: ResultsProps) {
-  const { items, lyricItems, stale, pending, failed, catalogFailed, unavailable, retry, retrying = false, loadMore, hasMore, moreFailed, moreError } = list
-  const tracks = useMemo(() => [...(items ?? []), ...(lyricItems ?? [])].flatMap(item => item.type === 'track' ? [item.track] : []), [items, lyricItems])
+  const { items, lyricItems, creditItems, stale, pending, failed, catalogFailed, unavailable, retry, retrying = false, loadMore, hasMore, moreFailed, moreError } = list
+  const tracks = useMemo(() => [...(items ?? []), ...(lyricItems ?? []), ...(creditItems ?? [])].flatMap(item => item.type === 'track' ? [item.track] : []), [items, lyricItems, creditItems])
   const actions = useTrackActions(tracks)
   const resultMenu = useResultMenus()
   const viewer = useViewer()
@@ -246,16 +247,16 @@ function Results({ term, filter, list, onChoose }: ResultsProps) {
       />
     )
   }
-  if (tooShortToSearch(term)) return <p className="text-sm text-muted-foreground">Keep typing: search needs at least two letters or digits.</p>
+  if (tooShortToSearch(term) && filter !== 'playlist') return <p className="text-sm text-muted-foreground">Keep typing: search needs at least two letters or digits.</p>
   if (!items) return <ResultsSkeleton />
   const kind = filter === 'all' ? 'results' : filterLabels[filter].toLowerCase()
   // A catalog that could not be searched is no answer: "No results" would say there is nothing to find.
-  if (!items.length && !lyricItems?.length && !pending && !stale && !catalogFailed) {
+  if (!items.length && !lyricItems?.length && !creditItems?.length && !pending && !stale && !catalogFailed) {
     return (
       <EmptyState
         icon={<Search />}
         title={`No ${kind} for “${term}”`}
-        description={filter === 'lyrics' ? 'Try another line from the song.' : filter === 'all' ? 'Check the spelling, or try another search.' : 'Try All, or another spelling.'}
+        description={filter === 'lyrics' ? 'Try another line from the song.' : filter === 'credits' ? 'Try a composer or producer’s name.' : filter === 'all' ? 'Check the spelling, or try another search.' : 'Try All, or another spelling.'}
       />
     )
   }
@@ -294,12 +295,15 @@ function Results({ term, filter, list, onChoose }: ResultsProps) {
           {resultRows(items)}
         </ol>
       )}
-      {Boolean(lyricItems?.length) && (
-        <section inert={stale || undefined}>
-          <SectionHeader title="Lyrics" />
-          <ol aria-label="Matching lyrics" className="-mx-2.5 flex flex-col">{resultRows(lyricItems ?? [])}</ol>
+      {([
+        { title: 'Lyrics', rows: lyricItems },
+        { title: 'Credits', rows: creditItems },
+      ]).map(({ title, rows }) => rows?.length ? (
+        <section key={title} inert={stale || undefined}>
+          <SectionHeader title={title} />
+          <ol aria-label={`Matching ${title.toLowerCase()}`} className="-mx-2.5 flex flex-col">{resultRows(rows)}</ol>
         </section>
-      )}
+      ) : null)}
       {moreFailed && !stale && loadMore
         ? <LoadError title="More results didn’t load" error={moreError} retrying={pending} onRetry={loadMore} />
         : (pending || hasMore) && <MoreResults loading={pending} onEndReached={hasMore ? loadMore : undefined} />}
@@ -330,7 +334,7 @@ function ResultRow({ item, stale, onChoose, trackMenu, resultMenu, onLike }: Res
   const controls = usePlayerControls()
   const detailId = useId()
   const { title, detail } = searchItemText(item)
-  const snippet = item.type === 'track' ? item.lyricSnippet : undefined
+  const snippet = item.type === 'track' ? item.matchDetail : undefined
   const track = item.type === 'track' ? item.track : null
   const unavailable = track ? !isPlayable(track, viewer) : false
   const dimmed = item.type === 'album' ? albumPresentation(item.album, viewer) === 'dimmed'

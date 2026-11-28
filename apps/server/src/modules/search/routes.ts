@@ -9,7 +9,7 @@ import { labelFreeKey } from './keys.js'
 import { materialize, type StubIds } from './materialize.js'
 import { withoutNamesakes } from './namesakes.js'
 import { allKinds, searchCatalog } from './providers.js'
-import { searchLyrics, searchPlaylists } from './scopes.js'
+import { searchCredits, searchLyrics, searchPlaylists } from './scopes.js'
 import { topOf, type Ranked } from './rank.js'
 import { rankFound, withLiked, type Found } from './top.js'
 import { warmAlbums } from './warm.js'
@@ -65,13 +65,14 @@ export async function searchRoutes(app: FastifyInstance) {
     const { q, limit, type, offset, genre, scope, ...facets } = LibrarySearchQuery.parse(request.query)
     const key = matchKey(q)
     // Library keys are `matchKey`s too, so a query of symbols alone can find nothing there.
-    if (tooShort(q, key) || key === '') return empty
-    const extraOnly = type === 'playlist' || type === 'lyrics'
+    if (key === '' || (type !== 'playlist' && tooShort(q, key))) return empty
+    const extraOnly = type === 'playlist' || type === 'lyrics' || type === 'credits'
     const universal = !type && scope === 'server' && !genre
-    const [ids, playlists, lyrics] = await Promise.all([
+    const [ids, playlists, lyrics, credits] = await Promise.all([
       extraOnly ? { artists: [], albums: [], tracks: [] } : searchLibrary(user.id, key, limit, { offset, types: type && [type], genre, scope, facets }),
       (type === 'playlist' || universal) && !hasSearchFacets(facets) ? searchPlaylists(user.id, key, limit, offset) : undefined,
       type === 'lyrics' || universal ? searchLyrics(user.id, q, limit, offset, scope ?? 'library', facets) : undefined,
+      type === 'credits' || universal ? searchCredits(user.id, key, limit, offset, scope ?? 'library', facets) : undefined,
     ])
     const unique = distinct(await summaries(user.id, ids))
     const found = { ...unique, albums: oncePerTitle(unique.albums) }
@@ -81,7 +82,9 @@ export async function searchRoutes(app: FastifyInstance) {
       ...found,
       ...(playlists || type === 'playlist' || universal ? { playlists: playlists ?? [] } : {}),
       ...(lyrics ? { lyrics } : {}),
-      provider: null, top: topOf(list), ranked: ranked(list) }
+      ...(credits ? { credits } : {}),
+      provider: null, top: topOf(list), ranked: ranked(list),
+    }
   })
 
   app.get('/search/catalog', async (request): Promise<SearchResults> => {
@@ -89,7 +92,7 @@ export async function searchRoutes(app: FastifyInstance) {
     const { q, limit, type, offset, scope, ...facets } = SearchQuery.parse(request.query)
     const key = matchKey(q)
     if (tooShort(q, key)) return empty
-    if (type === 'playlist' || type === 'lyrics' || hasSearchFacets(facets)) return empty
+    if (type === 'playlist' || type === 'lyrics' || type === 'credits' || hasSearchFacets(facets)) return empty
     const types: readonly SearchKind[] = type ? [type] : allKinds
     // The library answer for the same query runs alongside the provider call, so the
     // catalog answer can leave out what the library answer already shows: on this page or

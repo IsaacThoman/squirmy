@@ -44,7 +44,7 @@ describe('search page', () => {
     expect(screen.queryByRole('heading', { name: /Top result|Artists|Albums|Songs/ })).toBeNull()
     expect(document.body.textContent).not.toMatch(/in your library|more to discover|deezer/i)
     expect(within(screen.getByRole('group', { name: 'Show' })).getAllByRole('button').map(button => button.textContent))
-      .toEqual(['All', 'Songs', 'Albums', 'Artists', 'Playlists', 'Lyrics'])
+      .toEqual(['All', 'Songs', 'Albums', 'Artists', 'Playlists', 'Lyrics', 'Credits'])
   })
 
   it('shows a visible playlist and a lyric snippet returned by the server', async () => {
@@ -59,6 +59,15 @@ describe('search page', () => {
     await userEvent.click(within(screen.getByRole('group', { name: 'Show' })).getByRole('button', { name: 'Lyrics' }))
     expect(await screen.findByText('A lantern in the harbor')).toBeInTheDocument()
     expect(api.search.library).toHaveBeenLastCalledWith(expect.objectContaining({ type: 'lyrics', offset: 0 }), expect.anything())
+  })
+
+  it('shows the matched composer on the Credits filter', async () => {
+    const { services, api } = fakeServices()
+    const credits = [{ track: track('amber'), matched: [{ artist: { id: artists[0]!.id, name: 'Harbor Hale' }, role: 'composer' as const }] }]
+    api.search.library.mockResolvedValue({ artists: [], albums: [], tracks: [], credits, provider: null })
+    renderWithApp(<AppRoutes />, '/search?q=harbor&type=credits', services)
+    expect(await screen.findByText('Composer · Harbor Hale')).toBeInTheDocument()
+    expect(api.search.library).toHaveBeenCalledWith(expect.objectContaining({ type: 'credits' }), expect.anything())
   })
 
   it('sends audio quality, decade and liked filters to the library search', async () => {

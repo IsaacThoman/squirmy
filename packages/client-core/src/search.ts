@@ -11,7 +11,7 @@ export type SearchTop =
 export type SearchItem =
   | { type: 'artist'; artist: ArtistSummary }
   | { type: 'album'; album: AlbumSummary }
-  | { type: 'track'; track: TrackSummary; lyricSnippet?: string }
+  | { type: 'track'; track: TrackSummary; matchDetail?: string }
   | { type: 'playlist'; playlist: PlaylistSummary }
 
 export type SearchItemType = SearchItem['type']
@@ -25,9 +25,10 @@ export type MergedSearch = {
   albums: AlbumSummary[]
   tracks: TrackSummary[]
   lyricItems: SearchItem[]
+  creditItems: SearchItem[]
 }
 
-type Answer = Pick<SearchResults, 'artists' | 'albums' | 'tracks' | 'top' | 'ranked' | 'playlists' | 'lyrics'>
+type Answer = Pick<SearchResults, 'artists' | 'albums' | 'tracks' | 'top' | 'ranked' | 'playlists' | 'lyrics' | 'credits'>
 
 export type MergeOptions = {
   /** What was typed: orders an older server's answers, which carry no ranking, by how well names match. */
@@ -76,7 +77,11 @@ export function mergeSearch(
   const trackPlays = (track: TrackSummary) => isPlayable(track, viewer)
   const merged: MergedSearch = {
     items: [],
-    lyricItems: (library?.lyrics ?? []).map(({ track, snippet }) => ({ type: 'track', track, lyricSnippet: snippet })),
+    lyricItems: (library?.lyrics ?? []).map(({ track, snippet }) => ({ type: 'track', track, matchDetail: snippet })),
+    creditItems: (library?.credits ?? []).map(({ track, matched }) => ({
+      type: 'track', track,
+      matchDetail: matched.map(({ artist, role }) => `${role === 'composer' ? 'Composer' : 'Producer'} · ${artist.name}`).join(' / '),
+    })),
     top: null,
     artists: append(library?.artists, catalog?.artists, () => true, () => null),
     albums: append(library?.albums, catalog?.albums, albumPlays, albumIdentity),
@@ -219,7 +224,7 @@ function find(merged: MergedSearch, hint: SearchTopResult | null | undefined): S
 }
 
 /** The kinds a client's filter offers, in its order. `all` is the mixed list. */
-export const searchFilters = ['all', 'track', 'album', 'artist', 'playlist', 'lyrics'] as const
+export const searchFilters = ['all', 'track', 'album', 'artist', 'playlist', 'lyrics', 'credits'] as const
 export type SearchFilter = (typeof searchFilters)[number]
 
 /** The server's kind for a filter that pages through one, else null. */
@@ -234,7 +239,15 @@ export function searchPageItems(answer: SearchResults | null, kind: SearchResult
     case 'track': return answer.tracks
     case 'playlist': return answer.playlists ?? []
     case 'lyrics': return answer.lyrics?.map(({ track }) => track) ?? []
+    case 'credits': return answer.credits?.map(({ track }) => track) ?? []
   }
+}
+
+/** Show only the requested kind, even when an older server ignores the type filter. */
+export function searchItemsOfKind(merged: MergedSearch, kind: SearchResultKind): SearchItem[] {
+  if (kind === 'lyrics') return merged.lyricItems
+  if (kind === 'credits') return merged.creditItems
+  return merged.items.filter((item) => item.type === kind)
 }
 
 /**
