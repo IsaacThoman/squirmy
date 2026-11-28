@@ -140,7 +140,7 @@ Designed in [audio-engine.md](./audio-engine.md); each item is a pull request fr
 - [ ] M9. The native engine by default, and `expo-audio` removed
 - [x] W1. Ramped gain changes on the web
 - [x] W2. Gapless web playback through Media Source Extensions (Chromium; Firefox and Safari keep today's engine)
-- [ ] W3. Limiter, equalizer and output device on the web
+- [x] W3. Limiter, equalizer and output device on the web
 - [ ] W4. Crossfade on the web
 
 ## Deferred
