@@ -53,7 +53,7 @@ export function StreamingCacheProvider({ children }: PropsWithChildren) {
       describe: (trackId, albumId, quality) => {
         const current = live.current.api;
         if (!current) return Promise.reject(new Error('Signed out'));
-        return current.streaming.playback(trackId, { albumId: albumId ?? undefined, quality, codecs: codecsFor(Platform.OS) });
+        return current.streaming.playback(trackId, { albumId: albumId ?? undefined, quality, codecs: codecsFor(Platform.OS), intent: 'cache' });
       },
       url: descriptor => streamUrl(live.current.serverUrl, descriptor),
       track: async (trackId, albumId) => {

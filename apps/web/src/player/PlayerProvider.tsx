@@ -328,6 +328,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     status: statusLine,
     radioPending,
     outage: snapshot.outage,
+    signal: snapshot.signal,
     sleepTimer: session.sleepTimer,
     canSetSleepTimer: snapshot.canSetSleepTimer,
     serverNow,
