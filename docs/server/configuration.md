@@ -82,7 +82,7 @@ Stored in the `server_settings` table, from `ServerSettings` in `packages/contra
 | | Wikidata and Wikipedia | `wikidataEnabled` | on | Artist images and biographies. |
 | | LRCLIB | `lrclibEnabled` | on | Synced lyrics. |
 | API keys | ListenBrainz | `listenBrainzToken` | not set | A ListenBrainz user token for top songs, similar artists and popularity. Users' own scrobbling does not need it. |
-| | AcoustID | `acoustIdKey` | not set | Identifies files that have no album and artist tags by their audio fingerprint. |
+| | AcoustID | `acoustIdKey` | not set | Uses audio fingerprints when tags and search do not produce a confident match. |
 | | fanart.tv | `fanartKey` | not set | Better artist images. |
 | | Last.fm | `lastFmKey`, `lastFmSecret` | not set | Lets users connect Last.fm for scrobbling. |
 | Matching | Accept matches automatically above | `matchAutoAcceptScore` | 90% | Matches at or above this score are applied; lower ones (down to 50%) wait in the review queue. |
