@@ -1,5 +1,6 @@
 import type { AlbumSummary, LikeEntityType, PlaylistSummary, TrackSummary } from '@squirmy/contracts'
 import { createContext, useContext, useSyncExternalStore } from 'react'
+import type { ShareTarget } from '@/components/share/ShareDialog'
 
 export type WantTarget = { type: 'album'; album: AlbumSummary } | { type: 'track'; track: TrackSummary }
 
@@ -36,6 +37,10 @@ export type LibraryActions = {
   addToPlaylist: (playlist: Pick<PlaylistSummary, 'id' | 'name'>, tracks: TrackSummary[]) => Promise<boolean>
   /** Opens the new playlist dialog; the playlist starts with `tracks` when given. */
   newPlaylist: (tracks?: TrackSummary[]) => void
+  /** The server lets members make public links; off, nothing offers Share. */
+  sharingEnabled: boolean
+  /** Opens the dialog that makes a public link to an album, playlist or song. */
+  share: (target: ShareTarget) => void
   /** Opens the new smart playlist dialog; the playlist opens once made. */
   newSmartPlaylist: () => void
   /** The user turned on star ratings (`showRatings`): songs' menus offer them, and smart playlists can use them. */

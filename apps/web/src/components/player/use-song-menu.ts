@@ -5,7 +5,7 @@ import type { TrackAction } from '@/components/music/TrackList'
 import type { MenuEntry } from '@/components/ui/menu'
 import { isPlayable } from '@/lib/catalog'
 import { useViewer } from '@/player/on-demand-context'
-import { usePlayerControls } from '@/player/player-context'
+import { useJamRights, usePlayerControls } from '@/player/player-context'
 import { useTrackActions } from '@/player/use-track-actions'
 
 const noTracks: TrackSummary[] = []
@@ -33,6 +33,7 @@ export function useSongMenuEntries({ track, unavailable = false, queued, onNavig
   const viewer = useViewer()
   const controls = usePlayerControls()
   const actions = useTrackActions(noTracks)
+  const rights = useJamRights()
   const act = (action: TrackAction) => {
     if (queued && (action === 'play-next' || action === 'enqueue')) return controls.moveEntry(queued.entryId, action === 'play-next' ? 0 : queued.count - 1)
     return actions.onAction(action, track, 0)
@@ -41,6 +42,7 @@ export function useSongMenuEntries({ track, unavailable = false, queued, onNavig
     unavailable: unavailable || !isPlayable(track, viewer),
     wanted: actions.isWanted?.(track),
     playlists: actions.playlists,
+    canShare: actions.canShare,
     ratings: actions.ratings,
     act,
     navigate: to => {
@@ -49,5 +51,6 @@ export function useSongMenuEntries({ track, unavailable = false, queued, onNavig
     },
     queued: queued && { index: queued.index, count: queued.count },
     extraMenu,
+    rights,
   })
 }

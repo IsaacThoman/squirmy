@@ -8,6 +8,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { formatIdle } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { labelDevice, type Player } from '@/player/player-context'
+import { MemberStack } from './ListenTogether'
+import { useOpenJam } from './listen-together'
 import { VolumeControl } from './Transport'
 
 export function DeviceIcon({ kind, className }: { kind: DeviceInfo['kind']; className?: string }) {
@@ -113,6 +115,7 @@ export function DeviceList({ player, onTransferred }: { player: Player; onTransf
         </div>
       )}
       <PlayingSeparately player={player} devices={separate} />
+      <ListenTogetherRow player={player} onOpen={onTransferred} />
       {/* Hidden, not disabled, where it cannot work: a tab that only controls, or an older server. */}
       {canDetach && (
         <div className="mt-1 border-t pt-1">
@@ -132,6 +135,32 @@ export function DeviceList({ player, onTransferred }: { player: Player; onTransf
           />
         </div>
       )}
+    </div>
+  )
+}
+
+/** Listening together with people on this server: starting it, or who is in it. Only where the server can. */
+function ListenTogetherRow({ player, onOpen }: { player: Player; onOpen?: () => void }) {
+  const open = useOpenJam()
+  const { jam, canJam } = player.state
+  if (!canJam || !open) return null
+  const show = () => {
+    onOpen?.()
+    open()
+  }
+  if (!jam) return <div className="mt-1 border-t pt-1"><ActionRow icon={<Users className="size-4" />} title="Listen together" detail="Invite people on this server to listen with you." onClick={show} /></div>
+  const host = jam.members.find(member => member.userId === jam.hostUserId)
+  return (
+    <div className="mt-1 border-t pt-1">
+      <button type="button" onClick={show} className={rowClass}>
+        <span aria-hidden className="flex size-9 shrink-0 items-center justify-center"><MemberStack members={jam.members} max={2} /></span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm text-primary">Listening together</span>
+          <span className="block truncate text-xs text-muted-foreground">
+            {jam.role === 'host' ? `You’re hosting · ${jam.members.length} ${jam.members.length === 1 ? 'person' : 'people'}` : `With ${host?.name ?? 'the host'}`}
+          </span>
+        </span>
+      </button>
     </div>
   )
 }

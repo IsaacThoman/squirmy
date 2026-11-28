@@ -78,11 +78,11 @@ describe('card menus and drags', () => {
     expect(screen.getByRole('menuitem', { name: 'Go to artist' })).toBeInTheDocument()
   })
 
-  it('opens a playlist’s menu from a right-click: play, queue, add to another playlist, open', async () => {
+  it('opens a playlist’s menu from a right-click: play, queue, add to another playlist, share, open', async () => {
     const playlist = playlistSummaries[0]!
     renderWithApp(<PlaylistCard playlist={playlist} onPlay={() => {}} />)
     fireEvent.contextMenu(screen.getByRole('link', { name: playlist.name }))
-    expect((await screen.findAllByRole('menuitem')).map(item => item.textContent)).toEqual(['Play', 'Play next', 'Add to queue', 'Add to playlist', 'Go to playlist'])
+    expect((await screen.findAllByRole('menuitem')).map(item => item.textContent)).toEqual(['Play', 'Play next', 'Add to queue', 'Add to playlist', 'Share…', 'Go to playlist'])
   })
 
   it('carries an album or a playlist when its card is dragged, for the sidebar, the queue and the player', () => {

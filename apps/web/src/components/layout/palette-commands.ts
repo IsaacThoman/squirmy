@@ -1,12 +1,12 @@
 import { listedDevices, sleepTimerChoices } from '@squirmy/client-core'
 import {
   AudioWaveform, Disc3, Heart, Infinity as InfinityIcon, Keyboard, ListMusic, ListPlus, ListX, MessageSquareQuote, MicVocal, MonitorSpeaker, PanelLeft, Pause, PictureInPicture2, Play, Radio, Repeat,
-  Moon, Repeat1, Settings, Shuffle, SkipBack, SkipForward, TimerOff, Volume2, VolumeX, Maximize2,
+  Moon, Repeat1, Settings, Share2, Shuffle, SkipBack, SkipForward, TimerOff, Volume2, VolumeX, Maximize2,
 } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { isApple } from '@/lib/platform'
 import { useLibrary } from '@/player/library-context'
-import { labelDevice, usePlayer } from '@/player/player-context'
+import { labelDevice, useJamRights, usePlayer } from '@/player/player-context'
 import { toggleMute } from '@/components/player/mute'
 import type { SettingsSection } from '@/components/settings/settings-dialog'
 import type { ShellCommands } from './AppShell'
@@ -30,6 +30,7 @@ export function usePaletteCommands(shell: ShellCommands): PaletteCommand[] {
   const { state, controls } = usePlayer()
   const library = useLibrary()
   const navigate = useNavigate()
+  const rights = useJamRights()
   const track = state.current?.track
   const none = !track
   const deviceId = state.activeDeviceId ?? state.thisDeviceId
@@ -37,7 +38,7 @@ export function usePaletteCommands(shell: ShellCommands): PaletteCommand[] {
   // Devices that playback can move to: the shared session's, other than the one playing.
   const targets = state.detached ? [] : listedDevices(state.devices, state.thisDeviceId).filter(device => !device.detached && device.id !== deviceId)
 
-  return [
+  const commands: PaletteCommand[] = [
     { id: 'play-pause', label: state.playing ? 'Pause' : 'Play', icon: state.playing ? Pause : Play, keywords: ['resume', 'stop', 'toggle playback'], shortcut: 'Space', disabled: none, run: controls.togglePlay },
     { id: 'next', label: 'Next song', icon: SkipForward, keywords: ['skip', 'forward'], shortcut: `${shift}→`, disabled: none, run: controls.next },
     { id: 'previous', label: 'Previous song', icon: SkipBack, keywords: ['back', 'restart'], shortcut: `${shift}←`, disabled: none, run: controls.previous },
@@ -57,6 +58,7 @@ export function usePaletteCommands(shell: ShellCommands): PaletteCommand[] {
       { id: 'radio', label: `Start radio from “${track.title}”`, icon: Radio, keywords: ['station', 'similar'], run: () => controls.startRadio({ type: 'track', id: track.id }) },
       // The song menu's Songs that sound like this: a radio that keeps to the song's sound.
       { id: 'sonic-radio', label: `Songs that sound like “${track.title}”`, icon: AudioWaveform, keywords: ['sonic', 'radio', 'similar sound'], run: () => controls.startRadio({ type: 'sonic', id: track.id }) },
+      ...(library.sharingEnabled ? [{ id: 'share', label: `Share “${track.title}”…`, icon: Share2, keywords: ['public link', 'send'], run: () => library.share({ kind: 'track', id: track.id, albumId: track.album?.id ?? null, title: track.title }) }] : []),
       ...(track.album ? [{ id: 'go-album', label: `Go to “${track.album.title}”`, icon: Disc3, keywords: ['album of the song playing'], run: () => void navigate(`/album/${track.album!.id}`) }] : []),
       ...track.artists.map(artist => ({ id: `go-artist:${artist.id}`, label: `Go to ${artist.name}`, icon: MicVocal, keywords: ['artist of the song playing'], run: () => void navigate(`/artist/${artist.id}`) })),
     ] : []),
@@ -83,4 +85,9 @@ export function usePaletteCommands(shell: ShellCommands): PaletteCommand[] {
     ...settingsSections.map(({ section, label }) => ({ id: `settings:${section}`, label: `${label} settings`, icon: Settings, keywords: ['preferences'], run: () => shell.openSettings(section) })),
     { id: 'shortcuts', label: 'Keyboard shortcuts', icon: Keyboard, keywords: ['keys', 'help', 'hotkeys'], shortcut: '?', run: shell.showShortcuts },
   ]
+  // In someone's jam the host controls what plays, so the palette leaves out what the player dims.
+  return rights.transport ? commands : commands.filter(command => !hostOnlyCommands.test(command.id))
 }
+
+/** The commands only a jam's host may run: playback, its modes, the radios, the sleep timer and clearing the queue. */
+const hostOnlyCommands = /^(play-pause|next|previous|shuffle|repeat|autoplay|radio|sonic-radio|clear-queue|sleep:.*)$/

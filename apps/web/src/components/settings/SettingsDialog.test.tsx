@@ -4,7 +4,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { appPasswords, currentUser, userSettings, users } from '@/fixtures/server'
+import { appPasswords, currentUser, shareLinks, userSettings, users } from '@/fixtures/server'
 import { APPEARANCE_STORAGE_KEY, setAppearanceMode, setColorTheme } from '@/lib/appearance'
 import { colorThemeStylesheet, findColorTheme } from '@/lib/color-themes'
 import { modKey } from '@/lib/platform'
@@ -41,6 +41,9 @@ function props() {
     appPasswords,
     onCreateAppPassword: vi.fn<SettingsDialogProps['onCreateAppPassword']>(async request => ({ ...appPasswords[0], name: request.name, secret: 'sq-secret' })),
     onRevokeAppPassword: vi.fn<SettingsDialogProps['onRevokeAppPassword']>(async () => {}),
+    shareLinks,
+    sharingEnabled: true,
+    onRevokeShareLink: vi.fn<SettingsDialogProps['onRevokeShareLink']>(async () => {}),
     onChangePassword: vi.fn<SettingsDialogProps['onChangePassword']>(async () => {}),
     onLogout: vi.fn<SettingsDialogProps['onLogout']>(),
   } satisfies SettingsDialogProps
@@ -81,7 +84,7 @@ afterEach(() => {
 describe('SettingsDialog', () => {
   it('lists its sections and opens on the one it is given', () => {
     renderSettings()
-    expect(sections().getAllByRole('button').map(button => button.textContent)).toEqual(['Playback', 'Library', 'Appearance', 'Account', 'Scrobbling', 'App passwords', 'Webhooks', 'About'])
+    expect(sections().getAllByRole('button').map(button => button.textContent)).toEqual(['Playback', 'Library', 'Appearance', 'Account', 'Scrobbling', 'App passwords', 'Share links', 'Webhooks', 'About'])
     expect(sections().getByRole('button', { name: 'Playback' })).toHaveAttribute('aria-current', 'page')
     expect(panelTitles()).toEqual(['Settings', 'Playback'])
   })
@@ -92,6 +95,7 @@ describe('SettingsDialog', () => {
     ['Account', 'account'],
     ['Scrobbling', 'scrobbling'],
     ['App passwords', 'app-passwords'],
+    ['Share links', 'share-links'],
     ['About', 'about'],
     ['Playback', 'playback'],
   ] as const)('switches to %s', async (name, id) => {
@@ -446,6 +450,31 @@ describe('SettingsDialog', () => {
       expect(screen.queryByRole('switch', { name: /Scrobble to/ })).not.toBeInTheDocument()
       expect(screen.getByRole('switch', { name: /Share what I’m listening to/ })).toBeInTheDocument()
       expect(screen.queryByRole('button', { name: 'Connect' })).not.toBeInTheDocument()
+    })
+  })
+
+  describe('Share links', () => {
+    it('lists the user’s links with what each points at and how long it lasts', () => {
+      renderSettings({ section: 'share-links' })
+      const panel = settings()
+      expect(within(panel).getByText('Blue Hour')).toBeInTheDocument()
+      expect(within(panel).getByText(/^Playlist · Created .* · Never expires · Not opened yet$/)).toBeInTheDocument()
+      expect(within(panel).getByText(/^Song · Mira Vale · Created .* · Expired .* · Opened 12 times/)).toBeInTheDocument()
+      expect(within(panel).getByText('Expired')).toBeInTheDocument()
+    })
+
+    it('revokes a link after asking', async () => {
+      const { onRevokeShareLink } = renderSettings({ section: 'share-links' })
+      await userEvent.click(within(settings()).getAllByRole('button', { name: 'Revoke' })[0])
+      const confirm = await screen.findByRole('dialog', { name: 'Revoke the link to “Blue Hour”?' })
+      await userEvent.click(within(confirm).getByRole('button', { name: 'Revoke' }))
+      expect(onRevokeShareLink).toHaveBeenCalledWith(shareLinks[0].id)
+    })
+
+    it('says when the server has sharing off, and when there are none', () => {
+      renderSettings({ section: 'share-links', sharingEnabled: false, shareLinks: [] })
+      expect(within(settings()).getByText('Sharing is off on this server')).toBeInTheDocument()
+      expect(within(settings()).getByText('No share links')).toBeInTheDocument()
     })
   })
 

@@ -21,7 +21,7 @@ export type TrackAction = {
 
 export type TrackActionId =
   | 'play' | 'resume' | 'next' | 'last' | 'like' | 'unlike' | 'download' | 'retryDownload' | 'removeDownload'
-  | 'playlist' | 'radio' | 'want' | 'unwant' | 'album' | 'artist' | 'remove' | 'info';
+  | 'playlist' | 'radio' | 'share' | 'want' | 'unwant' | 'album' | 'artist' | 'remove' | 'info';
 
 export type TrackActionOptions = {
   /** The playlist the track is shown in, for "Remove from playlist". */
@@ -53,6 +53,8 @@ export type TrackActionState = {
   wantFailure?: boolean;
   /** Who is signed in: a radio starts from what the server plays for them, never from a download alone. */
   viewer?: Viewer | null;
+  /** The server lets members make public links: Share makes one, as on web. */
+  sharing?: boolean;
 };
 
 /**
@@ -82,7 +84,7 @@ export function trackActionKey(action: Pick<TrackAction, 'id' | 'page'>): string
  * actions; `useTrackActionRunner` carries one out when it is chosen.
  */
 export function trackActions(track: TrackSummary, state: TrackActionState, { playlist, album, artist }: TrackActionOptions = {}): TrackAction[] {
-  const { liked, likeFailure, playable, offline, current, download, onItsOwn, wantlist, wanted, wantFailure, viewer } = state;
+  const { liked, likeFailure, playable, offline, current, download, onItsOwn, wantlist, wanted, wantFailure, viewer, sharing = false } = state;
   const online = !offline;
   const library = librarySave({ liked });
   const downloadAction: TrackAction | false = download?.state === 'failed' && onItsOwn
@@ -108,6 +110,7 @@ export function trackActions(track: TrackSummary, state: TrackActionState, { pla
     // The server seeds the radio by the queue's rule, so a song that plays only from the
     // device (gone from the server, or `on_demand` for someone who may not fetch) has none.
     online && isPlayable(track, viewer) && { id: 'radio', title: 'Start radio', icon: 'dot.radiowaves.left.and.right' },
+    sharing && online && { id: 'share', title: 'Share', icon: 'square.and.arrow.up' },
     // Only what does not play for this user: for someone who may fetch music nothing is wanted.
     // Added or removed alike, as on web.
     wantlist && !playable && track.availability !== 'server' && online && (wanted

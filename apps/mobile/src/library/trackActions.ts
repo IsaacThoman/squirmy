@@ -1,7 +1,7 @@
 import type { TrackSummary } from '@squirmy/contracts';
 import { useNavigationContainerRef, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef } from 'react';
-import { useSignedInApi, useWantlistEnabled } from '../account/AccountProvider';
+import { useServerUrl, useSharingEnabled, useSignedInApi, useWantlistEnabled } from '../account/AccountProvider';
 import { closeSheet } from '../closeSheet';
 import { useLibraryActions, useLiked, useLikeFailure, usePlaylistActions, useWanted, useWantFailure } from '../data/library';
 import { useRealtime } from '../data/realtime';
@@ -14,6 +14,7 @@ import { pageHref } from './links';
 import { tabIn } from './tabs';
 import { createStartGuard } from './pending';
 import { confirmQueued } from './queued';
+import { shareLink } from './shareLink';
 import { queuedNotice, radioStartingNotice, trackActions, type TrackAction, type TrackActionOptions } from './trackActionList';
 
 export { trackActionKey, trackActions, type TrackAction, type TrackActionId, type TrackActionOptions, type TrackActionState } from './trackActionList';
@@ -41,11 +42,12 @@ export function useTrackActionRunner(inSheet = false) {
   const actions = usePlaybackActions();
   const { setLiked, setWanted } = useLibraryActions();
   const manager = useDownloadManager();
-  const live = useRef({ api, actions, setLiked, setWanted, manager, close });
-  live.current = { api, actions, setLiked, setWanted, manager, close };
+  const serverUrl = useServerUrl();
+  const live = useRef({ api, actions, setLiked, setWanted, manager, close, serverUrl });
+  live.current = { api, actions, setLiked, setWanted, manager, close, serverUrl };
 
   const perform = useCallback((track: TrackSummary, action: TrackAction, { playlist }: TrackActionOptions = {}) => {
-    const { api, actions, setLiked, setWanted, manager } = live.current;
+    const { api, actions, setLiked, setWanted, manager, serverUrl } = live.current;
     switch (action.id) {
       case 'play': return actions.playNow(track);
       case 'resume': return actions.play();
@@ -73,6 +75,7 @@ export function useTrackActionRunner(inSheet = false) {
         }
         return undefined;
       }
+      case 'share': return api ? shareLink(api, serverUrl, { kind: 'track', id: track.id, albumId: track.album?.id ?? null, title: track.title }) : undefined;
       case 'want': return setWanted('track', track.id, true, track.title);
       case 'unwant': return setWanted('track', track.id, false, track.title);
       case 'remove': return playlist?.onRemove?.(playlist.itemId);
@@ -121,6 +124,7 @@ export function useTrackActions(track: TrackSummary | undefined, options: TrackA
   const onItsOwn = useDownloadedOnItsOwn(track?.id, download);
   const current = useCurrentTrackState(track?.id);
   const wantlist = useWantlistEnabled();
+  const sharing = useSharingEnabled();
   const wanted = useWanted(track?.id);
   const likeFailure = useLikeFailure('track', track?.id);
   const wantFailure = useWantFailure(track?.id);
@@ -131,7 +135,7 @@ export function useTrackActions(track: TrackSummary | undefined, options: TrackA
     ...options.playlist,
     onRemove: options.playlist.onRemove ?? ((itemId: string) => playlists.removeItem(options.playlist!.id, itemId)),
   };
-  return trackActions(track, { liked, likeFailure, playable, offline, current, download, onItsOwn, wantlist, wanted, wantFailure, viewer }, { playlist })
+  return trackActions(track, { liked, likeFailure, playable, offline, current, download, onItsOwn, wantlist, wanted, wantFailure, viewer, sharing }, { playlist })
     .map(action => ({ ...action, run: () => perform(track, action, { playlist }) }));
 }
 

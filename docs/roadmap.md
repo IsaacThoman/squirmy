@@ -39,6 +39,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Signal path: each device reports what it plays; Lossless badge and Track info on web, iOS and Apple TV
 - [x] Sleep timer held by the session: set anywhere, enforced by the server, faded out on the device that plays
 - [x] Queue changes as small diffs against a queue version, with the whole queue as a checkpoint
+- [x] Listen together: a host's session that other users' sessions follow, each playing on their own device in step, with invites, a shared queue and per-listener plays (web and iOS)
 
 ## 4. Identify and reorganize
 
@@ -102,6 +103,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Documentation site ([docs/](./index.md), built with VitePress)
 - [x] Docker health check on `/ready`, and the image reports its source version
 - [x] Explicit content controls: a per-user switch an admin can enforce, explicit songs gray and kept out of queues, radio, search, Home and Subsonic, and known clean versions in their place (server, web, iOS and Apple TV)
+- [x] Public share links to albums, playlists and songs: expiring and revocable, a public page with previews or whole songs as the admin allows, managed in Settings and Admin → Sharing (server, web, and Share on iOS)
 
 ## 9. Apple TV
 

@@ -17,6 +17,11 @@ export function useWantlistEnabled() {
   return useSetupStatus().data?.wantlistEnabled ?? false
 }
 
+/** Whether the server lets members make public share links. Off, nothing offers Share. */
+export function useSharingEnabled() {
+  return useSetupStatus().data?.sharingEnabled ?? false
+}
+
 // Set while this browser has signed out but the server has not heard: it was out of reach. The
 // session cookie is the server's to end, so until it does this browser counts itself signed out,
 // and asks it again each time it would have asked who is signed in.

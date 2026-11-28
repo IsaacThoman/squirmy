@@ -11,7 +11,7 @@ import { TRACK_ROW_HEIGHT, useDensity } from '@/lib/density'
 import { formatDuration, formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useViewer } from '@/player/on-demand-context'
-import { PlayerControlsContext, useTrackPlayback } from '@/player/player-context'
+import { PlayerControlsContext, useJamRights, useTrackPlayback } from '@/player/player-context'
 import { ArtistLinks } from './ArtistLinks'
 import { Cover } from './Cover'
 import { Equalizer } from './Equalizer'
@@ -28,7 +28,7 @@ import { useEndReached } from './use-end-reached'
  * `like` is the heart, which saves the track to the library or takes it out. `add-to:<playlist id>`
  * adds the track to a playlist; `add-to:new` starts one with it.
  */
-export type TrackAction = 'play-next' | 'enqueue' | 'like' | 'want' | 'radio' | 'sonic-radio' | 'remove' | 'move-up' | 'move-down' | `add-to:${string}` | `rate:${number}`
+export type TrackAction = 'play-next' | 'enqueue' | 'like' | 'want' | 'radio' | 'sonic-radio' | 'share' | 'remove' | 'move-up' | 'move-down' | `add-to:${string}` | `rate:${number}`
 
 export type PlaylistChoice = { id: string; name: string }
 
@@ -54,6 +54,8 @@ type SharedProps = {
   onMove?: (from: number, to: number) => void
   /** On an album page, the album's credit: a song credited the same says nothing under its title. */
   albumCredit?: string
+  /** The server lets members make public links, so the menu offers Share. */
+  canShare?: boolean
   /** What can be done to the rows picked with a click, ⌘/Ctrl-click, Shift-click or Shift+arrows. */
   batch?: TrackBatch
 }
@@ -159,7 +161,7 @@ type TrackRowProps = Omit<SharedProps, 'onPlay' | 'isWanted' | 'onMove' | 'batch
  * One song. A song that plays looks the same wherever its file is (on the server, or fetched
  * as it plays); one that does not is gray and says "Not available".
  */
-export function TrackRow({ track, index, selectionKey, number, movementName, addedAt, variant = 'album', wanted, onPlay, onAction, playlists, ratings, extraMenu, reorder, style, albumCredit, setSize, onFocusRow, onDragRow, onMenuRow }: TrackRowProps) {
+export function TrackRow({ track, index, selectionKey, number, movementName, addedAt, variant = 'album', wanted, onPlay, onAction, playlists, ratings, extraMenu, reorder, style, albumCredit, canShare, setSize, onFocusRow, onDragRow, onMenuRow }: TrackRowProps) {
   const navigate = useNavigate()
   const { rowProps, trigger, renderMenu, present } = useTrackRowMenu()
   useLayoutEffect(() => {
@@ -169,6 +171,7 @@ export function TrackRow({ track, index, selectionKey, number, movementName, add
   }, [present, index, onMenuRow])
   const viewer = useViewer()
   const controls = useContext(PlayerControlsContext)
+  const rights = useJamRights()
   const rowSelection = useContext(SelectionContext)
   const picked = usePickedTracks()
   const selected = useSelected(selectionKey)
@@ -199,7 +202,7 @@ export function TrackRow({ track, index, selectionKey, number, movementName, add
   // Album rows are on that album's page already. One of several picked rows opens their menu.
   const menu = () => (selected && picked?.several()
     ? picked.menu()
-    : trackMenuEntries(track, { unavailable, wanted, playlists, ratings, act, navigate, extraMenu, reorder: reorder && { index, count: reorder.count }, onAlbumPage: variant === 'album' }))
+    : trackMenuEntries(track, { unavailable, wanted, playlists, ratings, act, navigate, canShare, extraMenu, reorder: reorder && { index, count: reorder.count }, onAlbumPage: variant === 'album', rights }))
 
   const onDragOver = (event: DragEvent) => {
     const drag = draggedTracks(event)

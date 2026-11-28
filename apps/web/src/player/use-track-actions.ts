@@ -37,6 +37,8 @@ export function useTrackActions(tracks: TrackSummary[], context?: PlaybackContex
       controls.startRadio({ type: 'track', id: track.id })
     } else if (action === 'sonic-radio') {
       controls.startRadio({ type: 'sonic', id: track.id })
+    } else if (action === 'share') {
+      library.share({ kind: 'track', id: track.id, albumId: track.album?.id ?? null, title: track.title })
     } else if (action === 'remove') {
       options.onRemove?.(index)
     } else if (action === 'move-up' || action === 'move-down') {
@@ -78,6 +80,7 @@ export function useTrackActions(tracks: TrackSummary[], context?: PlaybackContex
     batch,
     isWanted: library.wantlistEnabled ? (track: TrackSummary) => library.isWanted(track.id) : undefined,
     playlists: library.playlists,
+    canShare: library.sharingEnabled,
     ratings: library.showRatings,
     onPlay: options.onPlay ?? ((index: number) => controls.playTracks(tracks, index, context)),
     onMove: options.onMove,

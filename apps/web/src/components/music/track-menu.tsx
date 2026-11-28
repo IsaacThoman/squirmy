@@ -1,6 +1,7 @@
 import type { CreditRole, TrackSummary } from '@squirmy/contracts'
-import { ArrowDown, ArrowUp, AudioWaveform, Check, Disc3, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, Play, Plus, Radio, Star, StarOff, Trash2, Users } from 'lucide-react'
+import { ArrowDown, ArrowUp, AudioWaveform, Check, Disc3, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, Play, Plus, Radio, Share2, Star, StarOff, Trash2, Users } from 'lucide-react'
 import type { MenuEntry } from '@/components/ui/menu'
+import type { JamRights } from '@/player/player-context'
 import { librarySaveEntry, wantEntry } from './library-save-entry'
 import type { PlaylistChoice, TrackAction } from './TrackList'
 import type { BatchAction } from './track-selection'
@@ -15,6 +16,8 @@ export type TrackMenuOptions = {
   /** Resolves (or rejects) for the actions that answer later, which their entries wait for. */
   act: (action: TrackAction) => void | Promise<unknown>
   navigate: (to: string) => void
+  /** The server lets members make public links: Share makes one to the song. */
+  canShare?: boolean
   extraMenu?: MenuEntry[]
   /** The row's place in a list the user may reorder. */
   reorder?: { index: number; count: number }
@@ -26,6 +29,12 @@ export type TrackMenuOptions = {
    * leave it where it is is left out.
    */
   queued?: { index: number; count: number }
+  /**
+   * What the listener may do, in someone's jam (`useJamRights`): Play next and Add to queue
+   * wait for its queue policy, a queued song's moves are the host's, and so are the radios,
+   * which replace what plays. Everything, when left out.
+   */
+  rights?: Pick<JamRights, 'transport' | 'add' | 'reorder'>
 }
 
 const creditLabels: Record<CreditRole, string> = {
@@ -58,11 +67,14 @@ export function trackCreditEntries(track: TrackSummary, navigate: TrackMenuOptio
  * A song's menu, the same wherever a song is listed (track lists, search results): on a touch
  * screen its whole title and credit, then play next, queue, playlists, the radios, saving it (the heart), the Wantlist, its album and artists.
  */
-export function trackMenuEntries(track: TrackSummary, { unavailable, wanted, playlists, ratings, act, navigate, extraMenu, reorder, onAlbumPage = false, queued }: TrackMenuOptions): MenuEntry[] {
-  const playNext: MenuEntry[] = queued && queued.index === 0 ? [] : [{ label: 'Play next', icon: <ListStart />, onSelect: () => act('play-next'), done: 'Playing next', disabled: unavailable }]
-  const toEnd: MenuEntry[] = !queued
-    ? [{ label: 'Add to queue', icon: <ListEnd />, onSelect: () => act('enqueue'), done: 'Added to queue', disabled: unavailable }]
-    : queued.index < queued.count - 1 ? [{ label: 'Move to end', icon: <ListEnd />, onSelect: () => act('enqueue'), done: 'Moved to end', disabled: unavailable }] : []
+export function trackMenuEntries(track: TrackSummary, { unavailable, wanted, playlists, ratings, act, navigate, canShare = false, extraMenu, reorder, onAlbumPage = false, queued, rights }: TrackMenuOptions): MenuEntry[] {
+  const unqueueable = unavailable || rights?.add === false
+  const unmovable = queued && rights?.reorder === false
+  const playNext: MenuEntry[] = unmovable || (queued && queued.index === 0) ? [] : [{ label: 'Play next', icon: <ListStart />, onSelect: () => act('play-next'), done: 'Playing next', disabled: unqueueable }]
+  const toEnd: MenuEntry[] = unmovable ? [] : !queued
+    ? [{ label: 'Add to queue', icon: <ListEnd />, onSelect: () => act('enqueue'), done: 'Added to queue', disabled: unqueueable }]
+    : queued.index < queued.count - 1 ? [{ label: 'Move to end', icon: <ListEnd />, onSelect: () => act('enqueue'), done: 'Moved to end', disabled: unqueueable }] : []
+  const noRadio = unavailable || rights?.transport === false
   const credits = trackCreditEntries(track, navigate)
   return [
     // On a touch screen the menu opens with the song's whole title and credit, which its row cuts short.
@@ -80,9 +92,10 @@ export function trackMenuEntries(track: TrackSummary, { unavailable, wanted, pla
         ...playlists.map(playlist => ({ label: playlist.name, icon: <ListMusic />, onSelect: () => act(`add-to:${playlist.id}`), done: `Added to ${playlist.name}` })),
       ],
     }] : []),
-    { label: 'Start radio', icon: <Radio />, onSelect: () => act('radio'), disabled: unavailable },
+    { label: 'Start radio', icon: <Radio />, onSelect: () => act('radio'), disabled: noRadio },
     // Leans on how the song sounds (the server's sonic analysis) more than on who made it.
-    { label: 'Songs that sound like this', icon: <AudioWaveform />, onSelect: () => act('sonic-radio'), disabled: unavailable },
+    { label: 'Songs that sound like this', icon: <AudioWaveform />, onSelect: () => act('sonic-radio'), disabled: noRadio },
+    ...(canShare ? [{ label: 'Share…', icon: <Share2 />, onSelect: () => act('share') }] : []),
     { kind: 'separator' },
     librarySaveEntry(track, () => act('like')),
     ...(ratings ? [ratingEntry(track, act)] : []),

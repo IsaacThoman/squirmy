@@ -641,6 +641,23 @@ describe('AppShell', () => {
       await waitFor(() => expect(api.radio.sonic).toHaveBeenCalledWith(track('amber').id))
     })
 
+    it('shares the song playing, and offers no such command while sharing is off', async () => {
+      const { unmount } = await renderShell()
+      await press('k')
+      await userEvent.type(await searchField(), 'amber')
+      await userEvent.click(await screen.findByRole('option', { name: 'Amber Song · Lune Park' }))
+      await press('k')
+      await userEvent.type(await searchField(), '>share')
+      await userEvent.click(within(screen.getByRole('listbox', { name: 'Commands' })).getByRole('option', { name: /Share “Amber”/ }))
+      expect(await screen.findByRole('dialog', { name: 'Share song' })).toBeInTheDocument()
+      unmount()
+      localStorage.clear()
+      await renderShell('/', { status: { sharingEnabled: false } })
+      await press('k')
+      await userEvent.type(await searchField(), '>share')
+      expect(screen.queryByRole('option', { name: /Share “/ })).toBeNull()
+    })
+
     it('says when no command matches', async () => {
       await renderShell()
       await press('k')

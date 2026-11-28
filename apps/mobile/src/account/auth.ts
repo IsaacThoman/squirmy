@@ -74,7 +74,8 @@ export function reduceAuth(state: AuthState, event: AuthEvent): AuthState {
 
 function sameServer(a: Server, b: Server): boolean {
   return a.name === b.name && a.version === b.version && a.registrationRequiresInvite === b.registrationRequiresInvite
-    && a.wantlistEnabled === b.wantlistEnabled && a.supportsTvDevices === b.supportsTvDevices;
+    && a.wantlistEnabled === b.wantlistEnabled && a.supportsTvDevices === b.supportsTvDevices
+    && (a.sharingEnabled ?? false) === (b.sharingEnabled ?? false);
 }
 
 /** What to tell the person when signing in or registering fails. */

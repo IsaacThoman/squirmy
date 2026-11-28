@@ -89,6 +89,8 @@ export function FixtureProviders({ children, initial }: { children: ReactNode; i
         return { ok: true }
       },
       prepareHere: () => {},
+      jam: async () => ({ ok: false, error: 'unsupported' }),
+      dismissJamInvite: () => {},
       renameDevice: () => {},
       tell,
     }
@@ -131,6 +133,8 @@ function useFixtureLibrary(): LibraryActions {
     addToPlaylist: async () => true,
     // New playlists need the server.
     newPlaylist: () => {},
+    sharingEnabled: true,
+    share: () => {},
     newSmartPlaylist: () => {},
     showRatings: false,
     setRating: async () => {},
