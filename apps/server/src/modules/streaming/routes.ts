@@ -20,6 +20,7 @@ const StreamQuery = z.object({
   sig: z.string().optional(),
   download: z.stringbool().optional(),
   intent: StreamIntent.default('play'),
+  start: z.coerce.number().nonnegative().max(Number.MAX_SAFE_INTEGER / 1000).optional(),
 })
 
 /** A valid signature for this file and profile, or else a signed-in session. */
@@ -45,6 +46,7 @@ async function stream(request: FastifyRequest, reply: FastifyReply) {
     head: request.method === 'HEAD',
     download: query.download === true,
     intent: query.intent,
+    startMs: query.start,
     userId,
     signal: profile === 'original' ? undefined : streamSignal(reply.raw),
   })
