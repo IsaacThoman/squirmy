@@ -48,7 +48,7 @@ const saveDelayMs = 5000;
 
 const idle: SessionClientSnapshot = (() => {
   const { state, queue } = splitSession(createInitialSession());
-  return { session: state, queue, devices: [], connection: 'offline', isActiveDevice: false, detached: false, canDetach: false, outage: null, away: null };
+  return { session: state, queue, devices: [], connection: 'offline', isActiveDevice: false, detached: false, canDetach: false, canUndo: false, outage: null, away: null };
 })();
 const idleSnapshot = () => idle;
 const noSubscription = () => () => undefined;
@@ -402,6 +402,15 @@ function createActions(runtime: Runtime | null, canPlay: (track: TrackSummary) =
     const { seeds } = playableSeeds(tracks, 0, canPlay);
     if (seeds.length) send({ type: 'enqueue', tracks: seeds, placement });
   };
+  /** Sends a queue edit and, where the server can take it back, says so in the player with Undo. */
+  const undoable = (command: SessionCommand, notice: PlaybackNotice) => {
+    const commandId = send(command);
+    if (!commandId || !runtime?.client.getSnapshot().canUndo) return;
+    const id = playbackStatus.report({ ...notice, action: { label: 'Undo', run: () => {
+      playbackStatus.withdraw(id);
+      send({ type: 'undo', commandId });
+    } } });
+  };
   return {
     playPause: () => send({ type: session().playing ? 'pause' : 'play' }),
     play: () => send({ type: 'play' }),
@@ -446,6 +455,9 @@ function createActions(runtime: Runtime | null, canPlay: (track: TrackSummary) =
     enqueue,
     playQueueEntry: (entryId: string) => send({ type: 'playQueueEntry', entryId }),
     removeFromQueue: (entryId: string) => send({ type: 'removeFromQueue', entryId }),
+    /** Takes an entry out of the queue as the listener asked, offering Undo. `title`: the song's, for the line. */
+    removeWithUndo: (entryId: string, title?: string) =>
+      undoable({ type: 'removeFromQueue', entryId }, title ? { message: 'Removed from queue', detail: title } : { message: 'Removed from queue' }),
     moveInQueue: (entryId: string, toIndex: number) => send({ type: 'moveInQueue', entryId, toIndex: Math.max(0, toIndex) }),
     /** Up next for a queued entry; an autoplay suggestion is copied into the queue first. */
     promote: (entry: QueueEntry, track: TrackSummary | undefined, autoplay: boolean) => {
@@ -454,7 +466,10 @@ function createActions(runtime: Runtime | null, canPlay: (track: TrackSummary) =
       send({ type: 'removeFromQueue', entryId: entry.id });
     },
     clearHistory: () => send({ type: 'clearHistory' }),
-    clearQueue: () => send({ type: 'clearQueue' }),
+    clearQueue: () => {
+      if ((runtime?.client.getSnapshot() ?? idle).queue.queue.length) undoable({ type: 'clearQueue' }, { message: 'Queue cleared' });
+      else send({ type: 'clearQueue' });
+    },
     /**
      * Pauses or resumes `trackId` when it is the current song, as tapping it again in a list
      * does on the web; false when it is not (or it failed), so the tap plays it instead.

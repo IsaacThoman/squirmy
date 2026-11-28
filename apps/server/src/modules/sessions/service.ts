@@ -19,6 +19,7 @@ import { AUTOPLAY_BATCH, autoplayRequest } from './autoplay.js'
 import { recordCollectionPlay } from './collection-plays.js'
 import { entryUpdates, lookupTracks, trustSeeds } from './entries.js'
 import { countUntil, followPlay, insertPlay, isCompleted, notifyPlayStart, type OpenPlay, savePlay } from './plays.js'
+import { applyUndo, fresh, pushUndo, undoStepFor } from './undo.js'
 import { connectedDevice, connectedDeviceIds, deviceSockets, joinDevice, leaveDevice, listDevices, seeDevice, socketDevices } from './presence.js'
 import {
   createOwn, deleteStoredOwn, discardOwn, loadedOwn, loadedRecord, loadedRecords, loadRecord, persist, readOwn, recordOf, rememberCommand,
@@ -50,7 +51,7 @@ const UNAVAILABLE_BEFORE_PAUSE = 5
 const MAX_DETACHED = 8
 /** An own session is discarded once its device has not been seen for this long. */
 const DETACHED_KEEP_MS = 7 * 24 * 60 * 60_000
-const CAPABILITIES: SessionCapability[] = ['detach', 'queueOps']
+const CAPABILITIES: SessionCapability[] = ['detach', 'queueOps', 'undo']
 
 /** Schedules and cancels the grace timers. */
 export type SessionTimers = { set: (callback: () => void, ms: number) => unknown; clear: (handle: unknown) => void }
@@ -820,6 +821,8 @@ export function attach(userId: string, deviceId: string | null, socketId: string
       shared.skippedTracks = new Set(own.skippedTracks)
       shared.deferred = new Map(own.deferred)
       shared.autoplayAskedFor = own.autoplayAskedFor
+      // The shared queue is replaced: its edits are no longer there to undo.
+      shared.undo = []
       change = commit(shared, bringSession(shared.session, own.session, { now, commandId: newId(), deviceId: device.canPlay ? device.id : undefined }))
       if (change) void persist(shared).catch(report)
     } else {
@@ -880,12 +883,17 @@ export function runCommand(userId: string, deviceId: string | null, raw: unknown
     if (record.commandIds.has(commandId)) return ack({ ok: true, version: record.version })
     const command = await checkCommand(record, device.id, envelope.data.command)
     if (typeof command === 'string') return ack({ ok: false, error: command })
-    const next = reduceSession(record.session, { command, now: settings.now(), commandId, deviceId: device.canPlay ? device.id : undefined })
+    const now = settings.now()
+    const next = command.type === 'undo' ? undo(record, command.commandId, now, commandId) : reduceSession(record.session, { command, now, commandId, deviceId: device.canPlay ? device.id : undefined })
+    if (typeof next === 'string') return ack({ ok: false, error: next })
     rememberCommand(record, commandId)
-    // Something new to play starts a new count of failures.
+    const step = next === record.session ? null : undoStepFor(command, commandId, record.session, next, now)
+    if (step) record.undo = pushUndo(record.undo, step)
+    // Something new to play starts a new count of failures, and nothing before it is undone.
     if (command.type === 'playTracks') {
       record.failedInARow = 0
       record.skippedTracks.clear()
+      record.undo = []
     }
     // A song started by name (its row, or an entry of the queue) is the one the listener wants. A
     // whole list started (a header's Play, Shuffle, a radio, or a client that does not say) moves
@@ -909,6 +917,20 @@ export function runCommand(userId: string, deviceId: string | null, raw: unknown
     report(error)
     ack({ ok: false, error: 'internal_error' })
   })
+}
+
+/**
+ * The session with the edit sent as `target` undone, taking it off the stack, or an error
+ * code (see "Undo" in the session contract).
+ */
+function undo(record: SessionRecord, target: string, now: number, commandId: string): Session | string {
+  record.undo = fresh(record.undo, now)
+  const step = record.undo.find(item => item.commandId === target)
+  if (!step) return 'nothing_to_undo'
+  const next = applyUndo(record.session, step, now, commandId)
+  // One that no longer applies is gone either way; a full queue may have room later.
+  if (next !== 'queue_full') record.undo = record.undo.filter(item => item !== step)
+  return next
 }
 
 /** Enforces who may send what, and replaces client-sent tracks with trusted entries. Returns an error code on refusal. */
@@ -1016,6 +1038,7 @@ export function replaceQueue(userId: string, request: { trackIds: readonly strin
     const next = commands.reduce((session, command) => reduceSession(session, { command, now, commandId }), record.session)
     record.failedInARow = 0
     record.skippedTracks.clear()
+    record.undo = []
     const change = commit(record, next)
     if (change) {
       broadcast(record, change)

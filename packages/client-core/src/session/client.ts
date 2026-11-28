@@ -51,6 +51,8 @@ export type SessionClientSnapshot = {
   detached: boolean
   /** Detaching is possible: this device can play and the server said it supports it. False until a hello has. */
   canDetach: boolean
+  /** The server takes `undo` (see "Undo" in the session contract). False until a hello has said so. */
+  canUndo: boolean
   /**
    * Why the session paused on its failed current entry, when the server said so with
    * `playback.unavailable`. Set in the same snapshot as the pause (the server sends the
@@ -256,6 +258,7 @@ export class SessionClient {
   /** The server state held is this device's own session. */
   private detached = false
   private serverDetaches = false
+  private serverUndoes = false
   private move: Move | null = null
   private heldQueue: { version: number; queue: SessionQueue } | null = null
   /** The `queueVersion` of the newest queue held (`heldQueue`'s, else the server state's). Null before the first hello. */
@@ -335,7 +338,7 @@ export class SessionClient {
     const { state, queue } = splitSession(this.local)
     this.snapshot = {
       session: state, queue, devices: this.devices, connection: this.connection, isActiveDevice: this.isActive(),
-      detached: this.detached, canDetach: this.canDetach(), outage: null, away: null,
+      detached: this.detached, canDetach: this.canDetach(), canUndo: false, outage: null, away: null,
     }
   }
 
@@ -401,17 +404,20 @@ export class SessionClient {
   }
 
   /**
-   * Applies a command locally at once and sends it (now, or after reconnecting).
+   * Applies a command locally at once and sends it (now, or after reconnecting). Returns
+   * the command's id, which `undo` names it by; null when it was not sent.
    * Throws a ZodError when the command does not match `SessionCommand`.
    */
-  dispatch(command: SessionCommand): void {
+  dispatch(command: SessionCommand): string | null {
     const parsed = SessionCommand.parse(command)
     // The server refuses these. Applying one until it does would stop this device's audio
     // for the round trip, so it is not tried at all.
-    if (parsed.type === 'transfer' && this.outOfSession(parsed.deviceId)) return
-    this.enqueue(parsed, this.newCommandId())
+    if (parsed.type === 'transfer' && this.outOfSession(parsed.deviceId)) return null
+    const commandId = this.newCommandId()
+    this.enqueue(parsed, commandId)
     this.recompute(parsed.type === 'seek')
     this.flush()
+    return commandId
   }
 
   /**
@@ -637,6 +643,7 @@ export class SessionClient {
     this.setDevices(reply.devices)
     this.detached = snapshot.scope?.type === 'device'
     this.serverDetaches = reply.capabilities?.includes('detach') ?? false
+    this.serverUndoes = reply.capabilities?.includes('undo') ?? false
   }
 
   /**
@@ -890,16 +897,17 @@ export class SessionClient {
     const queueHalf = shallowEqual(previous.queue, queue) ? previous.queue : queue
     const isActiveDevice = this.isActive()
     const canDetach = this.canDetach()
+    const canUndo = this.serverUndoes
     const outage = this.outage()
     const away = this.away(previous.away)
     if (
       session === previous.session && queueHalf === previous.queue && this.devices === previous.devices
       && this.connection === previous.connection && isActiveDevice === previous.isActiveDevice
-      && this.detached === previous.detached && canDetach === previous.canDetach && outage === previous.outage
+      && this.detached === previous.detached && canDetach === previous.canDetach && canUndo === previous.canUndo && outage === previous.outage
       && away === previous.away
     ) return
     this.snapshot = {
-      session, queue: queueHalf, devices: this.devices, connection: this.connection, isActiveDevice, detached: this.detached, canDetach, outage, away,
+      session, queue: queueHalf, devices: this.devices, connection: this.connection, isActiveDevice, detached: this.detached, canDetach, canUndo, outage, away,
     }
     for (const listener of [...this.listeners]) listener()
   }

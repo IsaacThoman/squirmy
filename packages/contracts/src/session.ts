@@ -289,6 +289,8 @@ const seeds = z.array(QueueSeed).min(1).max(COMMAND_TRACK_LIMIT)
  *   dropped.
  * - `moveInQueue`: move an entry within its list (queue or autoplay queue). With shuffle
  *   on, the queue's new order becomes the order shuffle-off restores.
+ * - `undo`: see "Undo" below. Only servers with the `undo` capability accept it; the
+ *   reducer leaves the session as it is, and the server's answer brings the change.
  */
 export const SessionCommand = z.discriminatedUnion('type', [
   z.object({ type: z.literal('play') }),
@@ -314,6 +316,8 @@ export const SessionCommand = z.discriminatedUnion('type', [
   z.object({ type: z.literal('moveInQueue'), entryId: z.string(), toIndex: z.number().int().min(0) }),
   z.object({ type: z.literal('clearQueue') }),
   z.object({ type: z.literal('clearHistory') }),
+  /** Undoes the queue edit sent as `commandId`. See "Undo". */
+  z.object({ type: z.literal('undo'), commandId: z.string().min(1).max(64) }),
   /**
    * Makes `deviceId` the active device. Playback continues there from the current position.
    * Refused (`device_unavailable`) for a device that is not connected, cannot play, or is
@@ -330,6 +334,31 @@ export const SessionCommand = z.discriminatedUnion('type', [
   z.object({ type: z.literal('trackEnded'), entryId: z.string() }),
 ])
 export type SessionCommand = z.infer<typeof SessionCommand>
+
+/**
+ * Undo.
+ *
+ * The server keeps, per session and in memory only, the last `UNDO_LIMIT` queue edits, each
+ * for `UNDO_KEEP_MS`: `removeFromQueue`, `enqueue`, `moveInQueue` and `clearQueue`. `undo`
+ * names one by the `commandId` it was sent with, from any device of the session:
+ *
+ * - `removeFromQueue`: the entry goes back after the entry that was before it (by id; at the
+ *   front when that one has gone), and into `playOrder` the same way while shuffled.
+ * - `enqueue`: the entries it added that are still in the queue are removed.
+ * - `moveInQueue`: the entry moves back after the entry that was before it.
+ * - `clearQueue`: the entries go back in front of what was queued since, and while shuffled
+ *   their `playOrder`.
+ *
+ * Undo works by ids, so later edits from any device do not break it. An undo is applied as
+ * an ordinary change (versions move on, the queue goes out as usual) and removes its edit
+ * from the stack. `playTracks`, Subsonic's `savePlayQueue` and attaching with `bringQueue`
+ * empty the stack. Errors: `nothing_to_undo` (the edit is not kept, or nothing of it is
+ * left to undo), `queue_full`.
+ */
+export const UNDO_LIMIT = 20
+export const UNDO_KEEP_MS = 15 * 60_000
+/** The commands `undo` can undo. */
+export const UNDOABLE_COMMANDS = ['removeFromQueue', 'enqueue', 'moveInQueue', 'clearQueue'] as const satisfies readonly SessionCommand['type'][]
 
 /** Commands only the server issues. They go through the same reducer. */
 export const ServerSessionCommand = z.discriminatedUnion('type', [
@@ -501,9 +530,9 @@ export type SessionHello = z.infer<typeof SessionHello>
 /**
  * What a server can do beyond the base protocol. `detach`: `session:detach`, `session:attach`
  * and all they imply. `queueOps`: `session:queueOps` to sockets that accept it, and
- * `session:sync` (see "Queue diffs").
+ * `session:sync` (see "Queue diffs"). `undo`: the `undo` command (see "Undo").
  */
-export const SessionCapability = z.enum(['detach', 'queueOps'])
+export const SessionCapability = z.enum(['detach', 'queueOps', 'undo'])
 export type SessionCapability = z.infer<typeof SessionCapability>
 
 export const SessionHelloAck = z.object({

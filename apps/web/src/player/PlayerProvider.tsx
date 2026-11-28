@@ -21,7 +21,7 @@ import { MediaSessionAdapter, mediaArtwork, type MediaSessionTrack } from './eng
 import { Listening, type Audible } from './listening'
 import { NowPlayingContext, PlayerContext, PlayerControlsContext, PositionClock, PositionContext, RadioPendingContext, useNowPlayingStore, type PlayerControls, type PlayerState, type QueueItem, type RadioSeed } from './player-context'
 import { useShortcuts } from './shortcuts'
-import { STATUS_ERROR_MS, STATUS_EVENT_MS, StatusLine, type PlayerStatus } from './status'
+import { STATUS_ERROR_MS, STATUS_EVENT_MS, STATUS_UNDO_MS, StatusLine, type PlayerStatus } from './status'
 
 /** The most tracks one `playTracks` or `enqueue` may carry. */
 const MAX_SEEDS = 5000
@@ -203,6 +203,17 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const latest = () => client.getSnapshot()
     const shown = (entries: readonly QueueEntry[]) => entries.filter(entry => store.get(entry.trackId, entry.albumId))
     const playable = (track: TrackSummary) => isPlayable(track, viewer)
+    const titleOf = (entry: QueueEntry | undefined) => entry && store.get(entry.trackId, entry.albumId)?.title
+    /** Sends a queue edit and, where the server can take it back, says so on the status line with Undo. */
+    const undoable = (command: SessionCommand, message: string) => {
+      const commandId = dispatch(command)
+      if (!commandId || !latest().canUndo) return
+      const run = () => {
+        status.clear(UNDO_STATUS)
+        dispatch({ type: 'undo', commandId })
+      }
+      status.show({ message, tone: 'info', key: UNDO_STATUS, action: { label: 'Undo', run } }, STATUS_UNDO_MS)
+    }
     return {
       togglePlay: () => {
         // The player shows Play while the browser holds the audio back, so pressing it plays.
@@ -248,7 +259,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         const seeds = tracks.filter(playable).slice(0, MAX_SEEDS).map(seedOf)
         if (!seeds.length) return
         store.prime(tracks)
-        dispatch({ type: 'enqueue', tracks: seeds, placement })
+        const first = tracks.find(playable)
+        const message = seeds.length > 1 ? `Added ${seeds.length} songs to the queue` : placement === 'next' ? `“${first!.title}” plays next` : `Added “${first!.title}” to the queue`
+        undoable({ type: 'enqueue', tracks: seeds, placement }, message)
       },
       startRadio,
       playEntry: entryId => {
@@ -263,14 +276,21 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         }
         picked.set(latest().session.current?.id ?? null)
       },
-      removeEntry: entryId => dispatch({ type: 'removeFromQueue', entryId }),
+      removeEntry: entryId => {
+        const { queue: lists } = latest()
+        const title = titleOf([...lists.queue, ...lists.autoplayQueue].find(entry => entry.id === entryId))
+        undoable({ type: 'removeFromQueue', entryId }, title ? `Removed “${title}”` : 'Removed from the queue')
+      },
       moveEntry: (entryId, toIndex) => {
         const { queue: lists } = latest()
         const list = lists.queue.some(entry => entry.id === entryId) ? lists.queue : lists.autoplayQueue
         const target = shown(list)[toIndex]
         if (target) dispatch({ type: 'moveInQueue', entryId, toIndex: list.indexOf(target) })
       },
-      clearQueue: () => dispatch({ type: 'clearQueue' }),
+      clearQueue: () => {
+        if (latest().queue.queue.length) undoable({ type: 'clearQueue' }, 'Queue cleared')
+        else dispatch({ type: 'clearQueue' })
+      },
       clearHistory: () => {
         if (!latest().queue.history.length) return
         dispatch({ type: 'clearHistory' })
@@ -350,6 +370,7 @@ const NOTICE_STATUS = 'notice'
 const STOP_STATUS = 'stop'
 const RADIO_STATUS = 'radio'
 const ACTION_STATUS = 'action'
+const UNDO_STATUS = 'undo'
 /**
  * How long a skipped song's notice waits. When the provider is down the server fails the
  * current and next songs in one moment and then stops, and the stop's one notice says it

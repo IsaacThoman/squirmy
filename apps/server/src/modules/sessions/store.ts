@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { db } from '../../database/client.js'
 import { detachedSessions, playbackSessions } from '../../database/schema.js'
 import { OpenPlay } from './plays.js'
+import type { UndoStep } from './undo.js'
 
 /**
  * In-memory sessions, loaded lazily and written back about a second after each change:
@@ -73,6 +74,8 @@ export type SessionRecord = {
    * starting a song they did not pick. Kept in memory only, like the counts above.
    */
   picked: string | null
+  /** Queue edits `undo` can undo, the newest last (see "Undo" in the session contract). In memory only: a restart forgets them. */
+  undo: UndoStep[]
   persistTimer: ReturnType<typeof setTimeout> | null
   /** The last write, so writes of one session never overtake each other. */
   writing: Promise<void>
@@ -148,6 +151,7 @@ function newRecord(userId: string, deviceId: string | null, fields: Pick<Session
     deferred: new Map(),
     autoplayAskedFor: null,
     picked: null,
+    undo: [],
     persistTimer: null,
     writing: Promise.resolve(),
     lastSeenAt: 0,

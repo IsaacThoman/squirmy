@@ -138,7 +138,7 @@ class FakeServer implements Held {
     const snapshot = { version: held.version, queueVersion: held.queueVersion, state, queue }
     if (this.old) return { serverTime: this.now(), snapshot, devices: this.devices() }
     const scope = held === this ? { type: 'shared' as const } : { type: 'device' as const, deviceId }
-    const capabilities = this.queueOps ? ['detach', 'queueOps'] : ['detach']
+    const capabilities = this.queueOps ? ['detach', 'queueOps', 'undo'] : ['detach']
     return { serverTime: this.now(), snapshot: { ...snapshot, scope }, devices: this.devices(), capabilities }
   }
 
@@ -585,6 +585,17 @@ describe('SessionClient queue diffs', () => {
     await settle()
     expect(server.syncs).toBe(1)
     sameQueue(client, server)
+  })
+
+  it('names each command it sends, and says when the server can undo', async () => {
+    const { client, settle } = setup({ canPlay: false })
+    expect(client.getSnapshot().canUndo).toBe(false)
+    await settle()
+    expect(client.getSnapshot().canUndo).toBe(true)
+    const first = client.dispatch({ type: 'clearQueue' })
+    const second = client.dispatch({ type: 'undo', commandId: first! })
+    expect(first).toEqual(expect.any(String))
+    expect(second).not.toBe(first)
   })
 
   it('takes whole queues from a server that does not send operations', async () => {

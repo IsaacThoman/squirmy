@@ -56,8 +56,8 @@ class Peer {
     return this.socket.emitWithAck('session:hello', hello)
   }
 
-  send(command: SessionCommand): Promise<CommandAck> {
-    return this.socket.emitWithAck('session:command', { commandId: `${this.socket.id}-${++this.serial}`, command })
+  send(command: SessionCommand, commandId = `${this.socket.id}-${++this.serial}`): Promise<CommandAck> {
+    return this.socket.emitWithAck('session:command', { commandId, command })
   }
 
   detach(): Promise<SessionMoveAck> {
@@ -241,5 +241,36 @@ describe('queue operations', () => {
       expect(update).toMatchObject({ scope: { type: 'shared' }, baseQueueVersion: sharedAfter.queueVersion })
       expect(applyQueueOps(sharedAfter.queue, update!.ops, update!.lengths)).toEqual(latest.queue)
     }
+  })
+
+  it('undoes a queue edit from any device, once, as an ordinary change', async () => {
+    const a = await device('queue-ops-a-6')
+    const b = await device('queue-ops-b-6')
+    expect((await a.hello(true)).capabilities).toContain('undo')
+    await a.send({ type: 'playTracks', tracks: seeds(6), seed: 1 })
+    const before = await getSnapshot(user.id)
+    await a.send({ type: 'removeFromQueue', entryId: before.queue.queue[2]!.id }, 'remove-6')
+    await b.send({ type: 'enqueue', tracks: seeds(1), placement: 'next' })
+    const edited = await getSnapshot(user.id)
+    await reached([a], edited.version)
+    a.clear()
+
+    expect(await b.send({ type: 'undo', commandId: 'remove-6' })).toEqual({ ok: true, version: edited.version + 1 })
+    const after = await getSnapshot(user.id)
+    expect(after.queue.queue.map((entry) => entry.id)).toEqual([edited.queue.queue[0]!.id, ...before.queue.queue.map((entry) => entry.id)])
+    await reached([a], after.version)
+    const [update] = a.events<SessionQueueOps>('session:queueOps')
+    expect(applyQueueOps(edited.queue, update!.ops, update!.lengths)).toEqual(after.queue)
+
+    expect(await b.send({ type: 'undo', commandId: 'remove-6' })).toEqual({ ok: false, error: 'nothing_to_undo' })
+    expect(await b.send({ type: 'undo', commandId: 'never-sent' })).toEqual({ ok: false, error: 'nothing_to_undo' })
+  })
+
+  it('forgets the edits when something new plays', async () => {
+    const a = await device('queue-ops-a-7')
+    await a.send({ type: 'playTracks', tracks: seeds(4), seed: 1 })
+    await a.send({ type: 'clearQueue' }, 'clear-7')
+    await a.send({ type: 'playTracks', tracks: seeds(3), seed: 2 })
+    expect(await a.send({ type: 'undo', commandId: 'clear-7' })).toEqual({ ok: false, error: 'nothing_to_undo' })
   })
 })
