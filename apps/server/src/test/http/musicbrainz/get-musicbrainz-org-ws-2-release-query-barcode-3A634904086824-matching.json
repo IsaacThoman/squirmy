@@ -1,0 +1,60 @@
+{
+  "note": "Exact barcode search built from the recorded OKNOTOK release detail.",
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release?query=barcode%3A634904086824+OR+barcode%3A0634904086824&limit=25&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": {
+      "releases": [
+        {
+          "id": "d6dc018d-5caa-4e6f-8e9d-d889fcd585f4",
+          "title": "OK Computer: OKNOTOK 1997 2017",
+          "status": "Official",
+          "date": "2017-06-23",
+          "barcode": "634904086824",
+          "release-group": {
+            "title": "OK Computer",
+            "secondary-type-ids": [],
+            "id": "b1392450-e666-3926-a536-22c65f834433",
+            "primary-type": "Album",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "first-release-date": "1997-05-21",
+            "artist-credit": [
+              {
+                "joinphrase": "",
+                "name": "Radiohead",
+                "artist": {
+                  "country": "GB",
+                  "disambiguation": "",
+                  "name": "Radiohead",
+                  "sort-name": "Radiohead",
+                  "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                  "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                  "type": "Group"
+                }
+              }
+            ],
+            "disambiguation": "",
+            "secondary-types": []
+          },
+          "media": [
+            {
+              "format": "CD",
+              "track-count": 12
+            },
+            {
+              "format": "CD",
+              "track-count": 11
+            }
+          ],
+          "track-count": 23
+        }
+      ]
+    }
+  }
+}

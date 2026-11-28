@@ -20,6 +20,7 @@ import { startRealtime } from '../../realtime/index.js'
 import { body, signIn } from '../../test/api.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum } from '../../test/factories.js'
+import { listenRealtime } from '../../test/realtime.js'
 import { OUTAGE_REASON } from '../acquisition/health.js'
 import { acquisitionModule } from '../acquisition/index.js'
 import { configureAcquisition } from '../acquisition/jobs.js'
@@ -132,6 +133,57 @@ describe('sessions with on-demand tracks', () => {
   })
   const jobsFor = (ids: string[]) => db.select({ recordingId: acquisitionJobs.recordingId, status: acquisitionJobs.status }).from(acquisitionJobs)
     .where(inArray(acquisitionJobs.recordingId, ids)).orderBy(acquisitionJobs.id)
+
+  it('checks an opened album, publishes its miss live, and reuses both answers', async () => {
+    mock.settings.has = lacking
+    const suffix = newId()
+    const album = await remoteAlbum(2, (index) => `${index === 0 ? 'Missing' : 'Here'} ${suffix}`)
+    const user = await signIn({ canAcquire: true })
+    const availability = async () => body(await app.inject({ url: `/api/v1/albums/${album.albumId}`, headers: user.headers }), AlbumDetail)
+      .discs.flatMap((disc) => disc.tracks.map((track) => track.availability))
+    const resolved = () => mock.resolved.filter((item) => item.kind === 'recording' && item.recording.title.endsWith(suffix))
+    const events = await listenRealtime()
+    try {
+      expect(await availability()).toEqual(['on_demand', 'on_demand'])
+      await eventually(() => {
+        expect(events.availability.get(album.ids[0]!)).toBe('none')
+        expect(events.availability.get(album.albumId)).toBe('on_demand')
+      })
+      expect(await availability()).toEqual(['none', 'on_demand'])
+      expect(resolved().map((item) => item.ref).sort()).toEqual(['0', '1'])
+      expect(await jobsFor(album.ids)).toEqual([])
+
+      const phone = await device(user)
+      play(phone, album)
+      await eventually(() => expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: album.ids[1], state: 'ready' }))
+      expect(resolved()).toHaveLength(2)
+    } finally {
+      await events.stop()
+    }
+  })
+
+  it('batches the next five entries, marks a missing one ahead of time, and skips it', async () => {
+    mock.settings.has = lacking
+    const suffix = newId()
+    const album = await remoteAlbum(8, (index) => `${index === 1 ? 'Missing' : 'Here'} ${index} ${suffix}`)
+    const phone = await device(await signIn({ canAcquire: true }))
+    play(phone, album)
+    await eventually(() => {
+      expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: album.ids[0], state: 'ready' })
+      expect(phone.client.getSnapshot().queue.queue[0]).toMatchObject({ trackId: album.ids[1], state: 'failed' })
+    })
+    const resolved = () => mock.resolved.flatMap((item) => item.kind === 'recording' && item.recording.title.endsWith(suffix) ? [item] : [])
+    expect(resolved()).toHaveLength(6)
+    expect(resolved().map((item) => item.ref).sort()).toEqual(['0', '0', '1', '2', '3', '4'])
+    expect(phone.client.failureOf(album.ids[1]!)).toBe('unavailable')
+
+    phone.client.dispatch({ type: 'next' })
+    await eventually(() => {
+      expect(phone.client.getSnapshot().session.current).toMatchObject({ trackId: album.ids[2], state: 'ready' })
+      expect(resolved()).toHaveLength(8)
+    })
+    expect(phone.events.filter((event) => event.type === 'playback.unavailable')).toEqual([])
+  })
 
   // Failing everything makes the provider failing (acquisition/health.ts): the notice says why.
   it('pauses with one notice when the provider fails everything, keeping the rest of the queue', async () => {

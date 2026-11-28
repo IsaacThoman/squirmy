@@ -2,6 +2,8 @@
 import { queryKeys } from '@squirmy/contracts'
 import { sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
+import { collectionFile } from '../catalog/availability.js'
+import { albumIsMember } from '../catalog/library.js'
 import { uuidArray } from '../catalog/sql.js'
 import { musicbrainz } from '../metadata/index.js'
 import { upsertDiscography } from './artist.js'
@@ -30,20 +32,17 @@ const COVER_ACT = String.raw`karaoke|backing track|tribute|in the style of|made 
 const everyonesArtists = sql`
   select aa.artist_id from album_artists aa join artists ar on ar.id = aa.artist_id
   where ${notPlaceholder('ar')} and (
-    exists (select 1 from media_files f where f.album_id = aa.album_id and f.missing_since is null and not f.cached)
+    exists (select 1 from media_files f where f.album_id = aa.album_id and ${collectionFile('f')})
     or exists (select 1 from likes l where l.entity_type = 'album' and l.entity_id = aa.album_id))
   union
   select l.entity_id from likes l join artists ar on ar.id = l.entity_id where l.entity_type = 'artist' and ${notPlaceholder('ar')}`
 
 /**
- * One user's artists (product decision 31): credited on an album in their library (the
- * collection, or one they saved) or saved by them.
+ * One user's artists (product decision 31): credited on an album in their library or saved by them.
  */
 const usersArtists = (userId: string) => sql`
   select aa.artist_id from album_artists aa join artists ar on ar.id = aa.artist_id
-  where ${notPlaceholder('ar')} and (
-    exists (select 1 from media_files f where f.album_id = aa.album_id and f.missing_since is null and not f.cached)
-    or exists (select 1 from likes l where l.user_id = ${userId} and l.entity_type = 'album' and l.entity_id = aa.album_id))
+  where ${notPlaceholder('ar')} and ${albumIsMember('aa.album_id', userId)}
   union
   select l.entity_id from likes l join artists ar on ar.id = l.entity_id
   where l.user_id = ${userId} and l.entity_type = 'artist' and ${notPlaceholder('ar')}`
@@ -68,7 +67,7 @@ export async function refreshNewReleases(): Promise<number> {
 /**
  * The user's new releases: albums whose main artist is one of the user's artists, released in
  * the last 120 days (up to today, with at least a month in the date), newest first. Left out:
- * albums the user already has (a present file, or saved) and cover acts' releases
+ * albums in the user's library and cover acts' releases
  * (`COVER_ACT`, by album title or artist name).
  */
 export async function newReleaseAlbumIds(userId: string, limit: number): Promise<string[]> {
@@ -80,8 +79,7 @@ export async function newReleaseAlbumIds(userId: string, limit: number): Promise
       and a.release_date <= to_char(current_date, 'YYYY-MM-DD')
       and a.primary_artist_id in (${usersArtists(userId)})
       and a.title !~* ${COVER_ACT} and main.name !~* ${COVER_ACT}
-      and not exists (select 1 from media_files f where f.album_id = a.id and f.missing_since is null)
-      and not exists (select 1 from likes l where l.user_id = ${userId} and l.entity_type = 'album' and l.entity_id = a.id)
+      and not ${albumIsMember('a.id', userId)}
     order by a.release_date desc, a.id
     limit ${limit}`)
   return rows.map((row) => row.id)
