@@ -8,7 +8,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { buildApp } from '../../app.js'
 import { resetConfig } from '../../config.js'
 import { db } from '../../database/client.js'
-import { mediaFiles } from '../../database/schema.js'
+import { mediaFiles, recordingCredits } from '../../database/schema.js'
 import { clearReadCache } from '../../lib/read-cache.js'
 import { updateServerSettings } from '../../lib/settings.js'
 import { startJobs, stopJobs } from '../../jobs/index.js'
@@ -208,6 +208,15 @@ describe('explicit content controls', () => {
       expect(kidResults.ranked?.some((item) => item.id === loud.tracks[0]!.recordingId)).toBe(false)
       const adultResults = body(await get(adult, '/search/library?q=bad%20words&scope=server'), SearchResults)
       expect(adultResults.tracks.map((track) => track.id)).toContain(loud.tracks[0]!.recordingId)
+    })
+
+    it('hides explicit songs found by their credits', async () => {
+      const composer = await createArtist({ name: 'Harlow Pike' })
+      await db.insert(recordingCredits).values([curses, loud].map((album) => ({ recordingId: album.tracks[0]!.recordingId, artistId: composer.id, role: 'composer' as const })))
+      const credited = async (user: { headers: Record<string, string> }) =>
+        body(await get(user, '/search/library?q=harlow%20pike&type=credits&scope=server'), SearchResults).credits?.map((hit) => hit.track.id) ?? []
+      expect(await credited(kid)).toEqual([])
+      expect((await credited(adult)).sort()).toEqual([curses.tracks[0]!.recordingId, loud.tracks[0]!.recordingId].sort())
     })
 
     it('hides explicit songs from Home\'s most played', async () => {

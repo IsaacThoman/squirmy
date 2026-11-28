@@ -1,5 +1,5 @@
 {
-  "id": "71593034-5264-41b1-9ebd-f700e7f4d510",
+  "id": "75205c3a-6824-41ac-8783-ff1f55839205",
   "prevId": "eeb3233a-dbe9-4ad6-97e7-521364f05db7",
   "version": "7",
   "dialect": "postgresql",
@@ -850,6 +850,21 @@
           "method": "gin",
           "with": {}
         },
+        "albums_match_key_unicode": {
+          "name": "albums_match_key_unicode",
+          "columns": [
+            {
+              "expression": "search_unicode_bigrams(\"match_key\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        },
         "albums_title_key_prefix": {
           "name": "albums_title_key_prefix",
           "columns": [
@@ -1343,6 +1358,21 @@
               "asc": true,
               "nulls": "last",
               "opclass": "gin_trgm_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        },
+        "artists_name_key_unicode": {
+          "name": "artists_name_key_unicode",
+          "columns": [
+            {
+              "expression": "search_unicode_bigrams(\"name_key\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
             }
           ],
           "isUnique": false,
@@ -3483,7 +3513,24 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "lyrics_search": {
+          "name": "lyrics_search",
+          "columns": [
+            {
+              "expression": "to_tsvector('simple', search_lyric_text(\"plain\", \"synced\"))",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "not \"lyrics\".\"instrumental\"",
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "lyrics_recording_id_recordings_id_fk": {
           "name": "lyrics_recording_id_recordings_id_fk",
@@ -5579,6 +5626,21 @@
           "method": "gin",
           "with": {}
         },
+        "recordings_match_key_unicode": {
+          "name": "recordings_match_key_unicode",
+          "columns": [
+            {
+              "expression": "search_unicode_bigrams(\"match_key\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        },
         "recordings_title_key_prefix": {
           "name": "recordings_title_key_prefix",
           "columns": [
@@ -6606,13 +6668,6 @@
         },
         "can_acquire": {
           "name": "can_acquire",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "explicit_restricted": {
-          "name": "explicit_restricted",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,

@@ -1,4 +1,4 @@
-import { continuesQuery, filterKind, keepOrder, playlistScore, searchItemKey, type SearchFilter, type SearchItem } from '@squirmy/client-core';
+import { ApiError, mergeSearch, continuesQuery, filterKind, keepOrder, playlistScore, searchItemKey, searchItemsOfKind, type SearchFilter, type SearchItem } from '@squirmy/client-core';
 import {
   addRecentSearch, parseRecentSearches, recentSearchesStorageKey, type RecentSearch,
 } from '@squirmy/client-core';
@@ -39,8 +39,8 @@ export type SearchList = {
  * The Search tab's list. All mixes every kind as the server ranks them: it waits for the
  * catalog's answer, or `catalogWaitMs` after the library's, keeping the last results on
  * screen meanwhile, so rows do not reshuffle with every key. A kind pages further as the
- * list ends. Playlists are the viewer's own whose names match. Offline, the list is what the
- * phone holds that matches, ranked the same way, and a filter keeps its kind.
+ * list ends. Older servers fall back to matching the device’s loaded playlists. Offline,
+ * the list comes from matching music held on the phone.
  */
 export function useSearchList(text: string, filter: SearchFilter): SearchList {
   const viewer = useViewer();
@@ -49,13 +49,14 @@ export function useSearchList(text: string, filter: SearchFilter): SearchList {
   const local = useLocalSearch(text, 'all', offline);
   const search = useSearch(filter === 'all' ? text : '');
   const pages = useSearchPages(text, filterKind(filter));
-  // Every playlist, not only the first page of them, so any of them can be found by name.
-  const playlists = useAllPlaylists();
-  // `useAllPlaylists` hands out a new list every render; the ranking needs one per answer.
-  const playlistItems = useMemo(() => playlists.data?.pages.flatMap(page => page.items) ?? [], [playlists.data]);
-
   const answered = search.query === term && term.length > 0;
   const library = answered && !search.library.isPlaceholderData ? search.library.data : undefined;
+  const playlistPage = !pages.isPlaceholderData && pages.data?.pages[0];
+  const legacyPlaylistPage = filter === 'playlist' && (playlistPage
+    ? playlistPage.library?.playlists === undefined
+    : pages.error instanceof ApiError && (pages.error.status === 400 || pages.error.status === 404));
+  const playlists = useAllPlaylists(Boolean(legacyPlaylistPage || (filter === 'all' && library && library.playlists === undefined)));
+  const playlistItems = useMemo(() => playlists.data?.pages.flatMap(page => page.items) ?? [], [playlists.data]);
   const catalog = answered && !search.catalog.isPlaceholderData ? search.catalog.data : undefined;
   // A query is in error while fetching only when it is asked again after failing (Try again):
   // the failure stays shown meanwhile, so the list does not jump in between.
@@ -88,9 +89,11 @@ export function useSearchList(text: string, filter: SearchFilter): SearchList {
     const seen = new Set<string>();
     const items: SearchItem[] = [];
     for (const page of pages.data.pages) {
-      for (const item of searchItems(page.library ?? undefined, page.catalog ?? undefined, viewer, term)) {
+      const merged = mergeSearch(page.library, page.catalog, viewer, { query: term });
+      const rows = searchItemsOfKind(merged, kind);
+      for (const item of rows) {
         // An older server ignores `type` and answers every kind.
-        if (item.type === kind && !seen.has(searchItemKey(item))) {
+        if (!seen.has(searchItemKey(item))) {
           seen.add(searchItemKey(item));
           items.push(item);
         }
@@ -101,7 +104,7 @@ export function useSearchList(text: string, filter: SearchFilter): SearchList {
 
   const current = useMemo((): SearchList | null => {
     if (!term) return null;
-    if (filter === 'playlist') {
+    if (legacyPlaylistPage) {
       const items = playlistItems.map(playlist => ({ playlist, score: playlistScore(term, playlist.name) }))
         .filter(({ score }) => score > 0).sort((a, b) => b.score - a.score)
         .map(({ playlist }): SearchItem => ({ type: 'playlist', playlist }));
@@ -131,7 +134,7 @@ export function useSearchList(text: string, filter: SearchFilter): SearchList {
       loadMore: pages.hasNextPage && !pages.isFetchingNextPage && !moreFailed ? () => void pages.fetchNextPage() : undefined,
       moreFailed, retryMore: () => void pages.fetchNextPage(),
     };
-  }, [term, filter, all, paged, pages, playlists, playlistItems, search.library, search.catalog, libraryFailed, catalogFailed, catalogRetrying]);
+  }, [term, filter, all, paged, pages, legacyPlaylistPage, playlists, playlistItems, search.library, search.catalog, libraryFailed, catalogFailed, catalogRetrying]);
 
   // The last results shown stand in, faded, while the next ones are on their way: only for the
   // same filter and the same search typed on or deleted back, never under an unrelated one.

@@ -1,3 +1,4 @@
+import { hasSearchFacets, type SearchFacets } from '@squirmy/contracts'
 import { ApiError, type ApiClient } from '@squirmy/client-core'
 import { Id, queryKeys, type AlbumSummary, type ArtistSectionKey, type ArtistSummary, type LibraryItem, type LibraryItemsSort, type LibraryQuery, type Page, type SearchResults, type TrackSummary, type UploaderFilter } from '@squirmy/contracts'
 import { infiniteQueryOptions, keepPreviousData, useInfiniteQuery, useQuery, type InfiniteData, type InfiniteQueryObserverResult } from '@tanstack/react-query'
@@ -302,9 +303,9 @@ const orMissing = (request: Promise<SearchResults>) => request.catch((error: unk
 })
 
 /** One search of the library or the catalog. The search page and the search dialog share its answers. */
-export const searchQuery = (api: ApiClient, kind: 'library' | 'catalog', term: string) => ({
-  queryKey: [...queryKeys.search(), kind, term],
-  queryFn: ({ signal }: { signal: AbortSignal }) => orMissing(api.search[kind]({ q: term, limit: 20, scope: 'server' }, { signal })),
+export const searchQuery = (api: ApiClient, kind: 'library' | 'catalog', term: string, facets: SearchFacets = {}) => ({
+  queryKey: [...queryKeys.search(), kind, term, ...(hasSearchFacets(facets) ? [facets] : [])],
+  queryFn: ({ signal }: { signal: AbortSignal }) => orMissing(api.search[kind]({ q: term, limit: 20, scope: 'server', ...facets }, { signal })),
   enabled: term.length > 0,
   staleTime: 60_000,
 })
