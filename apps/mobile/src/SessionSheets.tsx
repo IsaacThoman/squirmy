@@ -1,4 +1,4 @@
-import { plural, type SessionMoveResult } from '@squirmy/client-core';
+import { creditGroups, plural, type SessionMoveResult } from '@squirmy/client-core';
 import { PLAYLIST_NAME_MAX_LENGTH, type DeviceInfo, type PlaylistSummary, type TrackSummary as Track } from '@squirmy/contracts';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
@@ -14,7 +14,7 @@ import { awaitsTrackList } from './data/albums';
 import { useAlbum, useAllPlaylists, useTrackVersions } from './data/queries';
 import { usePageLinks } from './library/links';
 import { matches } from './library/shared';
-import { trackActionKey, useRunTrackAction, useTrackActions } from './library/trackActions';
+import { trackActionKey, useRunTrackAction, useTrackActionRunner, useTrackActions } from './library/trackActions';
 import { usePlaybackState } from './playback';
 import { whereItPlays } from './player/session';
 import { useVolumeSlider } from './player/volume';
@@ -160,10 +160,34 @@ export function TrackActionSheet({ id, albumId, playlistId, itemId }: { id: stri
     <Sheet title="Track options">
       <TrackSummary track={track} subtitle={!playable ? `${track.artistCredit} · ${unavailableReason(track, offline, viewer)}` : undefined} />
       <SheetRows>
-        {actions.map(action => <SheetRow key={trackActionKey(action)} title={action.title} icon={action.icon} onPress={() => {
-          void Haptics.selectionAsync();
-          run(action);
-        }} />)}
+        {/* A submenu's entries are rows of their own here, named with it ("Rating: 4 stars"). */}
+        {actions.flatMap(action => action.children?.map(child => ({ ...child, title: `Rating: ${child.title}` })) ?? [action]).map(action =>
+          <SheetRow key={trackActionKey(action)} title={action.title} icon={action.icon} selected={action.checked} onPress={() => {
+            void Haptics.selectionAsync();
+            run(action);
+          }} />)}
+      </SheetRows>
+    </Sheet>
+  );
+}
+
+/**
+ * Who wrote, produced and played on a song, from its menu's Credits: each credited artist with
+ * their role (and instrument), opening their page. The web shows the same as a submenu.
+ */
+export function TrackCreditsSheet({ id, albumId }: { id: string; albumId?: string }) {
+  const track = useTrack(id, albumId || null);
+  const { open } = useTrackActionRunner(true);
+  const groups = creditGroups(track?.credits);
+  return (
+    <Sheet title="Credits">
+      <TrackSummary track={track} subtitle={track?.artistCredit} />
+      <SheetRows>
+        {groups.flatMap(group => group.credits.map(({ artist, name }) => <SheetRow key={`${group.role}:${artist.id}:${name}`} title={name}
+          subtitle={group.label} icon="music.mic" onPress={() => {
+            void Haptics.selectionAsync();
+            open({ id: 'artist', title: name, icon: 'music.mic', page: { page: 'artist', id: artist.id } });
+          }} />))}
       </SheetRows>
     </Sheet>
   );
@@ -403,6 +427,11 @@ export function NamePlaylistSheet({ mode, id, name, trackId, albumId }: {
       <SheetField label="Playlist name" value={value} onChange={setValue} onSubmit={save} autoFocus maxLength={PLAYLIST_NAME_MAX_LENGTH} />
       {failed && <SheetNote error>{failed}</SheetNote>}
       <SheetAction title={mode === 'rename' ? 'Save' : withSongs ? 'Create and add' : 'Create'} disabled={!ready} onPress={save} />
+      {/* Made from the Library, a playlist can be a smart one instead: its songs come from rules. */}
+      {mode === 'create' && !withSongs && <SheetRows>
+        <SheetRow title="New Smart Playlist" subtitle="Songs that match rules you choose" icon="gearshape.2"
+          onPress={() => router.replace('/smart-playlist')} />
+      </SheetRows>}
     </Sheet>
   );
 }

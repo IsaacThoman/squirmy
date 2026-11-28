@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { creditParts } from './credits.js'
+import { creditGroups, creditParts } from './credits.js'
 
 const thundercat = { id: 'a1', name: 'Thundercat' }
 const tame = { id: 'a2', name: 'Tame Impala' }
@@ -44,5 +44,19 @@ describe('creditParts', () => {
   it('is the plain credit without artists', () => {
     expect(creditParts('Unknown artist', [])).toEqual([{ text: 'Unknown artist', artist: null }])
     expect(creditParts('', [])).toEqual([])
+  })
+})
+
+describe('creditGroups', () => {
+  it('groups a track’s credits by role in the order they come, naming instruments', () => {
+    expect(creditGroups([
+      { artist: thundercat, role: 'performer', instrument: 'bass' },
+      { artist: tame, role: 'producer' },
+      { artist: tame, role: 'performer' },
+    ])).toEqual([
+      { role: 'performer', label: 'Performer', credits: [{ artist: thundercat, name: 'Thundercat · bass' }, { artist: tame, name: 'Tame Impala' }] },
+      { role: 'producer', label: 'Producer', credits: [{ artist: tame, name: 'Tame Impala' }] },
+    ])
+    expect(creditGroups(undefined)).toEqual([])
   })
 })

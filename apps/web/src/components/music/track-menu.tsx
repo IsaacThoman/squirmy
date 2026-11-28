@@ -1,4 +1,5 @@
-import type { CreditRole, TrackSummary } from '@squirmy/contracts'
+import { creditGroups } from '@squirmy/client-core'
+import type { TrackSummary } from '@squirmy/contracts'
 import { ArrowDown, ArrowUp, AudioWaveform, Check, Disc3, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, Play, Plus, Radio, Share2, Star, StarOff, Trash2, Users } from 'lucide-react'
 import type { MenuEntry } from '@/components/ui/menu'
 import type { JamRights } from '@/player/player-context'
@@ -37,30 +38,11 @@ export type TrackMenuOptions = {
   rights?: Pick<JamRights, 'transport' | 'add' | 'reorder'>
 }
 
-const creditLabels: Record<CreditRole, string> = {
-  composer: 'Composer',
-  lyricist: 'Lyricist',
-  conductor: 'Conductor',
-  arranger: 'Arranger',
-  producer: 'Producer',
-  engineer: 'Engineer',
-  mixer: 'Mixer',
-  remixer: 'Remixer',
-  performer: 'Performer',
-  ensemble: 'Ensemble',
-}
-
 export function trackCreditEntries(track: TrackSummary, navigate: TrackMenuOptions['navigate']): MenuEntry[] {
-  const groups = new Map<CreditRole, MenuEntry[]>()
-  for (const { artist, role, instrument } of track.credits ?? []) {
-    const group = groups.get(role) ?? []
-    group.push({
-      label: instrument ? `${artist.name} · ${instrument}` : artist.name,
-      onSelect: () => navigate(`/artist/${artist.id}`),
-    })
-    groups.set(role, group)
-  }
-  return [...groups].flatMap(([role, items]): MenuEntry[] => [{ kind: 'label', label: creditLabels[role] }, ...items])
+  return creditGroups(track.credits).flatMap(({ label, credits }): MenuEntry[] => [
+    { kind: 'label', label },
+    ...credits.map(({ artist, name }) => ({ label: name, onSelect: () => navigate(`/artist/${artist.id}`) })),
+  ])
 }
 
 /**

@@ -407,6 +407,18 @@ export function useUserSettings() {
   return useApiQuery(queryKeys.settings(), api => api.userdata.settings());
 }
 
+/**
+ * Whether the user shows star ratings (`showRatings`). Every song row reads it, so it selects
+ * the one flag and a row redraws only when it changes.
+ */
+export function useRatingsEnabled(): boolean {
+  const api = useSignedInApi();
+  return useQuery({
+    queryKey: queryKeys.settings(), queryFn: () => api!.userdata.settings(), enabled: Boolean(api),
+    select: settings => settings.showRatings ?? false,
+  }).data ?? false;
+}
+
 /** Saves settings, showing the change at once and rolling it back if the server refuses. */
 export function useUpdateSettings() {
   const api = useSignedInApi();
