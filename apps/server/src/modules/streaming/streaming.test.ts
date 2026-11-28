@@ -79,6 +79,11 @@ describe('streaming originals', () => {
 
     const high = await descriptor('?quality=high')
     expect(high).toMatchObject({ profile: 'aac_256', transcoded: true, mime: 'audio/aac', codec: 'aac', lossless: false, bitrate: 256_000, bytes: null })
+    // The file is described whatever is delivered, and so is why it is a transcode.
+    const file = { codec: 'flac', lossless: true, bytes: flac.bytes.length, channels: expect.any(Number), sampleRate: expect.any(Number) }
+    expect(body).toMatchObject({ source: file, transcodeReason: null })
+    expect(high).toMatchObject({ source: file, transcodeReason: 'quality' })
+    expect(await descriptor('?codecs=mp3,aac')).toMatchObject({ profile: 'aac_256', source: file, transcodeReason: 'codec' })
     expect(high.url).toContain(`/stream/${flac.fileId}/aac_256?`)
     expect((await descriptor('?download=1')).url).toContain('&download=1')
     expect((await descriptor('?download=false')).url).not.toContain('download')

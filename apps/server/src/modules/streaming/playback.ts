@@ -6,7 +6,7 @@ import { sign, verify } from '../../lib/crypto.js'
 import { notFound } from '../../lib/errors.js'
 import { resolveOne } from '../catalog/redirects.js'
 import { normalizationFor } from '../loudness/normalization.js'
-import { codecFamily, mimeFor, outputSampleRate, profiles } from './profiles.js'
+import { codecFamily, mimeFor, outputSampleRate, parseCodecs, profiles } from './profiles.js'
 import { selectFile } from './select.js'
 import { readyTranscode } from './transcode.js'
 
@@ -68,6 +68,15 @@ export async function buildPlaybackDescriptor(userId: string, recordingId: strin
     profile,
     durationMs: file.durationMs,
     normalization: await normalizationFor(file),
+    source: {
+      codec: codecFamily(file),
+      lossless: file.lossless,
+      bitrate: file.bitrate,
+      sampleRate: file.sampleRate,
+      bitDepth: file.bitDepth,
+      channels: file.channels,
+      bytes: file.size,
+    },
   }
   if (profile === 'original') {
     return {
@@ -80,6 +89,7 @@ export async function buildPlaybackDescriptor(userId: string, recordingId: strin
       sampleRate: file.sampleRate,
       bitDepth: file.bitDepth,
       bytes: file.size,
+      transcodeReason: null,
     }
   }
   const spec = profiles[profile]
@@ -94,5 +104,7 @@ export async function buildPlaybackDescriptor(userId: string, recordingId: strin
     sampleRate: outputSampleRate(file, profile) ?? file.sampleRate,
     bitDepth: null,
     bytes: cached?.bytes ?? null,
+    // A client that decodes the file is only given a transcode for the quality it asked for.
+    transcodeReason: parseCodecs(query.codecs).has(codecFamily(file)) ? 'quality' : 'codec',
   }
 }
