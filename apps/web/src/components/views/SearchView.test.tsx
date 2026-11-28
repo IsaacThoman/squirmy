@@ -1,6 +1,6 @@
 import { ApiError, recentSearchesStorageKey } from '@squirmy/client-core'
 import type { SearchKind, SearchResults } from '@squirmy/contracts'
-import { act, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useLocation } from 'react-router'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -59,6 +59,36 @@ describe('search page', () => {
     await userEvent.click(within(screen.getByRole('group', { name: 'Show' })).getByRole('button', { name: 'Lyrics' }))
     expect(await screen.findByText('A lantern in the harbor')).toBeInTheDocument()
     expect(api.search.library).toHaveBeenLastCalledWith(expect.objectContaining({ type: 'lyrics', offset: 0 }), expect.anything())
+  })
+
+  it('picks songs across the list and its lyric and credit matches, a song found twice once', async () => {
+    const { services, api, socket } = fakeServices()
+    const [nightSwimming, amber, staticBloom, tailLights] = ['night-swimming', 'amber', 'static-bloom', 'tail-lights'].map(track)
+    api.search.library.mockResolvedValue({
+      artists: [], albums: [], tracks: [nightSwimming!, amber!], playlists: [],
+      lyrics: [{ track: amber!, snippet: 'a line of amber' }, { track: staticBloom!, snippet: 'a line of static' }],
+      credits: [{ track: tailLights!, matched: [{ artist: { id: artists[0]!.id, name: 'Harbor Hale' }, role: 'composer' as const }] }],
+      provider: null,
+    })
+    api.search.catalog.mockResolvedValue({ artists: [], albums: [], tracks: [], provider: null })
+    renderWithApp(<AppRoutes />, '/search?q=line', services)
+    const lyrics = within(await screen.findByRole('list', { name: 'Matching lyrics' }))
+    const credits = within(screen.getByRole('list', { name: 'Matching credits' }))
+    const ctrlClick = (element: HTMLElement) => fireEvent.click(element, { ctrlKey: true })
+    ctrlClick(within(await results()).getByRole('button', { name: 'Play Night Swimming' }))
+    ctrlClick(lyrics.getByRole('button', { name: 'Play Static Bloom' }))
+    ctrlClick(credits.getByRole('button', { name: 'Play Tail Lights' }))
+    // Amber, matched by name and by its lyrics, is one song: picked in one place, it is picked in both.
+    ctrlClick(lyrics.getByRole('button', { name: 'Play Amber' }))
+    const bar = screen.getByRole('toolbar', { name: 'Selected songs' })
+    expect(bar).toHaveTextContent('4 songs selected')
+    const amberRows = screen.getAllByRole('button', { name: 'Play Amber' }).map(button => button.closest('li'))
+    expect(amberRows.every(row => row?.hasAttribute('data-selected'))).toBe(true)
+    // Nothing played: a click with Ctrl picks.
+    expect(socket.session.current).toBeNull()
+    await userEvent.click(within(bar).getByRole('button', { name: 'Add to queue' }))
+    // In the page's order: the list, then the lyric matches, then the credit matches.
+    await waitFor(() => expect(socket.session.queue.map(entry => entry.trackId)).toEqual([nightSwimming, amber, staticBloom, tailLights].map(item => item!.id)))
   })
 
   it('shows the matched composer on the Credits filter', async () => {

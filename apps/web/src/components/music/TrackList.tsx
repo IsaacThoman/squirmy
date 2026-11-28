@@ -1,12 +1,12 @@
 import type { AlbumDisc, TrackSummary } from '@squirmy/contracts'
 import { Clock3, Disc3, Music2, Pause, Play } from 'lucide-react'
-import { Fragment, memo, useContext, useId, useLayoutEffect, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent } from 'react'
+import { Fragment, memo, useContext, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router'
 import { useScrollContainer } from '@/components/layout/scroll-context'
 import { ExplicitBadge, Spinner } from '@/components/ui/feedback'
 import { DropdownMenu, type MenuEntry } from '@/components/ui/menu'
 import { isPlayable, UNAVAILABLE_LABEL, unavailableLabel } from '@/lib/catalog'
-import { draggedTracks, endTrackDrag, startTrackDrag } from '@/lib/drag'
+import { dragBadge, draggedTracks, endTrackDrag, startTrackDrag } from '@/lib/drag'
 import { TRACK_ROW_HEIGHT, useDensity } from '@/lib/density'
 import { formatDuration, formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -17,7 +17,9 @@ import { Cover } from './Cover'
 import { Equalizer } from './Equalizer'
 import { SaveHeart } from './LibrarySave'
 import { PrefetchLink } from './PrefetchLink'
-import { trackCreditEntries, trackMenuEntries } from './track-menu'
+import { onControl, SelectionContext, useSelected } from './selection'
+import { songsLabel, trackCreditEntries, trackMenuEntries } from './track-menu'
+import { usePickedTracks, useTrackSelection, type TrackBatch } from './track-selection'
 import { useTrackRowMenu } from './TrackRowMenu'
 import { useVirtualRows } from './use-virtual-rows'
 import { useEndReached } from './use-end-reached'
@@ -52,6 +54,8 @@ type SharedProps = {
   onMove?: (from: number, to: number) => void
   /** On an album page, the album's credit: a song credited the same says nothing under its title. */
   albumCredit?: string
+  /** What can be done to the rows picked with a click, ⌘/Ctrl-click, Shift-click or Shift+arrows. */
+  batch?: TrackBatch
 }
 
 /**
@@ -130,9 +134,11 @@ function useWholeLinks(track: TrackSummary, showArtists: boolean, showAlbum: boo
 type DropTarget = { index: number; side: 'before' | 'after' }
 type Reorder = { list: string; count: number; target: DropTarget | null; setTarget: (target: DropTarget | null) => void; onMove: (from: number, to: number) => void }
 
-type TrackRowProps = Omit<SharedProps, 'onPlay' | 'isWanted' | 'onMove'> & {
+type TrackRowProps = Omit<SharedProps, 'onPlay' | 'isWanted' | 'onMove' | 'batch'> & {
   track: TrackSummary
   index: number
+  /** The row's key in its list's selection. */
+  selectionKey?: string
   /** The number in the first column; defaults to the row's position. */
   number?: number
   movementName?: string
@@ -153,7 +159,7 @@ type TrackRowProps = Omit<SharedProps, 'onPlay' | 'isWanted' | 'onMove'> & {
  * One song. A song that plays looks the same wherever its file is (on the server, or fetched
  * as it plays); one that does not is gray and says "Not available".
  */
-export function TrackRow({ track, index, number, movementName, addedAt, variant = 'album', wanted, onPlay, onAction, playlists, ratings, extraMenu, reorder, style, albumCredit, setSize, onFocusRow, onDragRow, onMenuRow }: TrackRowProps) {
+export function TrackRow({ track, index, selectionKey, number, movementName, addedAt, variant = 'album', wanted, onPlay, onAction, playlists, ratings, extraMenu, reorder, style, albumCredit, setSize, onFocusRow, onDragRow, onMenuRow }: TrackRowProps) {
   const navigate = useNavigate()
   const { rowProps, trigger, renderMenu, present } = useTrackRowMenu()
   useLayoutEffect(() => {
@@ -163,6 +169,9 @@ export function TrackRow({ track, index, number, movementName, addedAt, variant 
   }, [present, index, onMenuRow])
   const viewer = useViewer()
   const controls = useContext(PlayerControlsContext)
+  const rowSelection = useContext(SelectionContext)
+  const picked = usePickedTracks()
+  const selected = useSelected(selectionKey)
   // Only this row's part of the session: it renders again when it becomes or stops being the current track, or that track plays, pauses or waits.
   const playback = useTrackPlayback(track.id)
   const { liked } = track
@@ -181,13 +190,16 @@ export function TrackRow({ track, index, number, movementName, addedAt, variant 
    */
   const pointer = useRef<string | null>(null)
   const onRowClick = (event: MouseEvent) => {
-    if (unavailable || present || pointer.current !== 'touch' || !event.currentTarget.contains(event.target as Node)) return
-    if ((event.target as Element).closest('a, button, [role=menuitem]')) return
-    play()
+    if (present || !event.currentTarget.contains(event.target as Node) || onControl(event.target, event.currentTarget)) return
+    // A mouse picks rows, as in a desktop music app: a click, ⌘/Ctrl-click and Shift-click.
+    if (pointer.current !== 'touch') return rowSelection?.onRowClick(index, event)
+    if (!unavailable) play()
   }
 
-  // Album rows are on that album's page already.
-  const menu = () => trackMenuEntries(track, { unavailable, wanted, playlists, ratings, act, navigate, extraMenu, reorder: reorder && { index, count: reorder.count }, onAlbumPage: variant === 'album' })
+  // Album rows are on that album's page already. One of several picked rows opens their menu.
+  const menu = () => (selected && picked?.several()
+    ? picked.menu()
+    : trackMenuEntries(track, { unavailable, wanted, playlists, ratings, act, navigate, extraMenu, reorder: reorder && { index, count: reorder.count }, onAlbumPage: variant === 'album' }))
 
   const onDragOver = (event: DragEvent) => {
     const drag = draggedTracks(event)
@@ -244,6 +256,7 @@ export function TrackRow({ track, index, number, movementName, addedAt, variant 
         />
       )}
       {unavailable && <span className="sr-only">({unavailableText})</span>}
+      {selected && <span className="sr-only">(selected)</span>}
     </div>
   )
   // Under the title. On an album page only where they are not the album's own (a featured artist):
@@ -261,7 +274,13 @@ export function TrackRow({ track, index, number, movementName, addedAt, variant 
   return (
     <li
       {...rowProps}
+      onKeyDown={event => {
+        rowProps.onKeyDown(event)
+        rowSelection?.onRowKeyDown(index, event)
+      }}
       data-slot="track-row"
+      data-row-index={index}
+      data-selected={selected || undefined}
       aria-posinset={setSize === undefined ? undefined : index + 1}
       aria-setsize={setSize}
       onFocus={() => onFocusRow?.(index)}
@@ -278,7 +297,10 @@ export function TrackRow({ track, index, number, movementName, addedAt, variant 
       draggable
       onDragStart={event => {
         onDragRow?.(index)
-        startTrackDrag(event, { tracks: [track], list: reorder?.list ?? null, index })
+        // A picked row takes the others picked with it, in the list's order; they are not reordered.
+        const several = selected ? picked?.several() : null
+        startTrackDrag(event, { tracks: several ?? [track], list: several ? null : reorder?.list ?? null, index })
+        if (several) dragBadge(event, songsLabel(several.length))
       }}
       onDragEnd={() => {
         onDragRow?.(undefined)
@@ -297,6 +319,8 @@ export function TrackRow({ track, index, number, movementName, addedAt, variant 
         // The playing song also has a quiet fill: in themes whose action color is close to the
         // text (Pulpo's near-white or near-black) its title's color alone does not stand out.
         current && 'bg-accent/40',
+        // A picked row has the full fill, as hover's fill is a lighter one of the same color.
+        selected && 'bg-accent hover:bg-accent has-[:focus-visible]:bg-accent',
       )}
     >
       <div className={cn('grid h-11 content-center items-center gap-x-3 compact:h-9', columnsOf(variant, addedAt !== undefined))}>
@@ -385,8 +409,16 @@ function useReorder(count: number, onMove: SharedProps['onMove']): Reorder | und
   return onMove && { list, count, target, setTarget, onMove }
 }
 
-export function TrackList({ tracks, discs, addedAt, header = true, label, variant = 'album', isWanted, onPlay, onMove, ...rest }: TrackListProps) {
+/** A row's key in its list's selection: a playlist's item id, else the song's. */
+function useSelectionKeys(tracks: TrackSummary[], getItemKey?: (index: number) => string) {
+  return useMemo(() => tracks.map((track, index) => getItemKey?.(index) ?? track.id), [tracks, getItemKey])
+}
+
+export function TrackList({ tracks, discs, addedAt, header = true, label, variant = 'album', isWanted, onPlay, onMove, batch, ...rest }: TrackListProps) {
   const reorder = useReorder(tracks.length, onMove)
+  const list = useRef<HTMLOListElement>(null)
+  const keys = useSelectionKeys(tracks)
+  const selection = useTrackSelection({ tracks, keys, batch, list, onAlbumPage: variant === 'album' })
   const showDiscs = discs && discs.length > 1
   const starts = discs?.map((_, index) => discs.slice(0, index).reduce((sum, disc) => sum + disc.tracks.length, 0)) ?? []
   const workCounts = new Map<string, number>()
@@ -413,6 +445,7 @@ export function TrackList({ tracks, discs, addedAt, header = true, label, varian
         <TrackRow
           track={track}
           index={start + i}
+          selectionKey={keys[start + i]}
           number={variant === 'album' ? grouped?.movementNumber ?? track.position ?? start + i + 1 : undefined}
           movementName={grouped?.movementName}
           addedAt={addedAt?.[start + i]}
@@ -425,10 +458,10 @@ export function TrackList({ tracks, discs, addedAt, header = true, label, varian
       </Fragment>
     )
   })
-  return (
+  return selection.provide(
     <div>
       {header && <ListHeader variant={variant} dated={addedAt !== undefined} />}
-      <ol aria-label={label} className="flex flex-col">
+      <ol ref={list} aria-label={label} onKeyDown={selection.onListKeyDown} className="flex flex-col">
         {showDiscs
           ? discs.map((disc, index) => (
             <Fragment key={disc.disc}>
@@ -438,7 +471,8 @@ export function TrackList({ tracks, discs, addedAt, header = true, label, varian
           ))
           : rows(tracks, 0)}
       </ol>
-    </div>
+      {selection.bar}
+    </div>,
   )
 }
 
@@ -452,10 +486,12 @@ type VirtualTrackListProps = Omit<TrackListProps, 'variant' | 'discs' | 'header'
   onEndReached?: () => void
 }
 
-export function VirtualTrackList({ tracks, label, addedAt, variant = 'compact', isWanted, onPlay, onMove, onEndReached, getItemKey, ...rest }: VirtualTrackListProps) {
+export function VirtualTrackList({ tracks, label, addedAt, variant = 'compact', isWanted, onPlay, onMove, onEndReached, getItemKey, batch, ...rest }: VirtualTrackListProps) {
   const scroller = useScrollContainer()
   const list = useRef<HTMLOListElement>(null)
   const reorder = useReorder(tracks.length, onMove)
+  const keys = useSelectionKeys(tracks, getItemKey)
+  const selection = useTrackSelection({ tracks, keys, batch, list })
   const [focused, setFocused] = useState<number>()
   const [dragged, setDragged] = useState<number>()
   const [menuRow, setMenuRow] = useState<number>()
@@ -469,7 +505,7 @@ export function VirtualTrackList({ tracks, label, addedAt, variant = 'compact', 
   // Fetch ahead with overscan, ignoring rows kept mounted for focus, menus and dragging.
   useEndReached(range ? range.endIndex + virtualizer.options.overscan : -1, tracks.length, onEndReached)
 
-  return (
+  return selection.provide(
     <div>
       <ListHeader variant={variant} dated={addedAt !== undefined} />
       <ol
@@ -477,6 +513,7 @@ export function VirtualTrackList({ tracks, label, addedAt, variant = 'compact', 
         aria-label={label}
         className="relative"
         style={{ height: virtualizer.getTotalSize() }}
+        onKeyDown={selection.onListKeyDown}
         onBlur={event => {
           // The browser dispatches blur before focusing the next row. Keep it mounted in between.
           if (!event.currentTarget.contains(event.relatedTarget)) setFocused(undefined)
@@ -489,6 +526,7 @@ export function VirtualTrackList({ tracks, label, addedAt, variant = 'compact', 
               key={item.key}
               track={track}
               index={item.index}
+              selectionKey={keys[item.index]}
               y={item.start - virtualizer.options.scrollMargin}
               variant={variant}
               addedAt={addedAt?.[item.index]}
@@ -504,7 +542,8 @@ export function VirtualTrackList({ tracks, label, addedAt, variant = 'compact', 
           )
         })}
       </ol>
-    </div>
+      {selection.bar}
+    </div>,
   )
 }
 

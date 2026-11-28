@@ -356,6 +356,7 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
     radio: {
       mix: vi.fn(async (id: string) => found(mixDetail(id))),
       track: vi.fn(async (id: string) => ({ context: { type: 'radio' as const, id: `track:${id}`, title: null }, tracks: [{ trackId: id, durationMs: 1000 }] })),
+      sonic: vi.fn(async (id: string) => ({ context: { type: 'radio' as const, id: `sonic:${id}`, title: null }, tracks: [{ trackId: id, durationMs: 1000 }] })),
       artist: vi.fn(async (id: string) => ({ context: { type: 'radio' as const, id: `artist:${id}`, title: null }, tracks: libraryTracks.slice(0, 3).map(item => ({ trackId: item.id, durationMs: item.durationMs })) })),
     },
     acquisition: {

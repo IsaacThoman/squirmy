@@ -1,11 +1,13 @@
 import type { AlbumSummary } from '@squirmy/contracts'
-import { screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
-import { album, summary } from '@/fixtures/catalog'
+import { fireEvent, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it } from 'vitest'
+import { album, artists, playlistSummaries, summary } from '@/fixtures/catalog'
+import { draggedMusic, endTrackDrag } from '@/lib/drag'
+import { dataTransfer } from '@/test/data-transfer'
 import type { Viewer } from '@/lib/catalog'
 import { OnDemandContext } from '@/player/on-demand-context'
 import { renderWithApp } from '@/test/render'
-import { AlbumCard, AlbumRow } from './Cards'
+import { AlbumCard, AlbumRow, ArtistCard, PlaylistCard } from './Cards'
 
 const requester: Viewer = { role: 'admin', canAcquire: false }
 const member: Viewer = { role: 'member', canAcquire: false }
@@ -61,5 +63,34 @@ describe('AlbumCard', () => {
     expect(screen.queryByRole('button', { name: /Wantlist/ })).toBeNull()
     renderCard(summary(album('low-tide')), member, () => {})
     expect(screen.getByRole('button', { name: 'Add Low Tide to Wantlist' })).toBeInTheDocument()
+  })
+})
+
+describe('card menus and drags', () => {
+  afterEach(endTrackDrag)
+
+  it('opens an artist’s menu from a right-click, with no ⋯ button on the card', async () => {
+    const artist = artists[0]!
+    renderWithApp(<ArtistCard artist={artist} />)
+    expect(screen.queryByRole('button', { name: `More options for ${artist.name}` })).toBeNull()
+    fireEvent.contextMenu(screen.getByRole('link', { name: artist.name }))
+    expect(await screen.findByRole('menuitem', { name: 'Start radio' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Go to artist' })).toBeInTheDocument()
+  })
+
+  it('opens a playlist’s menu from a right-click: play, queue, add to another playlist, open', async () => {
+    const playlist = playlistSummaries[0]!
+    renderWithApp(<PlaylistCard playlist={playlist} onPlay={() => {}} />)
+    fireEvent.contextMenu(screen.getByRole('link', { name: playlist.name }))
+    expect((await screen.findAllByRole('menuitem')).map(item => item.textContent)).toEqual(['Play', 'Play next', 'Add to queue', 'Add to playlist', 'Go to playlist'])
+  })
+
+  it('carries an album or a playlist when its card is dragged, for the sidebar, the queue and the player', () => {
+    const item = summary(album('glass-city'))
+    renderWithApp(<AlbumCard album={item} />)
+    const transfer = dataTransfer()
+    fireEvent.dragStart(screen.getByRole('link', { name: item.title }), { dataTransfer: transfer })
+    expect(transfer.getData('application/x-squirmy-collection')).toBe(`album:${item.id}`)
+    expect(draggedMusic({ dataTransfer: transfer })).toEqual({ kind: 'collection', collection: { kind: 'album', id: item.id, title: item.title } })
   })
 })

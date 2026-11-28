@@ -1,15 +1,16 @@
 import { ApiError } from '@squirmy/client-core'
 import type { PlaybackContext, PlaylistSummary, User } from '@squirmy/contracts'
-import { fireEvent, screen, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState, type ComponentProps, type ReactNode } from 'react'
 import { useLocation } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { playlistSummaries, track } from '@/fixtures/catalog'
+import { album, mixes, playlistSummaries, track } from '@/fixtures/catalog'
 import { currentUser, users } from '@/fixtures/server'
-import { endTrackDrag, startTrackDrag } from '@/lib/drag'
+import { endTrackDrag, startCollectionDrag, startTrackDrag } from '@/lib/drag'
 import { LibraryContext, type LibraryActions } from '@/player/library-context'
 import { PlayerContext, usePlayer } from '@/player/player-context'
+import { dataTransfer } from '@/test/data-transfer'
 import { renderWithApp } from '@/test/render'
 import { Sidebar } from './Sidebar'
 
@@ -82,22 +83,6 @@ const sidebar = () => screen.getByRole('complementary', { name: 'Sidebar' })
 const mainNav = () => within(screen.getByRole('navigation', { name: 'Main' }))
 const playlistLinks = () => within(screen.getByRole('list', { name: 'Playlists' })).getAllByRole('link')
 const playlistLink = (name: string) => within(screen.getByRole('list', { name: 'Playlists' })).getByRole('link', { name })
-
-/** jsdom has no DataTransfer; this holds what a drag carries. */
-function dataTransfer(): DataTransfer {
-  const data = new Map<string, string>()
-  const transfer = {
-    types: [] as string[],
-    effectAllowed: 'uninitialized',
-    dropEffect: 'none',
-    setData(type: string, value: string) {
-      data.set(type, value)
-      transfer.types = [...data.keys()]
-    },
-    getData: (type: string) => data.get(type) ?? '',
-  }
-  return transfer as unknown as DataTransfer
-}
 
 /** Starts dragging songs out of a track list, as a row does. */
 function dragTracks(...slugs: string[]) {
@@ -341,6 +326,28 @@ describe('Sidebar', () => {
       expect(library.setSaved.mock.calls).toEqual([saved('riverside'), saved('open-window')])
       expect(library.addToPlaylist).not.toHaveBeenCalled()
       expect(await within(link).findByText('Saved')).toBeInTheDocument()
+    })
+
+    it('adds the songs of an album card dropped on a playlist, once they load', async () => {
+      const { library } = renderSidebar()
+      const glassCity = album('glass-city')
+      const transfer = dataTransfer()
+      startCollectionDrag({ dataTransfer: transfer }, { kind: 'album', id: glassCity.id, title: glassCity.title })
+      const link = playlistLink('After Dark')
+      expect(fireEvent.dragOver(link, { dataTransfer: transfer })).toBe(false)
+      fireEvent.drop(link, { dataTransfer: transfer })
+      await waitFor(() => expect(library.addToPlaylist).toHaveBeenCalledWith(afterDark, glassCity.discs.flatMap(disc => disc.tracks)))
+      expect(await within(link).findByText('Added')).toBeInTheDocument()
+    })
+
+    it('adds the songs of a mix card dropped on a playlist, once they load', async () => {
+      const { library } = renderSidebar()
+      const mix = mixes[0]!
+      const transfer = dataTransfer()
+      startCollectionDrag({ dataTransfer: transfer }, { kind: 'mix', id: mix.id, title: mix.name })
+      const link = playlistLink('After Dark')
+      fireEvent.drop(link, { dataTransfer: transfer })
+      await waitFor(() => expect(library.addToPlaylist).toHaveBeenCalledWith(afterDark, mix.tracks))
     })
 
     it('ignores a drag of anything else', () => {

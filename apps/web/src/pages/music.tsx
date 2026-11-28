@@ -310,6 +310,19 @@ function EditablePlaylist({ playlist, onDeleting }: { playlist: PlaylistDetail; 
           change(detail => ({ ...detail, items: detail.items.filter(item => item.itemId !== itemId) }))
           drop.mutate({ itemId, title: track.title })
         }}
+        onRemoveMany={async indexes => {
+          const items = indexes.flatMap(index => (playlist.items[index] ? [playlist.items[index]] : []))
+          const gone = new Set(items.map(item => item.itemId))
+          change(detail => ({ ...detail, items: detail.items.filter(item => !gone.has(item.itemId)) }))
+          // One at a time: each answer is the playlist after its removal, so the last is the playlist after all of them.
+          let latest: PlaylistDetail | undefined
+          try {
+            for (const item of items) latest = await api.userdata.removePlaylistItem(playlist.id, item.itemId)
+            if (latest) save(latest)
+          } catch {
+            await refused(items.length === 1 ? `Couldn’t remove “${items[0].track.title}”. Try again.` : 'Couldn’t remove all the songs. Try again.')
+          }
+        }}
         failure={failure}
       />
       {playlist.rules
