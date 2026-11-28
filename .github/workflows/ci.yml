@@ -272,6 +272,10 @@ jobs:
             platform: tvos
     env:
       EXPO_TV: ${{ matrix.platform == 'tvos' && '1' || '0' }}
+      # The widget extension needs its App ID and App Group registered in the Apple Developer
+      # portal (docs/architecture.md, "TestFlight"), so releases leave it out until the repository
+      # variable SQUIRMY_IOS_WIDGETS is set to 1.
+      SQUIRMY_IOS_WIDGETS: ${{ vars.SQUIRMY_IOS_WIDGETS == '1' && '1' || '0' }}
     steps:
       - name: Check out the release tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
