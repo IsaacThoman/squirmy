@@ -116,7 +116,10 @@ export async function makeSplitTone(directory: string, {
     await run(ffmpeg(), [
       '-v', 'error', '-f', 'f32le', '-ar', String(rate), '-ac', '2', '-i', raw,
       '-af', `atrim=start_sample=${from}:end_sample=${to},asetpts=PTS-STARTPTS`,
-      ...(codec === 'alac' ? ['-c:a', 'alac'] : codecs[codec]), '-metadata', `title=${name}`, '-metadata', 'artist=Fixture', output,
+      ...(codec === 'alac' ? ['-c:a', 'alac'] : codecs[codec]),
+      // The movie clock must represent every sample in the AAC edit list.
+      ...(codec === 'm4a' ? ['-movie_timescale', String(rate)] : []),
+      '-metadata', `title=${name}`, '-metadata', 'artist=Fixture', output,
     ])
     return output
   }
