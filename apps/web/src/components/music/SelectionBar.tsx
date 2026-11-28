@@ -62,12 +62,13 @@ export function SelectionBar({ summary, primary, actions, playlists, menu, onCle
   }
 
   return (
-    // No height of its own: it sits over the end of the list rather than pushing the page down as it appears.
-    <div data-selection-bar="" className={cn('pointer-events-none sticky bottom-4 z-20 h-0', className)}>
+    // No height of its own, so the page does not move as it appears. It hangs below the end of the
+    // list, under its last song, and while the end is out of view it stays at the bottom of the view.
+    <div data-selection-bar="" className={cn('pointer-events-none sticky bottom-16 z-20 h-0', className)}>
       <div
         role="toolbar"
         aria-label="Selected songs"
-        className="pointer-events-auto absolute inset-x-2 bottom-0 mx-auto flex w-fit max-w-[calc(100%-1rem)] animate-enter items-center gap-1 overflow-x-auto rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg"
+        className="pointer-events-auto absolute inset-x-2 top-2 mx-auto flex w-fit max-w-[calc(100%-1rem)] animate-enter items-center gap-1 overflow-x-auto rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg"
       >
         <span className="shrink-0 whitespace-nowrap px-2 text-sm font-medium tabular">{summary}</span>
         {primary && (

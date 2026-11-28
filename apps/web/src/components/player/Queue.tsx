@@ -751,11 +751,12 @@ function QueueSelectionBar({ selection, items }: { selection: Selection; items: 
   const live = <span aria-live="polite" className="sr-only">{size ? `${songsLabel(size)} selected` : ''}</span>
   if (!size) return live
   const picked = selection.indexes().map(index => items[index]).filter(Boolean)
-  const { actions, playlists, menu } = entriesFor(picked)
+  // The panel is narrow: Add to playlist is under More rather than a button of its own.
+  const { actions, menu } = entriesFor(picked)
   return (
     <>
       {live}
-      <SelectionBar summary={songsLabel(size)} actions={actions} playlists={playlists} menu={menu} onClear={() => selection.clear()} className="bottom-2" />
+      <SelectionBar summary={songsLabel(size)} actions={actions} menu={menu} onClear={() => selection.clear()} />
     </>
   )
 }
