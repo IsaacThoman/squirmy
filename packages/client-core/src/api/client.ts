@@ -35,6 +35,14 @@ import {
   type CreateShareRequest,
   CreateUserRequest,
   DeviceInfo,
+  DuplicatePage,
+  type DuplicateQuery,
+  HealthPage,
+  QualityPage,
+  type RemoveDuplicate,
+  type TagEdit,
+  TagEditor,
+  TagEditResult,
   DirectoryListing,
   type DirectoryQuery,
   GenrePage,
@@ -45,6 +53,12 @@ import {
   type ReplayQuery,
   ReplayStats,
   HomeResponse,
+  CreateWebhook,
+  IntegrationConfig,
+  type PlaybackControl,
+  type UpdateIntegrationConfig,
+  Webhook,
+  WebhookDelivery,
   type HomeQuery,
   MixDetail,
   Import,
@@ -76,6 +90,7 @@ import {
   MatchReviewList,
   type MatchReviewQuery,
   type MovePlaylistItemRequest,
+  type RatingRequest,
   Ok,
   PublicShare,
   ShareLink,
@@ -106,6 +121,8 @@ import {
   SearchResults,
   ScrobblingStatus,
   ServerSettings,
+  SmartPlaylistPreview,
+  type SmartPlaylistRules,
   SessionSnapshot,
   SetupStatus,
   type SetupRequest,
@@ -354,6 +371,22 @@ export function createApiClient(options: ApiClientOptions) {
       deleteAppPassword: (passwordId: string) => send('DELETE', `/auth/app-passwords/${id(passwordId)}`, Ok),
     },
     admin: {
+      duplicates: (query: Partial<DuplicateQuery> = {}) =>
+        request('GET', '/admin/library/duplicates', { schema: DuplicatePage, query }),
+      removeDuplicate: (fileId: string, body: RemoveDuplicate) =>
+        request('DELETE', `/admin/library/duplicates/${id(fileId)}`, { schema: Ok, body }),
+      lowQuality: (query: { cursor?: string } = {}) =>
+        request('GET', '/admin/library/quality', { schema: QualityPage, query }),
+      fileHealth: (query: { cursor?: string; issues?: boolean } = {}) =>
+        request('GET', '/admin/library/file-health', { schema: HealthPage, query }),
+      recheckFile: (fileId: string) =>
+        request('POST', `/admin/library/file-health/${id(fileId)}`, { schema: Ok }),
+      albumTags: (albumId: string) =>
+        request('GET', `/admin/albums/${id(albumId)}/tags`, { schema: TagEditor }),
+      tagCovers: (albumId: string) =>
+        request('GET', `/admin/albums/${id(albumId)}/tag-covers`, { schema: TagEditor.shape.covers }),
+      editAlbumTags: (albumId: string, body: TagEdit) =>
+        request('PATCH', `/admin/albums/${id(albumId)}/tags`, { schema: TagEditResult, body }),
       users: () => get('/admin/users', UserList),
       createUser: (body: Input<typeof CreateUserRequest>) => send('POST', '/admin/users', User, body),
       updateUser: (userId: string, body: UpdateUserRequest) => send('PATCH', `/admin/users/${id(userId)}`, User, body),
@@ -448,6 +481,8 @@ export function createApiClient(options: ApiClientOptions) {
        * passes it back to `like` so the item returns to its place.
        */
       unlike: (type: LikeEntityType, entityId: string) => send('DELETE', `/me/likes/${type}/${id(entityId)}`, UnlikeResponse),
+      /** The user's 1 to 5 stars for a track, album or artist; 0 removes them. */
+      rate: (type: LikeEntityType, entityId: string, rating: number) => send('PUT', `/me/ratings/${type}/${id(entityId)}`, Ok, { rating } satisfies RatingRequest),
       likes: <T extends LikeEntityType>(type: T, query: Partial<PageQuery> = {}) =>
         get(`/me/likes/${type}`, likedPages[type] as unknown as z.ZodType<Page<LikedItems[T]>>, query),
       /** Pins an item to the top of the Library's All, on every device; Liked Songs by `LIKED_SONGS_ID`. */
@@ -455,6 +490,8 @@ export function createApiClient(options: ApiClientOptions) {
       unpin: (kind: LibraryPinKind, entityId: string) => send('DELETE', `/me/pins/${kind}/${id(entityId)}`, Ok),
       playlists: (query: Partial<PageQuery> = {}) => get('/playlists', PlaylistPage, query),
       createPlaylist: (body: CreatePlaylistRequest) => send('POST', '/playlists', PlaylistSummary, body),
+      /** How many songs smart playlist rules find right now, for the rule editor. */
+      previewSmartPlaylist: (body: SmartPlaylistRules) => send('POST', '/playlists/smart/preview', SmartPlaylistPreview, body),
       playlist: (playlistId: string) => get(`/playlists/${id(playlistId)}`, PlaylistDetail),
       updatePlaylist: (playlistId: string, body: UpdatePlaylistRequest) => send('PATCH', `/playlists/${id(playlistId)}`, PlaylistSummary, body),
       deletePlaylist: (playlistId: string) => send('DELETE', `/playlists/${id(playlistId)}`, Ok),
@@ -475,11 +512,25 @@ export function createApiClient(options: ApiClientOptions) {
     },
     sessions: {
       session: () => get('/me/session', SessionSnapshot),
+      controlPlayback: (body: PlaybackControl) => send('POST', '/me/session/command', SessionSnapshot, body),
       devices: () => get('/me/devices', DeviceList),
     },
     search: {
       library: (query: SearchParams & { genre?: string }, options?: CallOptions) => get('/search/library', SearchResults, query, options),
       catalog: (query: SearchParams, options?: CallOptions) => get('/search/catalog', SearchResults, query, options),
+    },
+    integrations: {
+      personalWebhooks: () => get('/me/webhooks', Webhook.array()),
+      createPersonalWebhook: (body: CreateWebhook) => send('POST', '/me/webhooks', Webhook, body),
+      deletePersonalWebhook: (id: string) => send('DELETE', `/me/webhooks/${encodeURIComponent(id)}`, Ok),
+      testPersonalWebhook: (id: string) => send('POST', `/me/webhooks/${encodeURIComponent(id)}/test`, Ok),
+      webhooks: () => get('/admin/webhooks', Webhook.array()),
+      createWebhook: (body: CreateWebhook) => send('POST', '/admin/webhooks', Webhook, body),
+      deleteWebhook: (id: string) => send('DELETE', `/admin/webhooks/${encodeURIComponent(id)}`, Ok),
+      testWebhook: (id: string) => send('POST', `/admin/webhooks/${encodeURIComponent(id)}/test`, Ok),
+      deliveries: () => get('/admin/webhook-deliveries', WebhookDelivery.array()),
+      config: () => get('/admin/integrations', IntegrationConfig),
+      saveConfig: (body: UpdateIntegrationConfig) => send('PUT', '/admin/integrations', IntegrationConfig, body),
     },
     scrobble: {
       status: () => get('/me/scrobbling', ScrobblingStatus),

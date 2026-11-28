@@ -34,6 +34,7 @@ const sidebar = [
       { text: 'Subsonic clients', link: '/server/subsonic' },
       { text: 'Scrobbling', link: '/server/scrobbling' },
       { text: 'Share links', link: '/server/sharing' },
+      { text: 'Integrations', link: '/server/integrations' },
       { text: 'Acquisition providers', link: '/server/acquisition' },
     ],
   },

@@ -14,12 +14,15 @@ const admin = (name: keyof typeof import('@/pages/admin')) => lazy(() => import(
 const AdminLayout = admin('AdminLayout')
 const AdminLibraryPage = admin('AdminLibraryPage')
 const AdminReviewsPage = admin('AdminReviewsPage')
+const AdminDuplicatesPage = admin('AdminDuplicatesPage')
+const AdminFileHealthPage = admin('AdminFileHealthPage')
 const AdminOrganizePage = admin('AdminOrganizePage')
 const AdminSearchIndexPage = admin('AdminSearchIndexPage')
 const AdminUsersPage = admin('AdminUsersPage')
 const AdminProvidersPage = admin('AdminProvidersPage')
 const AdminSettingsPage = admin('AdminSettingsPage')
 const AdminSharingPage = admin('AdminSharingPage')
+const AdminIntegrationsPage = admin('AdminIntegrationsPage')
 const AdminJobsPage = admin('AdminJobsPage')
 const imports = (name: keyof typeof import('@/pages/imports')) => lazy(() => import('@/pages/imports').then(module => ({ default: module[name] })))
 const ImportsPage = imports('ImportsPage')
@@ -86,12 +89,15 @@ export function AppRoutes() {
                   <Route path="library" element={<Loading><AdminLibraryPage /></Loading>} />
                   <Route path="uploads" element={<Loading><AdminUploadsPage /></Loading>} />
                   <Route path="reviews" element={<Loading><AdminReviewsPage /></Loading>} />
+                  <Route path="duplicates" element={<Loading><AdminDuplicatesPage /></Loading>} />
+                  <Route path="file-health" element={<Loading><AdminFileHealthPage /></Loading>} />
                   <Route path="organize" element={<Loading><AdminOrganizePage /></Loading>} />
                   <Route path="search-index" element={<Loading><AdminSearchIndexPage /></Loading>} />
                   <Route path="users" element={<Loading><AdminUsersPage /></Loading>} />
                   <Route path="providers" element={<Loading><AdminProvidersPage /></Loading>} />
                   <Route path="sharing" element={<Loading><AdminSharingPage /></Loading>} />
                   <Route path="settings" element={<Loading><AdminSettingsPage /></Loading>} />
+                  <Route path="integrations" element={<Loading><AdminIntegrationsPage /></Loading>} />
                   <Route path="jobs" element={<Loading><AdminJobsPage /></Loading>} />
                 </Route>
               </Route>

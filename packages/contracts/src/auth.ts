@@ -16,6 +16,17 @@ export const User = z.object({
   canAcquire: z.boolean(),
   createdAt: IsoDateTime,
   disabled: z.boolean(),
+  /**
+   * An admin turned explicit content off for this user (a child's account), who cannot turn
+   * it back on. Older servers leave it out.
+   */
+  explicitRestricted: z.boolean().default(false),
+  /**
+   * Whether explicit songs play for this user: their `allowExplicit` setting, unless an admin
+   * restricted it. Clients gray explicit songs when it is false (client-core's `isPlayable`).
+   * Older servers leave it out, and they play everything.
+   */
+  allowsExplicit: z.boolean().default(true),
 })
 export type User = z.infer<typeof User>
 
@@ -110,6 +121,7 @@ export const CreateUserRequest = z.object({
   role: UserRole.default('member'),
   canUpload: z.boolean().default(false),
   canAcquire: z.boolean().default(false),
+  explicitRestricted: z.boolean().default(false),
 })
 export type CreateUserRequest = z.infer<typeof CreateUserRequest>
 
@@ -120,16 +132,23 @@ export const UpdateUserRequest = z.object({
   canAcquire: z.boolean().optional(),
   disabled: z.boolean().optional(),
   password: Password.optional(),
+  /** Turns explicit content off for the user and keeps it off, or lifts that. */
+  explicitRestricted: z.boolean().optional(),
 })
 export type UpdateUserRequest = z.infer<typeof UpdateUserRequest>
 
-/** Credential for Subsonic clients. `secret` is only present in the create response. */
+export const ApiTokenScope = z.enum(['library:read', 'playback:control', 'playlists:manage', 'admin'])
+export type ApiTokenScope = z.infer<typeof ApiTokenScope>
+
+/** Credential for Subsonic clients or the native API. `secret` is only present in the create response. */
 export const AppPassword = z.object({
   id: Id,
   name: z.string(),
   createdAt: IsoDateTime,
   lastUsedAt: IsoDateTime.nullable(),
   secret: z.string().optional(),
+  scopes: z.array(ApiTokenScope).nullable().optional(),
+  expiresAt: IsoDateTime.nullable().optional(),
 })
 export type AppPassword = z.infer<typeof AppPassword>
 
@@ -144,5 +163,10 @@ export const APP_PASSWORD_LIMIT = 50
  * mint a credential that outlives it. Servers answer `current_password_required` to
  * clients that do not send it yet.
  */
-export const CreateAppPasswordRequest = z.object({ name: z.string().trim().min(1).max(60), currentPassword: z.string().min(1).max(200) })
+export const CreateAppPasswordRequest = z.object({
+  name: z.string().trim().min(1).max(60),
+  currentPassword: z.string().min(1).max(200),
+  scopes: z.array(ApiTokenScope).min(1).max(4).optional(),
+  expiresAt: IsoDateTime.optional(),
+})
 export type CreateAppPasswordRequest = z.infer<typeof CreateAppPasswordRequest>

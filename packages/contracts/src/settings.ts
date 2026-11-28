@@ -11,6 +11,8 @@ export const UserSettings = z.object({
   downloadQuality: StreamQuality.default('original'),
   downloadOnWifiOnly: z.boolean().default(true),
   scrobbleListenBrainz: z.boolean().default(false),
+  syncListenBrainzHearts: z.boolean().optional(),
+  syncLastFmHearts: z.boolean().optional(),
   scrobbleLastFm: z.boolean().default(false),
   /**
    * Whether the user's library holds all of the server's music (its collection: scanned,
@@ -20,6 +22,20 @@ export const UserSettings = z.object({
    */
   libraryIncludesServerMusic: z.boolean().default(false),
   shareNowPlaying: z.boolean().default(false),
+  /**
+   * Whether the apps offer 1 to 5 star ratings of songs beside the heart. Off by default: the
+   * heart is the one way to keep something, and ratings are for people who also want to grade
+   * it (Subsonic apps set the same ratings).
+   */
+  showRatings: z.boolean().default(false),
+  /**
+   * Whether explicit songs play for the user. On by default. Off, explicit songs are gray
+   * and never play: queues, radio and autoplay leave them out, search and Home hide them,
+   * and a known clean version plays instead where there is one. An admin can turn it off
+   * for the user and keep it off (`User.explicitRestricted`); the stored value is then the
+   * user's own choice, which applies again once the restriction is lifted.
+   */
+  allowExplicit: z.boolean().default(true),
 })
 export type UserSettings = z.infer<typeof UserSettings>
 /** `PATCH /api/v1/me/settings`. Keys left out keep their value; there are no defaults here. */
@@ -30,9 +46,14 @@ export const UpdateUserSettings = z.object({
   downloadQuality: StreamQuality,
   downloadOnWifiOnly: z.boolean(),
   scrobbleListenBrainz: z.boolean(),
+  syncListenBrainzHearts: z.boolean(),
+  syncLastFmHearts: z.boolean(),
   scrobbleLastFm: z.boolean(),
   libraryIncludesServerMusic: z.boolean(),
   shareNowPlaying: z.boolean(),
+  showRatings: z.boolean(),
+  /** Turning it on while an admin restricts the user is 403 `explicit_restricted`. */
+  allowExplicit: z.boolean(),
 }).partial()
 export type UpdateUserSettings = z.infer<typeof UpdateUserSettings>
 
@@ -59,6 +80,7 @@ export const ServerSettings = z.object({
   /** Matches at or above this score are accepted without review. */
   matchAutoAcceptScore: z.number().min(0).max(1).default(0.9),
   /** Days a vanished file is kept before it is unlinked from the library. */
+  fileHealthIntervalDays: z.number().int().min(0).max(365).default(7),
   missingFileGraceDays: z.number().int().min(0).max(365).default(14),
   transcodeCacheMaxBytes: z.number().int().min(0).default(10 * 1024 ** 3),
   registrationRequiresInvite: z.boolean().default(true),
@@ -113,6 +135,7 @@ export const UpdateServerSettings = z.object({
   wikidataEnabled: z.boolean(),
   lrclibEnabled: z.boolean(),
   matchAutoAcceptScore: z.number().min(0).max(1),
+  fileHealthIntervalDays: z.number().int().min(0).max(365),
   missingFileGraceDays: z.number().int().min(0).max(365),
   transcodeCacheMaxBytes: z.number().int().min(0),
   registrationRequiresInvite: z.boolean(),

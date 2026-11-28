@@ -13,12 +13,14 @@ export const currentUser: User = {
   canAcquire: true,
   createdAt: at('02T09:12'),
   disabled: false,
+  explicitRestricted: false,
+  allowsExplicit: true,
 }
 
 export const users: User[] = [
   currentUser,
   { ...currentUser, id: '00000000-0000-4000-8600-000000000002', username: 'sam', displayName: 'Sam Okafor', role: 'member', canAcquire: false, createdAt: at('05T18:40') },
-  { ...currentUser, id: '00000000-0000-4000-8600-000000000003', username: 'robin', displayName: null, role: 'member', canUpload: false, canAcquire: false, createdAt: at('11T12:03') },
+  { ...currentUser, id: '00000000-0000-4000-8600-000000000003', username: 'robin', displayName: null, role: 'member', canUpload: false, canAcquire: false, createdAt: at('11T12:03'), explicitRestricted: true, allowsExplicit: false },
   { ...currentUser, id: '00000000-0000-4000-8600-000000000004', username: 'kit', displayName: 'Kit', role: 'member', canUpload: false, canAcquire: false, createdAt: at('12T08:55'), disabled: true },
 ]
 
@@ -65,6 +67,8 @@ export const userSettings: UserSettings = {
   scrobbleLastFm: false,
   libraryIncludesServerMusic: false,
   shareNowPlaying: false,
+  showRatings: false,
+  allowExplicit: true,
 }
 
 export const serverSettings: ServerSettings = {
@@ -80,6 +84,7 @@ export const serverSettings: ServerSettings = {
   fanartKeySet: false,
   lastFmKeySet: false,
   matchAutoAcceptScore: 0.9,
+  fileHealthIntervalDays: 7,
   missingFileGraceDays: 14,
   transcodeCacheMaxBytes: 10 * 1024 ** 3,
   registrationRequiresInvite: true,

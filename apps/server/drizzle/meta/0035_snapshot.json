@@ -1,5 +1,5 @@
 {
-  "id": "2a9269fa-91c6-41aa-8798-5dc2cc38b909",
+  "id": "48b86516-f3c8-47d5-b838-dcfc1fccba47",
   "prevId": "ef0c2409-4de6-44e5-9554-afb74173d755",
   "version": "7",
   "dialect": "postgresql",
@@ -728,6 +728,13 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
+        },
+        "artwork_locked": {
+          "name": "artwork_locked",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "canonical_release_id": {
           "name": "canonical_release_id",
@@ -4046,6 +4053,30 @@
           "primaryKey": false,
           "notNull": false
         },
+        "health_checked_at": {
+          "name": "health_checked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "health_status": {
+          "name": "health_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "health_detail": {
+          "name": "health_detail",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "health_requested_at": {
+          "name": "health_requested_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "missing_since": {
           "name": "missing_since",
           "type": "timestamp with time zone",
@@ -4106,6 +4137,44 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "media_files_health_due": {
+          "name": "media_files_health_due",
+          "columns": [
+            {
+              "expression": "coalesce(\"health_checked_at\", '-infinity'::timestamptz)",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"media_files\".\"missing_since\" is null and not \"media_files\".\"cached\"",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "media_files_health_requested": {
+          "name": "media_files_health_requested",
+          "columns": [
+            {
+              "expression": "health_requested_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"media_files\".\"health_requested_at\" is not null",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -6504,197 +6573,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.shares": {
-      "name": "shares",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "token_hash": {
-          "name": "token_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "album_id": {
-          "name": "album_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "playlist_id": {
-          "name": "playlist_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "recording_id": {
-          "name": "recording_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "open_count": {
-          "name": "open_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "last_opened_at": {
-          "name": "last_opened_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "shares_token_hash": {
-          "name": "shares_token_hash",
-          "columns": [
-            {
-              "expression": "token_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "shares_user": {
-          "name": "shares_user",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "shares_created": {
-          "name": "shares_created",
-          "columns": [
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "shares_user_id_users_id_fk": {
-          "name": "shares_user_id_users_id_fk",
-          "tableFrom": "shares",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "shares_album_id_albums_id_fk": {
-          "name": "shares_album_id_albums_id_fk",
-          "tableFrom": "shares",
-          "tableTo": "albums",
-          "columnsFrom": [
-            "album_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "shares_playlist_id_playlists_id_fk": {
-          "name": "shares_playlist_id_playlists_id_fk",
-          "tableFrom": "shares",
-          "tableTo": "playlists",
-          "columnsFrom": [
-            "playlist_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "shares_recording_id_recordings_id_fk": {
-          "name": "shares_recording_id_recordings_id_fk",
-          "tableFrom": "shares",
-          "tableTo": "recordings",
-          "columnsFrom": [
-            "recording_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "shares_target": {
-          "name": "shares_target",
-          "value": "case \"shares\".\"kind\" when 'album' then \"shares\".\"album_id\" is not null and \"shares\".\"playlist_id\" is null and \"shares\".\"recording_id\" is null\n    when 'playlist' then \"shares\".\"playlist_id\" is not null and \"shares\".\"album_id\" is null and \"shares\".\"recording_id\" is null\n    when 'track' then \"shares\".\"recording_id\" is not null and \"shares\".\"playlist_id\" is null\n    else false end"
-        }
-      },
       "isRLSEnabled": false
     },
     "public.sonic_analyses": {

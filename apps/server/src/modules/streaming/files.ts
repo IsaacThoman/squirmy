@@ -13,7 +13,7 @@ import type { MediaFile } from './profiles.js'
 export type StreamResponse = { status: number; headers: Record<string, string>; body: Readable | null }
 
 /** What the client sent that affects the response. */
-export type StreamRequest = { range?: string; ifRange?: string; head?: boolean; intent?: StreamIntent; userId?: string; signal?: AbortSignal }
+export type StreamRequest = { range?: string; ifRange?: string; head?: boolean; startMs?: number; intent?: StreamIntent; userId?: string; signal?: AbortSignal }
 
 /** The response can close before the encoder has sent even its first byte. */
 export function streamSignal(response: ServerResponse): AbortSignal {

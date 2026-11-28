@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react'
 
-export const SETTINGS_SECTIONS = ['playback', 'library', 'appearance', 'account', 'scrobbling', 'app-passwords', 'share-links', 'about'] as const
+export const SETTINGS_SECTIONS = ['playback', 'library', 'appearance', 'account', 'scrobbling', 'app-passwords', 'share-links', 'webhooks', 'about'] as const
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number]
 
 export function isSettingsSection(value: string | null | undefined): value is SettingsSection {

@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
 import { useLibraryFailure } from '@/player/library-context'
 import { useViewer } from '@/player/on-demand-context'
 import { useAlbumMenu } from '@/player/use-album-menu'
-import { LikedCover, MixCover, PlaylistCover, RadioCover } from './CollectionArt'
+import { LikedCover, MixCover, PlaylistCover, RadioCover, SmartMark } from './CollectionArt'
 import { mixSlot } from './mix-menu'
 import { Cover } from './Cover'
 
@@ -234,12 +234,18 @@ export function Monogram({ name, className }: { name: string; className?: string
   )
 }
 
+/** "Playlist · Mira", or with the smart mark "Smart playlist · Mira". */
+function PlaylistKind({ playlist }: { playlist: PlaylistSummary }) {
+  if (!playlist.smart) return `Playlist · ${playlist.ownerName}`
+  return <><SmartMark className="mr-1 inline size-3 align-[-0.125em]" />Smart playlist · {playlist.ownerName}</>
+}
+
 export function PlaylistRow({ playlist, onPlay, className, pin }: { playlist: PlaylistSummary; onPlay?: () => void; className?: string; pin?: CardPin }) {
   return (
     <CollectionRow
       to={`/playlist/${playlist.id}`}
       title={playlist.name}
-      subtitle={`Playlist · ${playlist.ownerName}`}
+      subtitle={<PlaylistKind playlist={playlist} />}
       art={<PlaylistCover artworks={playlist.artworks} className={className} />}
       onPlay={playlist.trackCount ? onPlay : undefined}
       pin={pin}
@@ -252,7 +258,7 @@ export function PlaylistCard({ playlist, onPlay, pin }: { playlist: PlaylistSumm
     <Card
       to={`/playlist/${playlist.id}`}
       title={playlist.name}
-      subtitle={`Playlist · ${playlist.ownerName}`}
+      subtitle={<PlaylistKind playlist={playlist} />}
       art={<PlaylistCover artworks={playlist.artworks} />}
       onPlay={playlist.trackCount ? onPlay : undefined}
       pin={pin}
@@ -368,7 +374,7 @@ export function AlbumRow({ album, onPlay, className, pin }: { album: AlbumSummar
 
 /** A responsive grid of cards that fills the width. */
 export function CardGrid({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn('grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-[repeat(auto-fill,minmax(10rem,1fr))]', className)}>{children}</div>
+  return <div className={cn('grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] compact:sm:grid-cols-[repeat(auto-fill,minmax(8rem,1fr))]', className)}>{children}</div>
 }
 
 /** A colored tile for browsing a genre, with a cover tilted into the corner, or a record where there is none. */

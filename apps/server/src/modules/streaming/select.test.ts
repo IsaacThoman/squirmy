@@ -7,7 +7,7 @@ import { newId } from '../../lib/ids.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createLibraryRoot } from '../../test/factories.js'
 import { buildPlaybackDescriptor } from './playback.js'
-import { codecFamily, mimeFor, parseCodecs } from './profiles.js'
+import { codecFamily, mimeFor, outputSampleRate, parseCodecs } from './profiles.js'
 import { chooseProfile, selectFile } from './select.js'
 
 const flac = { codec: 'FLAC', container: 'FLAC', relPath: 'a/01.flac', lossless: true, bitrate: 900_000 }
@@ -40,6 +40,21 @@ describe('profile decisions', () => {
     expect(chooseProfile(file, quality, codecs)).toBe(expected)
   })
 
+  it('negotiates originals and remuxes independently of the lossy encoder', () => {
+    const containers = 'fmp4'
+    const mse = parseCodecs('aac,flac,mp3')
+    expect(chooseProfile(mp3(320), 'original', mse, { containers })).toBe('original')
+    expect(chooseProfile(mp3(320), 'original', parseCodecs('aac,mp3_mp4'), { containers })).toBe('copy_mp4')
+    expect(chooseProfile(mp3(320), 'original', parseCodecs('aac'), { containers })).toBe('aac_mp4_256')
+    expect(chooseProfile(mp3(128), 'high', mse, { containers })).toBe('original')
+    expect(chooseProfile(mp3(320), 'high', mse, { containers })).toBe('aac_mp4_256')
+    expect(chooseProfile(flac, 'original', mse, { containers })).toBe('copy_mp4')
+    expect(chooseProfile(alac, 'original', mse, { containers })).toBe('flac_mp4')
+    expect(chooseProfile(alac, 'original', avPlayer, { containers, engine: 'native' })).toBe('original')
+    expect(chooseProfile(flac, 'data_saver', avPlayer, { containers, engine: 'native' })).toBe('aac_mp4_256')
+    expect(chooseProfile({ ...vorbis(96), codec: 'Opus' }, 'original', parseCodecs('aac,opus'), { containers, engine: 'mse' })).toBe('aac_mp4_256')
+  })
+
   it('names codecs and content types', () => {
     expect(codecFamily(mp3(320))).toBe('mp3')
     expect(codecFamily({ codec: 'MPEG-4/AAC', container: 'M4A', relPath: 'x.m4a' })).toBe('aac')
@@ -51,6 +66,14 @@ describe('profile decisions', () => {
     expect(mimeFor({ relPath: 'a/b.opus' })).toBe('audio/ogg')
     expect(mimeFor({ relPath: 'a/b.xyz' })).toBe('application/octet-stream')
     expect([...parseCodecs(' FLAC, mp3 ,,')]).toEqual(['flac', 'mp3'])
+  })
+
+  it('converts DSD to PCM in the 44.1 kHz family before or after measurement', () => {
+    const dsd = { container: 'dsf', sampleRate: 2_822_400, decodedRate: null }
+    expect(outputSampleRate(dsd, 'flac_mp4')).toBe(88_200)
+    expect(outputSampleRate({ ...dsd, decodedRate: 352_800 }, 'flac_mp4')).toBe(88_200)
+    expect(outputSampleRate({ ...dsd, sampleRate: 5_644_800 }, 'flac_mp4')).toBe(176_400)
+    expect(outputSampleRate({ ...dsd, decodedRate: 705_600 }, 'flac_mp4')).toBe(176_400)
   })
 })
 

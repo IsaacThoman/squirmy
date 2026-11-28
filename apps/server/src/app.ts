@@ -18,7 +18,8 @@ import { AppError, forbidden } from './lib/errors.js'
 import { loggerOptions } from './lib/log.js'
 import { headerAddress, trustFunction } from './lib/proxy.js'
 import { modules } from './modules/index.js'
-import { authenticateToken } from './modules/auth/service.js'
+import { authenticateApiToken, authenticateToken } from './modules/auth/service.js'
+import { allowedApiToken } from './modules/auth/scopes.js'
 
 /** Paths the web app's SPA fallback must never answer. */
 const reservedPrefixes = ['/api', '/rest', '/socket.io', '/health', '/ready']
@@ -116,6 +117,13 @@ export async function buildApp(options: { logStream?: { write(line: string): voi
   app.addHook('onRequest', async (request) => {
     if (!request.url.startsWith(`${API_PREFIX}/`)) return
     const bearer = bearerToken(request)
+    if (bearer?.startsWith('sq_')) {
+      const token = await authenticateApiToken(bearer)
+      if (!token) return
+      if (!allowedApiToken(request, token.scopes)) throw forbidden('This token cannot access this endpoint', 'insufficient_scope')
+      request.user = token.user
+      return
+    }
     const token = bearer ?? request.cookies[SESSION_COOKIE]
     const session = token ? await authenticateToken(token) : null
     if (!session) return
