@@ -236,8 +236,22 @@
     {
       "idx": 33,
       "version": "7",
-      "when": 1795850649550,
-      "tag": "0033_smart_playlists",
+      "when": 1795850521758,
+      "tag": "0033_universal_search",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1795851367376,
+      "tag": "0034_home_mixes",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1795852049032,
+      "tag": "0035_smart_playlists",
       "breakpoints": true
     }
   ]

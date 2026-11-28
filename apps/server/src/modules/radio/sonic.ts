@@ -86,3 +86,17 @@ export function transitionCost(from: SonicPoint | undefined, to: SonicPoint | un
   }
   return cost
 }
+
+/**
+ * Seam for how alike artists sound, for the mixes (mixes.ts `affinity`): for pairs of the
+ * given artists, a similarity from 0 (nothing alike) to 1 (alike), keyed by `pairKey`; a pair
+ * it cannot judge is left out. It answers null for now, so mixes are made from the genre,
+ * similar-artist and co-listening signals alone; the sonic index above is what fills it in.
+ */
+export async function artistSoundAffinity(artistIds: readonly string[]): Promise<Map<string, number> | null> {
+  void artistIds
+  return null
+}
+
+/** The key of an unordered pair of ids. */
+export const pairKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`)

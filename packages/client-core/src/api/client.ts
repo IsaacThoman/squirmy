@@ -44,6 +44,8 @@ import {
   type ReplayQuery,
   ReplayStats,
   HomeResponse,
+  type HomeQuery,
+  MixDetail,
   Import,
   ImportAlbumList,
   ImportFilesResponse,
@@ -94,7 +96,8 @@ import {
   type RematchAlbumRequest,
   type ResolveReviewRequest,
   ScanRootResponse,
-  type SearchKind,
+  type SearchFacets,
+  type SearchResultKind,
   SearchResults,
   ScrobblingStatus,
   ServerSettings,
@@ -238,7 +241,7 @@ type Input<T extends z.ZodType> = z.input<T>
 const DeviceList = page(DeviceInfo)
 const JobList = z.array(JobQueueStats)
 const likedPages = { track: TrackPage, album: AlbumPage, artist: ArtistPage } as const
-type SearchParams = { q: string; limit?: number; type?: SearchKind; offset?: number; scope?: 'library' | 'server' }
+type SearchParams = SearchFacets & { q: string; limit?: number; type?: SearchResultKind; offset?: number; scope?: 'library' | 'server' }
 type LikedItems = { track: TrackSummary; album: AlbumSummary; artist: ArtistSummary }
 
 /**
@@ -412,7 +415,8 @@ export function createApiClient(options: ApiClientOptions) {
       collectionArtists: (query: Partial<LibraryQuery> = {}) => get('/collection/artists', ArtistPage, query),
       /** The server's songs. */
       collectionTracks: (query: Partial<LibraryQuery> = {}) => get('/collection/tracks', TrackPage, query),
-      home: () => get('/home', HomeResponse),
+      /** Home's rails; apps of this release ask for `layout: 'personal'` with the device's time zone. */
+      home: (query: HomeQuery = {}) => get('/home', HomeResponse, query),
       artist: (artistId: string) => get(`/artists/${id(artistId)}`, ArtistDetail),
       /** One section of an artist page, paged ("See all"). */
       artistReleases: (artistId: string, query: Partial<ArtistReleasesQuery> & Pick<ArtistReleasesQuery, 'section'>) => get(`/artists/${id(artistId)}/releases`, AlbumPage, query),
@@ -492,6 +496,8 @@ export function createApiClient(options: ApiClientOptions) {
     radio: {
       track: (trackId: string) => send('POST', `/radio/track/${id(trackId)}`, RadioResponse),
       artist: (artistId: string) => send('POST', `/radio/artist/${id(artistId)}`, RadioResponse),
+      /** A mix made for the user, from Home's Made for you. */
+      mix: (mixId: string) => get(`/mixes/${id(mixId)}`, MixDetail),
       /** A radio of tracks that sound like this one (falls back to the track radio's mix when it is not analysed). */
       sonic: (trackId: string) => send('POST', `/radio/sonic/${id(trackId)}`, RadioResponse),
     },

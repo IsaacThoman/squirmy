@@ -306,7 +306,7 @@ describe('smart playlists', () => {
 
       const updated = body(await call(mira, { method: 'PATCH', url: `/playlists/${summary.id}`, payload: { name: 'Fusion', rules: smart({ conditions: [{ field: 'genre', op: 'is', value: 'Jazz Fusion' }] }) } }), PlaylistSummary)
       expect(updated).toMatchObject({ name: 'Fusion', trackCount: 1, smart: true })
-      expect(invalidated).toHaveBeenCalledWith({ user: mira.id }, [queryKeys.playlists(), queryKeys.libraryItems(), queryKeys.home()])
+      expect(invalidated).toHaveBeenCalledWith({ user: mira.id }, [queryKeys.playlists(), queryKeys.libraryItems(), queryKeys.home(), queryKeys.search()])
       body(await call(mira, { method: 'DELETE', url: `/playlists/${summary.id}` }), Ok)
     })
 
