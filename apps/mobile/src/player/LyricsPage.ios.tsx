@@ -5,7 +5,7 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import { scheduleOnRN, scheduleOnUI } from 'react-native-worklets';
-import { useLyrics } from '../data/queries';
+import { useTrackLyrics } from './useTrackLyrics';
 import { usePlaybackState, usePosition } from '../playback';
 import { LyricButton, LyricCredits } from './Controls';
 import { selectionFeedback } from './design';
@@ -56,7 +56,7 @@ export default function LyricsPage({ selected, ref, onControlsHidden, keepContro
   const visible = selected && shown;
   const { height: screenHeight, fontScale } = useWindowDimensions();
   const { track, session, actions } = usePlaybackState();
-  const lyrics = useLyrics(track);
+  const lyrics = useTrackLyrics(track);
   const { lines, synced } = useMemo(() => lyricLines(lyrics.data), [lyrics.data]);
   const credits = useMemo(() => lyricCredits(lyrics.data), [lyrics.data]);
   const position = usePosition(visible && synced);

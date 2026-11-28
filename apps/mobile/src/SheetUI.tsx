@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Artwork, TrackSummary as Track } from '@squirmy/contracts';
 import { BrandMark } from './BrandMark';
+import { useMenuSheet } from './MenuSheet';
 import TransportSlider from './player/TransportSlider';
 import { Cover, Icon } from './ui';
 import { createThemedStyles, useColors } from './theme';
@@ -104,13 +105,16 @@ export function SheetNote({ mark, error, children }: SheetNoteProps) {
   </View>;
 }
 
-/** A row that picks one of a few values; the choices open in an action sheet. */
+/** A row that picks one of a few values; the choices open in a menu sheet, the current one checked. */
 export function SheetPickerRow<T extends string | number>({ label, value, options, onChange }: SheetPickerRowProps<T>) {
+  const menu = useMenuSheet();
   const current = options.find(option => option.value === value)?.label ?? '';
-  return <SheetRow title={label} subtitle={current} icon="chevron.up.chevron.down" onPress={() => Alert.alert(label, undefined, [
-    ...options.map(option => ({ text: option.label, onPress: () => onChange(option.value) })),
-    { text: 'Cancel', style: 'cancel' as const },
-  ])} />;
+  return <>
+    <SheetRow title={label} subtitle={current} icon="chevron.up.chevron.down" onPress={() => menu.open(label, options.map(option => ({
+      title: option.label, icon: option.value === value ? 'checkmark' : undefined, onPress: () => onChange(option.value),
+    })))} />
+    {menu.sheet}
+  </>;
 }
 
 export function TrackSummary({ track, subtitle, collection }: TrackSummaryProps) {
