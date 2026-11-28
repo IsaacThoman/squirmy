@@ -260,15 +260,15 @@ describe('SettingsDialog', () => {
       const stored = () => JSON.parse(localStorage.getItem(AUDIO_STORAGE_KEY) ?? 'null') as { equalizer: { preset: string; custom: number[] } } | null
       const bands = () => screen.queryAllByRole('slider')
 
-      it('is flat until a preset is chosen, and keeps the choice in this browser', async () => {
+      it('is off until a preset is chosen, and keeps the choice in this browser', async () => {
         renderSettings()
         const equalizer = screen.getByRole('combobox', { name: 'Equalizer' })
-        expect(equalizer).toHaveTextContent('Flat')
+        expect(equalizer).toHaveTextContent('Off')
         expect(bands()).toEqual([])
         await userEvent.click(equalizer)
-        expect((await screen.findAllByRole('option')).map(option => option.textContent)).toEqual(['Flat', 'Bass boost', 'Treble boost', 'Vocal', 'Loudness', 'Custom'])
+        expect((await screen.findAllByRole('option')).map(option => option.textContent)).toEqual(['Off', 'Bass boost', 'Bass reducer', 'Treble boost', 'Vocal', 'Late night', 'Custom'])
         await userEvent.click(screen.getByRole('option', { name: 'Bass boost' }))
-        expect(stored()?.equalizer.preset).toBe('bass')
+        expect(stored()?.equalizer.preset).toBe('bassBoost')
         expect(bands().map(band => band.getAttribute('aria-label'))).toEqual(['31 Hz', '62 Hz', '125 Hz', '250 Hz', '500 Hz', '1 kHz', '2 kHz', '4 kHz', '8 kHz', '16 kHz'])
         expect(bands()[0]).toHaveAttribute('aria-valuetext', '+6 dB')
       })
@@ -280,7 +280,7 @@ describe('SettingsDialog', () => {
         const lowest = screen.getByRole('slider', { name: '31 Hz' })
         lowest.focus()
         await userEvent.keyboard('{ArrowUp}{ArrowUp}')
-        expect(stored()?.equalizer).toEqual({ preset: 'custom', custom: [1, 0, 0, 0, 0, 0.5, 2, 4, 5, 6] })
+        expect(stored()?.equalizer).toEqual({ preset: 'custom', custom: [1, 0, 0, 0, 0, 0.5, 1.5, 3, 4.5, 6] })
         expect(screen.getByRole('combobox', { name: 'Equalizer' })).toHaveTextContent('Custom')
         expect(lowest).toHaveAttribute('aria-valuetext', '+1 dB')
       })

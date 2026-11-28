@@ -7,7 +7,7 @@ import { displayAddress, parseServerAddress } from './address';
  * is whether the server's admin turned the wantlist on; while it is off the app never shows it.
  */
 export type Server = {
-  url: string; name: string; version: string; registrationRequiresInvite: boolean; wantlistEnabled: boolean; supportsTvDevices?: true;
+  url: string; name: string; version: string; registrationRequiresInvite: boolean; wantlistEnabled: boolean; supportsTvDevices?: true; supportsTvPairing?: true;
   /** The server's single sign-on provider, for "Sign in with …". */
   ssoName?: string;
   /** Present when the server turned password sign-in off. */
@@ -33,6 +33,7 @@ export function serverFrom(url: string, status: SetupStatus): Server {
     // Release builds do not validate responses, and servers from before the setting leave it out.
     wantlistEnabled: status.wantlistEnabled === true,
     sharingEnabled: status.sharingEnabled === true,
+    ...(status.supportsTvPairing === true && { supportsTvPairing: true as const }),
     ...(status.supportsTvDevices === true && { supportsTvDevices: true as const }),
     ...(typeof status.ssoName === 'string' && { ssoName: status.ssoName }),
     ...(status.passwordLoginEnabled === false && { passwordLogin: false as const }),

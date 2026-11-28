@@ -43,7 +43,7 @@ const updatedAt = () => at('updated_at').notNull().defaultNow()
 const textArray = (name: string) => text(name).array().notNull().default(sql`'{}'::text[]`)
 
 export type UserRole = 'admin' | 'member'
-export type SignInMethod = 'password' | 'two_factor' | 'recovery_code' | 'passkey' | 'sso'
+export type SignInMethod = 'password' | 'two_factor' | 'recovery_code' | 'passkey' | 'sso' | 'tv_pairing'
 export type AuthChallengeKind = 'two_factor' | 'passkey_register' | 'passkey_login' | 'sso' | 'sso_exchange'
 export type CatalogEntityType = 'artist' | 'album' | 'release' | 'recording'
 export type LikeEntityType = 'recording' | 'album' | 'artist'
@@ -164,6 +164,22 @@ export const authSessions = pgTable('auth_sessions', {
   uniqueIndex('auth_sessions_token_hash').on(t.tokenHash),
   index('auth_sessions_user').on(t.userId),
 ])
+
+/** Short-lived TV sign-in requests. Only the hashes of both codes are stored. */
+export const tvPairings = pgTable('tv_pairings', {
+  id: id(),
+  deviceCodeHash: text('device_code_hash').notNull().unique(),
+  userCodeHash: text('user_code_hash').notNull().unique(),
+  deviceId: text('device_id').notNull(),
+  deviceName: text('device_name').notNull(),
+  ipAddress: text('ip_address').notNull(),
+  userAgent: text('user_agent'),
+  // Checked against the live session at redemption, so signing out or revoking it cancels approval.
+  approverSessionId: uuid('approver_session_id'),
+  intervalSeconds: integer('interval_seconds').notNull(),
+  nextPollAt: at('next_poll_at').notNull(),
+  expiresAt: at('expires_at').notNull(),
+}, (t) => [index('tv_pairings_expires_at').on(t.expiresAt)])
 
 /**
  * A user's authenticator app secret (RFC 6238). `confirmedAt` is null while it is being set up:

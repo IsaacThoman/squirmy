@@ -186,14 +186,14 @@ describe('personal home', () => {
     await play({ userId: u, ...forgotten.tracks[1]!, at: 3 * DAY })
 
     // The first Home has no picks yet and queues their run.
-    const first = await homeOf(user, `layout=personal&tz=${folkHour}`)
+    const first = await homeOf(user, `layout=personal&tz=${encodeURIComponent(folkHour)}`)
     expect(ids(first)).not.toContain('made-for-you')
     await drainJobs()
     const [picks] = await db.select().from(homePicks).where(eq(homePicks.userId, u))
     expect(picks).toBeDefined()
     expect(await homePicksDue(u, picks, 2)).toBe(false)
 
-    const folkTime = await homeOf(user, `layout=personal&tz=${folkHour}`)
+    const folkTime = await homeOf(user, `layout=personal&tz=${encodeURIComponent(folkHour)}`)
     const made = section(folkTime, 'made-for-you', 'items')
     expect(made.items.map((item) => item.kind === 'mix' && item.mix.name)).toEqual(['Mix 2 · Folk', 'Mix 1 · Techno'])
     expect(section(folkTime, 'because-you-listened', 'artists')).toMatchObject({
@@ -209,7 +209,7 @@ describe('personal home', () => {
     expect(ids(folkTime)[0]).toBe('jump-back-in')
     expect(ids(folkTime).indexOf('most-played')).toBeLessThan(ids(folkTime).indexOf('made-for-you'))
 
-    const technoTime = await homeOf(user, `layout=personal&tz=${technoHour}`)
+    const technoTime = await homeOf(user, `layout=personal&tz=${encodeURIComponent(technoHour)}`)
     expect(section(technoTime, 'made-for-you', 'items').items.map((item) => item.kind === 'mix' && item.mix.name)).toEqual(['Mix 1 · Techno', 'Mix 2 · Folk'])
     expect(ids(technoTime).indexOf('made-for-you')).toBeLessThan(ids(technoTime).indexOf('most-played'))
     // Without a time zone the mixes keep their slots' order.

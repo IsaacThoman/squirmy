@@ -159,10 +159,13 @@ A song chosen on another device, or one the user skips to, is not gapless by def
 
 ### Crossfade
 
-- **Setting:** off, or 1 to 12 s, per device. Off by default.
-- **Never inside an album.** When the next entry is the next track of the same album in album order (the session's context is that album and shuffle is off, the same test `gainFor` uses for album gain), the transition is gapless whatever the setting.
-- **Shape:** equal power (sine and cosine) over the whole duration, both items at their own normalization gain. A user skip uses the 5/10 ms de-click fades instead.
-- **Engine contract.** `ended` for the outgoing entry is emitted when the incoming entry's first sample plays, which with crossfade is up to the fade length before the outgoing one ends, and `getStatus()` from then on reports the incoming entry. Its documentation in `packages/client-core/src/engine.ts` gains this sentence; nothing in `SessionClient` changes. The outgoing entry's listened time is short by the fade, which the session's play accounting already tolerates (a play counts as complete after half the track).
+- **Setting:** off, or 2 to 12 s (Off, 2, 3, 4, 5, 6, 8, 10 or 12), per device. Off by default. A change applies from the next crossfade that is not queued yet.
+- **Never inside an album.** When the next entry is the next track of the same album in album order (the session's context is that album and shuffle is off, the same test `gainFor` uses for album gain, and the entry was not slotted in with Play next), the transition is gapless whatever the setting. `SessionClient` says so on the preload (`EnginePreload.albumRun`). Repeat all wrapping from an album's last track to its first counts as in order, so it is gapless too.
+- **Shape:** equal power (sine and cosine) over the whole duration, both items at their own normalization gain; measured constant within 0.0002 dB over a 4 s fade of two tones. The mix always goes through the limiter, since two songs can sum over the ceiling where neither does alone. A user skip uses the 5/10 ms de-click fades instead.
+- **Length.** At most half of either entry, so a short song is not all fade. The loaded entry's end has to be known when its fade begins, so while a crossfade is set its decoder runs the fade's length further ahead. A preload that arrives late, or is not decoded in time, gets what is left of the outgoing entry (gapless under 0.1 s).
+- **Engine contract.** `ended` for the outgoing entry is emitted when the incoming entry's first sample plays, which with crossfade is up to the fade length before the outgoing one ends, and `getStatus()` from then on reports the incoming entry. Its documentation in `packages/client-core/src/engine.ts` says so; `SessionClient` handles `ended` as before. The outgoing entry's listened time is short by the fade, which the session's play accounting already tolerates (a play counts as complete after half the track).
+- **Skips, seeks and edits.** A load (a skip) or a seek during a fade drops the outgoing entry. Seeking back before a fade crossfades again when it comes; seeking into the last seconds starts a shorter one at once. A preload replaced before its fade is heard is crossfaded into instead. An automatic flush inside a fade renders it again from there, both entries where they were (tested bit for bit).
+- **Sleep timer.** The timer's fade has to turn both entries down, but `setGain` reaches only the loaded one. An engine with `setFade` (the native one) gets the fade on its own and applies it over everything it plays, ramped over 250 ms; `SessionClient` then leaves it out of the gains. End of song and end of queue preload nothing, so they never crossfade into what would follow.
 - On AirPlay the fade is rendered like everything else, into the one stream: two players cannot both be heard there.
 
 ### Normalization
@@ -175,10 +178,12 @@ A song chosen on another device, or one the user skips to, is not gapless by def
 
 ### Equalizer
 
-- 10 bands (31 Hz to 16 kHz, ±12 dB, peaking biquads from the RBJ cookbook through Accelerate's `vDSP.Biquad`), presets, and a preamp that defaults to minus the largest boost so the limiter seldom works. A parametric mode (for headphone correction profiles) can be added later on the same filters.
-- A change is heard after the lead; the filters' outputs are crossfaded over 10 ms across the change, so it does not click.
-- Stored per device, since it belongs to the headphones or speakers, not to the account.
-- Off on tvOS until it has a settings screen.
+- 10 bands (31 Hz to 16 kHz, ±12 dB, peaking biquads from the RBJ cookbook through Accelerate's `vDSP_biquad`), presets, and a preamp that defaults to minus the largest boost so the limiter seldom works. A parametric mode (for headphone correction profiles) can be added later on the same filters.
+- **The response is the curve.** Each filter is an octave and a half wide, with the cookbook's correction for the bilinear transform so the 16 kHz band does not narrow near half the sample rate; a curve with every band at +6 dB is then within 5.75 and 6.17 dB from 31 Hz to 16 kHz. Neighbouring bands overlap, so the filters' own gains are solved for (a linear solve with their measured interaction, then a few corrections with the exact response) to put the response at each centre on its band's setting: within 0.001 dB for the presets and for curves whose neighbours differ by up to 12 dB. A curve that swings further from band to band than octave-wide filters can follow is met as closely as filters within ±24 dB allow.
+- A change is heard after the lead; the new filters start from the old ones' state and the two outputs are crossfaded over 10 ms, so it does not click. A change that arrives while one is under way follows it once it is over.
+- Off, or flat with no preamp, passes the samples untouched; any curve sends every entry through the limiter.
+- Stored per device, since it belongs to the headphones or speakers, not to the account. Presets: Off, Bass Boost, Bass Reducer, Treble Boost, Vocal, Late Night (a loudness contour: fuller bass and treble for low volumes) and Custom. Off is the flat curve, so there is no separate Flat.
+- tvOS has the presets, without the band editor.
 
 ### Speed
 
@@ -240,7 +245,9 @@ interface SquirmyAudio {
   preload(item: NativeItem | null): void
   play(): void; pause(): void; seek(positionMs: number): void; setGain(gain: number): void; stop(): void
   getStatus(): { entryId: string | null; state: EngineState; positionMs: number }   // synchronous, reads the clock
-  setOutput(options: { eq?: Eq | null; limiter?: boolean; crossfadeMs?: number; rate?: number }): void
+  setEqualizer(curve: { bandsDb: number[]; preampDb: number } | null): void   // the device's setting, from followOutputSettings
+  setCrossfade(seconds: number): void            // 0 for none; the device's setting
+  setFade(level: number): void                   // the sleep timer's fade, over everything that plays
   probeCodecs(): string[]                          // e.g. ['flac','alac','aac','mp3','wav','aiff','opus']
   prefetch(cacheKey: string, url: string): void; cancelPrefetch(cacheKey: string): void
   addListener(event: 'status' | 'ended' | 'error' | 'cacheComplete' | 'route', listener: (event: any) => void): { remove(): void }
@@ -485,9 +492,9 @@ Each item is one pull request against `dev`, small enough for one agent. **Deps*
 - Deps: M1; S2 for estimated gains (works without).
 - Acceptance: the limiter keeps a +12 dB boosted full-scale tone under -1 dBTP measured 4× oversampled, and leaves a signal under the ceiling bit-identical; `gainFor` tests cover every mode with the new options.
 
-**M5. `feat(mobile): equalizer`** — bands, presets and preamp in the DSP chain and a Settings screen. Deps: M4. Acceptance: each band's measured response is within 0.5 dB of its setting at its centre frequency; a change mid-song produces no step larger than the 10 ms crossfade allows.
+**M5. `feat(mobile): equalizer`** — bands, presets and preamp in the DSP chain and a Settings screen. Deps: M4. Acceptance: each band's measured response is within 0.5 dB of its setting at its centre frequency; a change mid-song produces no step larger than the 10 ms crossfade allows. Done: `EqualizerTests` measures every preset and several custom curves with sines at each centre (within 0.5 dB of the setting) and between them (within 0.05 dB of the designed response), at 44.1 and 48 kHz.
 
-**M6. `feat(mobile): crossfade`** — the timeline's mixing, the album-run rule, the engine contract sentence, the setting. Deps: M4. Acceptance: two tones crossfaded over 4 s have constant power within 0.5 dB through the fade; consecutive album tracks are gapless with crossfade on; `ended` arrives when the incoming item starts.
+**M6. `feat(mobile): crossfade`** — the timeline's mixing, the album-run rule, the engine contract sentence, the setting. Deps: M4. Acceptance: two tones crossfaded over 4 s have constant power within 0.5 dB through the fade; consecutive album tracks are gapless with crossfade on; `ended` arrives when the incoming item starts. Done: `CrossfadeTests` (power, the curves' timing, `ended`, album runs, skips, seeks, replaced and late preloads, the sleep timer's fade, rendering again); the sleep timer's fade goes through `PlayerEngine.setFade` so it reaches both entries of a crossfade.
 
 **M7. `feat(sessions): playback speed`** — `rate` in the session state and position arithmetic (contracts, reducer, server), the engine's rate and pitch algorithm, the control (hidden on AirPlay). Deps: M1. Acceptance: reducer tests for position at 0.5× and 2×; an old client's optimistic state is corrected by `syncPosition`.
 

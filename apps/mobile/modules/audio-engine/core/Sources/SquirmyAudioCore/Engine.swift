@@ -61,6 +61,12 @@ struct EngineConfig {
   var fadeOut = 0.01
   /// Gain changes ramp over this.
   var gainRamp = 0.01
+  /// The fade over everything (the sleep timer's) moves over this from one level to the next,
+  /// so steps a few times a second make one smooth fade.
+  var fadeRamp = 0.25
+  /// A crossfade shorter than this, as when the next entry arrives at the last moment, is
+  /// not worth it: the entries meet gapless instead.
+  var shortestCrossfade = 0.1
   var tick = 0.02
   /// Frames per buffer handed to the output.
   var chunkFrames = 2048
@@ -79,29 +85,97 @@ private final class Slot {
   /// The item frame where the fade-in starts, so a renderer flush can replay it.
   var fadeStart: Int64 = 0
   var fadeLength = 0
+  /// It continues the album of the entry before it: never crossfaded into.
+  var albumRun: Bool
 
   init(pipeline: Pipeline, gain: Float) {
     self.pipeline = pipeline
     self.gain = gain
     heardGain = gain
+    albumRun = pipeline.item.albumRun
   }
 
   var entryId: String { pipeline.item.entryId }
 }
 
+/// Where the chain's state was before a run of frames was queued, to carry on from when
+/// rendering again part way.
+private struct Mark {
+  let frame: Int64
+  let limiterGain: Float
+  let equalizer: Equalizer
+  let fade: Float
+}
+
 /// A run of queued output: timeline frames `start..<end` play `slot` from `itemStart`, or
-/// silence without a slot.
+/// silence without a slot. During a crossfade `slot` is the incoming entry and `mix` the
+/// outgoing one, from its frame `mixStart`.
 private struct Segment {
   let start: Int64
   var end: Int64
   let slot: Slot?
   let itemStart: Int64
+  var mix: Slot? = nil
+  var mixStart: Int64 = 0
+}
+
+/**
+ * A crossfade: `to` starts at timeline frame `start`, under the last `length` frames of
+ * `from` (its frames from `fromStart` to its end). Equal power: `from` goes down along a
+ * cosine as `to` comes up along a sine, so two unrelated songs keep their loudness together.
+ * It lasts until the playhead has passed its end, so it can be rendered again from anywhere
+ * in it.
+ */
+private final class Crossfade {
+  let from: Slot
+  let to: Slot
+  let start: Int64
+  let fromStart: Int64
+  let length: Int64
+
+  init(from: Slot, to: Slot, start: Int64, fromStart: Int64, length: Int64) {
+    self.from = from
+    self.to = to
+    self.start = start
+    self.fromStart = fromStart
+    self.length = length
+  }
+
+  var end: Int64 { start + length }
+  /// Frames of it still to queue.
+  var left: Int64 { length - (from.nextFrame - fromStart) }
+  var isQueued: Bool { left <= 0 }
+
+  /// How loud each side is `frame` frames into it.
+  func levels(at frame: Int64) -> (from: Float, to: Float) {
+    let angle = (Double(frame) + 0.5) / Double(length) * Double.pi / 2
+    return (Float(cos(angle)), Float(sin(angle)))
+  }
+}
+
+/// What to queue next: frames of one entry, or of two in a crossfade.
+private enum Run {
+  case solo(Slot, count: Int)
+  case mix(Crossfade, count: Int)
+}
+
+/// Frames about to be queued, at their entries' gains, and whose they are.
+private struct Chunk {
+  var samples: [Float]
+  let slot: Slot
+  let itemStart: Int64
+  var mix: Slot? = nil
+  var mixStart: Int64 = 0
+  /// It goes through the limiter whatever the equalizer does: a gain other than 1, or a crossfade.
+  let limited: Bool
 }
 
 /**
  * The engine: at most two entries, the loaded one and the one that follows, on one sample
  * clock. Each entry's first real sample goes right after the previous one's last, so
- * consecutive tracks are gapless to the sample whenever their decoders trim exactly.
+ * consecutive tracks are gapless to the sample whenever their decoders trim exactly. With a
+ * crossfade set, the next entry starts that long before the loaded one ends instead, the two
+ * mixed into one stream, unless it continues the loaded one's album (`albumRun`).
  *
  * Everything runs on `queue`, the feed queue, which never waits for bytes: it takes decoded
  * PCM from each entry's `Pipeline` and keeps the output a short lead ahead of the playhead
@@ -135,11 +209,20 @@ final class Engine {
   /// The next timeline frame to queue, and what is queued.
   private var enqueued: Int64 = 0
   private var segments: [Segment] = []
-  /// The end of the chain: every entry not at unity gain plays through it.
+  /// Between the entries' gain and the limiter, for everything queued.
+  private var equalizer: Equalizer
+  /// The end of the chain: every entry not at unity gain, and everything the equalizer
+  /// changes, plays through it.
   private var limiter: Limiter
-  /// The limiter's gain before each run of frames queued, to carry on from when rendering
-  /// again part way.
-  private var limiterMarks: [(frame: Int64, gain: Float)] = []
+  private var marks: [Mark] = []
+  /// How long a crossfade between entries lasts; 0 for none.
+  private var crossfadeSeconds = 0.0
+  /// The crossfade queued or playing, from the loaded entry into the next or, once the next
+  /// is heard, from the one before into the loaded one.
+  private var crossfade: Crossfade?
+  /// A level over everything queued, the sleep timer's fade, and the level last applied.
+  private var fadeLevel: Float = 1
+  private var heardFade: Float = 1
   /// The item frame shown while none of the loaded entry has played since a load or seek.
   private var anchor: Int64 = 0
   /// A seek waits for its first frames.
@@ -153,6 +236,7 @@ final class Engine {
     self.config = config
     self.queue = queue
     limiter = Limiter(sampleRate: output.sampleRate)
+    equalizer = Equalizer(sampleRate: output.sampleRate)
     output.onEvent = { [weak self] event in self?.outputEvent(event) }
   }
 
@@ -166,6 +250,14 @@ final class Engine {
   func setGain(_ gain: Float) { queue.async { self.current?.gain = gain } }
   func stop() { queue.async { self.doStop() } }
   func holdAudioSession(_ hold: Bool) { queue.async { self.doHold(hold) } }
+  /// The equalizer's curve, or `nil` for none. Heard after the lead, crossfaded over 10 ms.
+  func setEqualizer(_ curve: EqualizerCurve?) { queue.async { self.equalizer.set(curve) } }
+  /// How long the next entry overlaps the loaded one's end, in seconds; 0 for none. For the
+  /// crossfades not queued yet.
+  func setCrossfade(seconds: Double) { queue.async { self.crossfadeSeconds = max(0, seconds) } }
+  /// A level from 0 to 1 over everything that plays, whichever entries those are: the sleep
+  /// timer's fade. Heard after the lead.
+  func setFade(_ level: Float) { queue.async { self.fadeLevel = min(1, max(0, level)) } }
 
   /// The status now, with the position read from the clock.
   func status() -> EngineStatus {
@@ -241,11 +333,17 @@ final class Engine {
     if let item, let next, next.entryId == item.entryId, next.pipeline.item.url == item.url {
       next.gain = item.gain
       next.heardGain = item.gain
+      if next.albumRun != item.albumRun {
+        next.albumRun = item.albumRun
+        // A crossfade into it, or a gapless start that should now be one, is queued already.
+        if segments.contains(where: { $0.slot === next }) { renderAgain(from: Int64(output.currentFrame()), flushed: false) }
+      }
       return
     }
     let old = next
     next = item.map(makeSlot)
     if let old {
+      if crossfade?.to === old { crossfade = nil }
       old.pipeline.release()
       // Its start is queued already: what follows the loaded entry has to be rendered again.
       if segments.contains(where: { $0.slot === old }) {
@@ -407,12 +505,17 @@ final class Engine {
       self.current = next
       self.next = nil
       anchor = 0
-      current.pipeline.release()
+      // Fading out under the next one, it plays on until its last frame.
+      if crossfade?.from !== current { current.pipeline.release() }
       segments.removeAll { $0.slot === current }
       log("\(current.entryId) ended; \(next.entryId) playing")
       state = .playing
       emit(.ended(entryId: current.entryId))
       emit(.status(makeStatus()))
+    }
+    if let fade = crossfade, fade.from !== self.current, fade.isQueued, playhead >= fade.end {
+      crossfade = nil
+      fade.from.pipeline.release()
     }
     guard let current, wantsPlay, state == .playing, !seeking, next == nil || next!.nextFrame == 0 else { return }
     let decoded = current.pipeline.decoded
@@ -457,7 +560,13 @@ final class Engine {
     let playhead = Int64(output.currentFrame())
     if let outgoing, playhead < outgoing.end { return }
     if buffering {
-      let feeding = current.nextFrame >= current.pipeline.decoded.end && current.pipeline.decoded.ended ? next : current
+      let feeding: Slot?
+      if let fade = crossfade, !fade.isQueued {
+        // The outgoing entry is decoded to its end: only the incoming one can hold a crossfade up.
+        feeding = fade.to
+      } else {
+        feeding = current.nextFrame >= current.pipeline.decoded.end && current.pipeline.decoded.ended ? next : current
+      }
       let ahead = feeding.map { $0.pipeline.decoded.end - $0.nextFrame } ?? 0
       let done = feeding == nil || feeding!.pipeline.decoded.ended || feeding!.pipeline.error != nil
       if ahead >= frames(seconds: config.resumeAfter) || done {
@@ -469,7 +578,7 @@ final class Engine {
     }
     guard wantsPlay, state == .playing, !seeking, output.rate > 0 else { return }
     let atEnd = current.pipeline.decoded.ended && current.nextFrame >= current.pipeline.decoded.end && next == nil
-    if enqueued - playhead < frames(seconds: config.underrun), !atEnd, peekChunk() == nil {
+    if enqueued - playhead < frames(seconds: config.underrun), !atEnd, nextRun(planning: false) == nil {
       // The renderer's clock runs on when it runs dry, which would skip what comes next.
       output.setRate(0, at: playhead)
       buffering = true
@@ -499,8 +608,8 @@ final class Engine {
       emit(.status(makeStatus()))
     }
     while enqueued < playhead + lead, output.isReadyForMoreMediaData {
-      if let (slot, samples) = takeChunk() {
-        enqueue(slot, samples)
+      if let chunk = takeChunk() {
+        enqueue(chunk)
         continue
       }
       let waitingToSound = current != nil && wantsPlay && current!.pipeline.error == nil && (state == .loading || seeking)
@@ -508,39 +617,118 @@ final class Engine {
       guard (waitingToSound || holdingOnly) && !systemInterrupted && enqueued < playhead + silenceLead else { break }
       let count = config.chunkFrames / 4
       limiter.reset()
-      limiterMarks.append((enqueued, 1))
+      equalizer.reset()
+      marks.append(Mark(frame: enqueued, limiterGain: 1, equalizer: equalizer, fade: heardFade))
       output.enqueue([Float](repeating: 0, count: count * 2)[...], at: enqueued)
       append(Segment(start: enqueued, end: enqueued + Int64(count), slot: nil, itemStart: 0))
       enqueued += Int64(count)
     }
   }
 
-  /// The next frames to queue: the loaded entry's, then the preloaded one's once the loaded
-  /// one is decoded to its end and queued.
-  private func peekChunk() -> Slot? {
+  /// What to queue next: the loaded entry's frames, then the preloaded one's once the loaded
+  /// one is decoded to its end and queued, or the two mixed in a crossfade. `planning` starts
+  /// the crossfade when its time has come; without it, this only looks.
+  private func nextRun(planning: Bool) -> Run? {
+    let most = config.chunkFrames
+    if let fade = crossfade, !fade.isQueued {
+      let to = fade.to.pipeline.decoded
+      let incoming = Int(to.end - fade.to.nextFrame)
+      // An incoming entry shorter than the fade (or failing in it) is silent for the rest.
+      let finished = (to.ended || fade.to.pipeline.error != nil) && incoming <= 0
+      let count = min(most, Int(fade.left), finished ? most : incoming)
+      return count > 0 ? .mix(fade, count: count) : nil
+    }
     guard let current else { return nil }
     let decoded = current.pipeline.decoded
-    if current.nextFrame < decoded.end { return current }
+    if current.nextFrame < decoded.end {
+      guard let start = crossfadeStart(current) else { return .solo(current, count: most) }
+      if current.nextFrame < start { return .solo(current, count: min(most, Int(start - current.nextFrame))) }
+      // Its time has come, or passed while the next entry was not decoded yet: a shorter one.
+      // Until the next one has frames, the loaded one plays on alone.
+      if planning, let next, let fade = beginCrossfade(from: current, into: next) {
+        return .mix(fade, count: min(most, Int(fade.left), Int(next.pipeline.decoded.end - next.nextFrame)))
+      }
+      return .solo(current, count: most)
+    }
     guard decoded.ended, !seeking, let next, next.pipeline.error == nil, next.nextFrame < next.pipeline.decoded.end else { return nil }
-    return next
+    return .solo(next, count: most)
   }
 
-  private func takeChunk() -> (Slot, [Float])? {
-    guard let slot = peekChunk() else { return nil }
-    let samples = slot.pipeline.copy(from: slot.nextFrame, count: config.chunkFrames)
-    return samples.isEmpty ? nil : (slot, Array(samples))
+  /// The loaded entry's frame where a crossfade into the preloaded one begins, or nil when
+  /// they meet gapless: no crossfade set, the next one continuing the album, or the loaded
+  /// one's end not known yet (decoding runs further ahead while a crossfade is set).
+  private func crossfadeStart(_ slot: Slot) -> Int64? {
+    guard crossfadeSeconds > 0, crossfade == nil, let next, !next.albumRun, next.nextFrame == 0, next.pipeline.error == nil else { return nil }
+    let decoded = slot.pipeline.decoded
+    guard decoded.ended else { return nil }
+    // Never more than half of either entry, so a short one is not all fade.
+    var length = min(frames(seconds: crossfadeSeconds), decoded.end / 2)
+    if let incoming = next.pipeline.lengthFrames.frames { length = min(length, incoming / 2) }
+    guard length >= frames(seconds: config.shortestCrossfade) else { return nil }
+    return decoded.end - length
   }
 
-  private func enqueue(_ slot: Slot, _ chunk: [Float]) {
-    var samples = chunk
+  /// Starts a crossfade from `current`'s next frame to its end, if that is long enough and
+  /// `next` has frames to mix in.
+  private func beginCrossfade(from current: Slot, into next: Slot) -> Crossfade? {
+    let length = current.pipeline.decoded.end - current.nextFrame
+    guard length >= frames(seconds: config.shortestCrossfade), next.nextFrame < next.pipeline.decoded.end else { return nil }
+    let fade = Crossfade(from: current, to: next, start: enqueued, fromStart: current.nextFrame, length: length)
+    log("crossfading \(current.entryId) into \(next.entryId) over \(Int(Double(length) / output.sampleRate * 1000)) ms")
+    crossfade = fade
+    return fade
+  }
+
+  private func takeChunk() -> Chunk? {
+    switch nextRun(planning: true) {
+    case nil:
+      return nil
+    case .solo(let slot, let count):
+      let samples = Array(slot.pipeline.copy(from: slot.nextFrame, count: count))
+      guard !samples.isEmpty else { return nil }
+      // At unity gain (normalization off) and with no equalizer, an entry plays as the file
+      // is; any other gain, a boost above all, goes through the limiter.
+      var chunk = Chunk(samples: samples, slot: slot, itemStart: slot.nextFrame, limited: slot.gain != 1 || slot.heardGain != 1)
+      shape(&chunk.samples, slot)
+      slot.nextFrame += Int64(samples.count / 2)
+      return chunk
+    case .mix(let fade, let count):
+      return mix(fade, count: count)
+    }
+  }
+
+  /// `count` frames of a crossfade, each entry at its own gain along its curve. The sum of
+  /// two songs can go over where neither does, so it always goes through the limiter.
+  private func mix(_ fade: Crossfade, count: Int) -> Chunk {
+    let offset = fade.from.nextFrame - fade.fromStart
+    var outgoing = Array(fade.from.pipeline.copy(from: fade.from.nextFrame, count: count))
+    var incoming = Array(fade.to.pipeline.copy(from: fade.to.nextFrame, count: count))
+    let heard = incoming.count / 2
+    shape(&outgoing, fade.from)
+    if heard > 0 { shape(&incoming, fade.to) }
+    var samples = [Float](repeating: 0, count: count * 2)
+    for frame in 0..<count {
+      let (down, up) = fade.levels(at: offset + Int64(frame))
+      for side in 0..<2 {
+        let index = frame * 2 + side
+        let a = index < outgoing.count ? outgoing[index] * down : 0
+        let b = index < incoming.count ? incoming[index] * up : 0
+        samples[index] = a + b
+      }
+    }
+    let chunk = Chunk(samples: samples, slot: fade.to, itemStart: fade.to.nextFrame, mix: fade.from, mixStart: fade.from.nextFrame, limited: true)
+    fade.from.nextFrame += Int64(count)
+    fade.to.nextFrame += Int64(heard)
+    return chunk
+  }
+
+  private func enqueue(_ chunk: Chunk) {
+    var samples = chunk.samples
     let count = samples.count / 2
-    // At unity gain (normalization off) an entry plays as the file is; any other gain, a
-    // boost above all, goes through the limiter.
-    let limited = slot.gain != 1 || slot.heardGain != 1
-    shape(&samples, slot)
-    let itemStart = slot.nextFrame
-    slot.nextFrame += Int64(count)
-    limiterMarks.append((enqueued, limiter.gain))
+    let limited = chunk.limited || equalizer.isActive
+    marks.append(Mark(frame: enqueued, limiterGain: limiter.gain, equalizer: equalizer, fade: heardFade))
+    applyFade(&samples)
+    equalizer.process(&samples)
     if limited {
       limiter.process(&samples, ahead: upcoming(limiter.aheadFrames)[...])
     } else {
@@ -548,16 +736,31 @@ final class Engine {
     }
     queuedAudio.append(samples[...], at: enqueued)
     output.enqueue(samples[...], at: enqueued)
-    append(Segment(start: enqueued, end: enqueued + Int64(count), slot: slot, itemStart: itemStart))
+    append(Segment(start: enqueued, end: enqueued + Int64(count), slot: chunk.slot, itemStart: chunk.itemStart, mix: chunk.mix, mixStart: chunk.mixStart))
     enqueued += Int64(count)
-    guard slot === current else { return }
+    // The loaded entry's first frames since a load or seek, alone or fading out.
+    guard chunk.slot === current || chunk.mix === current, let current else { return }
     if state == .loading {
-      log("\(slot.entryId) \(wantsPlay ? "playing" : "ready") at \(Int(Double(anchor) / output.sampleRate * 1000)) ms")
+      log("\(current.entryId) \(wantsPlay ? "playing" : "ready") at \(Int(Double(anchor) / output.sampleRate * 1000)) ms")
       setState(wantsPlay ? .playing : .paused)
     } else if seeking {
       seeking = false
       emit(.status(makeStatus()))
     }
+  }
+
+  /// The fade over everything, moving to a new level over `fadeRamp`.
+  private func applyFade(_ samples: inout [Float]) {
+    guard fadeLevel != 1 || heardFade != 1 else { return }
+    let count = samples.count / 2
+    let step = 1 / Float(max(1, frames(seconds: config.fadeRamp)))
+    var level = heardFade
+    for frame in 0..<count {
+      if level != fadeLevel { level = level < fadeLevel ? min(fadeLevel, level + step) : max(fadeLevel, level - step) }
+      samples[frame * 2] *= level
+      samples[frame * 2 + 1] *= level
+    }
+    heardFade = level
   }
 
   /// The entry's gain, ramped from the last one, and a start's fade-in.
@@ -587,16 +790,38 @@ final class Engine {
     }
   }
 
-  /// Up to `count` frames that are queued after what was just taken, at their entries' gains:
-  /// what the limiter looks ahead into. Short where decoding has not got that far.
+  /// Up to `count` frames that are queued after what was just taken, at their entries' gains
+  /// and through the equalizer: what the limiter looks ahead into. Short where decoding has
+  /// not got that far.
   private func upcoming(_ count: Int) -> [Float] {
-    guard let current else { return [] }
-    var frames = scaled(current.pipeline.copy(from: current.nextFrame, count: count), current)
-    let decoded = current.pipeline.decoded
-    let short = count - frames.count / 2
-    if short > 0, decoded.ended, current.nextFrame + Int64(frames.count / 2) >= decoded.end, !seeking, let next, next.pipeline.error == nil {
-      frames += scaled(next.pipeline.copy(from: next.nextFrame, count: short), next)
+    var frames: [Float]
+    if let fade = crossfade, !fade.isQueued {
+      // The rest of a crossfade, mixed along its curves.
+      let outgoing = scaled(fade.from.pipeline.copy(from: fade.from.nextFrame, count: count), fade.from)
+      let incoming = scaled(fade.to.pipeline.copy(from: fade.to.nextFrame, count: count), fade.to)
+      let offset = fade.from.nextFrame - fade.fromStart
+      frames = (0..<min(count, Int(fade.left))).flatMap { frame -> [Float] in
+        let (down, up) = fade.levels(at: offset + Int64(frame))
+        return (0..<2).map { side in
+          let index = frame * 2 + side
+          return (index < outgoing.count ? outgoing[index] * down : 0) + (index < incoming.count ? incoming[index] * up : 0)
+        }
+      }
+    } else {
+      guard let current else { return [] }
+      frames = scaled(current.pipeline.copy(from: current.nextFrame, count: count), current)
+      let decoded = current.pipeline.decoded
+      let short = count - frames.count / 2
+      if short > 0, decoded.ended, current.nextFrame + Int64(frames.count / 2) >= decoded.end, !seeking, let next, next.pipeline.error == nil {
+        frames += scaled(next.pipeline.copy(from: next.nextFrame, count: short), next)
+      }
     }
+    // At the louder of the fade's two levels, as `scaled` does for gains.
+    let fade = max(fadeLevel, heardFade)
+    if fade != 1 { frames = frames.map { $0 * fade } }
+    // Through a copy, which leaves the equalizer where the frames just taken left it.
+    var ahead = equalizer
+    ahead.process(&frames)
     return frames
   }
 
@@ -608,8 +833,9 @@ final class Engine {
   }
 
   private func append(_ segment: Segment) {
-    if var last = segments.last, last.slot === segment.slot, last.end == segment.start,
-       segment.slot == nil || last.itemStart + (last.end - last.start) == segment.itemStart {
+    if var last = segments.last, last.slot === segment.slot, last.end == segment.start, last.mix === segment.mix,
+       segment.slot == nil || last.itemStart + (last.end - last.start) == segment.itemStart,
+       segment.mix == nil || last.mixStart + (last.end - last.start) == segment.mixStart {
       last.end = segment.end
       segments[segments.count - 1] = last
     } else {
@@ -635,7 +861,10 @@ final class Engine {
 
   private func requestDecoding() {
     let ahead = frames(seconds: airPlay ? config.airPlayDecodeAhead : config.decodeAhead)
-    for slot in [current, next].compactMap({ $0 }) { slot.pipeline.want(slot.nextFrame + ahead) }
+    // A crossfade starts that long before the loaded entry's end, which has to be known by then.
+    let fade = crossfadeSeconds > 0 ? frames(seconds: crossfadeSeconds) : 0
+    if let current { current.pipeline.want(current.nextFrame + ahead + fade) }
+    if let next { next.pipeline.want(next.nextFrame + ahead) }
   }
 
   private func forgetHistory() {
@@ -645,7 +874,7 @@ final class Engine {
     let keep = frames(seconds: (airPlay ? config.airPlayHistory + config.airPlayLead : config.history + config.lead))
     current.pipeline.forget(before: current.nextFrame - keep)
     segments.removeAll { $0.end < playhead - keep }
-    limiterMarks.removeAll { $0.frame < playhead - keep }
+    marks.removeAll { $0.frame < playhead - keep }
   }
 
   private func finishOutgoing() {
@@ -689,8 +918,17 @@ final class Engine {
     segments.removeAll()
     queuedAudio.reset()
     limiter.reset()
-    limiterMarks.removeAll()
+    equalizer.reset()
+    marks.removeAll()
+    dropCrossfade()
     next?.nextFrame = 0
+  }
+
+  /// Forgets the crossfade, letting go of an outgoing entry that is no longer loaded.
+  private func dropCrossfade() {
+    guard let fade = crossfade else { return }
+    crossfade = nil
+    if fade.from !== current && fade.from !== next { fade.from.pipeline.release() }
   }
 
   /// The loaded entry starts at `frame`, from a fade-in.
@@ -725,16 +963,31 @@ final class Engine {
     enqueued = frame
     segments.removeAll { $0.start >= frame }
     if let last = segments.last, last.end > frame { segments[segments.count - 1].end = frame }
-    // From about where the limiter was there: what it had looked ahead into is gone.
-    limiterMarks.removeAll { $0.frame > frame }
-    limiter.reset(gain: limiterMarks.last?.gain ?? 1)
+    // From about where the limiter and the equalizer were there: what the limiter had looked
+    // ahead into is gone. The equalizer keeps its curve, which may have changed since.
+    marks.removeAll { $0.frame > frame }
+    limiter.reset(gain: marks.last?.limiterGain ?? 1)
+    if let mark = marks.last {
+      let curve = equalizer.target
+      equalizer = mark.equalizer
+      equalizer.set(curve)
+      // The fade's ramp goes on from where it was there, towards the level set now.
+      heardFade = mark.fade
+    } else {
+      equalizer.reset()
+    }
+    // From before a crossfade, it is begun again when its time comes.
+    if let fade = crossfade, frame < fade.start { crossfade = nil }
     next?.nextFrame = 0
     if let current {
       if let position, position.slot === current {
         current.nextFrame = position.frame
         if !current.pipeline.holds(position.frame) { current.pipeline.seek(to: position.frame) }
+        // Inside a crossfade into it: the one fading out goes on from there too.
+        if let mix = position.mix { mix.slot.nextFrame = mix.frame }
       } else if let position, position.slot === next {
         next?.nextFrame = position.frame
+        if let mix = position.mix { mix.slot.nextFrame = mix.frame }
       } else if position == nil {
         current.nextFrame = anchor
         if !current.pipeline.holds(anchor) { current.pipeline.seek(to: anchor) }
@@ -743,14 +996,18 @@ final class Engine {
     tick()
   }
 
-  private func itemFrame(at frame: Int64) -> (slot: Slot, frame: Int64)? {
+  /// What plays at timeline `frame`: whose frame, and in a crossfade, the outgoing entry's too.
+  private func itemFrame(at frame: Int64) -> (slot: Slot, frame: Int64, mix: (slot: Slot, frame: Int64)?)? {
     for segment in segments where frame >= segment.start && frame < segment.end {
       guard let slot = segment.slot else { return nil }
-      return (slot, segment.itemStart + (frame - segment.start))
+      let offset = frame - segment.start
+      return (slot, segment.itemStart + offset, segment.mix.map { ($0, segment.mixStart + offset) })
     }
-    // Past everything queued: where the loaded entry would go on.
-    if let current, frame >= enqueued { return (current, current.nextFrame) }
-    return nil
+    // Past everything queued: where what is being queued would go on.
+    guard frame >= enqueued, let current else { return nil }
+    if let fade = crossfade, !fade.isQueued { return (fade.to, fade.to.nextFrame, (fade.from, fade.from.nextFrame)) }
+    if let next, next.nextFrame > 0 { return (next, next.nextFrame, nil) }
+    return (current, current.nextFrame, nil)
   }
 
   /// A new output rate: everything is rendered again at it, from where it is.
@@ -759,6 +1016,8 @@ final class Engine {
     log("output rate \(Int(output.sampleRate)) → \(Int(rate)) Hz")
     let seconds = makeStatus().positionMs / 1000
     let wasLoading = state == .loading
+    // Rendered again from the loaded entry's position, which a crossfade into it would cut.
+    dropCrossfade()
     output.setRate(0, at: Int64(output.currentFrame()))
     output.flush()
     output.sampleRate = rate
@@ -769,7 +1028,10 @@ final class Engine {
     if outgoing != nil && current == nil && !holding { session?.deactivate() }
     outgoing = nil
     limiter = Limiter(sampleRate: rate)
-    limiterMarks.removeAll()
+    let curve = equalizer.target
+    equalizer = Equalizer(sampleRate: rate)
+    equalizer.set(curve)
+    marks.removeAll()
     guard let current else { return }
     let frame = Int64((seconds * rate).rounded())
     anchor = frame
@@ -803,14 +1065,15 @@ final class Engine {
     if state == .ended { return current.pipeline.decoded.end }
     if seeking || state == .loading { return anchor }
     let playhead = Int64(output.currentFrame())
-    var last: Segment?
-    for segment in segments where segment.slot === current {
-      if playhead < segment.start { return segment.itemStart }
-      if playhead < segment.end { return segment.itemStart + (playhead - segment.start) }
-      last = segment
+    var last: Int64?
+    // Its own frames, alone or in a crossfade, coming in or fading out.
+    for segment in segments where segment.slot === current || segment.mix === current {
+      let start = segment.slot === current ? segment.itemStart : segment.mixStart
+      if playhead < segment.start { return start }
+      if playhead < segment.end { return start + (playhead - segment.start) }
+      last = start + (segment.end - segment.start)
     }
-    if let last { return last.itemStart + (last.end - last.start) }
-    return anchor
+    return last ?? anchor
   }
 
   private func setState(_ state: EngineState, always: Bool = false) {

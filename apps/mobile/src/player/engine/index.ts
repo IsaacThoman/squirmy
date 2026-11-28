@@ -1,7 +1,7 @@
 import type { PlayerEngine } from '@squirmy/client-core';
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import { Platform } from 'react-native';
-import NativeAudio from '../../../modules/audio-engine';
+import NativeAudio, { type NativeEqualizer } from '../../../modules/audio-engine';
 import NowPlaying, { type AudioOutput } from '../../../modules/now-playing';
 import { playbackRequestFor, type PlaybackRequest } from '../session';
 import { ExpoAudioEngine, type ExpoAudioEngineOptions } from './ExpoAudioEngine';
@@ -21,6 +21,12 @@ export type AppEngine = PlayerEngine & {
   holdAudioSession(hold: boolean): void;
   isTryingToPlay(): boolean;
   dispose?(): void;
+  /** The native engine's equalizer, where the build has it. */
+  readonly equalizer?: boolean;
+  setEqualizer?(curve: NativeEqualizer | null): void;
+  /** The native engine's crossfade, where the build has it. */
+  readonly crossfade?: boolean;
+  setCrossfade?(seconds: number): void;
 };
 
 /** Native playback reports position this often, in milliseconds. */

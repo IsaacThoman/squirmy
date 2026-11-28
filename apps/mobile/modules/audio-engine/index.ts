@@ -21,9 +21,12 @@ export type NativeItem = {
   gapless: NativeGapless | null;
   /** `stream` for server transcodes, `file` for originals and downloads. */
   decoder: 'file' | 'stream';
-  /** The next item continues this one's album: never crossfaded into. */
+  /** For a preload: it continues the loaded item's album in album order, so it is never crossfaded into. */
   albumRun: boolean;
 };
+
+/** The equalizer's curve: a gain for each band from 31 Hz to 16 kHz, and the preamp, in dB. */
+export type NativeEqualizer = { bandsDb: number[]; preampDb: number };
 
 export type NativeStatus = {
   entryId: string | null;
@@ -43,6 +46,12 @@ export type SquirmyAudio = {
   stop(): void;
   /** While true and nothing is loaded, plays silence so iOS keeps the app running. */
   holdAudioSession(hold: boolean): void;
+  /** The equalizer's curve, or null for none; heard after the lead. Missing in builds before it. */
+  setEqualizer?(curve: NativeEqualizer | null): void;
+  /** How long the next item overlaps the loaded one's end, in seconds; 0 for none. Missing in builds before it. */
+  setCrossfade?(seconds: number): void;
+  /** A level from 0 to 1 over everything that plays (the sleep timer's fade). Missing in builds before it. */
+  setFade?(level: number): void;
   /** Synchronous, with the position read from the clock now. */
   getStatus(): NativeStatus;
   /**

@@ -7,6 +7,9 @@ struct EngineItem {
   var startMs: Double
   /// Linear; may exceed 1.
   var gain: Float
+  /// For a preload: it continues the loaded item's album in album order, so it is never
+  /// crossfaded into.
+  var albumRun = false
   var decoder: DecoderKind
   /// For `DecoderKind.stream`; the file reader reads a file's own.
   var gapless: Gapless?

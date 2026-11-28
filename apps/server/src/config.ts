@@ -18,6 +18,8 @@ const Env = z.object({
   SQUIRMY_ROLE: z.enum(['all', 'api', 'worker']).default('all'),
   /** Built web app to serve. Empty disables static serving (the Vite dev server proxies instead). */
   SQUIRMY_WEB_DIST: z.string().optional(),
+  /** Publish the direct HTTP port to Apple TVs on the local network via Bonjour. */
+  SQUIRMY_LAN_DISCOVERY: z.enum(['true', 'false', '1', '0', '']).optional().transform(value => value === 'true' || value === '1'),
   /** Comma separated paths added as read-only library roots at start, unless a root already has the path. */
   SQUIRMY_LIBRARY_PATHS: z.string().optional(),
   /** Comma separated paths added as managed library roots (organized by the server) at start, unless a root already has the path. */
