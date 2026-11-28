@@ -15,7 +15,7 @@ import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createUser } from '../../test/factories.js'
 import { createSession } from '../auth/service.js'
 import { sessionsModule } from './index.js'
-import { configureSessions, getSnapshot } from './service.js'
+import { configureSessions, controlPlayback, getSnapshot } from './service.js'
 
 /**
  * Listen together, end to end: real `SessionClient`s with `FakeEngine`s for several users,
@@ -185,6 +185,8 @@ describe('listen together', () => {
       expect(await rawCommand(b, command)).toEqual({ ok: false, error: 'jam_host_only' })
     }
     expect(await rawCommand(b, { type: 'setSleepTimer', timer: { kind: 'track' } })).toEqual({ ok: false, error: 'jam_unsupported' })
+    // Remote controls (the HTTP route, Home Assistant over MQTT) go the same way.
+    await expect(controlPlayback(guest.userId, { type: 'pause' }, 'guest-phone-2')).rejects.toMatchObject({ code: 'jam_host_only' })
     // The client does not even try what the server would refuse.
     b.client.dispatch({ type: 'pause' })
     expect(b.client.getSnapshot().session.playing).toBe(true)

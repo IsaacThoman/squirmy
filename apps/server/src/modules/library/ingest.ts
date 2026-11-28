@@ -1,3 +1,4 @@
+import { emitWebhook } from '../integrations/webhooks.js'
 import path from 'node:path'
 import { INCOMING_FOLDER, queryKeys } from '@squirmy/contracts'
 import { and, asc, eq, gte, inArray, isNull, sql } from 'drizzle-orm'
@@ -63,10 +64,13 @@ export async function ingestGroup({ rootId, groupKey }: IngestJob) {
     for (const releaseId of new Set(after.map((file) => file.releaseId))) {
       if (releaseId) await tx.execute(sql`update releases set track_count = (select count(*) from release_tracks where release_id = ${releaseId}) where id = ${releaseId} and fetched_at is null`)
     }
-    return { albumId: result.albumId, artistIds: [...writer.touchedArtists], files, recordings: new Map(after.map((file) => [file.id, file.recordingId])) }
+    return { albumId: result.albumId, newAlbum: writer.newAlbum, artistIds: [...writer.touchedArtists], files, recordings: new Map(after.map((file) => [file.id, file.recordingId])) }
   })
   if (!outcome) return
 
+  if (outcome.newAlbum) {
+    await emitWebhook('library.album_added', { albumId: outcome.albumId, ...outcome.newAlbum }, null, outcome.albumId)
+  }
   await attachFileExtras(root.path, outcome.albumId, outcome.files, outcome.recordings)
   // Files a provider delivered are in no library (acquisition announces the saves they
   // reach). Files of an import are not known to be either until the import marks them, and
@@ -185,6 +189,7 @@ async function requestedArtists(tx: Transaction, files: readonly File[]): Promis
 }
 
 class GroupWriter {
+  newAlbum: { title: string; artist: string } | null = null
   /** Artists whose credits this run replaced, for orphan cleanup. */
   readonly formerArtists: string[] = []
   /** Artists credited on what this run wrote, for invalidation. */
@@ -443,6 +448,11 @@ class GroupWriter {
   async build(plan: GroupPlan): Promise<{ albumId: string }> {
     const { tx } = this
     const { album, release } = await this.albumAndRelease(plan)
+    if (this.files.some(file => !file.cached)) {
+      const [owned] = await tx.select({ id: mediaFiles.id }).from(mediaFiles)
+        .where(and(eq(mediaFiles.albumId, album.id), isNull(mediaFiles.missingSince), eq(mediaFiles.cached, false))).limit(1)
+      if (!owned) this.newAlbum = { title: album.title, artist: album.artistCredit }
+    }
     // Releases fetched from MusicBrainz keep their own track list; files are fitted to it.
     const managed = release.fetchedAt === null
     const tracks = await tx.select().from(releaseTracks).where(eq(releaseTracks.releaseId, release.id))

@@ -1,4 +1,4 @@
-import { and, asc, gte, isNull, or, sql } from 'drizzle-orm'
+import { and, asc, eq, gte, isNull, or, sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { mediaFiles } from '../../database/schema.js'
 import { enqueue, enqueueAtPriority, schedule } from '../../jobs/index.js'
@@ -66,7 +66,14 @@ export const loudnessModule: ServerModule = {
   async jobs(jobs) {
     jobs.define<MeasureJob>('loudness.measure', { concurrency: 1, retryLimit: MEASURE_RETRIES }, async ({ fileId }, { attempt }) => {
       const releaseId = await measureFile(fileId, attempt > MEASURE_RETRIES)
-      if (releaseId) await enqueueAlbum(releaseId)
+      if (!releaseId) return
+      const [unmeasured] = await db.select({ id: mediaFiles.id }).from(mediaFiles)
+        .where(and(eq(mediaFiles.releaseId, releaseId), isNull(mediaFiles.missingSince),
+          or(isNull(mediaFiles.loudnessLufs), isNull(mediaFiles.truePeakDb)))).limit(1)
+      // Once the tracks are ready, enqueue even if an album job is still active: it may
+      // have seen incomplete measurements or read the old file. A distinct key works
+      // with the exclusive queue policy on existing installations as well.
+      if (!unmeasured) await enqueue<AlbumJob>('loudness.album', { releaseId }, { priority: ALBUM_PRIORITY })
     })
     jobs.define<AlbumJob>('loudness.album', { concurrency: 1, timeoutSeconds: 60 * 60 }, async ({ releaseId }) => {
       await measureRelease(releaseId)
