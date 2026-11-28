@@ -1,10 +1,11 @@
 import {
-  ApiError, artworkUrl, createInitialSession, randomSeed, refreshFetchedTracks, SessionClient, splitSession,
-  type PlaybackNotice, type SessionClientSnapshot, type SessionMoveResult, type SessionPlayer,
+  ApiError, artworkUrl, createInitialSession, randomSeed, refreshFetchedTracks, SessionClient, sleepTimerAccessibilityLabel, sleepTimerChoiceId,
+  sleepTimerChoices, sleepTimerLabel, splitSession,
+  type PlaybackNotice, type SessionClientSnapshot, type SessionMoveResult, type SessionPlayer, type SleepTimerChoice,
 } from '@squirmy/client-core';
 import { createSocketTransport } from '@squirmy/client-core/socket';
 import type {
-  ClientDevice, DeviceInfo, PlaybackContext, QueueEntry, RadioResponse, SessionCommand, TrackSummary, UserSettings,
+  ClientDevice, DeviceInfo, PlaybackContext, QueueEntry, RadioResponse, SessionCommand, SleepTimer, SleepTimerRequest, TrackSummary, UserSettings,
 } from '@squirmy/contracts';
 import * as Network from 'expo-network';
 import {
@@ -48,7 +49,7 @@ const saveDelayMs = 5000;
 
 const idle: SessionClientSnapshot = (() => {
   const { state, queue } = splitSession(createInitialSession());
-  return { session: state, queue, devices: [], connection: 'offline', isActiveDevice: false, detached: false, canDetach: false, outage: null, away: null };
+  return { session: state, queue, devices: [], connection: 'offline', isActiveDevice: false, detached: false, canDetach: false, canSetSleepTimer: false, outage: null, away: null };
 })();
 const idleSnapshot = () => idle;
 const noSubscription = () => () => undefined;
@@ -422,6 +423,8 @@ function createActions(runtime: Runtime | null, canPlay: (track: TrackSummary) =
     toggleShuffle: () => send({ type: 'setShuffle', value: !session().shuffle, seed: randomSeed() }),
     cycleRepeat: () => send({ type: 'setRepeat', value: nextRepeat(session().repeat) }),
     toggleAutoplay: () => send({ type: 'setAutoplay', value: !session().autoplay }),
+    /** Sets the session's sleep timer, which stops whichever device plays; null turns it off. */
+    setSleepTimer: (timer: SleepTimerRequest | null) => send({ type: 'setSleepTimer', timer }),
     /**
      * Replaces the queue with the playable tracks of a list, starting at `start` (an
      * index into `tracks`). `shuffle` left out keeps the session's shuffle setting.
@@ -634,6 +637,46 @@ export function usePositionEvery(intervalMs: number, enabled = true): number {
     };
   }, [active, anchor, enabled, intervalMs, moving, runtime]);
   return position;
+}
+
+export type SleepTimerState = {
+  /** The server takes a sleep timer: offer one. */
+  canSet: boolean;
+  timer: SleepTimer | undefined;
+  /** What a menu offers, in order, and the id of the one set (null for none, or a length none has). */
+  choices: SleepTimerChoice[];
+  chosen: string | null;
+  /** The time left (`12:04`) or what it waits for, and how VoiceOver says it; null while none is set. */
+  label: string | null;
+  spoken: string | null;
+};
+
+/**
+ * The session's sleep timer as the player shows it, read again every second while one is set
+ * and the app is on screen. Only the component calling this re-renders as it counts down.
+ */
+export function useSleepTimer(): SleepTimerState {
+  const runtime = useContext(RuntimeContext);
+  const timer = useSessionValue(({ session }) => session.sleepTimer);
+  const canSet = useSessionValue(snapshot => snapshot.canSetSleepTimer);
+  const context = useSessionValue(({ session }) => session.context);
+  const active = useAppActive();
+  const [now, setNow] = useState(() => runtime?.client.serverNow() ?? Date.now());
+  useEffect(() => {
+    if (!timer || !active) return;
+    const read = () => setNow(runtime?.client.serverNow() ?? Date.now());
+    read();
+    const interval = setInterval(read, 1000);
+    return () => clearInterval(interval);
+  }, [active, runtime, timer]);
+  const choices = useMemo(() => sleepTimerChoices(context), [context]);
+  const snapshot = runtime?.client.getSnapshot() ?? idle;
+  const view = { ...snapshot.session, queue: snapshot.queue.queue };
+  const positionMs = runtime?.seeks.position();
+  return {
+    canSet, timer, choices, chosen: sleepTimerChoiceId(timer),
+    label: sleepTimerLabel(view, now, positionMs), spoken: sleepTimerAccessibilityLabel(view, now, positionMs),
+  };
 }
 
 /** The current entry's length, from the session or, while it is unknown there, the track. */

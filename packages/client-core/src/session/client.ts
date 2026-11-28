@@ -18,6 +18,7 @@ import type { EngineEvent, EngineState, EngineStatus, PlayerEngine } from '../en
 import { gainFor } from '../normalization.js'
 import { clearRepeating, setRepeating, setTimer } from '../timers.js'
 import { createInitialSession, joinSession, positionAt, reduceParsedSession, type Session, splitSession } from './reducer.js'
+import { sleepFade } from './sleep.js'
 import type { SessionTransport } from './transport.js'
 
 /** Track failures remembered for `failureOf`: far more than are ever near the current entry. */
@@ -46,6 +47,8 @@ export type SessionClientSnapshot = {
   detached: boolean
   /** Detaching is possible: this device can play and the server said it supports it. False until a hello has. */
   canDetach: boolean
+  /** The server takes `setSleepTimer` (the `sleepTimer` capability). False until a hello has said so. */
+  canSetSleepTimer: boolean
   /**
    * Why the session paused on its failed current entry, when the server said so with
    * `playback.unavailable`. Set in the same snapshot as the pause (the server sends the
@@ -156,6 +159,13 @@ const PLAYBACK_COMMANDS = new Set<SessionCommand['type']>([
   'play', 'pause', 'next', 'previous', 'seek', 'playTracks', 'playQueueEntry', 'transfer', 'trackEnded',
 ])
 const REQUEST_TIMEOUT_MS = 10_000
+/** How often the gain follows a sleep timer's fade while one is set and this device plays. */
+const FADE_TICK_MS = 200
+/**
+ * Past a sleep timer's end, how long a device that plays offline waits for the server's pause
+ * before it pauses itself: the server cannot reach it, and it would go on playing silence.
+ */
+const SLEEP_OFFLINE_GRACE_MS = 2000
 const CLOCK_SAMPLES = 5
 const RETRY_MS = 3000
 /** Signed URLs are refreshed this long before they expire. */
@@ -245,6 +255,9 @@ export class SessionClient {
   /** The server state held is this device's own session. */
   private detached = false
   private serverDetaches = false
+  private serverSleeps = false
+  /** Moves the gain along a sleep timer's fade; see `followFade`. */
+  private fadeTimer: unknown = null
   private move: Move | null = null
   private heldQueue: { version: number; queue: SessionQueue } | null = null
   private pending: Pending[] = []
@@ -318,7 +331,7 @@ export class SessionClient {
     const { state, queue } = splitSession(this.local)
     this.snapshot = {
       session: state, queue, devices: this.devices, connection: this.connection, isActiveDevice: this.isActive(),
-      detached: this.detached, canDetach: this.canDetach(), outage: null, away: null,
+      detached: this.detached, canDetach: this.canDetach(), canSetSleepTimer: false, outage: null, away: null,
     }
   }
 
@@ -380,6 +393,7 @@ export class SessionClient {
     this.attempt += 1
     this.settleMove({ ok: false, error: 'disposed' })
     this.stopEngine()
+    this.followFade(false)
   }
 
   /**
@@ -616,6 +630,7 @@ export class SessionClient {
     this.setDevices(reply.devices)
     this.detached = snapshot.scope?.type === 'device'
     this.serverDetaches = reply.capabilities?.includes('detach') ?? false
+    this.serverSleeps = reply.capabilities?.includes('sleepTimer') ?? false
   }
 
   /**
@@ -817,11 +832,12 @@ export class SessionClient {
     if (
       session === previous.session && queueHalf === previous.queue && this.devices === previous.devices
       && this.connection === previous.connection && isActiveDevice === previous.isActiveDevice
-      && this.detached === previous.detached && canDetach === previous.canDetach && outage === previous.outage
-      && away === previous.away
+      && this.detached === previous.detached && canDetach === previous.canDetach && this.serverSleeps === previous.canSetSleepTimer
+      && outage === previous.outage && away === previous.away
     ) return
     this.snapshot = {
-      session, queue: queueHalf, devices: this.devices, connection: this.connection, isActiveDevice, detached: this.detached, canDetach, outage, away,
+      session, queue: queueHalf, devices: this.devices, connection: this.connection, isActiveDevice, detached: this.detached, canDetach,
+      canSetSleepTimer: this.serverSleeps, outage, away,
     }
     for (const listener of [...this.listeners]) listener()
   }
@@ -895,6 +911,7 @@ export class SessionClient {
     const { engine } = this.player
     const session = this.local
     const current = session.current
+    this.followFade(this.isActive() && session.playing && session.sleepTimer !== undefined)
     if (!this.isActive() || !current || current.state !== 'ready') return this.stopEngine()
     this.takeover = null
 
@@ -1069,7 +1086,42 @@ export class SessionClient {
   private gainOf(entry: QueueEntry, descriptor: PlaybackDescriptor | undefined, session: Session): number {
     const volume = this.player?.systemVolume ? 1 : session.volumes[this.device.id] ?? 1
     const albumContext = !session.shuffle && session.context?.type === 'album' && session.context.id === entry.albumId
-    return volume * gainFor(this.normalization, descriptor?.normalization, { albumContext, canBoost: this.player?.canBoost ?? false })
+    const fade = entry.id === session.current?.id ? this.fadeOf(session) : 1
+    return volume * fade * gainFor(this.normalization, descriptor?.normalization, { albumContext, canBoost: this.player?.canBoost ?? false })
+  }
+
+  /**
+   * The sleep timer's fade for `session`'s current entry, measured from the engine's own
+   * position while it plays that entry: it is what the listener hears end.
+   */
+  private fadeOf(session: Session): number {
+    if (!session.sleepTimer) return 1
+    const status = this.player?.engine.getStatus()
+    const engineMs = status && status.entryId === session.current?.id && status.state !== 'loading' && status.state !== 'error' ? status.positionMs : undefined
+    return sleepFade(session, this.serverNow(), engineMs)
+  }
+
+  /**
+   * While a sleep timer is set and this device plays, brings the gain along the timer's fade
+   * a few times a second; nothing changes until its last seconds. The server pauses the
+   * session when the timer ends, and the gain comes back with the pause. A device playing
+   * offline, which the server's pause cannot reach, pauses itself a little later.
+   */
+  private followFade(on: boolean): void {
+    if (on === (this.fadeTimer !== null)) return
+    if (!on) {
+      clearRepeating(this.fadeTimer)
+      this.fadeTimer = null
+      return
+    }
+    this.fadeTimer = setRepeating(() => {
+      const { current, sleepTimer, playing } = this.local
+      if (!this.isActive() || !current || current.state !== 'ready') return
+      this.applyGain(current)
+      if (this.connection !== 'online' && playing && sleepTimer?.kind === 'time' && this.serverNow() >= sleepTimer.endsAt + SLEEP_OFFLINE_GRACE_MS) {
+        this.dispatch({ type: 'pause' })
+      }
+    }, FADE_TICK_MS)
   }
 
   private applyGain(entry: QueueEntry): void {

@@ -28,6 +28,7 @@ import { ArtworkPrefetch } from './player/ArtworkPrefetch';
 import { usePlaybackStatus } from './player/usePlaybackStatus';
 import { usePlayerShown } from './player/visibility';
 import { useVolumeSlider } from './player/volume';
+import { SleepTimerBadge } from './player/SleepTimerBadge';
 import { Icon } from './ui';
 import { SystemVolumeSlider } from '../modules/now-playing';
 import LyricsPage, { type LyricsHandle } from './player/LyricsPage';
@@ -440,6 +441,7 @@ export default function Player() {
                 <View style={styles.collapse} pointerEvents="box-none"><CollapseButton onPress={close} /></View>
                 {/* As on the pages under the player: only downloaded and cached songs play. */}
                 <OfflineBadge style={styles.offline} />
+                <SleepTimerBadge style={styles.sleepTimer} />
               </Animated.View>
             </GestureDetector>
             <View style={styles.playerStage}>
@@ -728,6 +730,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   grabberTouch: { alignItems: 'center' },
   collapse: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center' },
   offline: { position: 'absolute', top: 2, left: artworkInset },
+  sleepTimer: { position: 'absolute', top: 2, right: artworkInset },
   playerStage: { flex: 1 },
   deckFrame: { flex: 1 },
   // The artwork at the top, the title's room under it; a tall screen's spare height goes below them.
