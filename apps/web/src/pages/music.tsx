@@ -2,9 +2,9 @@
  * Route containers for the music pages. Each one gathers its data with TanStack Query and
  * hands it to a view in components/views.
  */
-import { filterKind, searchContext, searchFilters, type SearchFilter, type SearchItem } from '@squirmy/client-core'
+import { ApiError, filterKind, searchContext, searchFilters, searchItemsOfKind, type SearchFilter, type SearchItem } from '@squirmy/client-core'
 import type { HomeSection, Page as ListPage, PlaylistDetail } from '@squirmy/contracts'
-import { queryKeys } from '@squirmy/contracts'
+import { SearchFacets, queryKeys } from '@squirmy/contracts'
 import { useMutation, useQueryClient, type InfiniteData, type UseQueryResult } from '@tanstack/react-query'
 import { Compass } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
@@ -335,24 +335,35 @@ export function SearchPage() {
   const filter = filterOf(params.get('type'))
   const [typed, setTyped] = useUrlDraft(query)
   const term = typed.trim()
-  const all = useMergedSearch(typed, { playlists: library.playlists })
-  const pages = useSearchPages(typed, filterKind(filter))
+  const parsed = SearchFacets.safeParse(Object.fromEntries(params))
+  const facets = parsed.success ? parsed.data : {}
+  const all = useMergedSearch(typed, { playlists: library.playlists, facets })
+  const pages = useSearchPages(typed, filterKind(filter), filter === 'playlist' ? {} : facets)
   const recents = useRecentSearches(user.id)
-  const show = (q: string, next: SearchFilter) => setParams({ ...(q ? { q } : {}), ...(next !== 'all' ? { type: next } : {}) }, { replace: true })
+  const show = (q: string, next: SearchFilter, selected = facets) => {
+    const nextParams = new URLSearchParams()
+    if (q) nextParams.set('q', q)
+    if (next !== 'all') nextParams.set('type', next)
+    if (selected.quality) nextParams.set('quality', selected.quality)
+    if (selected.decade) nextParams.set('decade', String(selected.decade))
+    if (selected.liked) nextParams.set('liked', 'true')
+    setParams(nextParams, { replace: true })
+  }
 
   const list = useMemo<SearchList>(() => {
     const allItems = all.results?.items ?? null
     if (filter === 'all') {
       return {
-        items: allItems, stale: all.stale, pending: Boolean(allItems) && !all.stale && all.catalogPending,
+        items: allItems, lyricItems: all.results?.lyricItems, creditItems: all.results?.creditItems, stale: all.stale, pending: Boolean(allItems) && !all.stale && all.catalogPending,
         failed: all.failed, catalogFailed: all.catalogFailed, unavailable: all.unavailable, retry: all.retry, retrying: all.retrying,
       }
     }
-    if (filter === 'playlist') {
+    const olderServer = pages.error instanceof ApiError && (pages.error.status === 400 || pages.error.status === 404)
+    if (filter === 'playlist' && !pages.playlistSearchSupported && (pages.items || olderServer)) {
       return { items: term ? matchingPlaylists(term, library.playlists) : [], stale: false, pending: false, failed: false, catalogFailed: false, unavailable: false, retry: () => {} }
     }
     // Until the filter's own first page arrives, the mixed list's rows of that kind stand in.
-    const standIn = pages.items === null && allItems && !all.stale ? allItems.filter(item => item.type === filter) : null
+    const standIn = pages.items === null && all.results && !all.stale ? searchItemsOfKind(all.results, filter) : null
     return {
       items: pages.items ?? standIn, stale: pages.items !== null && pages.stale, pending: pages.loadingMore || (standIn !== null && pages.loading),
       failed: pages.failed, catalogFailed: pages.catalogFailed, unavailable: false, retry: pages.retry, retrying: pages.loading,
@@ -383,6 +394,8 @@ export function SearchPage() {
       }}
       filter={filter}
       onFilterChange={next => show(typed, next)}
+      facets={facets}
+      onFacetsChange={next => show(typed, filter, next)}
       list={list}
       recents={recents.list}
       onRemoveRecent={recents.remove}

@@ -6,6 +6,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 
 - [x] Monorepo: `apps/mobile`, `apps/server`, `packages/contracts`, `packages/client-core`
 - [x] Contracts for auth, catalog, playback, sessions, search, user data, settings, library
+- Search supports composite catalog queries, fuzzy non-Latin names, visible playlist names, stored lyric excerpts and composer or producer credits. The web results can filter by file quality, release decade and likes.
 - [x] Database schema for every milestone, initial migration, test harness
 - [x] CI: lint, typecheck, build, tests against Postgres
 - [x] semantic-release on `main`
