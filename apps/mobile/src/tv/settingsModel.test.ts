@@ -1,7 +1,7 @@
 import type { ScrobbleService, UserSettings } from '@squirmy/contracts';
 import { describe, expect, it } from 'vitest';
 import {
-  appVersion, canToggleScrobbling, choiceSpec, isChoice, onOff, optionLabel, scrobbleValue, serverVersionValue,
+  appVersion, canToggleScrobbling, choiceSpec, isChoice, isDeviceChoice, onOff, optionLabel, scrobbleValue, serverVersionValue,
 } from './settingsModel';
 
 const normalization = [{ value: 'auto', label: 'Automatic' }, { value: 'off', label: 'Off' }] as const;
@@ -50,6 +50,13 @@ describe('isChoice', () => {
     expect(isChoice('target')).toBe(true);
     expect(isChoice('volume')).toBe(false);
     expect(isChoice(undefined)).toBe(false);
+    // The device's own are not the account's.
+    expect(isChoice('equalizer')).toBe(false);
+  });
+
+  it('knows the settings that belong to the device', () => {
+    expect(isDeviceChoice('equalizer')).toBe(true);
+    expect(isDeviceChoice('quality')).toBe(false);
   });
 });
 

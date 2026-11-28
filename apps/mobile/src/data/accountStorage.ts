@@ -3,7 +3,7 @@ import 'expo-sqlite/localStorage/install';
 import Storage from 'expo-sqlite/kv-store';
 
 /** Things kept for one account (a server and user) in app storage, and the device's own settings. */
-type ItemName = 'likes' | 'session' | 'sessionQueue' | 'downloadCap' | 'cacheLimit' | 'playbackEngine';
+type ItemName = 'likes' | 'session' | 'sessionQueue' | 'downloadCap' | 'cacheLimit' | 'playbackEngine' | 'equalizer';
 const accountNames: readonly ItemName[] = ['likes', 'session', 'sessionQueue'];
 
 /** JSON kept for one account, or for the device as `account`. Reads that fail return null; writes that fail are dropped. */

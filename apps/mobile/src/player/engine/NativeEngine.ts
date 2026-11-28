@@ -1,5 +1,5 @@
 import type { EngineEvent, EngineLoad, EnginePreload, EngineStatus, PlayerEngine } from '@squirmy/client-core';
-import type { NativeItem, SquirmyAudio } from '../../../modules/audio-engine';
+import type { NativeEqualizer, NativeItem, SquirmyAudio } from '../../../modules/audio-engine';
 import { playbackErrorMessage } from './state';
 
 export type NativeEngineOptions = {
@@ -100,6 +100,16 @@ export class NativeEngine implements PlayerEngine {
   isTryingToPlay(): boolean {
     const { playing, state } = this.native.getStatus();
     return playing && (state === 'loading' || state === 'buffering');
+  }
+
+  /** The build's engine has the equalizer (`setEqualizer`). */
+  get equalizer(): boolean {
+    return typeof this.native.setEqualizer === 'function';
+  }
+
+  /** The device's equalizer curve, or null for none. Heard after the engine's lead, without a click. */
+  setEqualizer(curve: NativeEqualizer | null): void {
+    this.native.setEqualizer?.(curve);
   }
 
   /** Stops listening to the native engine, which carries on as the process's one engine. */

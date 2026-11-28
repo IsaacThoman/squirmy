@@ -136,7 +136,7 @@ Designed in [audio-engine.md](./audio-engine.md); each item is a pull request fr
 - [x] M2. Streaming to the cache in one pass
 - [x] M3. Fragmented MP4 transcodes and live seeking on iOS
 - [x] M4. Normalization with boost and a true-peak limiter, with a target setting
-- [ ] M5. Equalizer
+- [x] M5. Equalizer, with presets on the phone and the TV and a custom curve on the phone
 - [ ] M6. Crossfade
 - [ ] M7. Playback speed, with the rate in the session
 - [ ] M8. AirPlay 2 buffering

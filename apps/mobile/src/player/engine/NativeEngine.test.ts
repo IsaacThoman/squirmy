@@ -1,6 +1,6 @@
 import type { EngineEvent, EngineState } from '@squirmy/client-core';
 import { describe, expect, it, vi } from 'vitest';
-import type { NativeItem, NativeStatus, SquirmyAudio } from '../../../modules/audio-engine';
+import type { NativeEqualizer, NativeItem, NativeStatus, SquirmyAudio } from '../../../modules/audio-engine';
 import { NativeEngine } from './NativeEngine';
 
 type Listener = (payload: never) => void;
@@ -49,6 +49,9 @@ class FakeNative implements SquirmyAudio {
   }
   holdAudioSession(hold: boolean) {
     this.calls.push(['holdAudioSession', hold]);
+  }
+  setEqualizer(curve: NativeEqualizer | null) {
+    this.calls.push(['setEqualizer', curve]);
   }
   prefetch(cacheKey: string, url: string) {
     this.calls.push(['prefetch', cacheKey, url]);
@@ -115,6 +118,17 @@ function setup() {
 const load = { entryId: 'a', url: 'https://music.test/stream/a', startMs: 0, autoplay: true, gain: 1 };
 
 describe('NativeEngine', () => {
+  it('hands the equalizer to the native engine, which an older build may not have', () => {
+    const { native, engine } = setup();
+    expect(engine.equalizer).toBe(true);
+    engine.setEqualizer({ bandsDb: [6, 0, 0, 0, 0, 0, 0, 0, 0, 0], preampDb: -6 });
+    engine.setEqualizer(null);
+    expect(native.calls).toEqual([['setEqualizer', { bandsDb: [6, 0, 0, 0, 0, 0, 0, 0, 0, 0], preampDb: -6 }], ['setEqualizer', null]]);
+    const older = new NativeEngine({ native: { ...native, setEqualizer: undefined, addListener: native.addListener.bind(native) } as never });
+    expect(older.equalizer).toBe(false);
+    older.setEqualizer(null);
+  });
+
   it('loads originals through the file reader and transcodes through the stream decoder', () => {
     const { native, engine } = setup();
     engine.load({ ...load, startMs: 42_000, gain: 0.5, media: { transcoded: false } });

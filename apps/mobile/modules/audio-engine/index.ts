@@ -25,6 +25,9 @@ export type NativeItem = {
   albumRun: boolean;
 };
 
+/** The equalizer's curve: a gain for each band from 31 Hz to 16 kHz, and the preamp, in dB. */
+export type NativeEqualizer = { bandsDb: number[]; preampDb: number };
+
 export type NativeStatus = {
   entryId: string | null;
   state: EngineState;
@@ -43,6 +46,8 @@ export type SquirmyAudio = {
   stop(): void;
   /** While true and nothing is loaded, plays silence so iOS keeps the app running. */
   holdAudioSession(hold: boolean): void;
+  /** The equalizer's curve, or null for none; heard after the lead. Missing in builds before it. */
+  setEqualizer?(curve: NativeEqualizer | null): void;
   /** Synchronous, with the position read from the clock now. */
   getStatus(): NativeStatus;
   /**
