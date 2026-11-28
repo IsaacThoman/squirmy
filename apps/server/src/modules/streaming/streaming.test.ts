@@ -141,6 +141,16 @@ describe('streaming originals', () => {
     expect(headRange.headers['content-length']).toBe('10')
   })
 
+  it('carries stream intent on a signed URL without binding it to the signature', async () => {
+    const { url } = await descriptor('?intent=cache')
+    const stream = new URL(url, 'http://localhost')
+    expect(stream.searchParams.get('intent')).toBe('cache')
+    stream.searchParams.set('intent', 'next')
+    expect((await call({ url: stream.pathname + stream.search })).statusCode).toBe(200)
+    stream.searchParams.set('intent', 'invalid')
+    expect((await call({ url: stream.pathname + stream.search })).statusCode).toBe(400)
+  })
+
   it('checks signatures and falls back to the session', async () => {
     const { url } = await descriptor()
     const signed = new URL(url, 'http://x')

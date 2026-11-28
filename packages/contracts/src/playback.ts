@@ -5,6 +5,10 @@ import { Id, IsoDateTime } from './common.js'
 export const StreamProfile = z.enum(['original', 'aac_256', 'opus_128', 'mp3_320', 'mp3_192'])
 export type StreamProfile = z.infer<typeof StreamProfile>
 
+/** Why a client is opening a stream, in encoder scheduling order. */
+export const StreamIntent = z.enum(['play', 'next', 'cache', 'download'])
+export type StreamIntent = z.infer<typeof StreamIntent>
+
 /** What the caller wants: a fixed profile, or let the server decide from `codecs`. */
 export const StreamQuality = z.enum(['original', 'high', 'data_saver'])
 export type StreamQuality = z.infer<typeof StreamQuality>
@@ -17,6 +21,8 @@ export const PlaybackQuery = z.object({
   codecs: z.string().optional(),
   /** Marks the response for saving to the device rather than streaming. Accepts true/false and 1/0. */
   download: z.union([z.boolean(), z.stringbool()]).optional(),
+  /** Adds this scheduling hint to the returned stream URL. */
+  intent: StreamIntent.optional(),
 })
 export type PlaybackQuery = z.infer<typeof PlaybackQuery>
 

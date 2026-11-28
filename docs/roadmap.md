@@ -103,7 +103,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 Designed in [audio-engine.md](./audio-engine.md); each item is a pull request from its [implementation plan](./audio-engine.md#implementation-plan).
 
 - [x] Design, with measurements of today's gaps and spikes of the new engine and formats
-- [ ] S1. Transcode priorities and cancelling abandoned encodes
+- [x] S1. Transcode priorities and cancelling abandoned encodes
 - [ ] S2. Exact lengths and priming per file, estimated gains for unmeasured files
 - [ ] S3. Fragmented MP4 profiles (FLAC, Opus, AAC) with exact gapless numbers, and seeking live transcodes
 - [ ] C1. Queue diffs with checkpoints on the session socket
