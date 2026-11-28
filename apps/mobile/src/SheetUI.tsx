@@ -36,6 +36,8 @@ export type SheetActionProps = { title: string; disabled?: boolean; onPress: () 
 /** A heading over label and value pairs, such as a song's file and how it plays. */
 export type SheetFactsProps = { title: string; rows: readonly { label: string; value: string }[] };
 export type SheetScrollProps = { height: number; children: ReactNode };
+/** `title`: a heading over the rows, as `SheetFacts` has, for rows that are a section of the sheet. */
+export type SheetRowsProps = { title?: string; children: ReactNode };
 export type SheetPickerRowProps<T extends string | number> = {
   label: string; value: T; options: readonly { value: T; label: string }[]; onChange: (value: T) => void;
 };
@@ -68,9 +70,12 @@ export function SheetFormHeader({ title, onClose }: SheetFrameProps) {
   </View>;
 }
 
-export function SheetRows({ children }: { children: ReactNode }) {
+export function SheetRows({ title, children }: SheetRowsProps) {
   const styles = useStyles();
-  return <View style={styles.rows}>{children}</View>;
+  return <View style={styles.rows}>
+    {title ? <Text accessibilityRole="header" style={[styles.factsTitle, styles.rowsTitle]}>{title}</Text> : null}
+    {children}
+  </View>;
 }
 
 /** Rows that scroll inside a sheet of this height, for lists that would not fit. */
@@ -226,6 +231,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   disabled: { opacity: 0.45 },
   facts: { gap: 4, paddingHorizontal: 4 },
   factsTitle: { color: colors.muted, fontSize: 13, fontWeight: '700' },
+  rowsTitle: { paddingHorizontal: 4 },
   fact: { flexDirection: 'row', justifyContent: 'space-between', gap: 16, minHeight: 26, alignItems: 'center' },
   factValue: { color: colors.text, fontSize: 15, fontWeight: '500', flexShrink: 1, textAlign: 'right' },
 }));

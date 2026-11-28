@@ -4,8 +4,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createThemedStyles, useColors } from './theme';
 import { Icon } from './ui';
 
-/** One entry of a menu. `icon` is an SF Symbol name; `destructive` draws it in red. */
-export type MenuChoice = { title: string; icon?: string; destructive?: boolean; onPress: () => void };
+/** One entry of a menu. `icon` is an SF Symbol name; `destructive` draws it in red; `subtitle` goes under the title. */
+export type MenuChoice = { title: string; subtitle?: string; icon?: string; destructive?: boolean; onPress: () => void };
 
 type Menu = { title: string; message?: string; choices: readonly MenuChoice[] };
 
@@ -41,10 +41,16 @@ function MenuSheet({ title, message, choices, onClose }: Menu & { onClose: () =>
       <ScrollView style={styles.list} contentContainerStyle={styles.rows}>
         {choices.map(choice => {
           const tone = choice.destructive ? colors.danger : colors.text;
-          return <Pressable key={choice.title} accessibilityRole="button" onPress={() => choose(choice)}
+          // Two choices can share a title (one edition of an album in two qualities); their subtitles differ.
+          return <Pressable key={`${choice.title}\n${choice.subtitle ?? ''}`} accessibilityRole="button" onPress={() => choose(choice)}
             style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
             {choice.icon ? <Icon name={choice.icon} size={20} color={tone} /> : null}
-            <Text style={[styles.rowTitle, { color: tone }]}>{choice.title}</Text>
+            {choice.subtitle
+              ? <View style={styles.rowText}>
+                <Text style={[styles.rowTitle, { color: tone }]}>{choice.title}</Text>
+                <Text style={styles.rowSubtitle}>{choice.subtitle}</Text>
+              </View>
+              : <Text style={[styles.rowTitle, { color: tone }]}>{choice.title}</Text>}
           </Pressable>;
         })}
       </ScrollView>
@@ -64,6 +70,8 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   rows: { gap: 6 },
   row: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, borderRadius: 14, backgroundColor: colors.overlay },
   rowTitle: { flex: 1, fontSize: 16, fontWeight: '600' },
+  rowText: { flex: 1, gap: 2, paddingVertical: 8 },
+  rowSubtitle: { color: colors.muted, fontSize: 13 },
   cancel: { justifyContent: 'center' },
   cancelTitle: { color: colors.accent, textAlign: 'center' },
   pressed: { opacity: 0.73 },

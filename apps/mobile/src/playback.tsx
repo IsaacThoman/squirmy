@@ -520,6 +520,11 @@ function createActions(runtime: Runtime | null, canPlay: (track: TrackSummary) =
       send({ type: 'enqueue', tracks: [track ? seedOf(track) : { trackId: entry.trackId, albumId: entry.albumId, durationMs: entry.durationMs }], placement: 'next' });
       send({ type: 'removeFromQueue', entryId: entry.id });
     },
+    /**
+     * Loads songs again from the server the next time they start (every song, or one track's),
+     * for when the copy they play from changed: the user picked another version. What plays now goes on.
+     */
+    forgetPlayback: (trackId?: string) => runtime?.client.forgetPlayback(trackId),
     clearHistory: () => send({ type: 'clearHistory' }),
     clearQueue: () => {
       if ((runtime?.client.getSnapshot() ?? idle).queue.queue.length) undoable({ type: 'clearQueue' }, { message: 'Queue cleared' });

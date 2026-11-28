@@ -99,7 +99,7 @@ export async function reportPlayback(context: Context) {
 
   return serialPlayback(context, async () => {
     const recordingId = await resolve('track', mediaId)
-    const selection = await selectFile(recordingId, { quality: 'original' })
+    const selection = await selectFile(recordingId, { quality: 'original', userId: user.id })
     if (!selection) throw notFound('Song')
     await assertFileAllowed(user.id, selection.file)
 

@@ -2,9 +2,10 @@
  * Builds Subsonic songs (`Child` objects) in batches with a fixed number of queries.
  *
  * Subsonic describes files, so each song is shown through one present file of its
- * recording: the one on the requested album when there is one, then the file the stream
- * endpoint would pick (lossless, then higher bitrate, then newest). The album, disc and
- * track number are that file's. Recordings without a present file are left out.
+ * recording, chosen as the stream endpoint chooses (`selectFile`) with no codec list: the
+ * file in the user's pick for the song, then the one on the requested album, then one in
+ * the user's pick for its album, then lossless, higher bitrate and newest. The album, disc
+ * and track number are that file's. Recordings without a present file are left out.
  */
 import path from 'node:path'
 import { sql } from 'drizzle-orm'
@@ -13,6 +14,7 @@ import { trackCredits, trackExplicit, trackWorks } from '../catalog/credits.js'
 import { explicitAllowed } from '../catalog/explicit.js'
 import { isoTime, uuidArray } from '../catalog/sql.js'
 import { resolveMerged } from '../catalog/redirects.js'
+import { pickedBy } from '../catalog/versions.js'
 import { normalizationValues } from '../loudness/normalization.js'
 import { sonicPoints } from '../sonic/index.js'
 import { mimeFor } from '../streaming/index.js'
@@ -143,8 +145,8 @@ export async function songs(userId: string, refs: readonly SongRef[]): Promise<P
     join lateral (
       select * from media_files candidate
       where candidate.recording_id = r.id and candidate.missing_since is null
-      order by (candidate.album_id = req.album_id) is true desc, candidate.lossless desc,
-        candidate.bitrate desc nulls last, candidate.added_at desc
+      order by ${pickedBy(userId, 'recording', 'candidate', sql`r.id`)} desc, (candidate.album_id = req.album_id) is true desc,
+        ${pickedBy(userId, 'album', 'candidate')} desc, candidate.lossless desc, candidate.bitrate desc nulls last, candidate.added_at desc
       limit 1
     ) f on true
     left join albums al on al.id = f.album_id

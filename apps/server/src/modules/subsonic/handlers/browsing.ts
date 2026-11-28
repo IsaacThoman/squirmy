@@ -8,6 +8,7 @@ import { sql } from 'drizzle-orm'
 import { db } from '../../../database/client.js'
 import { matchKey } from '../../../lib/text.js'
 import { albumTrackList } from '../../catalog/pages.js'
+import { shownVersion } from '../../catalog/versions.js'
 import { resolveOne, type MergeableTable } from '../../catalog/redirects.js'
 import { uuidArray } from '../../catalog/sql.js'
 import { similarArtists } from '../../radio/index.js'
@@ -44,13 +45,14 @@ async function artistAlbumIds(userId: string, artist: string, rootId?: string): 
 }
 
 /**
- * Library and collection songs filed under an album, in the order of the catalog's track list. Songs the release does
+ * Library and collection songs filed under an album, in the order of the catalog's track list
+ * (of the edition the user picked, as the album page lists it). Songs the release does
  * not number (bonus tracks) are numbered after the last track of their disc, so clients that
  * sort by number put them last and no two songs share one.
  */
 async function albumSongs(userId: string, album: string): Promise<Payload[]> {
   const [listed, filed] = await Promise.all([
-    albumTrackList(album),
+    shownVersion(userId, album).then((shown) => albumTrackList(album, shown.editionId)),
     db.execute<{ id: string }>(sql`
       select distinct f.recording_id as id from media_files f
       where f.album_id = ${album} and f.recording_id is not null and ${libraryFile('f', userId, undefined, 'server')}`),
