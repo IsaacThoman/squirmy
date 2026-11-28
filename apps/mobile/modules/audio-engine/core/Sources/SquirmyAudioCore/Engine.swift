@@ -127,6 +127,11 @@ final class Engine {
   /// The next timeline frame to queue, and what is queued.
   private var enqueued: Int64 = 0
   private var segments: [Segment] = []
+  /// The end of the chain: every entry not at unity gain plays through it.
+  private var limiter: Limiter
+  /// The limiter's gain before each run of frames queued, to carry on from when rendering
+  /// again part way.
+  private var limiterMarks: [(frame: Int64, gain: Float)] = []
   /// The item frame shown while none of the loaded entry has played since a load or seek.
   private var anchor: Int64 = 0
   /// A seek waits for its first frames.
@@ -139,6 +144,7 @@ final class Engine {
     self.factory = factory
     self.config = config
     self.queue = queue
+    limiter = Limiter(sampleRate: output.sampleRate)
     output.onEvent = { [weak self] event in self?.outputEvent(event) }
   }
 
@@ -479,6 +485,8 @@ final class Engine {
       let holdingOnly = current == nil && holding
       guard (waitingToSound || holdingOnly) && !systemInterrupted && enqueued < playhead + silenceLead else { break }
       let count = config.chunkFrames / 4
+      limiter.reset()
+      limiterMarks.append((enqueued, 1))
       output.enqueue([Float](repeating: 0, count: count * 2)[...], at: enqueued)
       append(Segment(start: enqueued, end: enqueued + Int64(count), slot: nil, itemStart: 0))
       enqueued += Int64(count)
@@ -504,10 +512,20 @@ final class Engine {
   private func enqueue(_ slot: Slot, _ chunk: [Float]) {
     var samples = chunk
     let count = samples.count / 2
+    // At unity gain (normalization off) an entry plays as the file is; any other gain, a
+    // boost above all, goes through the limiter.
+    let limited = slot.gain != 1 || slot.heardGain != 1
     shape(&samples, slot)
-    output.enqueue(samples[...], at: enqueued)
-    append(Segment(start: enqueued, end: enqueued + Int64(count), slot: slot, itemStart: slot.nextFrame))
+    let itemStart = slot.nextFrame
     slot.nextFrame += Int64(count)
+    limiterMarks.append((enqueued, limiter.gain))
+    if limited {
+      limiter.process(&samples, ahead: upcoming(limiter.aheadFrames)[...])
+    } else {
+      limiter.pass(samples[...])
+    }
+    output.enqueue(samples[...], at: enqueued)
+    append(Segment(start: enqueued, end: enqueued + Int64(count), slot: slot, itemStart: itemStart))
     enqueued += Int64(count)
     guard slot === current else { return }
     if state == .loading {
@@ -546,6 +564,26 @@ final class Engine {
     }
   }
 
+  /// Up to `count` frames that are queued after what was just taken, at their entries' gains:
+  /// what the limiter looks ahead into. Short where decoding has not got that far.
+  private func upcoming(_ count: Int) -> [Float] {
+    guard let current else { return [] }
+    var frames = scaled(current.pipeline.copy(from: current.nextFrame, count: count), current)
+    let decoded = current.pipeline.decoded
+    let short = count - frames.count / 2
+    if short > 0, decoded.ended, current.nextFrame + Int64(frames.count / 2) >= decoded.end, !seeking, let next, next.pipeline.error == nil {
+      frames += scaled(next.pipeline.copy(from: next.nextFrame, count: short), next)
+    }
+    return frames
+  }
+
+  /// `samples` at the slot's gain, or at the one it ramps from when that is larger, so the
+  /// limiter turns down at least as far as it will have to.
+  private func scaled(_ samples: ArraySlice<Float>, _ slot: Slot) -> [Float] {
+    let gain = max(slot.gain, slot.heardGain)
+    return gain == 1 ? Array(samples) : samples.map { $0 * gain }
+  }
+
   private func append(_ segment: Segment) {
     if var last = segments.last, last.slot === segment.slot, last.end == segment.start,
        segment.slot == nil || last.itemStart + (last.end - last.start) == segment.itemStart {
@@ -582,6 +620,7 @@ final class Engine {
     current.pipeline.forget(before: current.nextFrame - keep)
     let playhead = Int64(output.currentFrame())
     segments.removeAll { $0.end < playhead - keep }
+    limiterMarks.removeAll { $0.frame < playhead - keep }
   }
 
   // MARK: - Rendering again
@@ -593,6 +632,8 @@ final class Engine {
     output.flush()
     enqueued = playhead
     segments.removeAll()
+    limiter.reset()
+    limiterMarks.removeAll()
     next?.nextFrame = 0
   }
 
@@ -627,6 +668,9 @@ final class Engine {
     enqueued = frame
     segments.removeAll { $0.start >= frame }
     if let last = segments.last, last.end > frame { segments[segments.count - 1].end = frame }
+    // From about where the limiter was there: what it had looked ahead into is gone.
+    limiterMarks.removeAll { $0.frame > frame }
+    limiter.reset(gain: limiterMarks.last?.gain ?? 1)
     next?.nextFrame = 0
     if let current {
       if let position, position.slot === current {
@@ -664,6 +708,8 @@ final class Engine {
     output.setRate(0, at: 0)
     enqueued = 0
     segments.removeAll()
+    limiter = Limiter(sampleRate: rate)
+    limiterMarks.removeAll()
     guard let current else { return }
     let frame = Int64((seconds * rate).rounded())
     anchor = frame

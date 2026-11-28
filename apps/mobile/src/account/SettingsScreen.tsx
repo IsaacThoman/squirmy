@@ -3,13 +3,14 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { closeSheet } from '../closeSheet';
+import { useNormalizationBoosts } from '../playback';
 import { SheetFrame, SheetRow, SheetRows } from '../SheetUI';
 import { StorageSection } from '../streamingCache/StorageSection';
 import { createThemedStyles, useColors } from '../theme';
 import {
-  lastFmAdminNote, normalizationNote, normalizationOptions, openListenBrainzSettings, qualityNote, qualityOptions, scrobbleDetail,
-  explicitLabel, explicitNote, explicitRestrictedNote, scrobbleFooter, serverMusicLabel, serverMusicNote, shareNowPlayingLabel, shareNowPlayingNote,
-  useSettingsScreen,
+  explicitLabel, explicitNote, explicitRestrictedNote, lastFmAdminNote, normalizationNote, normalizationOptions, normalizationTarget,
+  openListenBrainzSettings, qualityNote, qualityOptions, scrobbleDetail, scrobbleFooter, serverMusicLabel, serverMusicNote, shareNowPlayingLabel,
+  shareNowPlayingNote, targetOptions, useSettingsScreen,
 } from './settings';
 
 export function SettingsScreen() {
@@ -17,6 +18,7 @@ export function SettingsScreen() {
   const router = useRouter();
   const screen = useSettingsScreen();
   const { settings, update } = screen;
+  const boosts = useNormalizationBoosts();
   return <ScrollView keyboardShouldPersistTaps="handled">
     <SheetFrame title="Settings" onClose={() => closeSheet(router)}>
       {settings ? <>
@@ -25,7 +27,14 @@ export function SettingsScreen() {
           {normalizationOptions.map(option => <SheetRow key={option.value} title={option.label} icon="speaker.wave.2.fill"
             selected={settings.normalization === option.value} onPress={() => update({ normalization: option.value })} />)}
         </SheetRows>
-        <Text style={styles.note}>{normalizationNote}</Text>
+        {settings.normalization !== 'off' && <>
+          <Text style={styles.heading}>Target loudness</Text>
+          <SheetRows>
+            {targetOptions.map(option => <SheetRow key={option.value} title={option.label} icon="speaker.wave.3.fill"
+              selected={normalizationTarget(settings) === option.value} onPress={() => update({ normalizationTarget: option.value })} />)}
+          </SheetRows>
+        </>}
+        <Text style={styles.note}>{normalizationNote(boosts)}</Text>
         <Text style={styles.heading}>Wi-Fi quality</Text>
         <SheetRows>
           {qualityOptions.map(option => <SheetRow key={option.value} title={option.label} icon="wifi"

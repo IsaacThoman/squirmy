@@ -10,15 +10,16 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, StyleSheet } from 'react-native';
 import { closeSheet } from '../closeSheet';
+import { useNormalizationBoosts } from '../playback';
 import { engineNote, engineOptions, showsEngineSetting, useEngineSetting } from '../player/engine/setting';
 import { SheetFormHeader, SheetPickerRow } from '../SheetUI';
 import { StorageSection } from '../streamingCache/StorageSection';
 import { useColors } from '../theme';
 import { serviceNames } from './scrobbling';
 import {
-  lastFmAdminNote, normalizationNote, normalizationOptions, openListenBrainzSettings, qualityNote, qualityOptions,
-  explicitLabel, explicitNote, explicitRestrictedNote, scrobbleDetail, scrobbleFooter, serverMusicLabel, serverMusicNote, shareNowPlayingLabel,
-  shareNowPlayingNote, useSettingsScreen,
+  explicitLabel, explicitNote, explicitRestrictedNote, lastFmAdminNote, normalizationNote, normalizationOptions, normalizationTarget,
+  openListenBrainzSettings, qualityNote, qualityOptions, scrobbleDetail, scrobbleFooter, serverMusicLabel, serverMusicNote, shareNowPlayingLabel,
+  shareNowPlayingNote, targetOptions, useSettingsScreen,
 } from './settings';
 
 const clearRow = [listRowBackground('clear'), listRowInsets({ top: 0, leading: 0, bottom: 0, trailing: 0 })];
@@ -31,6 +32,7 @@ export function SettingsScreen() {
   const lastFm = screen.lastFm;
   const [engine, setEngine] = useEngineSetting();
   const engineChoice = showsEngineSetting();
+  const playbackNote = normalizationNote(useNormalizationBoosts());
 
   return <KeyboardAvoidingView behavior="padding" style={styles.page}>
     <Host style={styles.page}>
@@ -41,10 +43,13 @@ export function SettingsScreen() {
         <Form modifiers={[scrollDismissesKeyboard('interactively'), scrollContentBackground('hidden'), tint(colors.accent)]}>
         {settings ? <>
           <Section title="Playback" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>
-            {engineChoice ? `${normalizationNote}\n\n${engineNote}` : normalizationNote}
+            {engineChoice ? `${playbackNote}\n\n${engineNote}` : playbackNote}
           </Text>}>
             <SheetPickerRow label="Volume Normalization" value={settings.normalization} options={normalizationOptions}
               onChange={normalization => update({ normalization })} />
+            {/* Only normalization has a target: with it off, songs play as they are. */}
+            {settings.normalization !== 'off' && <SheetPickerRow label="Target Loudness" value={normalizationTarget(settings)} options={targetOptions}
+              onChange={target => update({ normalizationTarget: target })} />}
             {engineChoice && <SheetPickerRow label="Engine" value={engine} options={engineOptions} onChange={setEngine} />}
           </Section>
           <Section title="Streaming Quality" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{qualityNote}</Text>}>

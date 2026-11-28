@@ -584,13 +584,18 @@ export const SignalReport = z.object({
   }),
   /**
    * Loudness normalization: the device's setting, which gain it applies (null when none:
-   * off, or no loudness data) and the change in dB after peak limiting, against the -18 LUFS
-   * reference of `Normalization`.
+   * off, or no loudness data) and the change in dB it makes, toward `targetLufs` (-18, the
+   * reference of `Normalization`, from a device that does not say). A device without a
+   * limiter holds the gain back so the song's peak cannot clip; one with a limiter applies it
+   * all and says in `limitDb` how far the limiter turns the song's loudest peak down (0 when
+   * none reaches its ceiling, null when the peak is unknown). No `limitDb`: no limiter.
    */
   normalization: z.object({
     mode: NormalizationMode,
     applied: z.enum(['track', 'album']).nullable(),
     gainDb: z.number().nullable(),
+    targetLufs: z.number().optional(),
+    limitDb: z.number().nullable().optional(),
   }),
 })
 export type SignalReport = z.infer<typeof SignalReport>
