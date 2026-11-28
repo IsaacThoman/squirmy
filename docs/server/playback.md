@@ -22,6 +22,10 @@ Each client says which formats it decodes. The iOS app lists FLAC, ALAC, AAC, MP
 
 Conversions are done with ffmpeg and sent while they are encoded, so playback starts after a moment rather than after the whole file. At most half the CPU cores (at least two) encode at once. Subsonic apps can also ask for MP3 at 320 or 192 kbps; see [Subsonic clients](./subsonic.md#streaming-and-transcoding).
 
+### Seeing what plays
+
+Now Playing shows a **Lossless** badge while the device playing receives a lossless file as it is, and **Hi-Res Lossless** when that file is above 48 kHz or 16-bit. A lossy stream has no badge, and neither has a lossless file converted on its way (by **High**, **Data saver**, or a device that can't play its format). The badge and **Track info** in the song's menu open the song's details: its file (format, sample rate, bit depth, bitrate, channels, size), what the device receives (the file as it is, or a conversion and why), the volume normalization applied, and the device playing. Each device says this itself, so a phone controlling a TV shows what the TV plays. A device running an older version of Squirmy doesn't say, and its listeners see no badge.
+
 ### The transcode cache
 
 Every conversion is kept in `<data>/transcodes/`, so the second play of a track starts at once and seeks like the original. The cache is capped by **Admin → Server settings → Transcoding → Transcode cache** (default 10 GB). Once an hour, the least recently used conversions beyond the cap are deleted, except those played in the last half hour. The folder is safe to delete at any time; it refills as people listen.

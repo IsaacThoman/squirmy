@@ -32,6 +32,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Reconnect rule and device-lost handling
 - [x] Device presence: only devices that are open and answering the heartbeat are listed
 - [x] Live invalidations on web and mobile
+- [x] Signal path: each device reports what it plays; Lossless badge and Track info on web, iOS and Apple TV
 
 ## 4. Identify and reorganize
 

@@ -34,7 +34,8 @@ Hold the click on a song or an album for its menu. A song's has **Play next**, *
 **Now Playing** shows the cover of the song playing among the songs around it, over a backdrop made from its colors. Left alone, the controls fade away and leave the covers; press any direction to bring them back.
 
 - Focus the progress bar and press left or right to skip back or ahead ten seconds a press, longer while held. Select plays and pauses.
-- The buttons above it turn on **Shuffle**, **Repeat** and **Autoplay**, heart the song and open its menu.
+- The buttons above it turn on **Shuffle**, **Repeat** and **Autoplay**, heart the song and open its menu. The menu's **Track info** shows the song's file, how it reaches the device playing, and the volume normalization applied; press Menu or **Done** to close it.
+- Under the song, **Lossless** or **Hi-Res Lossless** shows while the device playing gets a lossless file as it is.
 - **Lyrics** shows the words beside the cover, the line being sung highlighted. **Up Next** shows the queue: select a song to play it, or hold the click to move it or remove it.
 
 ## Your phone and other devices
