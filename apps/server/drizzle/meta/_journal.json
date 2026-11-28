@@ -246,6 +246,13 @@
       "when": 1795851367376,
       "tag": "0034_home_mixes",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1795853376885,
+      "tag": "0035_auth_two_factor",
+      "breakpoints": true
     }
   ]
 }
