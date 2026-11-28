@@ -50,9 +50,3 @@ export function cacheFiles(): CacheFiles {
     freeBytes: () => Paths.availableDiskSpace,
   };
 }
-
-/** Deletes the files `referenced` does not name: what an account that signed out left behind. */
-export function sweepCacheFiles(referenced: ReadonlySet<string>): void {
-  const files = cacheFiles();
-  for (const name of files.list().keys()) if (!referenced.has(name)) files.remove(name);
-}

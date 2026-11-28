@@ -1,6 +1,6 @@
 import {
-  Id, OrganizeBatchListQuery, OrganizePreviewRequest, queryKeys,
-  type OrganizeBatch, type OrganizeBatchAccepted, type OrganizeBatchList, type OrganizeTemplateInfo,
+  Id, TagEdit, OrganizeBatchListQuery, OrganizePreviewRequest, queryKeys,
+  type OrganizeBatch, type OrganizeBatchAccepted, type OrganizeBatchList, type OrganizeTemplateInfo, type TagEditor, type TagEditResult,
 } from '@squirmy/contracts'
 import { and, eq, inArray } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
@@ -12,6 +12,7 @@ import { conflict } from '../../lib/errors.js'
 import { enqueue } from '../../jobs/index.js'
 import { invalidate } from '../../realtime/index.js'
 import { getBatch, getBatchSummary, listBatches } from './batches.js'
+import { editAlbumTags, findTagEditorCovers, loadTagEditor } from './editor.js'
 import { assertManaged, loadBatch } from './journal.js'
 import { planOrganize } from './plan.js'
 import { templateInfo } from './template.js'
@@ -44,6 +45,15 @@ export async function organizeRoutes(app: FastifyInstance) {
   app.addHook('onRequest', async (request) => {
     requireAdmin(request)
   })
+
+  app.get('/admin/albums/:id/tags', async (request): Promise<TagEditor> =>
+    loadTagEditor(IdParams.parse(request.params).id))
+
+  app.get('/admin/albums/:id/tag-covers', async (request): Promise<TagEditor['covers']> =>
+    findTagEditorCovers(IdParams.parse(request.params).id))
+
+  app.patch('/admin/albums/:id/tags', { bodyLimit: 12 * 1024 * 1024 }, async (request): Promise<TagEditResult> =>
+    editAlbumTags(IdParams.parse(request.params).id, TagEdit.parse(request.body)))
 
   app.get('/admin/organize/template', async (): Promise<OrganizeTemplateInfo> => templateInfo())
 
