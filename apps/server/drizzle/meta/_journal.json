@@ -204,13 +204,6 @@
       "when": 1795843976934,
       "tag": "0028_play_skips",
       "breakpoints": true
-    },
-    {
-      "idx": 29,
-      "version": "7",
-      "when": 1795849294763,
-      "tag": "0029_auth_two_factor",
-      "breakpoints": true
     }
   ]
 }
