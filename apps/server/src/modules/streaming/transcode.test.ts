@@ -1,4 +1,5 @@
 import { execFile, type ChildProcess } from 'node:child_process'
+import { once } from 'node:events'
 import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
@@ -20,6 +21,7 @@ import { updateServerSettings } from '../../lib/settings.js'
 import { makeTone, writeHostileInputs } from '../../test/audio.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createLibraryRoot, createUser } from '../../test/factories.js'
+import { liveEncode } from '../subsonic/transcode.js'
 import { evictTranscodes } from './cache.js'
 import { streamingModule } from './index.js'
 import { signStreamUrl } from './playback.js'
@@ -469,8 +471,9 @@ describe('transcodes', () => {
 
     it('shares the four-encode user cap with Subsonic live slots and leaves room for another user', async () => {
       setTranscodeSlotLimit(6)
-      const release = tryAcquireSlot(userId, 3)!
+      const live = await liveEncode(await addLong(), { kind: 'live', codec: 'mp3', bitrate: 96_000, offsetSeconds: 0 }, userId)
       try {
+        await expect.poll(() => live.readableLength).toBeGreaterThanOrEqual(live.readableHighWaterMark)
         for (let index = 0; index < 2; index++) {
           const file = await addLong()
           connect(file)
@@ -494,7 +497,9 @@ describe('transcodes', () => {
         connect(fifth, 'play', other.id)
         await started(fifth)
       } finally {
-        release()
+        const closed = once(live, 'close')
+        live.destroy()
+        await closed
       }
     })
   })

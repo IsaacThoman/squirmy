@@ -98,6 +98,8 @@ export async function liveEncode(file: MediaFile, plan: Extract<StreamPlan, { ki
     const output = new PassThrough({
       destroy(error, callback) {
         if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
+        // A pipe paused by an unread response would otherwise delay ChildProcess 'close'.
+        child.stdout.destroy()
         // Keep the slot reserved until ffmpeg has actually stopped.
         void exited.then(() => callback(error))
       },
