@@ -53,7 +53,7 @@ describe('owned music enrichment', () => {
   beforeAll(async () => {
     await startJobs({ work: false })
     app = await buildApp()
-    user = await signIn()
+    user = await signIn({ settings: { libraryIncludesServerMusic: true } })
     const artist = await createArtist({ name: 'Radiohead', mbid: radiohead })
     owned = await createAlbum({
       title: 'OK Computer', artist, mbid: okComputer, owned: true,
@@ -199,6 +199,24 @@ describe('owned music enrichment', () => {
     // Saving the album takes it out of the feed: the library has it now.
     await db.insert(likes).values({ userId: other.id, entityType: 'album', entityId: followedRelease })
     expect(await newReleaseAlbumIds(other.id, 200)).not.toContain(followedRelease)
+  })
+
+  it('uses the collection preference for both artist membership and releases already in the library', async () => {
+    const savesOnly = await createUser({ settings: { libraryIncludesServerMusic: false } })
+    const fresh = await createAlbum({ title: 'Feed Scope New', artist: owned.artist })
+    const collected = await createAlbum({ title: 'Feed Scope Collected', artist: owned.artist, owned: true })
+    const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10)
+    await db.update(albums).set({ releaseDate: yesterday, enrichedAt: new Date() })
+      .where(inArray(albums.id, [fresh.albumId, collected.albumId]))
+
+    const optedIn = await newReleaseAlbumIds(user.id, 200)
+    expect(optedIn).toContain(fresh.albumId)
+    expect(optedIn).not.toContain(collected.albumId)
+    expect(await newReleaseAlbumIds(savesOnly.id, 200)).toEqual([])
+    await db.insert(likes).values({ userId: savesOnly.id, entityType: 'album', entityId: owned.albumId })
+    expect(await newReleaseAlbumIds(savesOnly.id, 200)).toEqual(expect.arrayContaining([fresh.albumId, collected.albumId]))
+    await db.insert(likes).values({ userId: savesOnly.id, entityType: 'album', entityId: collected.albumId })
+    expect(await newReleaseAlbumIds(savesOnly.id, 200)).not.toContain(collected.albumId)
   })
 
   it('leaves Various Artists out of new releases: owning a compilation adds no one\'s discography', async () => {

@@ -471,7 +471,7 @@ describe('repairing deliveries left on albums of their own', () => {
     const wanna = await fetchedTheOldWay(ep.tracks[4]!.recordingId, stub, { title: 'I Don’t Wanna', artist: band.name, album: 'Baggy$$', position: 5, year: 2024 })
 
     const baggy = async () => {
-      const found = body(await app.inject({ url: `/api/v1/search/library?q=${encodeURIComponent('baggy$$')}`, headers: fan.headers }), SearchResults)
+      const found = body(await app.inject({ url: `/api/v1/search/library?q=${encodeURIComponent('baggy$$')}&scope=server`, headers: fan.headers }), SearchResults)
       return found.albums.filter((album) => album.title === 'Baggy$$' && album.artistCredit === band.name)
     }
     expect(await fileRow(umpa.file.id)).toMatchObject({ albumId: stub, matchStatus: 'matched', matchSource: 'request' })
