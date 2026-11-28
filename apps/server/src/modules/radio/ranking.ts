@@ -71,6 +71,7 @@ export type SuggestOptions = {
  * - `liked`, `likedArtist`, `likedAlbum`: the user liked the track, its artist, its album.
  * - `popularity`: the recording's popularity, when a source provided one.
  * - `recentlyPlayed`: the user played it in the last `RECENT_HOURS` hours.
+ * - `repeatedlySkipped`: the user skipped it early at least twice in the last 30 days.
  * - `noise`: uniform random, so two runs differ and equal candidates take turns.
  */
 export const weights = {
@@ -85,6 +86,7 @@ export const weights = {
   likedAlbum: 0.5,
   popularity: 0.5,
   recentlyPlayed: -4,
+  repeatedlySkipped: -0.75,
   noise: 1,
 }
 
@@ -122,6 +124,7 @@ type Candidate = Seed & {
   likedAlbum: boolean
   popularity: number
   recentlyPlayed: boolean
+  repeatedlySkipped: boolean
   coListened: number
   score: number
 }
@@ -284,6 +287,9 @@ async function gather(userId: string, profile: Profile, owned: boolean, salt: nu
               select a.id, case when a.genres && ${genres} or ar.genres && ${genres} then 0 when a.year between ${fromYear} and ${toYear} then 1 else 2 end as kind
               from albums a left join artists ar on ar.id = a.primary_artist_id
               where a.merged_into_id is null
+                and exists (
+                  select 1 from media_files mf where mf.album_id = a.id and mf.missing_since is null and mf.recording_id is not null
+                )
             ) typed
           ) ranked
           where n <= (array[40, 20, 15])[kind + 1]
@@ -295,9 +301,12 @@ async function gather(userId: string, profile: Profile, owned: boolean, salt: nu
         ) file`,
       // Tracks the user played within half an hour of playing a seed, by on how many days.
       sql`select p.recording_id, count(distinct (s.started_at at time zone 'UTC')::date)::int as days from (
-          select started_at from plays where user_id = ${userId} and recording_id = any(${seedIds}) order by started_at desc limit 30
+          select started_at from plays where user_id = ${userId} and not skipped and recording_id = any(${seedIds})
+          order by started_at desc limit 30
         ) s join plays p on p.user_id = ${userId} and p.started_at between s.started_at - interval '30 minutes' and s.started_at + interval '30 minutes'
-        group by p.recording_id order by days desc, p.recording_id limit 150`,
+        where not p.skipped
+        group by p.recording_id having ${ownership('p.recording_id')}
+        order by days desc, p.recording_id limit 150`,
     )
   }
   const rows = await db.execute<{ id: string; near: number }>(sql`
@@ -321,8 +330,14 @@ async function features(userId: string, ids: readonly string[], owned: boolean):
       exists (select 1 from likes l where l.user_id = ${userId} and l.entity_type = 'artist' and l.entity_id = r.primary_artist_id) as "likedArtist",
       exists (select 1 from likes l where l.user_id = ${userId} and l.entity_type = 'album' and l.entity_id = al.id) as "likedAlbum",
       exists (
-        select 1 from plays p where p.recording_id = r.id and p.user_id = ${userId} and p.started_at > now() - ${`${RECENT_HOURS} hours`}::interval
-      ) as "recentlyPlayed"
+        select 1 from plays p where p.recording_id = r.id and p.user_id = ${userId} and not p.skipped
+          and p.started_at > now() - ${`${RECENT_HOURS} hours`}::interval
+      ) as "recentlyPlayed",
+      exists (
+        select 1 from plays p where p.recording_id = r.id and p.user_id = ${userId} and p.skipped
+          and p.started_at > now() - interval '30 days'
+        offset 1
+      ) as "repeatedlySkipped"
     from unnest(${uuidArray(ids)}) c(id)
     join recordings r on r.id = c.id and r.merged_into_id is null
     left join lateral (
@@ -359,6 +374,7 @@ function score(candidate: Omit<Candidate, 'score' | 'related'>, profile: Profile
     + weights.likedAlbum * Number(candidate.likedAlbum)
     + weights.popularity * candidate.popularity
     + weights.recentlyPlayed * Number(candidate.recentlyPlayed)
+    + weights.repeatedlySkipped * Number(candidate.repeatedlySkipped)
     + weights.noise * random()
   return { score: total, related }
 }

@@ -773,6 +773,11 @@ export const plays = pgTable('plays', {
   msPlayed: integer('ms_played').notNull().default(0),
   /** True once the play passed the scrobble threshold (half the track or four minutes). */
   completed: boolean('completed').notNull().default(false),
+  /** A closed app play with less than five seconds listened. */
+  skipped: boolean('skipped').notNull().default(false),
+  /** Session context when the play started. Radio context ids are not UUIDs. */
+  contextType: text('context_type'),
+  contextId: text('context_id'),
 }, (t) => [
   index('plays_user_recent').on(t.userId, t.startedAt),
   index('plays_recording').on(t.recordingId),

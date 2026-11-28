@@ -7,7 +7,7 @@ import type { FastifyInstance, InjectOptions } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { albums, assets, playlistItems, playlists, ratings, recordings, users, wants } from '../../database/schema.js'
+import { albums, assets, playlistItems, playlists, plays, ratings, recordings, users, wants } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { updateServerSettings } from '../../lib/settings.js'
 import { invalidate, publishChanges } from '../../realtime/index.js'
@@ -319,6 +319,11 @@ describe('userdata', () => {
       for (const [index, recordingId] of sequence.entries()) {
         await createPlay({ userId: listener.id, recordingId: recordingId!, albumId: album.albumId, minutesAgo: 100 - index })
       }
+      // A skipped track between the last two repeats should neither show nor break the run.
+      await db.insert(plays).values({
+        id: newId(), userId: listener.id, recordingId: b!, albumId: album.albumId, startedAt: new Date(Date.now() - 94.5 * 60_000),
+        skipped: true, msPlayed: 2000,
+      })
       const expected = [c, a, b, a]
       for (const limit of [1, 2, 50]) {
         const seen: string[] = []

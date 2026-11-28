@@ -23,10 +23,10 @@ export async function listHistory(userId: string, query: PageQuery): Promise<His
   const rows = await db.execute<{ recordingId: string; albumId: string | null; playedAt: string; cursorKeys: string[] }>(sql`
     select p.recording_id as "recordingId", p.album_id as "albumId", ${isoTime('p.started_at')} as "playedAt", ${cursorKeys(historyOrdering)}
     from plays p
-    where p.user_id = ${userId} and ${after(historyOrdering, query.cursor)}
+    where p.user_id = ${userId} and not p.skipped and ${after(historyOrdering, query.cursor)}
       and p.recording_id is distinct from (
         select later.recording_id from plays later
-        where later.user_id = p.user_id and (later.started_at, later.id) > (p.started_at, p.id)
+        where later.user_id = p.user_id and not later.skipped and (later.started_at, later.id) > (p.started_at, p.id)
         order by later.started_at, later.id limit 1
       )
     order by ${orderBy(historyOrdering)} limit ${query.limit + 1}`)
