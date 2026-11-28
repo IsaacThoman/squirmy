@@ -2,7 +2,7 @@ import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { migrate } from 'drizzle-orm/postgres-js/migrator'
-import { expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { getConfig } from '../../config.js'
 import { db, getSql } from '../../database/client.js'
 import { runMigrations } from '../../database/migrate.js'
@@ -18,8 +18,6 @@ import { importCanonicalDump } from './import.js'
 import { catalogIndexModule } from './index.js'
 import { isCatalogIndexReady, searchCatalogIndex } from './search.js'
 import { dropCatalogIndex, getCatalogIndexStatus } from './status.js'
-
-useTestDatabase()
 
 async function migrateBeforeUniversalSearch() {
   const source = new URL('../../../drizzle/', import.meta.url)
@@ -47,75 +45,79 @@ const catalogDefinitions = () => getSql()<{ definition: string }[]>`
   select indexdef as definition from pg_indexes
   where schemaname = 'public' and tablename = 'catalog_index' order by indexname`
 
-it('keeps search available across an upgrade and repairs a cancelled concurrent build', async () => {
-  const freshLibrary = await definitions(librarySearchIndexNames)
-  expect(freshLibrary).toHaveLength(4)
-  expect(await catalogDefinitions()).toHaveLength(4)
-  await migrateBeforeUniversalSearch()
-  const user = await createUser()
-  const album = await createAlbum({ owned: true, tracks: [{ title: '宇多田ヒカル' }, { title: 'Lantern Song' }] })
-  const recording = album.tracks[0]!
-  await db.insert(lyrics).values({ recordingId: recording.recordingId, source: 'embedded', plain: 'lantern harbor' })
-  const sql = getSql()
-  await sql`
-    insert into catalog_index (kind, mbid, name, artist_name, album_name, name_key, score, head) values
-    ('recording', gen_random_uuid(), 'Yesterday', 'The Beatles', 'Help!', 'yesterday', 1, false),
-    ('recording', gen_random_uuid(), '宇多田ヒカル', null, null, '宇多田ヒカル', 1, true)`
-  await sql`insert into catalog_index_imports (id, state, recordings) values (gen_random_uuid(), 'active', 2)`
-  await runMigrations()
-  expect(await catalogDefinitions()).toHaveLength(4)
-  expect(await definitions(librarySearchIndexNames)).toEqual([])
-  expect(await isCatalogIndexReady()).toBe(true)
-  expect(await getCatalogIndexStatus()).toMatchObject({ searchUpgrade: 'pending' })
+describe('search index upgrades', () => {
+  useTestDatabase()
 
-  const catalog = (query: string) => searchCatalogIndex(query, { kinds: ['recording'] })
-  const library = (query: string) => searchLibrary(user.id, query, 10, { types: ['track'], scope: 'server' })
-  const lyric = () => searchLyrics(user.id, 'lantern harbor', 10, 0, 'server', {})
-  expect(await catalog('yest')).toMatchObject([{ name: 'Yesterday' }])
-  expect(await catalog('宇多田')).toMatchObject([{ name: '宇多田ヒカル' }])
-  expect(await catalog('beatles yesterday')).toEqual([])
-  expect(await library('宇多田')).toMatchObject({ tracks: [recording.recordingId] })
-  expect(await library('lantern sng')).toMatchObject({ tracks: [album.tracks[1]!.recordingId] })
-  expect(await lyric()).toEqual([])
-
-  const writer = await sql.reserve()
-  try {
-    // Hold a writer open so the concurrent build has an invalid entry while it waits.
-    await writer`begin`
-    await writer`update catalog_index set score = score`
-    await catalogIndexModule.jobs!(jobs)
-    await startJobs({ work: true })
-    await catalogIndexModule.start!({ role: 'api' })
+  it('keeps search available across an upgrade and repairs a cancelled concurrent build', async () => {
+    const freshLibrary = await definitions(librarySearchIndexNames)
+    expect(freshLibrary).toHaveLength(4)
+    expect(await catalogDefinitions()).toHaveLength(4)
+    await migrateBeforeUniversalSearch()
+    const user = await createUser()
+    const album = await createAlbum({ owned: true, tracks: [{ title: '宇多田ヒカル' }, { title: 'Lantern Song' }] })
+    const recording = album.tracks[0]!
+    await db.insert(lyrics).values({ recordingId: recording.recordingId, source: 'embedded', plain: 'lantern harbor' })
+    const sql = getSql()
+    await sql`
+      insert into catalog_index (kind, mbid, name, artist_name, album_name, name_key, score, head) values
+      ('recording', gen_random_uuid(), 'Yesterday', 'The Beatles', 'Help!', 'yesterday', 1, false),
+      ('recording', gen_random_uuid(), '宇多田ヒカル', null, null, '宇多田ヒカル', 1, true)`
+    await sql`insert into catalog_index_imports (id, state, recordings) values (gen_random_uuid(), 'active', 2)`
+    await runMigrations()
+    expect(await catalogDefinitions()).toHaveLength(4)
+    expect(await definitions(librarySearchIndexNames)).toEqual([])
+    expect(await isCatalogIndexReady()).toBe(true)
     expect(await getCatalogIndexStatus()).toMatchObject({ searchUpgrade: 'pending' })
-    await catalogIndexModule.start!({ role: 'worker' })
-    await expect.poll(async () => (await getCatalogIndexStatus()).searchUpgrade, { timeout: 10_000 }).toBe('building')
+
+    const catalog = (query: string) => searchCatalogIndex(query, { kinds: ['recording'] })
+    const library = (query: string) => searchLibrary(user.id, query, 10, { types: ['track'], scope: 'server' })
+    const lyric = () => searchLyrics(user.id, 'lantern harbor', 10, 0, 'server', {})
+    expect(await catalog('yest')).toMatchObject([{ name: 'Yesterday' }])
     expect(await catalog('宇多田')).toMatchObject([{ name: '宇多田ヒカル' }])
-    expect(await catalog('宇多田ひかる')).toEqual([])
-    await expect(dropCatalogIndex()).rejects.toMatchObject({ code: 'catalog_index_maintenance_running' })
-    await catalogIndexModule.stop!()
-    expect((await searchIndexValidity(['catalog_index_unicode'])).get('catalog_index_unicode')).toBe(false)
-  } finally {
-    await writer`rollback`
-    writer.release()
-    await catalogIndexModule.stop!()
-  }
+    expect(await catalog('beatles yesterday')).toEqual([])
+    expect(await library('宇多田')).toMatchObject({ tracks: [recording.recordingId] })
+    expect(await library('lantern sng')).toMatchObject({ tracks: [album.tracks[1]!.recordingId] })
+    expect(await lyric()).toEqual([])
 
-  await drainJobs()
-  await catalogIndexModule.start!({ role: 'worker' })
-  await drainJobs()
-  expect(await getCatalogIndexStatus()).toMatchObject({ searchUpgrade: 'ready' })
-  expect(await catalog('beatles yesterday')).toMatchObject([{ name: 'Yesterday' }])
-  expect(await catalog('yesterday help')).toMatchObject([{ name: 'Yesterday' }])
-  expect(await catalog('宇多田ひかる')).toMatchObject([{ name: '宇多田ヒカル' }])
-  expect(await library('宇多田ひかる')).toMatchObject({ tracks: [recording.recordingId] })
-  expect(await lyric()).toMatchObject([{ track: { id: recording.recordingId } }])
-  expect(await definitions(librarySearchIndexNames)).toEqual(freshLibrary)
+    const writer = await sql.reserve()
+    try {
+      // Hold a writer open so the concurrent build has an invalid entry while it waits.
+      await writer`begin`
+      await writer`update catalog_index set score = score`
+      await catalogIndexModule.jobs!(jobs)
+      await startJobs({ work: true })
+      await catalogIndexModule.start!({ role: 'api' })
+      expect(await getCatalogIndexStatus()).toMatchObject({ searchUpgrade: 'pending' })
+      await catalogIndexModule.start!({ role: 'worker' })
+      await expect.poll(async () => (await getCatalogIndexStatus()).searchUpgrade, { timeout: 10_000 }).toBe('building')
+      expect(await catalog('宇多田')).toMatchObject([{ name: '宇多田ヒカル' }])
+      expect(await catalog('宇多田ひかる')).toEqual([])
+      await expect(dropCatalogIndex()).rejects.toMatchObject({ code: 'catalog_index_maintenance_running' })
+      await catalogIndexModule.stop!()
+      expect((await searchIndexValidity(['catalog_index_unicode'])).get('catalog_index_unicode')).toBe(false)
+    } finally {
+      await writer`rollback`
+      writer.release()
+      await catalogIndexModule.stop!()
+    }
 
-  const upgradedCatalog = await catalogDefinitions()
-  expect(upgradedCatalog).toHaveLength(7)
-  const dump = path.join(getConfig().SQUIRMY_DATA_DIR, 'dump.tar.zst')
-  await writeFile(dump, buildDump(testCatalog()))
-  await importCanonicalDump({ source: dump })
-  expect(await catalogDefinitions()).toEqual(upgradedCatalog)
-  await catalogIndexModule.stop!()
+    await drainJobs()
+    await catalogIndexModule.start!({ role: 'worker' })
+    await drainJobs()
+    expect(await getCatalogIndexStatus()).toMatchObject({ searchUpgrade: 'ready' })
+    expect(await catalog('beatles yesterday')).toMatchObject([{ name: 'Yesterday' }])
+    expect(await catalog('yesterday help')).toMatchObject([{ name: 'Yesterday' }])
+    expect(await catalog('宇多田ひかる')).toMatchObject([{ name: '宇多田ヒカル' }])
+    expect(await library('宇多田ひかる')).toMatchObject({ tracks: [recording.recordingId] })
+    expect(await lyric()).toMatchObject([{ track: { id: recording.recordingId } }])
+    expect(await definitions(librarySearchIndexNames)).toEqual(freshLibrary)
+
+    const upgradedCatalog = await catalogDefinitions()
+    expect(upgradedCatalog).toHaveLength(7)
+    const dump = path.join(getConfig().SQUIRMY_DATA_DIR, 'dump.tar.zst')
+    await writeFile(dump, buildDump(testCatalog()))
+    await importCanonicalDump({ source: dump })
+    expect(await catalogDefinitions()).toEqual(upgradedCatalog)
+    await catalogIndexModule.stop!()
+  })
 })
