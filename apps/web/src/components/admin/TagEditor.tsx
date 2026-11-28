@@ -47,14 +47,14 @@ export function TagEditor({ albumId, onClose }: { albumId: string; onClose: () =
     <Dialog open onOpenChange={open => { if (!open && !saving) onClose() }}>
       <DialogContent title="Edit tags" description="Edit the tags in this album’s audio files." className="sm:max-w-5xl">
         {result.data
-          ? <TagForm albumId={albumId} data={result.data} onClose={onClose} setSaving={setSaving} />
+          ? <TagForm albumId={albumId} data={result.data} onClose={onClose} saving={saving} setSaving={setSaving} />
           : loadFailure(result, 'The tags did not load') ?? <p role="status" className="text-sm text-muted-foreground">Loading tags…</p>}
       </DialogContent>
     </Dialog>
   )
 }
 
-function TagForm({ albumId, data, onClose, setSaving }: { albumId: string; data: Editor; onClose: () => void; setSaving: (saving: boolean) => void }) {
+function TagForm({ albumId, data, onClose, saving, setSaving }: { albumId: string; data: Editor; onClose: () => void; saving: boolean; setSaving: (saving: boolean) => void }) {
   const api = useApi()
   const cache = useQueryClient()
   const fieldId = useId()
@@ -110,6 +110,7 @@ function TagForm({ albumId, data, onClose, setSaving }: { albumId: string; data:
 
   async function save(event: FormEvent) {
     event.preventDefault()
+    if (saving) return
     setError(undefined)
     setSaving(true)
     try {
@@ -158,7 +159,7 @@ function TagForm({ albumId, data, onClose, setSaving }: { albumId: string; data:
   const errors = mutation.data?.errors ?? []
   return (
     <form onSubmit={event => void save(event)} className="flex flex-col gap-5">
-      <fieldset disabled={mutation.isPending || errors.length > 0} className="flex min-w-0 flex-col gap-5">
+      <fieldset disabled={saving || errors.length > 0} className="flex min-w-0 flex-col gap-5">
         {editable.length > 0 && (
           <>
             <Panel title="Album tags" description="Changes here apply to every editable copy. Separate multiple genres with semicolons.">
@@ -240,8 +241,8 @@ function TagForm({ albumId, data, onClose, setSaving }: { albumId: string; data:
       </div>}
       <FormError message={error} />
       <DialogFooter>
-        <Button type="button" variant="outline" disabled={mutation.isPending} onClick={onClose}>{errors.length || !editable.length ? 'Close' : 'Cancel'}</Button>
-        {!!editable.length && !errors.length && <Button type="submit" pending={mutation.isPending} disabled={!changed}>Save tags</Button>}
+        <Button type="button" variant="outline" disabled={saving} onClick={onClose}>{errors.length || !editable.length ? 'Close' : 'Cancel'}</Button>
+        {!!editable.length && !errors.length && <Button type="submit" pending={saving} disabled={!changed}>Save tags</Button>}
       </DialogFooter>
     </form>
   )
