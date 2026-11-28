@@ -24,9 +24,10 @@ import { useLoading, usePlaybackState, usePosition } from './playback';
 import { DETACHED_LABEL, DETACHED_SYMBOL } from './player/detach';
 import { playPauseLabel, STILL_LOADING_LABEL } from './player/loading';
 import { artworkTransform, type ArtworkFrame } from './player/artwork';
+import { AmbientArtwork } from './player/AmbientArtwork';
 import { ArtworkPrefetch } from './player/ArtworkPrefetch';
 import { QualityBadge } from './player/QualityBadge';
-import { usePlaybackStatus } from './player/usePlaybackStatus';
+import { playbackStatus, usePlaybackStatus } from './player/usePlaybackStatus';
 import { usePlayerShown } from './player/visibility';
 import { useVolumeSlider } from './player/volume';
 import { SleepTimerBadge } from './player/SleepTimerBadge';
@@ -117,7 +118,6 @@ export default function Player() {
   const loading = useLoading();
   const artwork = track?.album?.artwork;
   const artworkImage = useArtworkImage(artwork, tablet ? tabletArtworkLimit : 440);
-  const backdropImage = useArtworkImage(artwork, 300);
   const detail = useSharedValue(0);
   const queueShown = useSharedValue(0);
   const nowPlayingShift = useSharedValue(0);
@@ -431,8 +431,8 @@ export default function Player() {
         <Glass tint="systemThinMaterial" animatedProps={glassProps} style={StyleSheet.absoluteFill} />
         <Animated.View style={[styles.page, { width, height }, pageStyle]}>
           <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: artwork?.color ?? fallbackTint }, backdropStyle]} pointerEvents="none">
-            {backdropImage && <Image source={backdropImage.source} placeholder={backdropImage.placeholder} blurRadius={70}
-              contentFit="cover" cachePolicy="memory-disk" transition={210} style={styles.backdropArt} />}
+            {/* The cover's colours, turning slowly; held back as the still blur was, under the same gradient. */}
+            <View style={styles.backdropArt}><AmbientArtwork artwork={artwork} /></View>
             <LinearGradient
               colors={colors.playerGradient}
               locations={[0, 0.39, 0.85, 1]}
@@ -672,25 +672,32 @@ function Transport({ compact, tabletWidth, rhythm, page, onToggle, onDevices }: 
 }) {
   const colors = useColors();
   const styles = useStyles();
-  const { session, output, volume, actions, remote, detached } = usePlaybackState();
+  const { session, output, volume, actions, remote, detached, hostControls } = usePlaybackState();
   const loading = useLoading();
   const [shownVolume, setVolume] = useVolumeSlider(volume, value => actions.setVolume(output.id, value));
+  // In someone else's listening session the host plays, pauses and skips; the buttons say so.
+  const control = (run: () => void) => () => {
+    selectionFeedback();
+    if (hostControls) return playbackStatus.report({ message: 'Only the host controls playback.' });
+    run();
+  };
+  const locked = hostControls ? styles.locked : undefined;
 
   return (
     <View style={[styles.transport, compact && styles.transportCompact, tabletWidth ? [styles.tabletTransport, { maxWidth: tabletWidth }] : undefined]}>
       <Scrubber />
       <View style={[styles.transportButtons, { marginTop: rhythm.buttonsTop, marginBottom: rhythm.buttonsBottom }]}>
-        <PlayerButton icon="backward.fill" label="Previous track" size={27} onPress={() => { selectionFeedback(); actions.previous(); }} />
+        <PlayerButton icon="backward.fill" label="Previous track" size={27} onPress={control(actions.previous)} style={locked} />
         <PlayerButton
           icon={session.playing ? 'pause.fill' : 'play.fill'}
           label={playPauseLabel(session.playing, loading)}
           busy={loading !== 'none'}
           size={40}
           color={colors.text}
-          onPress={() => { selectionFeedback(); actions.playPause(); }}
-          style={[styles.primaryButton, compact && styles.primaryButtonCompact]}
+          onPress={control(actions.playPause)}
+          style={[styles.primaryButton, compact && styles.primaryButtonCompact, locked]}
         />
-        <PlayerButton icon="forward.fill" label="Next track" size={27} onPress={() => { selectionFeedback(); actions.next(); }} />
+        <PlayerButton icon="forward.fill" label="Next track" size={27} onPress={control(actions.next)} style={locked} />
       </View>
       {/* Choose the sound output in the device sheet. */}
       <View style={styles.volumeRow}>
@@ -736,7 +743,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   page: { position: 'absolute', top: 0, left: 0 },
   bubbleContent: { position: 'absolute', top: 0, left: 0 },
   safe: { flex: 1 },
-  backdropArt: { width: '110%', height: '86%', opacity: 0.62 },
+  backdropArt: { ...StyleSheet.absoluteFill, opacity: 0.62 },
   grabberTouch: { alignItems: 'center' },
   collapse: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center' },
   offline: { position: 'absolute', top: 2, left: artworkInset },
@@ -782,6 +789,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   transportButtons: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly' },
   primaryButton: { width: 66, height: 66 },
   primaryButtonCompact: { width: 56, height: 56 },
+  locked: { opacity: 0.4 },
   volumeRow: { flexDirection: 'row', alignItems: 'center' },
   // The speakers' outer edges at the scrubber's ends, and the same room between each and the track.
   // speaker.fill draws about 2 pt inside its 13 pt box; speaker.wave.3.fill about 1 pt inside its 15 pt one.

@@ -253,6 +253,34 @@
       "when": 1795852078407,
       "tag": "0035_library_hygiene",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1795853456375,
+      "tag": "0036_open_ecosystem",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1795855205683,
+      "tag": "0037_explicit_restriction",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1795855793048,
+      "tag": "0038_smart_playlists",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1795856371621,
+      "tag": "0039_share_links",
+      "breakpoints": true
     }
   ]
 }

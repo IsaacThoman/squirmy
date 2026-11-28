@@ -55,7 +55,7 @@ describe('findServer', () => {
   it('returns the server name and version', async () => {
     const { asked, fetch } = serve({ 'https://music.example.com': { status: 200, body: status } });
     await expect(findServer('music.example.com/', fetch)).resolves.toEqual({
-      url: 'https://music.example.com', name: 'Home', version: '1.4.0', registrationRequiresInvite: true, wantlistEnabled: false,
+      url: 'https://music.example.com', name: 'Home', version: '1.4.0', registrationRequiresInvite: true, wantlistEnabled: false, sharingEnabled: false,
     });
     expect(asked).toEqual(['https://music.example.com', 'http://music.example.com']);
   });

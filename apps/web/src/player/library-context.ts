@@ -1,5 +1,6 @@
 import type { AlbumSummary, LikeEntityType, PlaylistSummary, TrackSummary } from '@squirmy/contracts'
 import { createContext, useContext, useSyncExternalStore } from 'react'
+import type { ShareTarget } from '@/components/share/ShareDialog'
 
 export type WantTarget = { type: 'album'; album: AlbumSummary } | { type: 'track'; track: TrackSummary }
 
@@ -24,8 +25,10 @@ export type LibraryActions = {
   setSaved: (target: LibraryTarget, saved: boolean) => Promise<void>
   /** As `setSaved`, for the Wantlist: shows at once, goes back and says so where it was made when refused. */
   setWanted: (target: WantTarget, wanted: boolean) => Promise<void>
-  /** The user's own playlists, newest change first: the ones tracks can be added to. */
+  /** The user's own playlists of songs, newest change first: the ones tracks can be added to. Smart playlists are not. */
   playlists: PlaylistSummary[]
+  /** All of the user's own playlists, smart ones too: what a search of their playlists matches. */
+  ownPlaylists: PlaylistSummary[]
   /**
    * Adds the songs, asking first about those the playlist has already. Resolves true once they
    * are added, false when the question was asked instead (the dialog it opens takes it from
@@ -34,6 +37,16 @@ export type LibraryActions = {
   addToPlaylist: (playlist: Pick<PlaylistSummary, 'id' | 'name'>, tracks: TrackSummary[]) => Promise<boolean>
   /** Opens the new playlist dialog; the playlist starts with `tracks` when given. */
   newPlaylist: (tracks?: TrackSummary[]) => void
+  /** The server lets members make public links; off, nothing offers Share. */
+  sharingEnabled: boolean
+  /** Opens the dialog that makes a public link to an album, playlist or song. */
+  share: (target: ShareTarget) => void
+  /** Opens the new smart playlist dialog; the playlist opens once made. */
+  newSmartPlaylist: () => void
+  /** The user turned on star ratings (`showRatings`): songs' menus offer them, and smart playlists can use them. */
+  showRatings: boolean
+  /** Sets the user's 1 to 5 stars for a song, 0 to remove them. Shows at once, goes back if the server refuses. */
+  setRating: (track: TrackSummary, rating: number) => Promise<void>
 }
 
 export const LibraryContext = createContext<LibraryActions | null>(null)

@@ -119,15 +119,19 @@ describe('Library', () => {
     // The list is asked for again, in its new order.
     await waitFor(() => expect(fake.api.catalog.items.mock.calls.length).toBeGreaterThan(listed))
 
-    // A playlist's menu is the pin alone; Liked Songs is pinned by its own id.
+    // A playlist's menu plays, queues, shares and opens it, then pins it; Liked Songs is pinned by its own id.
     fireEvent.contextMenu(within(list).getByRole('link', { name: playlist.name }))
-    expect((await screen.findAllByRole('menuitem')).map(item => item.textContent)).toEqual(['Pin to top'])
+    expect((await screen.findAllByRole('menuitem')).map(item => item.textContent)).toEqual(['Play', 'Play next', 'Add to queue', 'Add to playlist', 'Share…', 'Go to playlist', 'Pin to top'])
     await userEvent.click(screen.getByRole('menuitem', { name: 'Pin to top' }))
     expect(fake.api.userdata.pin).toHaveBeenCalledWith('playlist', playlist.id)
     await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
     fireEvent.contextMenu(within(list).getByRole('link', { name: 'Liked Songs' }))
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Pin to top' }))
     expect(fake.api.userdata.pin).toHaveBeenCalledWith('liked', '00000000-0000-0000-0000-000000000000')
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+    fireEvent.contextMenu(within(list).getByRole('link', { name: playlist.name }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Share…' }))
+    expect(await screen.findByRole('dialog', { name: 'Share playlist' })).toBeInTheDocument()
   })
 
   it('offers no pin where it is not known: other filters and searches', async () => {
@@ -430,13 +434,13 @@ describe('Library', () => {
       await userEvent.click(within(grid).getByRole('button', { name: 'More options for Blue Hour' }))
       // The one library entry waits for the album, which says it is saved.
       expect(await screen.findByRole('menuitem', { name: 'Remove from library' })).toBeEnabled()
-      expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Play', 'Shuffle', 'Play next', 'Add to queue', 'Add to playlist', 'Remove from library', 'Go to Mira Vale'])
+      expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Play', 'Shuffle', 'Play next', 'Add to queue', 'Add to playlist', 'Remove from library', 'Share…', 'Go to Mira Vale'])
       await userEvent.keyboard('{Escape}')
       await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
 
       fireEvent.contextMenu(within(grid).getByRole('link', { name: 'Glass City' }))
       expect(await screen.findByRole('menuitem', { name: 'Save to library' })).toBeEnabled()
-      expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Play', 'Shuffle', 'Play next', 'Add to queue', 'Add to playlist', 'Save to library', 'Go to North Index'])
+      expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Play', 'Shuffle', 'Play next', 'Add to queue', 'Add to playlist', 'Save to library', 'Share…', 'Go to North Index'])
     })
 
     it('queue an album and save it from the menu', async () => {

@@ -7,6 +7,7 @@ import { LoginPage, RegisterPage, SetupPage } from '@/pages/account'
 import {
   AlbumPage, ArtistPage, ArtistReleasesPage, CollectionPage, HomePage, LibraryPage, LibraryRedirect, LikedPage, MixPage, NotFoundPage, PlaylistPage, SearchPage, WantlistPage,
 } from '@/pages/music'
+import { JoinJamPage } from '@/pages/jam'
 import { SettingsRoute, ShellPage } from '@/pages/shell'
 
 // Admin, import and developer pages are separate downloads; most visits never open them.
@@ -21,6 +22,8 @@ const AdminSearchIndexPage = admin('AdminSearchIndexPage')
 const AdminUsersPage = admin('AdminUsersPage')
 const AdminProvidersPage = admin('AdminProvidersPage')
 const AdminSettingsPage = admin('AdminSettingsPage')
+const AdminSharingPage = admin('AdminSharingPage')
+const AdminIntegrationsPage = admin('AdminIntegrationsPage')
 const AdminJobsPage = admin('AdminJobsPage')
 const imports = (name: keyof typeof import('@/pages/imports')) => lazy(() => import('@/pages/imports').then(module => ({ default: module[name] })))
 const ImportsPage = imports('ImportsPage')
@@ -29,6 +32,8 @@ const uploads = (name: keyof typeof import('@/pages/uploads')) => lazy(() => imp
 const ReplayPage = lazy(() => import('@/pages/replay').then(module => ({ default: module.ReplayPage })))
 const ReplayTrackPage = lazy(() => import('@/pages/replay').then(module => ({ default: module.ReplayTrackPage })))
 const UploadsPage = uploads('UploadsPage')
+// Public share pages: a download of their own, for visitors who never open the app.
+const SharePage = lazy(() => import('@/pages/share').then(module => ({ default: module.SharePage })))
 const AdminUploadsPage = uploads('AdminUploadsPage')
 // The developer pages run on fixtures, which production builds leave out.
 const dev = import.meta.env.DEV && {
@@ -43,6 +48,8 @@ function Loading({ children }: { children: ReactNode }) {
 export function AppRoutes() {
   return (
     <Routes>
+      {/* For anyone with the link: no session, no setup check, nothing of the signed-in app. */}
+      <Route path="/s/:token" element={<Loading><SharePage /></Loading>} />
       <Route element={<Bootstrap />}>
         <Route path="/setup" element={<SetupPage step="account" />} />
         <Route path="/setup/library" element={<SetupPage step="library" />} />
@@ -71,6 +78,7 @@ export function AppRoutes() {
               <Route path="artist/:id" element={<ArtistPage />} />
               <Route path="artist/:id/releases/:section" element={<ArtistReleasesPage />} />
               <Route path="playlist/:id" element={<PlaylistPage />} />
+              <Route path="jam/:id" element={<JoinJamPage />} />
               <Route path="mix/:id" element={<MixPage />} />
               <Route path="settings" element={<SettingsRoute />} />
               <Route path="settings/:section" element={<SettingsRoute />} />
@@ -89,7 +97,9 @@ export function AppRoutes() {
                   <Route path="search-index" element={<Loading><AdminSearchIndexPage /></Loading>} />
                   <Route path="users" element={<Loading><AdminUsersPage /></Loading>} />
                   <Route path="providers" element={<Loading><AdminProvidersPage /></Loading>} />
+                  <Route path="sharing" element={<Loading><AdminSharingPage /></Loading>} />
                   <Route path="settings" element={<Loading><AdminSettingsPage /></Loading>} />
+                  <Route path="integrations" element={<Loading><AdminIntegrationsPage /></Loading>} />
                   <Route path="jobs" element={<Loading><AdminJobsPage /></Loading>} />
                 </Route>
               </Route>

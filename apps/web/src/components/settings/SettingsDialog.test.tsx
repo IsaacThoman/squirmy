@@ -4,7 +4,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { appPasswords, currentUser, userSettings, users } from '@/fixtures/server'
+import { appPasswords, currentUser, shareLinks, userSettings, users } from '@/fixtures/server'
 import { APPEARANCE_STORAGE_KEY, setAppearanceMode, setColorTheme } from '@/lib/appearance'
 import { colorThemeStylesheet, findColorTheme } from '@/lib/color-themes'
 import { modKey } from '@/lib/platform'
@@ -41,6 +41,9 @@ function props() {
     appPasswords,
     onCreateAppPassword: vi.fn<SettingsDialogProps['onCreateAppPassword']>(async request => ({ ...appPasswords[0], name: request.name, secret: 'sq-secret' })),
     onRevokeAppPassword: vi.fn<SettingsDialogProps['onRevokeAppPassword']>(async () => {}),
+    shareLinks,
+    sharingEnabled: true,
+    onRevokeShareLink: vi.fn<SettingsDialogProps['onRevokeShareLink']>(async () => {}),
     onChangePassword: vi.fn<SettingsDialogProps['onChangePassword']>(async () => {}),
     onLogout: vi.fn<SettingsDialogProps['onLogout']>(),
   } satisfies SettingsDialogProps
@@ -81,7 +84,7 @@ afterEach(() => {
 describe('SettingsDialog', () => {
   it('lists its sections and opens on the one it is given', () => {
     renderSettings()
-    expect(sections().getAllByRole('button').map(button => button.textContent)).toEqual(['Playback', 'Library', 'Appearance', 'Account', 'Scrobbling', 'App passwords', 'About'])
+    expect(sections().getAllByRole('button').map(button => button.textContent)).toEqual(['Playback', 'Library', 'Appearance', 'Account', 'Scrobbling', 'App passwords', 'Share links', 'Webhooks', 'About'])
     expect(sections().getByRole('button', { name: 'Playback' })).toHaveAttribute('aria-current', 'page')
     expect(panelTitles()).toEqual(['Settings', 'Playback'])
   })
@@ -92,6 +95,7 @@ describe('SettingsDialog', () => {
     ['Account', 'account'],
     ['Scrobbling', 'scrobbling'],
     ['App passwords', 'app-passwords'],
+    ['Share links', 'share-links'],
     ['About', 'about'],
     ['Playback', 'playback'],
   ] as const)('switches to %s', async (name, id) => {
@@ -126,9 +130,35 @@ describe('SettingsDialog', () => {
       expect(onOpenUploads).toHaveBeenCalled()
     })
 
+    it('turns star ratings on, off by default so the heart stays the one control', async () => {
+      const { onSettingsChange } = renderSettings({ section: 'library' })
+      const toggle = within(settings()).getByRole('switch', { name: 'Show star ratings' })
+      expect(toggle).not.toBeChecked()
+      await userEvent.click(toggle)
+      expect(onSettingsChange).toHaveBeenCalledWith({ showRatings: true })
+    })
+
     it('leaves out Your uploads for someone who may not upload', () => {
       renderSettings({ section: 'library' })
       expect(within(settings()).queryByRole('button', { name: 'Manage' })).toBeNull()
+    })
+
+    it('turns explicit content off', async () => {
+      const { onSettingsChange } = renderSettings({ section: 'library' })
+      const toggle = within(settings()).getByRole('switch', { name: 'Allow explicit content' })
+      expect(toggle).toBeChecked()
+      await userEvent.click(toggle)
+      expect(onSettingsChange).toHaveBeenCalledWith({ allowExplicit: false })
+    })
+
+    it('says an admin turned explicit content off, and offers no way back', async () => {
+      const { onSettingsChange } = renderSettings({ section: 'library', user: { ...currentUser, explicitRestricted: true, allowsExplicit: false } })
+      const toggle = within(settings()).getByRole('switch', { name: 'Allow explicit content' })
+      expect(toggle).not.toBeChecked()
+      expect(toggle).toBeDisabled()
+      expect(within(settings()).getByText(/An admin turned explicit content off for your account/)).toBeInTheDocument()
+      await userEvent.click(toggle)
+      expect(onSettingsChange).not.toHaveBeenCalled()
     })
   })
 
@@ -385,6 +415,21 @@ describe('SettingsDialog', () => {
       await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Connect ListenBrainz' })).not.toBeInTheDocument())
     })
 
+    it('submits the selected ListenBrainz API URL and enables heart sync separately', async () => {
+      const { onConnectListenBrainz, onSettingsChange } = renderSettings({ section: 'scrobbling' })
+      const sync = screen.getByRole('switch', { name: 'Sync hearts with ListenBrainz' })
+      expect(sync).not.toBeChecked()
+      await userEvent.click(sync)
+      expect(onSettingsChange).toHaveBeenCalledWith({ syncListenBrainzHearts: true })
+
+      await userEvent.click(screen.getByRole('button', { name: 'Change connection' }))
+      const dialog = within(await screen.findByRole('dialog', { name: 'Connect ListenBrainz' }))
+      await userEvent.type(dialog.getByLabelText('User token'), 'service-token')
+      await userEvent.type(dialog.getByLabelText('API URL (optional)'), 'https://listens.example.com/apis/listenbrainz/1/')
+      await userEvent.click(dialog.getByRole('button', { name: 'Connect' }))
+      expect(onConnectListenBrainz).toHaveBeenCalledWith('service-token', 'https://listens.example.com/apis/listenbrainz/1/')
+    })
+
     it('sends the browser to Last.fm to connect', async () => {
       const { onConnectLastFm } = renderSettings({ section: 'scrobbling', scrobbling: scrobbling({ ...lastFm, available: true }) })
       expect(screen.getByText('Connect your Last.fm account.')).toBeInTheDocument()
@@ -408,6 +453,31 @@ describe('SettingsDialog', () => {
     })
   })
 
+  describe('Share links', () => {
+    it('lists the user’s links with what each points at and how long it lasts', () => {
+      renderSettings({ section: 'share-links' })
+      const panel = settings()
+      expect(within(panel).getByText('Blue Hour')).toBeInTheDocument()
+      expect(within(panel).getByText(/^Playlist · Created .* · Never expires · Not opened yet$/)).toBeInTheDocument()
+      expect(within(panel).getByText(/^Song · Mira Vale · Created .* · Expired .* · Opened 12 times/)).toBeInTheDocument()
+      expect(within(panel).getByText('Expired')).toBeInTheDocument()
+    })
+
+    it('revokes a link after asking', async () => {
+      const { onRevokeShareLink } = renderSettings({ section: 'share-links' })
+      await userEvent.click(within(settings()).getAllByRole('button', { name: 'Revoke' })[0])
+      const confirm = await screen.findByRole('dialog', { name: 'Revoke the link to “Blue Hour”?' })
+      await userEvent.click(within(confirm).getByRole('button', { name: 'Revoke' }))
+      expect(onRevokeShareLink).toHaveBeenCalledWith(shareLinks[0].id)
+    })
+
+    it('says when the server has sharing off, and when there are none', () => {
+      renderSettings({ section: 'share-links', sharingEnabled: false, shareLinks: [] })
+      expect(within(settings()).getByText('Sharing is off on this server')).toBeInTheDocument()
+      expect(within(settings()).getByText('No share links')).toBeInTheDocument()
+    })
+  })
+
   describe('About', () => {
     it('shows the server’s name, its version and its address', () => {
       renderSettings({ section: 'about' })
@@ -419,7 +489,7 @@ describe('SettingsDialog', () => {
       renderSettings({ section: 'about' })
       const shortcuts = Object.fromEntries(screen.getAllByRole('term').map(term => [term.textContent, term.nextElementSibling?.textContent]))
       expect(screen.getByRole('heading', { level: 3, name: 'Keyboard shortcuts' })).toBeInTheDocument()
-      expect(shortcuts).toMatchObject({ Search: `${modKey}K`, 'Show or hide the sidebar': `${modKey}B`, Settings: `${modKey},`, 'Play or pause': 'Space' })
+      expect(shortcuts).toMatchObject({ 'Search and commands': `${modKey}K`, 'All shortcuts': '?', 'Show or hide the sidebar': `${modKey}B`, Settings: `${modKey},`, 'Play or pause': 'Space' })
     })
   })
 })

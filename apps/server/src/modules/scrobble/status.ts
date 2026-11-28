@@ -26,6 +26,7 @@ export async function scrobblingStatus(userId: string): Promise<ScrobblingStatus
         available: target === 'listenbrainz' || server.lastFmKeySet,
         connected: Boolean(connection),
         account: connection?.account ?? null,
+        apiUrl: connection?.apiUrl,
         enabled: scrobbling.settings[switchFor[target]],
         needsAttention: connection?.needsAttention ?? false,
         lastError: connection?.lastError ?? null,

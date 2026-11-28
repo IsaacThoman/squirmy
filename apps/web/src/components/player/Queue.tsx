@@ -1,26 +1,37 @@
-import { contextLabel, readsUnavailable, upNextDetail, upNextTitle, type SessionOutage } from '@squirmy/client-core'
-import { Infinity as InfinityIcon, Repeat, Repeat1, Shuffle, X } from 'lucide-react'
-import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentPropsWithRef, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode, type RefObject } from 'react'
+import { addedByName, contextLabel, readsUnavailable, upNextDetail, upNextTitle, type SessionOutage } from '@squirmy/client-core'
+import { ArrowDownToLine, ArrowUpToLine, Heart, Infinity as InfinityIcon, ListMusic, ListPlus, Plus, Repeat, Repeat1, Shuffle, Trash2, X } from 'lucide-react'
+import { memo, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentPropsWithRef, type DragEvent, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode, type RefObject } from 'react'
 import { Equalizer } from '@/components/music/Equalizer'
 import { Cover } from '@/components/music/Cover'
 import { SaveHeart } from '@/components/music/LibrarySave'
+import { SelectionContext, useSelected, useSelectionSize, type Selection } from '@/components/music/selection'
+import { SelectionBar, type BarAction } from '@/components/music/SelectionBar'
+import { songsLabel } from '@/components/music/track-menu'
+import { useTrackRowMenu } from '@/components/music/TrackRowMenu'
+import { commandKey, focusRow, useListSelection } from '@/components/music/use-list-selection'
 import { useVirtualRows } from '@/components/music/use-virtual-rows'
 import { ConfirmDialog } from '@/components/ui/dialog'
+import type { MenuEntry } from '@/components/ui/menu'
 import { Spinner } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Switch } from '@/components/ui/switch'
+import { draggedMusic } from '@/lib/drag'
 import { dropIndex } from '@/lib/reorder'
-import { UNAVAILABLE_LABEL } from '@/lib/catalog'
+import { explicitBlocked, UNAVAILABLE_LABEL, unavailableLabel } from '@/lib/catalog'
+import { useViewer } from '@/player/on-demand-context'
 import { cn } from '@/lib/utils'
+import { errorMessage } from '@/api/errors'
 import { useLibrary } from '@/player/library-context'
-import type { Player, QueueItem } from '@/player/player-context'
-import { SongMenuButton } from './SongMenu'
+import { useDroppedMusic } from '@/player/use-dropped-music'
+import { JamContext, useJamRights, usePlayerControls, type JamRights, type Player, type QueueItem } from '@/player/player-context'
+import { MemberAvatar } from './ListenTogether'
+import { useSongMenuEntries } from './use-song-menu'
 import { touchTarget } from './Transport'
 
 const rowHeight = 48
 
-const toggleClass = 'inline-flex h-8 pointer-coarse:h-11 flex-1 items-center justify-center gap-1.5 rounded-full bg-accent/70 px-3 text-xs font-medium text-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 [&_svg]:size-3.5'
+const toggleClass = 'inline-flex h-8 pointer-coarse:h-11 flex-1 items-center justify-center gap-1.5 rounded-full bg-accent/70 px-3 text-xs font-medium text-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-3.5'
 
 type QueueContentProps = {
   player: Player
@@ -52,6 +63,8 @@ type QueueSection = 'history' | 'next' | 'autoplay'
  */
 export const QueueContent = memo(function QueueContent({ player, modes = true, shown = true, onClose, onNavigate, className }: QueueContentProps) {
   const { state, controls } = player
+  // In someone's jam the host shuffles, repeats, clears and picks what plays (`useJamRights`).
+  const rights = useJamRights()
   // The queue can be on screen twice, as the panel and as a pane of Now Playing.
   const id = useId()
   const [clearingHistory, setClearingHistory] = useState(false)
@@ -62,7 +75,7 @@ export const QueueContent = memo(function QueueContent({ player, modes = true, s
   const nextList = useRef<HTMLElement>(null)
   const autoplayList = useRef<HTMLElement>(null)
   const section = useScrolledSection(home, { history: historyList, next: nextList, autoplay: autoplayList })
-  const autoplaySwitch = <Switch checked={state.autoplay} onCheckedChange={controls.setAutoplay} aria-label="Autoplay" />
+  const autoplaySwitch = <Switch checked={state.autoplay} onCheckedChange={controls.setAutoplay} disabled={!rights.transport} aria-label="Autoplay" />
   const upNext = useMemo(() => state.queue.map(item => item.entry), [state.queue])
   const headings: Record<QueueSection, { title: string; detail?: string | null; icon?: ReactNode }> = {
     history: { title: 'History' },
@@ -74,6 +87,7 @@ export const QueueContent = memo(function QueueContent({ player, modes = true, s
     },
   }
   const shownHeading = section ? headings[section] : null
+  const drop = useQueueDrop(nextList, state.queue.length, rights)
   return (
     <div className={cn('flex min-h-0 flex-col', className)}>
       <div className={cn('flex h-12 shrink-0 items-center gap-2 border-b', onClose ? 'pl-4 pr-2' : 'border-foreground/10 px-2')}>
@@ -95,10 +109,10 @@ export const QueueContent = memo(function QueueContent({ player, modes = true, s
       </div>
       <ScrollArea className="min-h-0 flex-1">
         {/* The queue keeps its own place as the history grows above it (`useQueuePlacement`); the browser's scroll anchoring would move it twice. */}
-        <div className={cn('flex flex-col pb-4 [overflow-anchor:none]', onClose && 'px-2')}>
+        <div data-drop-target="" className={cn('flex flex-col pb-4 [overflow-anchor:none]', onClose && 'px-2')} {...drop.handlers}>
           {state.history.length > 0 && (
             <section ref={historyList} aria-labelledby={`${id}-history`} className="pb-3">
-              <QueueHeading id={`${id}-history`} action={<ClearButton label="Clear history" onClick={() => setClearingHistory(true)} />}>
+              <QueueHeading id={`${id}-history`} action={rights.transport && <ClearButton label="Clear history" onClick={() => setClearingHistory(true)} />}>
                 History
               </QueueHeading>
               <QueueRows items={state.history} onPlay={controls.playEntry} onNavigate={onNavigate} />
@@ -116,23 +130,25 @@ export const QueueContent = memo(function QueueContent({ player, modes = true, s
             </div>
             {modes && (
               <div className="flex h-11 items-center gap-2 px-2 pointer-coarse:h-14">
-                <button type="button" aria-pressed={state.shuffle} onClick={() => controls.setShuffle(!state.shuffle)} className={toggleClass}>
+                <button type="button" aria-pressed={state.shuffle} disabled={!rights.transport} onClick={() => controls.setShuffle(!state.shuffle)} className={toggleClass}>
                   <Shuffle aria-hidden />Shuffle
                 </button>
-                <button type="button" aria-pressed={state.repeat !== 'off'} onClick={controls.cycleRepeat} className={toggleClass}>
+                <button type="button" aria-pressed={state.repeat !== 'off'} disabled={!rights.transport} onClick={controls.cycleRepeat} className={toggleClass}>
                   {state.repeat === 'one' ? <Repeat1 aria-hidden /> : <Repeat aria-hidden />}{state.repeat === 'one' ? 'Repeat one' : 'Repeat'}
                 </button>
-                <button type="button" aria-pressed={state.autoplay} onClick={() => controls.setAutoplay(!state.autoplay)} className={toggleClass}>
+                <button type="button" aria-pressed={state.autoplay} disabled={!rights.transport} onClick={() => controls.setAutoplay(!state.autoplay)} className={toggleClass}>
                   <InfinityIcon aria-hidden />Autoplay
                 </button>
               </div>
             )}
 
-            <section ref={nextList} aria-labelledby={`${id}-next`} className="pt-2">
+            <section ref={nextList} aria-labelledby={`${id}-next`} className="relative pt-2">
+              {/* Where songs dragged here will go. */}
+              {drop.at && <div aria-hidden className="pointer-events-none absolute inset-x-2 z-10 h-0.5 rounded-full bg-primary" style={{ top: drop.at.top - 1 }} />}
               <QueueHeading
                 id={`${id}-next`}
                 detail={headings.next.detail}
-                action={state.queue.length > 0 && <ClearButton label="Clear queue" onClick={controls.clearQueue} />}
+                action={state.queue.length > 0 && rights.transport && <ClearButton label="Clear queue" onClick={controls.clearQueue} />}
               >
                 {headings.next.title}
               </QueueHeading>
@@ -285,6 +301,14 @@ type QueueRowProps = {
   onNavigate?: () => void
   children?: ReactNode
   rowButton?: ComponentPropsWithRef<'button'>
+  /** Picked in Up next: its menu is the picked songs' (`menu`), and it has the full fill. */
+  selected?: boolean
+  /** Replaces the song's own menu, for one of several picked songs. */
+  menu?: () => MenuEntry[] | null
+  /** A long press picks the song up to move it (Up next), so it does not open the menu. */
+  longPress?: boolean
+  /** ⌘/Ctrl-click or Shift-click: picks the song instead of playing it. */
+  onPick?: (event: MouseEvent) => void
 }
 
 /** A row's own buttons beyond the heart wait for its hover where a pointer hovers, and stay while their menu is open. */
@@ -295,12 +319,22 @@ const revealed = 'opacity-0 focus-visible:opacity-100 data-[state=open]:opacity-
  * while its music is on its way, shows the spinner. One that could not be had is gray, says
  * "Not available" and does not play.
  */
-function QueueRow({ item, current, playing = false, waiting = false, outage = null, faded, onPlay: play, queued, onNavigate, children, rowButton }: QueueRowProps) {
+function QueueRow({ item, current, playing = false, waiting = false, outage = null, faded, onPlay: play, queued, onNavigate, children, rowButton, selected = false, menu, longPress = true, onPick }: QueueRowProps) {
   const { track, entry } = item
   const library = useLibrary()
-  const failed = readsUnavailable(entry, outage)
+  const jam = useContext(JamContext)
+  const rights = useJamRights()
+  const addedBy = jam ? addedByName({ jam }, entry) : null
+  // Built and mounted when it opens, from its button or a right-click, as a track list row's.
+  const { rowProps, trigger, renderMenu } = useTrackRowMenu({ longPress })
+  const viewer = useViewer()
+  // An explicit song queued before explicit content was turned off is gray too: the server refuses it.
+  const failed = readsUnavailable(entry, outage) || explicitBlocked(track, viewer)
+  const failedText = readsUnavailable(entry, outage) ? UNAVAILABLE_LABEL : unavailableLabel(track, viewer)
   const loading = current && (waiting || entry.state === 'preparing')
-  const onPlay = failed ? undefined : play
+  // Picking a song to play is the host's, in someone's jam.
+  const onPlay = failed || !rights.transport ? undefined : play
+  const songMenu = useSongMenuEntries({ track, unavailable: failed, queued: queued && { entryId: entry.id, ...queued }, onNavigate })
   const body = (
     <>
       {/* Faded rows (history, autoplay) fade their artwork only: their words stay readable. */}
@@ -314,14 +348,18 @@ function QueueRow({ item, current, playing = false, waiting = false, outage = nu
       </div>
       <span className="min-w-0 flex-1 text-left">
         <span title={track.title} className={cn('block truncate text-sm font-medium', failed && 'text-muted-foreground')}>{track.title}</span>
-        <span className="block truncate text-xs text-muted-foreground">{failed ? UNAVAILABLE_LABEL : track.artistCredit}</span>
+        <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+          {addedBy && <span title={`Added by ${addedBy}`} className="flex shrink-0"><MemberAvatar name={addedBy} className="size-4 text-[8px]" /><span className="sr-only">Added by {addedBy}, </span></span>}
+          <span className="truncate">{failed ? failedText : track.artistCredit}</span>
+        </span>
+        {selected && <span className="sr-only">(selected)</span>}
       </span>
     </>
   )
   return (
-    <div title={failed ? UNAVAILABLE_LABEL : undefined} className={cn('group/queue flex h-12 items-center rounded-lg pr-1 transition-colors', onPlay && 'hover:bg-accent/60')}>
+    <div {...rowProps} title={failed ? failedText : undefined} className={cn('group/queue flex h-12 items-center rounded-lg pr-1 transition-colors data-[state=open]:bg-accent/60', onPlay && 'hover:bg-accent/60', selected && 'bg-accent hover:bg-accent')}>
       {onPlay || rowButton
-        ? <button type="button" aria-label={onPlay ? `Play ${track.title}` : track.title} onClick={onPlay} {...rowButton} className={cn('flex min-w-0 flex-1 items-center gap-3 self-stretch rounded-lg px-2 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring', rowButton?.className)}>{body}</button>
+        ? <button type="button" aria-label={onPlay ? `Play ${track.title}` : track.title} onClick={event => (onPick && (commandKey(event) || event.shiftKey) ? onPick(event) : onPlay?.())} {...rowButton} className={cn('flex min-w-0 flex-1 items-center gap-3 self-stretch rounded-lg px-2 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring', rowButton?.className)}>{body}</button>
         : <div className="flex min-w-0 flex-1 items-center gap-3 px-2">{body}</div>}
       {/*
         * Every song row has its heart, here as anywhere, and it never gives way to a narrow panel:
@@ -336,10 +374,60 @@ function QueueRow({ item, current, playing = false, waiting = false, outage = nu
         size="sm"
         className={cn('pointer-coarse:size-11', !track.liked && 'md:pointer-fine:opacity-0 md:pointer-fine:group-hover/queue:opacity-100 md:pointer-fine:group-focus-within/queue:opacity-100')}
       />
-      <SongMenuButton track={track} unavailable={failed} queued={queued && { entryId: entry.id, ...queued }} onNavigate={onNavigate} className={current ? 'pointer-coarse:size-11' : revealed} />
+      {trigger(track.title, current ? 'pointer-coarse:size-11' : revealed)}
+      {renderMenu(() => menu?.() ?? songMenu())}
       {children}
     </div>
   )
+}
+
+/**
+ * Songs, or an album or playlist card, dragged from the page onto the queue: they go into Up next
+ * where the line shows, between the songs under the pointer (at the top of it from above it, at
+ * its end from below). They show up there; a collection that does not load says so on the
+ * player's status line. In someone's jam they are taken only where everyone may add songs, and
+ * go at the end, since moving songs is the host's.
+ */
+function useQueueDrop(nextList: RefObject<HTMLElement | null>, count: number, rights: JamRights) {
+  const controls = usePlayerControls()
+  const songsOf = useDroppedMusic()
+  const [at, setAt] = useState<{ index: number; top: number } | null>(null)
+  const place = (clientY: number) => {
+    const section = nextList.current
+    // Where songs cannot be moved (someone's jam), they go at the end.
+    if (!section || !Number.isFinite(clientY) || !rights.reorder) return { index: count, top: section?.scrollHeight ?? 0 }
+    const rows = section.querySelector('ul')
+    const box = section.getBoundingClientRect()
+    if (!rows) return { index: 0, top: section.scrollHeight }
+    const top = rows.getBoundingClientRect().top
+    const index = Math.max(0, Math.min(count, Math.round((clientY - top) / rowHeight)))
+    return { index, top: top - box.top + index * rowHeight }
+  }
+  const handlers = {
+    onDragOver: (event: DragEvent) => {
+      // Not taken where the jam's host alone adds songs: the pointer says no drop.
+      if (!rights.add || !draggedMusic(event)) return
+      event.preventDefault()
+      event.dataTransfer.dropEffect = 'copy'
+      const next = place(event.clientY)
+      setAt(current => (current?.index === next.index && current.top === next.top ? current : next))
+    },
+    onDragLeave: (event: DragEvent) => {
+      if (!(event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget))) setAt(null)
+    },
+    onDrop: (event: DragEvent) => {
+      const music = draggedMusic(event)
+      setAt(null)
+      if (!music || !rights.add) return
+      event.preventDefault()
+      const { index } = place(event.clientY)
+      songsOf(music).then(
+        tracks => controls.enqueue(tracks, 'last', index),
+        (error: unknown) => controls.tell({ message: 'Couldn’t add to the queue', detail: errorMessage(error), tone: 'error' }),
+      )
+    },
+  }
+  return { at, handlers }
 }
 
 /** How close to the scroller's top or bottom edge a dragged row starts it scrolling, in px. */
@@ -437,6 +525,10 @@ export const SortableQueue = memo(function SortableQueue({ items, onMove, onRemo
   const origin = drag ? items.findIndex(item => item.entry.id === drag.entryId) : -1
   const target = drag && origin >= 0 ? dropIndex(origin, drag.offset, rowHeight, items.length) : -1
   const { list, rows, setFocusedId, scroller } = useQueueRows(items, origin)
+  const keys = useMemo(() => items.map(item => item.entry.id), [items])
+  const { rows: selection, onListKeyDown } = useListSelection(keys, list)
+  // In someone's jam the host alone moves songs; a member still picks them, to save or take out their own.
+  const { reorder } = useJamRights()
 
   useLayoutEffect(() => {
     if (drag || !dropPositions.current) return
@@ -488,7 +580,13 @@ export const SortableQueue = memo(function SortableQueue({ items, onMove, onRemo
     const to = event.key === 'ArrowUp' ? index - 1 : event.key === 'ArrowDown' ? index + 1 : null
     if (to === null) return
     event.preventDefault()
-    if (to < 0 || to >= items.length) return
+    // Shift+arrows pick songs, as in a track list; the arrows alone move this one.
+    if (event.shiftKey) {
+      const reached = selection.selection.extend(index, to > index ? 1 : -1)
+      if (reached !== undefined) focusRow(list.current, reached)
+      return
+    }
+    if (!reorder || to < 0 || to >= items.length) return
     refocus.current = items[index].entry.id
     move(items[index], to)
   }
@@ -506,7 +604,7 @@ export const SortableQueue = memo(function SortableQueue({ items, onMove, onRemo
   }
 
   const onPointerDown = (event: PointerEvent<HTMLButtonElement>, entryId: string) => {
-    if (event.button !== 0 || pointer.current || items.length < 2) return
+    if (!reorder || event.button !== 0 || pointer.current || items.length < 2) return
     const at: QueuePointer = {
       entryId, pointerId: event.pointerId, button: event.currentTarget,
       startX: event.clientX, startY: event.clientY, y: event.clientY,
@@ -547,8 +645,8 @@ export const SortableQueue = memo(function SortableQueue({ items, onMove, onRemo
   }
 
   // The rows' handlers, the same functions on every render, so a row the drag does not move is not rendered again.
-  const latest = useRef({ onKeyDown, onPointerDown, onPlay, onRemove, onNavigate })
-  useLayoutEffect(() => { latest.current = { onKeyDown, onPointerDown, onPlay, onRemove, onNavigate } })
+  const latest = useRef({ onKeyDown, onPointerDown, onPlay, onRemove, onNavigate, items })
+  useLayoutEffect(() => { latest.current = { onKeyDown, onPointerDown, onPlay, onRemove, onNavigate, items } })
   const [actions] = useState<SortableRowActions>(() => ({
     register: (entryId, element) => {
       if (element) buttons.current.set(entryId, element)
@@ -560,6 +658,11 @@ export const SortableQueue = memo(function SortableQueue({ items, onMove, onRemo
     onPlay: entryId => latest.current.onPlay(entryId),
     onRemove: entryId => latest.current.onRemove(entryId),
     onNavigate: () => latest.current.onNavigate?.(),
+    onPick: (index, event) => selection.onRowClick(index, event),
+    picked: () => {
+      const indexes = selection.selection.indexes()
+      return indexes.length > 1 ? indexes.map(index => latest.current.items[index]) : null
+    },
   }))
 
   // Held near the top or bottom of the queue, the list scrolls, so a row can go anywhere.
@@ -583,8 +686,9 @@ export const SortableQueue = memo(function SortableQueue({ items, onMove, onRemo
     return () => cancelAnimationFrame(frame)
   }, [dragging])
   return (
-    <>
+    <SelectionContext value={selection}>
       <ul ref={list} className="relative" style={{ height: rows.getTotalSize() }}
+        onKeyDown={onListKeyDown}
         onBlur={event => {
           if (!event.currentTarget.contains(event.relatedTarget)) setFocusedId(undefined)
         }}
@@ -613,11 +717,78 @@ export const SortableQueue = memo(function SortableQueue({ items, onMove, onRemo
           return <SortableQueueRow key={key} item={item} index={index} count={items.length} y={held ? drag.offset : shift} held={held} dragging={dragging} helpId={helpId} actions={actions} onFocusRow={setFocusedId} />
         })}
       </ul>
-      <p id={helpId} className="sr-only">Use the up and down arrow keys to move this song.</p>
+      <p id={helpId} className="sr-only">{reorder ? 'Use the up and down arrow keys to move this song, and Shift with them to select songs.' : 'Use Shift with the up and down arrow keys to select songs.'}</p>
       <p aria-live="polite" className="sr-only">{announcement}</p>
-    </>
+      <QueueSelectionBar selection={selection.selection} items={items} />
+    </SelectionContext>
   )
 })
+
+/** What the picked songs of Up next offer: moved to the top or the end, saved, added to a playlist, or taken out. */
+function useQueueSelectionEntries(count: number) {
+  const controls = usePlayerControls()
+  const library = useLibrary()
+  const rights = useJamRights()
+  return (picked: QueueItem[]) => {
+    const tracks = picked.map(item => item.track)
+    // In someone's jam a member takes out only the songs they added, and moves none.
+    const removable = picked.filter(item => rights.remove(item.entry))
+    const allSaved = tracks.every(track => track.liked)
+    const toTop = () => picked.forEach((item, offset) => controls.moveEntry(item.entry.id, offset))
+    const toEnd = () => picked.forEach(item => controls.moveEntry(item.entry.id, count - 1))
+    const save = () => Promise.all(tracks.filter(track => track.liked === allSaved).map(track => library.setSaved({ type: 'track', id: track.id, title: track.title }, !allSaved)))
+    const remove = () => removable.forEach(item => controls.removeEntry(item.entry.id))
+    const add = (playlistId: string | null) => {
+      const playlist = library.playlists.find(candidate => candidate.id === playlistId)
+      if (!playlist) return library.newPlaylist(tracks)
+      return library.addToPlaylist(playlist, tracks)
+    }
+    const moves: BarAction[] = rights.reorder ? [
+      { key: 'top', label: 'Move to top', icon: <ArrowUpToLine />, onSelect: toTop },
+      { key: 'end', label: 'Move to end', icon: <ArrowDownToLine />, onSelect: toEnd },
+    ] : []
+    const saving: BarAction = { key: 'save', label: allSaved ? 'Remove from library' : 'Save to library', done: allSaved ? 'Removed from library' : 'Saved to library', icon: <Heart fill={allSaved ? 'currentColor' : 'none'} className={allSaved ? 'text-primary' : undefined} />, onSelect: save }
+    const removal: BarAction[] = !removable.length ? [] : [{
+      key: 'remove',
+      // Some picked songs are someone else's: the label says which go.
+      label: removable.length === picked.length ? 'Remove from queue' : removable.length === 1 ? 'Remove the song you added' : `Remove the ${songsLabel(removable.length)} you added`,
+      icon: <Trash2 />,
+      danger: true,
+      onSelect: remove,
+    }]
+    const actions: BarAction[] = [...moves, saving, ...removal]
+    const playlists: MenuEntry[] = [
+      { label: 'New playlist…', icon: <Plus />, onSelect: () => add(null) },
+      ...(library.playlists.length ? [{ kind: 'separator' as const }] : []),
+      ...library.playlists.map(playlist => ({ label: playlist.name, icon: <ListMusic />, onSelect: () => add(playlist.id), done: `Added to ${playlist.name}` })),
+    ]
+    const menu: MenuEntry[] = [
+      { kind: 'label', label: `${songsLabel(picked.length)} selected` },
+      ...moves,
+      { kind: 'submenu', label: 'Add to playlist', icon: <ListPlus />, items: playlists },
+      { kind: 'separator' },
+      saving,
+      ...(removal.length ? [{ kind: 'separator' as const }, ...removal] : []),
+    ]
+    return { actions, playlists, menu }
+  }
+}
+
+function QueueSelectionBar({ selection, items }: { selection: Selection; items: QueueItem[] }) {
+  const size = useSelectionSize(selection)
+  const entriesFor = useQueueSelectionEntries(items.length)
+  const live = <span aria-live="polite" className="sr-only">{size ? `${songsLabel(size)} selected` : ''}</span>
+  if (!size) return live
+  const picked = selection.indexes().map(index => items[index]).filter(Boolean)
+  // The panel is narrow: Add to playlist is under More rather than a button of its own.
+  const { actions, menu } = entriesFor(picked)
+  return (
+    <>
+      {live}
+      <SelectionBar summary={songsLabel(size)} actions={actions} menu={menu} onClear={() => selection.clear()} />
+    </>
+  )
+}
 
 type SortableRowActions = {
   register: (entryId: string, element: HTMLButtonElement | null) => void
@@ -627,6 +798,9 @@ type SortableRowActions = {
   onPlay: (entryId: string) => void
   onRemove: (entryId: string) => void
   onNavigate: () => void
+  onPick: (index: number, event: MouseEvent) => void
+  /** The picked songs, when this row is one of several. */
+  picked: () => QueueItem[] | null
 }
 
 type SortableQueueRowProps = {
@@ -645,8 +819,12 @@ type SortableQueueRowProps = {
 /** A song of `SortableQueue`. A drag renders only the rows it moves, not the whole queue on every pointer move. */
 const SortableQueueRow = memo(function SortableQueueRow({ item, index, count, y, held, dragging, helpId, actions, onFocusRow }: SortableQueueRowProps) {
   const entryId = item.entry.id
+  const selected = useSelected(entryId)
+  const entriesFor = useQueueSelectionEntries(count)
+  const rights = useJamRights()
   return (
     <li
+      data-row-index={index}
       aria-posinset={index + 1}
       aria-setsize={count}
       onFocus={() => onFocusRow(entryId)}
@@ -656,19 +834,33 @@ const SortableQueueRow = memo(function SortableQueueRow({ item, index, count, y,
         held ? 'z-10 bg-accent shadow-md' : dragging && 'motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out',
       )}
     >
-      <QueueRow item={item} onPlay={() => actions.onPlay(entryId)} queued={{ index, count }} onNavigate={actions.onNavigate} rowButton={{
+      <QueueRow
+        item={item}
+        onPlay={() => actions.onPlay(entryId)}
+        queued={{ index, count }}
+        onNavigate={actions.onNavigate}
+        selected={selected}
+        longPress={false}
+        onPick={event => actions.onPick(index, event)}
+        menu={() => {
+          const picked = selected ? actions.picked() : null
+          return picked && entriesFor(picked).menu
+        }}
+        rowButton={{
         ref: element => actions.register(entryId, element),
         'aria-describedby': helpId,
         'aria-description': `Position ${index + 1} of ${count}`,
         onKeyDown: event => actions.onKeyDown(event, index),
         onPointerDown: event => actions.onPointerDown(event, entryId),
         onContextMenu: actions.onContextMenu,
-        className: cn('select-none [-webkit-touch-callout:none]', count > 1 && (held ? 'cursor-grabbing' : 'cursor-grab')),
+        className: cn('select-none [-webkit-touch-callout:none]', count > 1 && rights.reorder && (held ? 'cursor-grabbing' : 'cursor-grab')),
       }}>
         {/* Without a pointer that hovers, the button is always there to tap. */}
-        <IconButton label={`Remove ${item.track.title} from queue`} tooltip={false} size="sm" onClick={() => actions.onRemove(entryId)} className={revealed}>
-          <X />
-        </IconButton>
+        {rights.remove(item.entry) && (
+          <IconButton label={`Remove ${item.track.title} from queue`} tooltip={false} size="sm" onClick={() => actions.onRemove(entryId)} className={revealed}>
+            <X />
+          </IconButton>
+        )}
       </QueueRow>
     </li>
   )

@@ -1,12 +1,13 @@
-import type { Lyrics } from '@squirmy/contracts'
+import type { Lyrics, LyricWord } from '@squirmy/contracts'
 import { MessageSquareQuote } from 'lucide-react'
 import { useContext, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
 import { EmptyState, Skeleton } from '@/components/ui/feedback'
 import { LoadError } from '@/components/ui/query-state'
-import { activeLine, lineLook, parseLrc, resumeFollowMs } from '@/lib/lyrics'
+import { activeLine, lineLook, resumeFollowMs, syncedLines, wordProgress } from '@/lib/lyrics'
 import { scrollBehavior } from '@/lib/motion'
 import { cn } from '@/lib/utils'
-import { PlayerContext, usePosition, type LyricsStatus } from '@/player/player-context'
+import { PlayerContext, PositionContext, usePosition, type LyricsStatus } from '@/player/player-context'
+import './lyrics.css'
 
 type LyricsPaneProps = {
   lyrics: Lyrics | null
@@ -17,11 +18,41 @@ type LyricsPaneProps = {
 }
 
 /**
+ * The sung line's words, lit as they are sung: a word fills with the text's color from its start
+ * to its end, over the dim color of the words to come. The clock's frames set one CSS variable on
+ * the word being sung (`--sung`, 0 to 1) and nothing re-renders; only that word is painted again.
+ * Under reduced motion a word lights whole as it starts.
+ */
+function SungWords({ words }: { words: readonly LyricWord[] }) {
+  const clock = useContext(PositionContext)
+  const spans = useRef<(HTMLSpanElement | null)[]>([])
+  useEffect(() => {
+    const stepped = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+    const shown: (string | null)[] = []
+    const paint = () => {
+      const { index, fraction } = wordProgress(words, clock.get())
+      for (const [i, span] of spans.current.entries()) {
+        const value = i < index ? '1' : i > index ? '0' : stepped ? '1' : fraction.toFixed(3)
+        if (!span || shown[i] === value) continue
+        shown[i] = value
+        span.style.setProperty('--sung', value)
+      }
+    }
+    paint()
+    return clock.subscribe(paint)
+  }, [clock, words])
+  return <span className="lyric-words">
+    {words.map((word, index) => <span key={index} ref={element => { spans.current[index] = element }} className="lyric-word">{word.text}</span>)}
+  </span>
+}
+
+/**
  * Synced lyrics follow the clock and seek on click; plain lyrics just scroll. As in the iOS app,
  * the sung line is bright and sharp and the others dim and blur more the farther they are, while
  * the list follows the song. A reader who scrolls by hand sees every line sharp, and a few
  * seconds after they stop the list goes back to the sung line. Reduced motion or transparency
- * keeps the dimming and drops the blur, and the line under the pointer or the keyboard is sharp. Synced lines are
+ * keeps the dimming and drops the blur, and the line under the pointer or the keyboard is sharp. Lyrics with
+ * word times light the sung line word by word (`SungWords`), and a line's translation is under it. Synced lines are
  * one stop for Tab, a list the arrow keys move through (Home and End go to the ends), and Enter
  * or Space seeks to the focused line, so the keyboard reaches what comes after them without
  * passing every line of the song. "No lyrics" is said
@@ -32,7 +63,7 @@ export function LyricsPane({ lyrics, onSeek, status: given, onRetry: givenRetry 
   const player = useContext(PlayerContext)
   const status = given ?? player?.state.lyricsStatus ?? (lyrics ? 'ready' : 'none')
   const onRetry = givenRetry ?? player?.state.retryLyrics
-  const lines = useMemo(() => (lyrics?.synced ? parseLrc(lyrics.synced) : []), [lyrics])
+  const lines = useMemo(() => syncedLines(lyrics), [lyrics])
   const active = usePosition(position => activeLine(lines, position))
   const container = useRef<HTMLDivElement>(null)
   // The line the keyboard is on while it is in the list; out of it, Tab comes back to the line playing.
@@ -120,7 +151,8 @@ export function LyricsPane({ lyrics, onSeek, status: given, onRetry: givenRetry 
                   look.blur > 0 && '[filter:blur(var(--lyric-blur))] hover:[filter:none] focus-visible:[filter:none] motion-reduce:[filter:none] [@media(prefers-reduced-transparency:reduce)]:[filter:none]',
                 )}
               >
-                {line.text || '♪'}
+                {index === active && line.words?.length ? <SungWords words={line.words} /> : line.text || '♪'}
+                {line.translation && <span className="mt-1 block text-lg font-medium leading-snug tracking-normal text-muted-foreground lg:text-xl">{line.translation}</span>}
               </div>
             })}
           </div>

@@ -95,6 +95,19 @@ The sleep timer stops playback after a length of time (5, 10, 15, 30 or 45 minut
 
 Set it from Now Playing: the moon button on the web, the **⋯** menu on iOS ([web](../use/web.md#playing-music), [iOS](../use/ios.md#using-it), [Apple TV](../use/apple-tv.md#now-playing)). Servers older than this feature do not offer it.
 
+## Listening together
+
+**Listen together** lets people with accounts on the same server hear the same music at the same time, each on their own phone, browser or Apple TV. One person hosts: what they play plays for everyone, in step.
+
+- **Starting and inviting.** The host starts it from the devices list ([web](../use/web.md#listening-together), [iOS](../use/ios.md#listening-together)), then shares the invite link or invites people from a list of the server's other users, who get an invite wherever they are signed in. The link works for anyone signed in to this server and only while the session lasts; it is long and random, so it can't be guessed. Nobody outside the server can use it.
+- **Who controls what.** The host plays, pauses, seeks, skips, shuffles and picks what plays. The host chooses who can add songs: **Everyone** (the default) or **Only me**. When everyone can, a member's Play adds the song to the queue for everyone, and members can take back songs they added. Each listener keeps their own volume and chooses which of their own devices plays. Up to 16 people can be in one session.
+- **In step.** Each device plays the music itself, from the same clock on the server, the way a device follows a seek. A member's device that drifts more than about a third of a second (a slow start, a stall) catches up by itself. The first device to reach the end of a song moves everyone on. When the host's device stops (it buffers, or goes away), everyone's clock waits for it; a member's device that stalls catches up and never holds anyone else back.
+- **Who added what.** The queue shows who added each song, with their initials.
+- **History.** Plays count for each listener, with the usual rules for skips and completed plays (see [Listening history](#listening-history)), and scrobble from each listener's own account.
+- **Leaving.** A member who leaves, or whom the host removes, keeps what was playing, paused where it was. When the host ends the session, everyone's copy pauses the same way, and the host's own music plays on. Joining replaces what the member was playing.
+- **Limits.** A device that [plays separately](#devices-and-transferring-playback) can't join or host; rejoin your other devices first. Only the host's sleep timer works during the session, and it pauses everyone (a timer a member had set ends when they join). Only the host can undo queue edits during the session, and the host's Undo changes the queue for everyone. A server restart keeps the session. Apps from before this feature still follow along in a session, but don't show who is in it, and the server refuses their playback controls while they are a member.
+- **Privacy.** Nothing is shared until someone starts a session. Members see the names of the people in it (display name, else username) and what plays. The invite list shows the server's other users' names to the person inviting.
+
 ## Devices and transferring playback
 
 Each user has **one** playback session, held by the server: the queue, the current track and position, shuffle and repeat, and which device is playing. Every signed-in browser tab and phone is a device in that session.

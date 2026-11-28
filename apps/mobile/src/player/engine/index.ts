@@ -1,9 +1,21 @@
+import type { PlayerEngine } from '@squirmy/client-core';
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
+import NativeAudio from '../../../modules/audio-engine';
 import NowPlaying, { type AudioOutput } from '../../../modules/now-playing';
 import { ExpoAudioEngine, type ExpoAudioEngineOptions } from './ExpoAudioEngine';
+import { NativeEngine } from './NativeEngine';
+import type { PlaybackEngineKind } from './setting';
 
 export { ExpoAudioEngine } from './ExpoAudioEngine';
+export { NativeEngine } from './NativeEngine';
 export { connectNowPlaying, type NowPlayingItem, type RemoteControls } from './nowPlaying';
+
+/** What the app asks of either engine beyond the `PlayerEngine` contract. */
+export type AppEngine = PlayerEngine & {
+  holdAudioSession(hold: boolean): void;
+  isTryingToPlay(): boolean;
+  dispose?(): void;
+};
 
 /** Native playback reports position this often, in milliseconds. */
 const updateIntervalMs = 250;
@@ -31,14 +43,43 @@ function ensureAudioMode(): void {
 }
 
 /**
- * The phone's `PlayerEngine`. Plays in the background and in silent mode, and takes the
- * audio session exclusively, which the lock screen needs to show the app as Now Playing.
+ * The phone's `PlayerEngine`: `kind` is this device's setting. Either plays in the background
+ * and in silent mode, and takes the audio session exclusively, which the lock screen needs to
+ * show the app as Now Playing. The native engine falls back to the classic one when this build
+ * doesn't have it (an old build, Android) or it fails to start.
  */
-export function createPlayerEngine(options: Pick<ExpoAudioEngineOptions, 'onInterrupted' | 'onResumed'> = {}) {
+export function createPlayerEngine(options: Pick<ExpoAudioEngineOptions, 'onInterrupted' | 'onResumed'> = {}, kind: PlaybackEngineKind = 'classic'): AppEngine {
+  const log = (message: string) => console.info(`[engine] ${message}`);
+  if (kind === 'native') {
+    const native = startNative();
+    if (native) {
+      log('playing with the native engine');
+      return new NativeEngine({ native, ...options, log });
+    }
+  }
+  return createClassicEngine(options, log);
+}
+
+/** The native module, or null with the reason logged. */
+function startNative() {
+  if (!NativeAudio) {
+    console.info('[engine] this build has no native engine; playing with the classic one');
+    return null;
+  }
+  try {
+    NativeAudio.getStatus();
+    return NativeAudio;
+  } catch (error) {
+    console.warn('[engine] the native engine didn’t start; playing with the classic one', error);
+    return null;
+  }
+}
+
+function createClassicEngine(options: Pick<ExpoAudioEngineOptions, 'onInterrupted' | 'onResumed'>, log: (message: string) => void) {
   ensureAudioMode();
   return new ExpoAudioEngine({
     ...options,
-    log: message => console.info(`[engine] ${message}`),
+    log,
     describeOutput: currentOutput,
     holdRunning: hold => void NowPlaying?.holdBackgroundTime?.(hold).catch(() => undefined),
     // Never AirPlay's external playback mode, in which iOS hands a player's URL to the
@@ -56,20 +97,22 @@ export function createPlayerEngine(options: Pick<ExpoAudioEngineOptions, 'onInte
 }
 
 /**
- * Tells `engine` what the audio session reports: interruptions (calls, Siri) and the
- * output going away. Returns a function that stops. Does nothing without the native
- * module (Android, web).
+ * Tells the classic engine what the audio session reports: interruptions (calls, Siri) and
+ * the output going away; the native engine hears those itself. Logs route changes for either.
+ * Returns a function that stops. Does nothing without the native module (Android, web).
  */
-export function connectAudioSession(engine: ExpoAudioEngine): () => void {
+export function connectAudioSession(engine: AppEngine): () => void {
   const native = NowPlaying;
   if (!native) return () => undefined;
+  const classic = engine instanceof ExpoAudioEngine ? engine : null;
   const interruptions = native.addListener('onInterruption', event => {
-    if (event.type === 'began') engine.interrupt();
-    else engine.endInterruption(event.shouldResume);
+    if (!classic) return;
+    if (event.type === 'began') classic.interrupt();
+    else classic.endInterruption(event.shouldResume);
   });
   const routes = native.addListener('onRouteChange', ({ reason }) => {
     console.info(`[audio] route changed (${reason}): ${currentOutput() ?? 'unknown'}`);
-    if (reason === 'oldDeviceUnavailable') engine.routeLost();
+    if (reason === 'oldDeviceUnavailable') classic?.routeLost();
   });
   return () => {
     interruptions.remove();

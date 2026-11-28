@@ -9,11 +9,12 @@ import { unsavedSignIn, useAccount } from '../account/AccountProvider';
 import { serviceNames } from '../account/scrobbling';
 import {
   lastFmAdminNote, normalizationNote, normalizationOptions, qualityOptions, saveFailure, scrobbleDetail, scrobbleFooter,
-  serverMusicLabel, serverMusicNote, useSettingsScreen,
+  explicitLabel, explicitNote, explicitRestrictedNote, serverMusicLabel, serverMusicNote, useSettingsScreen,
 } from '../account/settings';
 import { loadFailure } from '../data/errors';
 import { useUpdateSettings, useUserSettings } from '../data/queries';
 import { useAccountStorage } from '../account/storageUsage';
+import { engineNote, engineOptions, showsEngineSetting, useEngineSetting } from '../player/engine/setting';
 import { Icon } from '../ui';
 import { Focusable } from './Focusable';
 import { Menu, type MenuAction } from './Menu';
@@ -109,6 +110,7 @@ export function TvSettingsScreen() {
   const profiles = useAccountStorage().filter(profile => !profile.account.current);
   const screen = useSettingsScreen();
   const [note, setNote] = useState<string | null>(null);
+  const [engine, setEngine] = useEngineSetting();
   if (state.status !== 'signedIn') return null;
   const { server, user } = state;
   const { settings } = screen;
@@ -152,10 +154,16 @@ export function TvSettingsScreen() {
           note={normalizationNote} onNote={setNote} onPress={() => open('normalization')} />
         <Row title="Streaming Quality" value={optionLabel(qualityOptions, settings.qualityWifi)} chevron
           note={tvQualityNote} onNote={setNote} onPress={() => open('quality')} />
+        {/* Two values, so selecting the row switches between them, as a switch's row does. */}
+        {showsEngineSetting() && <Row title="Engine" value={optionLabel(engineOptions, engine)} note={engineNote} onNote={setNote}
+          onPress={() => setEngine(engine === 'native' ? 'classic' : 'native')} />}
       </Section>
       <Section title="Library" error={screen.errors.library}>
         <Row title={serverMusicLabel} value={onOff(settings.libraryIncludesServerMusic)} note={serverMusicNote} onNote={setNote}
           onPress={() => screen.setLibraryIncludesServerMusic(!settings.libraryIncludesServerMusic)} />
+        {/* No press while an admin keeps explicit content off for the account: the note says why. */}
+        <Row title={explicitLabel} value={onOff(screen.allowExplicit)} note={screen.explicitRestricted ? explicitRestrictedNote : explicitNote} onNote={setNote}
+          onPress={screen.explicitRestricted ? undefined : () => screen.setAllowExplicit(!screen.allowExplicit)} />
       </Section>
     </> : <Section title="Playback">
       {screen.settingsFailure

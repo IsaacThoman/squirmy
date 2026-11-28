@@ -51,6 +51,7 @@ export function useAlbumMenu(album: AlbumSummary, onPlay?: () => void) {
     onToggleSaved: () => (detail ? library.setSaved({ type: 'album', id: album.id, title: album.title }, !detail.liked) : undefined),
     want: library.wantlistEnabled && dimmed ? { wanted, onToggle: () => library.setWanted({ type: 'album', album }, !wanted) } : undefined,
     onGoToArtist: artist => void navigate(`/artist/${artist.id}`),
+    onShare: library.sharingEnabled ? () => library.share({ kind: 'album', id: album.id, title: album.title }) : undefined,
   })
   return { entries, onOpenChange: setOpen }
 }

@@ -30,6 +30,7 @@ const routes: [string, string | RegExp][] = [
   ['/admin/search-index', 'Admin'],
   ['/admin/users', 'Admin'],
   ['/admin/providers', 'Admin'],
+  ['/admin/sharing', 'Admin'],
   ['/admin/settings', 'Admin'],
   ['/admin/jobs', 'Admin'],
   ['/dev/kitchen-sink', 'Kitchen sink'],

@@ -584,6 +584,28 @@ describe('subsonic', () => {
       expect(await mira.client.error('getPlaylist', { id: playlist.id })).toBe(70)
     })
 
+    it('lists smart playlists with the songs their rules find, read-only', async () => {
+      const smart = await createPlaylist(mira.id, {
+        name: 'Dreamy', isPublic: true,
+        rules: { source: 'server', match: 'all', conditions: [{ field: 'genre', op: 'is', value: 'dream pop' }], sort: 'title', limit: null },
+      })
+      const id = `pl-${smart.id}`
+      const listed = (await mira.client.call('getPlaylists')).playlists.playlist.find((row: { id: string }) => row.id === id)
+      expect(listed).toMatchObject({ name: 'Dreamy', songCount: 3, readonly: true, coverArt: `ca-${coverId}` })
+      const read = (await mira.client.call('getPlaylist', { id })).playlist
+      expect(read).toMatchObject({ songCount: 3, readonly: true })
+      expect(read.entry.map((entry: { title: string }) => entry.title)).toEqual(['Glass', 'Night Swimming', 'Tidal'])
+      // Its songs come from its rules: every change but deleting it is refused, and it stays as it was.
+      expect(await mira.client.error('updatePlaylist', { playlistId: id, songIdToAdd: [song(kites, 0)] })).toBe(50)
+      expect(await mira.client.error('updatePlaylist', { playlistId: id, name: 'Renamed' })).toBe(50)
+      expect(await mira.client.error('createPlaylist', { playlistId: id, songId: [song(kites, 0)] })).toBe(50)
+      expect((await getPlaylist(mira.id, smart.id)).name).toBe('Dreamy')
+      expect((await lune.client.call('getPlaylist', { id })).playlist.entry).toHaveLength(3)
+      expect(await lune.client.error('deletePlaylist', { id })).toBe(50)
+      await mira.client.json('deletePlaylist', { id })
+      expect(await mira.client.error('getPlaylist', { id })).toBe(70)
+    })
+
     it('keeps private playlists private, and lets admins list another user', async () => {
       const own = await createPlaylist(lune.id, { name: 'Secret' })
       expect(await mira.client.error('getPlaylist', { id: `pl-${own.id}` })).toBe(70)

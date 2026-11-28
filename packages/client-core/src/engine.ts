@@ -59,13 +59,6 @@ export interface PlayerEngine {
   subscribe(listener: (event: EngineEvent) => void): () => void
 }
 
-/**
- * What the URL delivers, from its playback descriptor. Engines that demux or trim streams
- * themselves (Media Source Extensions on the web) need it; an element that plays the URL
- * as it is can ignore it. Absent from callers that have no descriptor.
- */
-export type EngineMedia = Pick<PlaybackDescriptor, 'profile' | 'mime' | 'codec' | 'sampleRate' | 'durationMs' | 'gapless'>
-
 export type EngineLoad = {
   entryId: string
   /** Absolute, or relative to the page for same-origin web. Needs no headers. */
@@ -84,11 +77,17 @@ export type EnginePreload = {
   media?: EngineMedia
 }
 
-/** The descriptor's facts an engine is handed with its URL. */
-export function engineMedia(descriptor: PlaybackDescriptor): EngineMedia {
-  const { profile, mime, codec, sampleRate, durationMs, gapless } = descriptor
-  return { profile, mime, codec, sampleRate, durationMs, gapless: gapless ?? null }
-}
+/**
+ * What the playback descriptor says about the stream, for engines that decode it themselves
+ * (the iOS native engine) or demux and trim it (Media Source Extensions on the web). Engines
+ * that hand the URL to a player ignore it.
+ */
+export type EngineMedia = {
+  /** A server transcode rather than the original file. */
+  transcoded: boolean
+  /** The stream's exact length and priming, when the server knows them. */
+  gapless?: PlaybackDescriptor['gapless']
+} & Partial<Pick<PlaybackDescriptor, 'profile' | 'mime' | 'codec' | 'sampleRate' | 'durationMs'>>
 
 /**
  * - `idle`: nothing loaded.

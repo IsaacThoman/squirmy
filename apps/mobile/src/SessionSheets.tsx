@@ -40,7 +40,8 @@ function Sheet({ title, children }: { title: string; children?: ReactNode }) {
 
 export function DeviceSheet() {
   const colors = useColors();
-  const { track, devices, output, volume, session, queue, actions, detached, canDetach, allDevices, thisDeviceId } = usePlaybackState();
+  const { track, devices, output, volume, session, queue, actions, detached, canDetach, allDevices, thisDeviceId, jam, canJam } = usePlaybackState();
+  const router = useRouter();
   const [shownVolume, setVolume] = useVolumeSlider(volume, value => actions.setVolume(output.id, value));
   const [moving, setMoving] = useState<'detach' | 'attach' | 'bring' | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -103,6 +104,12 @@ export function DeviceSheet() {
         ? <SheetSystemVolume label={`Volume on ${output.name}`} />
         : <SheetSlider label={`Volume on ${output.name}`} value={shownVolume} onChange={setVolume} />)}
       {output.isThisDevice && !output.reconnecting && <RouteRow />}
+      {canJam && <SheetRows>
+        <SheetRow title={jam ? 'Listening together' : 'Listen together'} icon="person.2.fill"
+          subtitle={jam ? `${jam.members.length} ${jam.members.length === 1 ? 'person' : 'people'}${jam.role === 'host' ? ' · You’re hosting' : ''}` : 'Invite people on this server to listen with you'}
+          color={jam ? colors.accent : colors.text}
+          onPress={() => router.push('/listen-together')} />
+      </SheetRows>}
       {canDetach && <SheetRows>
         <SheetRow title="Play separately on this iPhone" icon={DETACHED_SYMBOL} subtitle="Your other devices keep their own queue."
           busy={moving === 'detach'} onPress={() => move(() => actions.detach(), 'detach')} />
@@ -202,7 +209,8 @@ export function AddToPlaylistSheet({ trackId, albumId }: { trackId?: string; alb
   const { state } = useAccount();
   const userId = state.status === 'signedIn' ? state.user.id : null;
   const list = useAllPlaylists();
-  const owned = list.items.filter(playlist => playlist.ownerId === userId);
+  // A smart playlist's songs come from its rules, so nothing is added to one.
+  const owned = list.items.filter(playlist => playlist.ownerId === userId && !playlist.smart);
   const [query, setQuery] = useState('');
   const playlists = usePlaylistActions();
   // The playlist being added to: the sheet waits for the server with a spinner on its row.

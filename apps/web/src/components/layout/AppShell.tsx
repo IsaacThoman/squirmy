@@ -3,17 +3,24 @@ import { PanelLeftOpen } from 'lucide-react'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
 import { Outlet, useLocation } from 'react-router'
 import { NowPlaying, type NowPlayingPane } from '@/components/player/NowPlaying'
+import { ListenTogetherProvider } from '@/components/player/ListenTogether'
 import { MiniPlayer, PlayerBar } from '@/components/player/PlayerBar'
+import { canPopOut, usePopOut } from '@/components/player/pop-out'
+import { PopOutPlayer } from '@/components/player/PopOutPlayer'
+import { toggleMute } from '@/components/player/mute'
 import { QueuePanel } from '@/components/player/Queue'
+import { usePreloadNextArtwork } from '@/components/player/use-next-artwork'
 import { SettingsDialogContext, type SettingsOpenOptions, type SettingsSection } from '@/components/settings/settings-dialog'
 import { cn } from '@/lib/utils'
 import { useLibrary } from '@/player/library-context'
-import { usePlayer } from '@/player/player-context'
+import { hostControls, usePlayer } from '@/player/player-context'
+import { letterIsTaken } from '@/player/shortcuts'
 import { BackBreadcrumb } from './BackBreadcrumb'
 import { ErrorBoundary } from './ErrorBoundary'
 import { ScrollContainerContext } from './scroll-context'
 import { useScrollMemory } from './scroll-memory'
 import { ShellNotices } from './ShellNotices'
+import { ShortcutsDialog } from './ShortcutsDialog'
 import { Sidebar } from './Sidebar'
 import { SidebarResizeHandle } from './SidebarResizeHandle'
 import {
@@ -22,7 +29,22 @@ import {
 
 /** `lastFm`: what Last.fm answered, while the dialog it opened stays open. */
 export type SettingsDialogState = { open: boolean; section: SettingsSection; lastFm?: string; onOpenChange: (open: boolean) => void; onSectionChange: (section: SettingsSection) => void }
-export type SearchDialogState = { open: boolean; onOpenChange: (open: boolean) => void }
+/** What the command palette can do to the shell itself, beside what the player does. */
+export type ShellCommands = {
+  /** The queue panel, or Now Playing's queue on a phone. */
+  toggleQueue: () => void
+  queueOpen: boolean
+  toggleLyrics: () => void
+  lyricsOpen: boolean
+  openNowPlaying: () => void
+  toggleSidebar: () => void
+  openSettings: (section?: SettingsSection) => void
+  showShortcuts: () => void
+  /** Pops the player out into its own window; left out where the browser cannot. */
+  togglePopOut?: () => void
+  poppedOut: boolean
+}
+export type SearchDialogState = { open: boolean; onOpenChange: (open: boolean) => void; commands: ShellCommands }
 
 type AppShellProps = {
   user: User
@@ -75,8 +97,15 @@ const isEditable = (target: EventTarget | null) => target instanceof Element && 
 /** The shortcut's key, from the key's position when the layout types another letter there (Cyrillic, Greek). */
 function shortcutKey(event: KeyboardEvent): string {
   const key = event.key.toLowerCase()
-  if (key === 'k' || key === 'b' || key === ',') return key
-  return event.code === 'KeyK' ? 'k' : event.code === 'KeyB' ? 'b' : event.code === 'Comma' ? ',' : key
+  if (key === 'k' || key === 'b' || key === ',' || key === 'f') return key
+  return event.code === 'KeyK' ? 'k' : event.code === 'KeyB' ? 'b' : event.code === 'Comma' ? ',' : event.code === 'KeyF' ? 'f' : key
+}
+
+/** The letter of a key press, by position on layouts that type another alphabet there. */
+function letterOf(event: KeyboardEvent): string {
+  const key = event.key.length === 1 ? event.key.toLowerCase() : ''
+  if (/^[a-z/?]$/.test(key)) return key
+  return /^Key[A-Z]$/.test(event.code) ? event.code.slice(3).toLowerCase() : key
 }
 
 /**
@@ -116,6 +145,8 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
   const [settings, setSettings] = useState<{ open: boolean; section: SettingsSection; lastFm?: string }>({ open: false, section: 'playback' })
   const [queueOpen, setQueueOpen] = useState(false)
   const [nowPlaying, setNowPlaying] = useState<NowPlayingView>({ open: false, pane: 'art' })
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const popOut = usePopOut()
 
   // One dialog at a time: each shortcut closes the others.
   const openSettings = useCallback((section: SettingsSection = 'playback', options: SettingsOpenOptions = {}) => {
@@ -124,6 +155,11 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
     setSettings({ open: true, section, lastFm: options.lastFm })
   }, [])
   const settingsController = useMemo(() => ({ openSettings }), [openSettings])
+  const openSearch = useCallback(() => {
+    setDrawerOpen(false)
+    setSettings(current => (current.open ? { ...current, open: false } : current))
+    setSearchOpen(true)
+  }, [])
 
   const setSidebarCollapsed = useCallback((next: boolean) => {
     setCollapsed(next)
@@ -197,12 +233,16 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
     }
   }, [])
 
+  const searchOpenRef = useRef(searchOpen)
+  useEffect(() => { searchOpenRef.current = searchOpen })
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       // Shift and Alt combinations belong to the browser (⌘⇧B shows the bookmarks bar).
       if (event.defaultPrevented || !(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return
       const key = shortcutKey(event)
-      if (key !== 'k' && key !== ',' && !(key === 'b' && !isEditable(event.target))) return
+      // ⌘F searches the music; pressed again with the search open, it is the browser's Find.
+      if (key === 'f' && searchOpenRef.current) return
+      if (key !== 'k' && key !== ',' && key !== 'f' && !(key === 'b' && !isEditable(event.target))) return
       event.preventDefault()
       // Held down, the key repeats; the first press is the one that counts.
       if (event.repeat) return
@@ -210,6 +250,8 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
         setDrawerOpen(false)
         setSettings(current => (current.open ? { ...current, open: false } : current))
         setSearchOpen(open => !open)
+      } else if (key === 'f') {
+        openSearch()
       } else if (key === 'b') {
         toggleShortcut.current()
       } else {
@@ -218,7 +260,33 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [openSettings])
+  }, [openSettings, openSearch])
+
+  // The queue's own panel from 768px; below that, and while Now Playing covers the panel, it is a
+  // pane of Now Playing.
+  const toggleQueue = useCallback(() => {
+    if (!mobile && !nowPlaying.open) return setQueueOpen(open => !open)
+    setNowPlaying(now => (now.open && now.pane === 'queue' ? { ...now, open: false } : { open: true, pane: 'queue' }))
+  }, [mobile, nowPlaying.open])
+  const toggleLyrics = useCallback(() => setNowPlaying(now => ({ open: !(now.open && now.pane === 'lyrics'), pane: 'lyrics' })), [])
+  const openNowPlaying = useCallback(() => setNowPlaying(now => ({ ...now, open: true })), [])
+  const showShortcuts = useCallback(() => {
+    setSearchOpen(false)
+    setShortcutsOpen(true)
+  }, [])
+  const popOutSupported = canPopOut()
+  const commands = useMemo<ShellCommands>(() => ({
+    toggleQueue,
+    queueOpen: mobile || nowPlaying.open ? nowPlaying.open && nowPlaying.pane === 'queue' : queueOpen,
+    toggleLyrics,
+    lyricsOpen: nowPlaying.open && nowPlaying.pane === 'lyrics',
+    openNowPlaying,
+    toggleSidebar,
+    openSettings,
+    showShortcuts,
+    togglePopOut: popOutSupported ? popOut.toggle : undefined,
+    poppedOut: popOut.popped !== null,
+  }), [toggleQueue, mobile, nowPlaying, queueOpen, toggleLyrics, openNowPlaying, toggleSidebar, openSettings, showShortcuts, popOutSupported, popOut.toggle, popOut.popped])
 
   // The open drawer is modal: it takes focus, keeps Tab inside it, closes on Escape and gives focus back.
   const drawerShown = mobile && drawerOpen
@@ -263,116 +331,121 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
 
   return (
     <SettingsDialogContext value={settingsController}>
-      <a
-        href="#main-content"
-        className="sr-only rounded-lg border bg-popover text-sm font-medium text-popover-foreground shadow-lg outline-none focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-[60] focus:px-3 focus:py-2 focus-visible:ring-2 focus-visible:ring-ring"
-        onClick={event => {
-          event.preventDefault()
-          document.getElementById('main-content')?.focus()
-        }}
-      >
-        Skip to main content
-      </a>
-      {/*
-        * The page is drawn edge to edge (viewport-fit=cover); the shell keeps everything clear of
-        * a phone's notch and rounded corners. The player pads itself for the home indicator.
-        */}
-      <div ref={frame} data-shell-frame="" className="relative flex h-dvh overflow-hidden pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)]">
-        {mobile && (
-          <button
-            type="button"
-            // A pointer target only: the drawer's own close button and Escape close it from the keyboard.
-            aria-hidden
-            tabIndex={-1}
-            onClick={closeDrawer}
-            className={cn('fixed inset-0 z-30 bg-black/55 transition-opacity duration-200', drawerOpen ? 'opacity-100' : 'pointer-events-none opacity-0')}
-          />
-        )}
-        <Sidebar
-          user={user}
-          playlists={playlists}
-          likedCount={likedCount}
-          collapsed={!mobile && collapsed}
-          mobile={mobile}
-          mobileOpen={drawerOpen}
-          transitions={transitions && !tracking}
-          onToggle={onSidebarToggle}
-          onNavigate={closeDrawer}
-          onOpenSettings={onOpenSettings}
-          onPlayPlaylist={onPlayPlaylist}
-          onPlayLiked={onPlayLiked}
-          onLogout={onLogout}
-        />
-        {!mobile && (
-          <SidebarResizeHandle
-            width={sidebarWidth}
-            maxWidth={maxWidth}
-            collapsed={collapsed}
-            onTrackingChange={setTracking}
-            onOpenChange={open => setSidebarCollapsed(!open)}
-            onWidthChange={width => {
-              setPreferredWidth(width)
-              writeSidebarWidth(width)
-            }}
-          />
-        )}
-
-        {/* Everything behind the open drawer is inert. */}
-        <div className="flex min-w-0 flex-1 flex-col" inert={drawerShown}>
-          <div className="relative flex min-h-0 flex-1">
-            {/*
-              * A page with no header bar (an album, an artist, a playlist) has the drawer button
-              * floating over it; once it scrolls, a bar behind the button takes the page's title,
-              * so the list goes under the bar rather than under the button.
-              */}
-            {mobile && topBar !== null && (
-              <div aria-hidden className="absolute inset-x-0 top-0 z-20 flex h-12 items-center border-b bg-background/85 pl-12 pr-4 backdrop-blur-md">
-                <span dir="auto" className="truncate text-sm font-semibold">{topBar}</span>
-              </div>
-            )}
-            {mobile && (
-              <button
-                ref={opener}
-                type="button"
-                onClick={() => setDrawerOpen(true)}
-                aria-label="Open sidebar"
-                aria-expanded={drawerOpen}
-                // The only way to the navigation on a phone: a 44px touch target around the 32px button.
-                className="absolute left-2 top-2 z-30 flex size-8 items-center justify-center rounded-md bg-background/70 text-foreground outline-none backdrop-blur-md after:absolute after:-inset-1.5 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <PanelLeftOpen aria-hidden className="size-5" />
-              </button>
-            )}
-            <main
-              id="main-content"
-              ref={setScroller}
+      <ListenTogetherProvider>
+        <a
+          href="#main-content"
+          className="sr-only rounded-lg border bg-popover text-sm font-medium text-popover-foreground shadow-lg outline-none focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-[60] focus:px-3 focus:py-2 focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={event => {
+            event.preventDefault()
+            document.getElementById('main-content')?.focus()
+          }}
+        >
+          Skip to main content
+        </a>
+        {/*
+          * The page is drawn edge to edge (viewport-fit=cover); the shell keeps everything clear of
+          * a phone's notch and rounded corners. The player pads itself for the home indicator.
+          */}
+        <div ref={frame} data-shell-frame="" className="relative flex h-dvh overflow-hidden pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)]">
+          {mobile && (
+            <button
+              type="button"
+              // A pointer target only: the drawer's own close button and Escape close it from the keyboard.
+              aria-hidden
               tabIndex={-1}
-              // Its own layer: a sticky page header stays under the floating queue's backdrop.
-              // The scroll padding keeps what takes focus clear of a sticky header or the bar above.
-              className="relative isolate min-w-0 flex-1 scroll-pt-14 overflow-y-auto outline-none [--gutter:1rem] has-[>[data-back-breadcrumb]]:[--breadcrumb-space:0.75rem] md:[--gutter:1.5rem]"
-            >
-              <ScrollContainerContext value={scroller}>
-                <BackBreadcrumb />
-                {/* A page that fails shows a message in its place; the next page starts afresh. */}
-                <ErrorBoundary resetKey={pathname}>
-                  <Outlet />
-                </ErrorBoundary>
-              </ScrollContainerContext>
-            </main>
+              onClick={closeDrawer}
+              className={cn('fixed inset-0 z-30 bg-black/55 transition-opacity duration-200', drawerOpen ? 'opacity-100' : 'pointer-events-none opacity-0')}
+            />
+          )}
+          <Sidebar
+            user={user}
+            playlists={playlists}
+            likedCount={likedCount}
+            collapsed={!mobile && collapsed}
+            mobile={mobile}
+            mobileOpen={drawerOpen}
+            transitions={transitions && !tracking}
+            onToggle={onSidebarToggle}
+            onNavigate={closeDrawer}
+            onOpenSettings={onOpenSettings}
+            onPlayPlaylist={onPlayPlaylist}
+            onPlayLiked={onPlayLiked}
+            onLogout={onLogout}
+          />
+          {!mobile && (
+            <SidebarResizeHandle
+              width={sidebarWidth}
+              maxWidth={maxWidth}
+              collapsed={collapsed}
+              onTrackingChange={setTracking}
+              onOpenChange={open => setSidebarCollapsed(!open)}
+              onWidthChange={width => {
+                setPreferredWidth(width)
+                writeSidebarWidth(width)
+              }}
+            />
+          )}
 
-            <QueueDock open={queueOpen} onClose={closeQueue} />
+          {/* Everything behind the open drawer is inert. */}
+          <div className="flex min-w-0 flex-1 flex-col" inert={drawerShown}>
+            <div className="relative flex min-h-0 flex-1">
+              {/*
+                * A page with no header bar (an album, an artist, a playlist) has the drawer button
+                * floating over it; once it scrolls, a bar behind the button takes the page's title,
+                * so the list goes under the bar rather than under the button.
+                */}
+              {mobile && topBar !== null && (
+                <div aria-hidden className="absolute inset-x-0 top-0 z-20 flex h-12 items-center border-b bg-background/85 pl-12 pr-4 backdrop-blur-md">
+                  <span dir="auto" className="truncate text-sm font-semibold">{topBar}</span>
+                </div>
+              )}
+              {mobile && (
+                <button
+                  ref={opener}
+                  type="button"
+                  onClick={() => setDrawerOpen(true)}
+                  aria-label="Open sidebar"
+                  aria-expanded={drawerOpen}
+                  // The only way to the navigation on a phone: a 44px touch target around the 32px button.
+                  className="absolute left-2 top-2 z-30 flex size-8 items-center justify-center rounded-md bg-background/70 text-foreground outline-none backdrop-blur-md after:absolute after:-inset-1.5 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <PanelLeftOpen aria-hidden className="size-5" />
+                </button>
+              )}
+              <main
+                id="main-content"
+                ref={setScroller}
+                tabIndex={-1}
+                // Its own layer: a sticky page header stays under the floating queue's backdrop.
+                // The scroll padding keeps what takes focus clear of a sticky header or the bar above.
+                className="relative isolate min-w-0 flex-1 scroll-pt-14 overflow-y-auto outline-none [--gutter:1rem] has-[>[data-back-breadcrumb]]:[--breadcrumb-space:0.75rem] md:[--gutter:1.5rem]"
+              >
+                <ScrollContainerContext value={scroller}>
+                  <BackBreadcrumb />
+                  {/* A page that fails shows a message in its place; the next page starts afresh. */}
+                  <ErrorBoundary resetKey={pathname}>
+                    <Outlet />
+                  </ErrorBoundary>
+                </ScrollContainerContext>
+              </main>
+
+              <QueueDock open={queueOpen} onClose={closeQueue} />
+            </div>
+
+            <div ref={bottom} className="shrink-0">
+              <ShellPlayer mobile={mobile} queueOpen={queueOpen} setQueueOpen={setQueueOpen} nowPlaying={nowPlaying} setNowPlaying={setNowPlaying} onTogglePopOut={commands.togglePopOut} poppedOut={commands.poppedOut} />
+            </div>
           </div>
 
-          <div ref={bottom} className="shrink-0">
-            <ShellPlayer mobile={mobile} queueOpen={queueOpen} setQueueOpen={setQueueOpen} nowPlaying={nowPlaying} setNowPlaying={setNowPlaying} />
-          </div>
+          <ShellNowPlaying nowPlaying={nowPlaying} setNowPlaying={setNowPlaying} />
+          <ShellNotices />
         </div>
-
-        <ShellNowPlaying nowPlaying={nowPlaying} setNowPlaying={setNowPlaying} />
-        <ShellNotices />
-      </div>
-      {renderSearch({ open: searchOpen, onOpenChange: onSearchOpenChange })}
-      {renderSettings({ open: settings.open, section: settings.section, lastFm: settings.lastFm, onOpenChange: onSettingsOpenChange, onSectionChange: onSettingsSectionChange })}
+        <ShellShortcuts commands={commands} onSearch={openSearch} />
+        <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+        {popOut.popped && <PopOutPlayer target={popOut.popped} />}
+        {renderSearch({ open: searchOpen, onOpenChange: onSearchOpenChange, commands })}
+        {renderSettings({ open: settings.open, section: settings.section, lastFm: settings.lastFm, onOpenChange: onSettingsOpenChange, onSectionChange: onSettingsSectionChange })}
+      </ListenTogetherProvider>
     </SettingsDialogContext>
   )
 })
@@ -387,19 +460,65 @@ function useCurrentLike() {
   return { liked, toggleLike }
 }
 
+/**
+ * The letter keys, which reach the app wherever focus is but in a field, a menu or a dialog
+ * (`letterIsTaken`): M mutes, S shuffles, R repeats, L saves the song playing, Q and Y show the
+ * queue and lyrics, / searches and ? lists them all. It renders nothing; it reads the session
+ * to know the song and the volume.
+ */
+function ShellShortcuts({ commands, onSearch }: { commands: ShellCommands; onSearch: () => void }) {
+  const { state, controls } = usePlayer()
+  const library = useLibrary()
+  const latest = useRef({ state, commands, onSearch })
+  useEffect(() => { latest.current = { state, commands, onSearch } })
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (letterIsTaken(event)) return
+      const letter = letterOf(event)
+      // ? is Shift with / on most layouts; every other letter is pressed alone.
+      if (event.shiftKey && letter !== '?') return
+      const { state, commands, onSearch } = latest.current
+      const track = state.current?.track
+      const deviceId = state.activeDeviceId ?? state.thisDeviceId
+      const run: Record<string, (() => void) | undefined> = {
+        m: () => toggleMute(state.volume, deviceId, volume => controls.setVolume(volume)),
+        // The host's in a jam this user follows, as their buttons are.
+        s: hostControls(state) ? undefined : () => controls.setShuffle(!state.shuffle),
+        r: hostControls(state) ? undefined : controls.cycleRepeat,
+        l: track && (() => void library.setSaved({ type: 'track', id: track.id, title: track.title }, !track.liked)),
+        q: commands.toggleQueue,
+        y: track && commands.toggleLyrics,
+        '/': onSearch,
+        '?': commands.showShortcuts,
+      }
+      const action = run[letter]
+      if (!(letter in run)) return
+      event.preventDefault()
+      if (event.repeat || !action) return
+      action()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [controls, library])
+  return null
+}
+
 type ShellPlayerProps = {
   mobile: boolean
   queueOpen: boolean
   setQueueOpen: Dispatch<SetStateAction<boolean>>
   nowPlaying: NowPlayingView
   setNowPlaying: Dispatch<SetStateAction<NowPlayingView>>
+  onTogglePopOut?: () => void
+  poppedOut?: boolean
 }
 
 /** The player along the bottom: the full bar on a desktop, the small one on a phone. */
-function ShellPlayer({ mobile, queueOpen, setQueueOpen, nowPlaying, setNowPlaying }: ShellPlayerProps) {
+function ShellPlayer({ mobile, queueOpen, setQueueOpen, nowPlaying, setNowPlaying, onTogglePopOut, poppedOut = false }: ShellPlayerProps) {
   const player = usePlayer()
   const { liked, toggleLike } = useCurrentLike()
   const openNowPlaying = () => setNowPlaying(now => ({ ...now, open: true }))
+  usePreloadNextArtwork(player.state, nowPlaying.open)
   if (mobile) return <MiniPlayer player={player} onOpenNowPlaying={openNowPlaying} />
   return (
     <PlayerBar
@@ -411,6 +530,8 @@ function ShellPlayer({ mobile, queueOpen, setQueueOpen, nowPlaying, setNowPlayin
       lyricsOpen={nowPlaying.open && nowPlaying.pane === 'lyrics'}
       onToggleLyrics={() => setNowPlaying(now => ({ open: !(now.open && now.pane === 'lyrics'), pane: 'lyrics' }))}
       onOpenNowPlaying={openNowPlaying}
+      onTogglePopOut={onTogglePopOut}
+      poppedOut={poppedOut}
     />
   )
 }

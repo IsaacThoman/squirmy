@@ -32,11 +32,14 @@ import {
   CreateInviteRequest,
   CreateLibraryRootRequest,
   type CreatePlaylistRequest,
+  type CreateShareRequest,
   CreateUserRequest,
   DeviceInfo,
   DuplicatePage,
   type DuplicateQuery,
   HealthPage,
+  JamPerson,
+  JamPreview,
   QualityPage,
   type RemoveDuplicate,
   type TagEdit,
@@ -52,6 +55,12 @@ import {
   type ReplayQuery,
   ReplayStats,
   HomeResponse,
+  CreateWebhook,
+  IntegrationConfig,
+  type PlaybackControl,
+  type UpdateIntegrationConfig,
+  Webhook,
+  WebhookDelivery,
   type HomeQuery,
   MixDetail,
   Import,
@@ -83,7 +92,13 @@ import {
   MatchReviewList,
   type MatchReviewQuery,
   type MovePlaylistItemRequest,
+  type RatingRequest,
   Ok,
+  PublicShare,
+  ShareLink,
+  ShareLinkPage,
+  ShareTrackPlayback,
+  type ShareTrackQuery,
   OrganizeBatch,
   OrganizeBatchAccepted,
   OrganizeBatchList,
@@ -108,6 +123,8 @@ import {
   SearchResults,
   ScrobblingStatus,
   ServerSettings,
+  SmartPlaylistPreview,
+  type SmartPlaylistRules,
   SessionSnapshot,
   SetupStatus,
   type SetupRequest,
@@ -244,6 +261,7 @@ export type CallOptions = { signal?: AbortSignalLike }
 type Input<T extends z.ZodType> = z.input<T>
 
 const DeviceList = page(DeviceInfo)
+const JamPeople = page(JamPerson)
 const JobList = z.array(JobQueueStats)
 const likedPages = { track: TrackPage, album: AlbumPage, artist: ArtistPage } as const
 type SearchParams = SearchFacets & { q: string; limit?: number; type?: SearchResultKind; offset?: number; scope?: 'library' | 'server' }
@@ -466,6 +484,8 @@ export function createApiClient(options: ApiClientOptions) {
        * passes it back to `like` so the item returns to its place.
        */
       unlike: (type: LikeEntityType, entityId: string) => send('DELETE', `/me/likes/${type}/${id(entityId)}`, UnlikeResponse),
+      /** The user's 1 to 5 stars for a track, album or artist; 0 removes them. */
+      rate: (type: LikeEntityType, entityId: string, rating: number) => send('PUT', `/me/ratings/${type}/${id(entityId)}`, Ok, { rating } satisfies RatingRequest),
       likes: <T extends LikeEntityType>(type: T, query: Partial<PageQuery> = {}) =>
         get(`/me/likes/${type}`, likedPages[type] as unknown as z.ZodType<Page<LikedItems[T]>>, query),
       /** Pins an item to the top of the Library's All, on every device; Liked Songs by `LIKED_SONGS_ID`. */
@@ -473,6 +493,8 @@ export function createApiClient(options: ApiClientOptions) {
       unpin: (kind: LibraryPinKind, entityId: string) => send('DELETE', `/me/pins/${kind}/${id(entityId)}`, Ok),
       playlists: (query: Partial<PageQuery> = {}) => get('/playlists', PlaylistPage, query),
       createPlaylist: (body: CreatePlaylistRequest) => send('POST', '/playlists', PlaylistSummary, body),
+      /** How many songs smart playlist rules find right now, for the rule editor. */
+      previewSmartPlaylist: (body: SmartPlaylistRules) => send('POST', '/playlists/smart/preview', SmartPlaylistPreview, body),
       playlist: (playlistId: string) => get(`/playlists/${id(playlistId)}`, PlaylistDetail),
       updatePlaylist: (playlistId: string, body: UpdatePlaylistRequest) => send('PATCH', `/playlists/${id(playlistId)}`, PlaylistSummary, body),
       deletePlaylist: (playlistId: string) => send('DELETE', `/playlists/${id(playlistId)}`, Ok),
@@ -493,11 +515,27 @@ export function createApiClient(options: ApiClientOptions) {
     },
     sessions: {
       session: () => get('/me/session', SessionSnapshot),
+      controlPlayback: (body: PlaybackControl) => send('POST', '/me/session/command', SessionSnapshot, body),
       devices: () => get('/me/devices', DeviceList),
+      jam: (jamId: string) => get(`/jams/${id(jamId)}`, JamPreview),
+      jamPeople: () => get('/jams/people', JamPeople),
     },
     search: {
       library: (query: SearchParams & { genre?: string }, options?: CallOptions) => get('/search/library', SearchResults, query, options),
       catalog: (query: SearchParams, options?: CallOptions) => get('/search/catalog', SearchResults, query, options),
+    },
+    integrations: {
+      personalWebhooks: () => get('/me/webhooks', Webhook.array()),
+      createPersonalWebhook: (body: CreateWebhook) => send('POST', '/me/webhooks', Webhook, body),
+      deletePersonalWebhook: (id: string) => send('DELETE', `/me/webhooks/${encodeURIComponent(id)}`, Ok),
+      testPersonalWebhook: (id: string) => send('POST', `/me/webhooks/${encodeURIComponent(id)}/test`, Ok),
+      webhooks: () => get('/admin/webhooks', Webhook.array()),
+      createWebhook: (body: CreateWebhook) => send('POST', '/admin/webhooks', Webhook, body),
+      deleteWebhook: (id: string) => send('DELETE', `/admin/webhooks/${encodeURIComponent(id)}`, Ok),
+      testWebhook: (id: string) => send('POST', `/admin/webhooks/${encodeURIComponent(id)}/test`, Ok),
+      deliveries: () => get('/admin/webhook-deliveries', WebhookDelivery.array()),
+      config: () => get('/admin/integrations', IntegrationConfig),
+      saveConfig: (body: UpdateIntegrationConfig) => send('PUT', '/admin/integrations', IntegrationConfig, body),
     },
     scrobble: {
       status: () => get('/me/scrobbling', ScrobblingStatus),
@@ -554,6 +592,21 @@ export function createApiClient(options: ApiClientOptions) {
       adminDeleteAlbum: (albumId: string, query: AdminUploadAlbumQuery = {}) =>
         request('DELETE', `/admin/uploads/albums/${id(albumId)}`, { schema: DeleteUploadsResponse, query }),
       adminDeleteFile: (fileId: string) => send('DELETE', `/admin/uploads/files/${id(fileId)}`, DeleteUploadsResponse),
+    },
+    share: {
+      /** Your share links, newest first, expired ones included until they are cleaned up. */
+      list: (query: Partial<PageQuery> = {}) => get('/me/shares', ShareLinkPage, query),
+      /** The answer's `url` (`/s/<token>`) is the only time the link is returned. */
+      create: (body: Input<typeof CreateShareRequest>) => send('POST', '/me/shares', ShareLink, body),
+      revoke: (shareId: string) => send('DELETE', `/me/shares/${id(shareId)}`, Ok),
+      /** Admins: everyone's links. */
+      adminList: (query: Partial<PageQuery> = {}) => get('/admin/shares', ShareLinkPage, query),
+      adminRevoke: (shareId: string) => send('DELETE', `/admin/shares/${id(shareId)}`, Ok),
+      /** The public page of a link, without a session. 404 `share_not_found` for any link that does not work. */
+      page: (token: string) => get(`/share/${id(token)}`, PublicShare),
+      /** A short-lived URL for one song of a shared item; resolve it with `streamUrl`. */
+      trackPlayback: (token: string, trackId: string, query: ShareTrackQuery = {}) =>
+        get(`/share/${id(token)}/tracks/${id(trackId)}/playback`, ShareTrackPlayback, query),
     },
     acquisition: {
       providers: () => get('/admin/acquisition/providers', AcquisitionProviderList),
