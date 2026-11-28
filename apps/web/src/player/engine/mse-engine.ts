@@ -409,9 +409,10 @@ export class MseEngine implements BrowserEngine {
     }
   }
 
+  /** The stream's `SourceBuffer` type; null without the descriptor's container and codec, or when this browser cannot append them. */
   private typeOf(media: EngineMedia): string | null {
     if (media.mime === 'audio/mpeg') return this.types.get('mp3') ?? null
-    if (media.mime !== 'audio/mp4') return null
+    if (media.mime !== 'audio/mp4' || !media.codec) return null
     return this.types.get(media.codec === 'mp3' ? 'mp3_mp4' : media.codec) ?? null
   }
 
@@ -475,7 +476,8 @@ export class MseEngine implements BrowserEngine {
   }
 
   private startFill(item: Item, fromMs: number, intent: StreamIntent): Fill {
-    const seekable = item.media !== null && SEEKABLE.has(item.media.profile) && this.rateOf(item) !== null
+    const profile = item.media?.profile
+    const seekable = profile !== undefined && SEEKABLE.has(profile) && this.rateOf(item) !== null
     // A stream that starts at the very end would have nothing in it; the server refuses one past it.
     const from = fromMs > 0 && seekable ? Math.min(fromMs, Math.max(0, item.durationMs - END_START_MS)) : fromMs
     const fill: Fill = {

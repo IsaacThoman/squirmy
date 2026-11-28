@@ -516,7 +516,7 @@ async function measure(dir) {
       // ffmpeg trims an original by its own gapless tags; the fragmented MP4 has none, so its priming is cut here.
       const skip = descriptor.profile === 'original' ? 0 : primingFrames
       return {
-        load: { entryId: id, url: descriptor.url, gain: 1, media: { profile: descriptor.profile, mime: descriptor.mime, codec: descriptor.codec, sampleRate: descriptor.sampleRate, durationMs: descriptor.durationMs, gapless: descriptor.gapless } },
+        load: { entryId: id, url: descriptor.url, gain: 1, media: { transcoded: descriptor.transcoded, profile: descriptor.profile, mime: descriptor.mime, codec: descriptor.codec, sampleRate: descriptor.sampleRate, durationMs: descriptor.durationMs, gapless: descriptor.gapless } },
         reference: decoded.slice(2 * skip, 2 * (skip + frames)),
       }
     }

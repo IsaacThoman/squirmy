@@ -236,8 +236,8 @@ const flush = async (rounds = 20) => {
   for (let round = 0; round < rounds; round += 1) await new Promise(resolve => setTimeout(resolve, 0))
 }
 const buffer = () => audio.source!.buffers[0]!
-const media = (frames: number, priming = 0, profile: EngineMedia['profile'] = 'flac_mp4'): EngineMedia => ({
-  profile, mime: 'audio/mp4', codec: profile.startsWith('aac') ? 'aac' : 'flac', sampleRate: RATE, durationMs: frames,
+const media = (frames: number, priming = 0, profile: NonNullable<EngineMedia['profile']> = 'flac_mp4'): EngineMedia => ({
+  transcoded: true, profile, mime: 'audio/mp4', codec: profile.startsWith('aac') ? 'aac' : 'flac', sampleRate: RATE, durationMs: frames,
   gapless: { sampleRate: RATE, primingFrames: priming, frames },
 })
 
@@ -418,7 +418,9 @@ describe('MseEngine', () => {
     expect(buffer().appends).toEqual([])
   })
 
-  it('fails a stream the browser cannot append without fetching it', () => {
+  it('fails a stream the browser cannot append, or one without its descriptor\'s facts, without fetching it', () => {
+    engine.load({ entryId: 'e0', url: '/x', startMs: 0, autoplay: true, gain: 1, media: { transcoded: false } })
+    expect(events.at(-2)).toEqual({ type: 'error', entryId: 'e0', message: 'The browser cannot play this stream' })
     engine.load({ entryId: 'e1', url: '/x', startMs: 0, autoplay: true, gain: 1, media: { ...media(1000), mime: 'audio/ogg', codec: 'opus' } })
     expect(events.at(-2)).toEqual({ type: 'error', entryId: 'e1', message: 'The browser cannot play this stream' })
     expect(requests).toEqual([])
@@ -426,7 +428,7 @@ describe('MseEngine', () => {
 
   it('takes the MP3 decoder delay Chromium drops itself off an MPEG stream\'s priming', async () => {
     served.set('/a', { chunks: [new Uint8Array([0x49, 0x44, 0x33, 4, 0, 0, 0, 0]), new Uint8Array(2105)] })
-    const mp3: EngineMedia = { profile: 'original', mime: 'audio/mpeg', codec: 'mp3', sampleRate: RATE, durationMs: 1000, gapless: { sampleRate: RATE, primingFrames: 1105, frames: 1000 } }
+    const mp3: EngineMedia = { transcoded: false, profile: 'original', mime: 'audio/mpeg', codec: 'mp3', sampleRate: RATE, durationMs: 1000, gapless: { sampleRate: RATE, primingFrames: 1105, frames: 1000 } }
     engine.load({ entryId: 'e1', url: '/a', startMs: 0, autoplay: false, gain: 1, media: mp3 })
     await flush()
     expect(buffer().type).toBe('audio/mpeg')

@@ -57,7 +57,7 @@ let created: Instruments | null = null
 function toneMedia(name: string): EngineMedia {
   const durationMs = tones.find(tone => tone.id === name)?.durationMs ?? 1000
   const frames = Math.round(durationMs * TONE_RATE / 1000)
-  return { profile: 'flac_mp4', mime: 'audio/mp4', codec: 'flac', sampleRate: TONE_RATE, durationMs, gapless: { sampleRate: TONE_RATE, primingFrames: 0, frames } }
+  return { transcoded: true, profile: 'flac_mp4', mime: 'audio/mp4', codec: 'flac', sampleRate: TONE_RATE, durationMs, gapless: { sampleRate: TONE_RATE, primingFrames: 0, frames } }
 }
 
 /** `?engine=mse` or `web` picks the engine; by default, the one this browser gets. */
