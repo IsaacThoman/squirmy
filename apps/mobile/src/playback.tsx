@@ -335,8 +335,9 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       holdWhilePreparing();
       setRuntime({ client, device, loading, seeks });
       teardown = () => {
-        // Not saved here: this runs on sign-out too, after the account's data was removed.
-        clearTimeout(saveTimer);
+        // Saved for the account as it leaves (sign-out or a switch keeps what it saved), so
+        // opening it again offline finds the queue as it was.
+        if (saveTimer !== undefined) save();
         appState.remove();
         stopFollowing();
         stopFollowingEngine();

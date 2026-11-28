@@ -1,91 +1,105 @@
 import 'expo-sqlite/localStorage/install';
 
-import type { ClientDevice, User } from '@squirmy/contracts';
+import type { ClientDevice } from '@squirmy/contracts';
 import { uuid } from 'expo';
 import * as Device from 'expo-device';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+import { AccountStore, type AccountBackend, type LegacyAccount } from './accounts';
 import { Keychain } from './keychain';
-import type { Server } from './server';
 
-/** The server and user are not secret; they live in app storage, which an uninstall removes. */
-type Saved = { server: Server; user: User | null };
-
-const savedKey = 'squirmy.account.v1';
-const tokenKey = 'squirmy.token';
+const listKey = 'squirmy.accounts.v1';
+/** The phone's one account before there were several: the server and user, and the token beside them. */
+const legacyKey = 'squirmy.account.v1';
+const legacyTokenKey = 'squirmy.token';
 const deviceKey = 'squirmy.device-id';
-const tvAccountKey = 'squirmy.tv.account.v1';
+const tvListKey = 'squirmy.tv.accounts.v1';
+const tvLegacyKey = 'squirmy.tv.account.v1';
 // Readable while the phone is locked, so background playback can keep talking to the server.
 const access = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY };
 
-/** Holds the token and the device id. When it refuses, they last only until the app quits. */
+/** Holds the tokens and the device id. When it refuses, they last only until the app quits. */
 export const keychain = new Keychain({
   getItemAsync: key => SecureStore.getItemAsync(key, access),
   setItemAsync: (key, value) => SecureStore.setItemAsync(key, value, access),
   deleteItemAsync: key => SecureStore.deleteItemAsync(key, access),
 });
 
-export type StoredAccount = { server: Server | null; token: string | null; user: User | null };
-
-export async function loadAccount(): Promise<StoredAccount> {
-  if (Platform.isTV) {
-    // tvOS may purge the SQLite cache, so the server and token live together in the keychain.
-    const json = await keychain.get(tvAccountKey);
-    if (json) {
-      try {
-        const stored = JSON.parse(json) as StoredAccount;
-        if (stored.server?.url) return stored;
-      } catch {
-        // A damaged record is treated as a fresh connection.
-      }
-    }
-    return { server: null, token: null, user: null };
-  }
-  const saved = readSaved();
-  // The keychain outlives an uninstall. Without the saved server this is a fresh install,
-  // so a token found there belongs to an earlier one.
-  if (!saved) {
-    await keychain.remove(tokenKey);
-    return { server: null, token: null, user: null };
-  }
-  const token = await keychain.get(tokenKey);
-  return { server: saved.server, token, user: token ? saved.user : null };
-}
-
-/** Saves `server`, and the session when there is one; clears whatever is not given. */
-export async function saveAccount(server: Server | null, session?: { token: string; user: User }): Promise<void> {
-  if (Platform.isTV) {
-    if (server) await keychain.set(tvAccountKey, JSON.stringify({ server, token: session?.token ?? null, user: session?.user ?? null } satisfies StoredAccount));
-    else await keychain.remove(tvAccountKey);
-    return;
-  }
+function readLocal(key: string): string | null {
   try {
-    if (server) globalThis.localStorage?.setItem(savedKey, JSON.stringify({ server, user: session?.user ?? null } satisfies Saved));
-    else globalThis.localStorage?.removeItem(savedKey);
-  } catch {
-    // The app still works for this launch; the next one starts at Connect.
-  }
-  if (session) await keychain.set(tokenKey, session.token);
-  else await keychain.remove(tokenKey);
-}
-
-function readSaved(): Saved | null {
-  try {
-    const json = globalThis.localStorage?.getItem(savedKey);
-    const saved = json ? JSON.parse(json) as Partial<Saved> : null;
-    // Servers saved before the invite setting was known are assumed to require one, and
-    // before the wantlist setting was known to have it off.
-    return saved?.server?.url ? {
-      server: {
-        ...saved.server,
-        registrationRequiresInvite: saved.server.registrationRequiresInvite ?? true,
-        wantlistEnabled: saved.server.wantlistEnabled ?? false,
-      },
-      user: saved.user ?? null,
-    } : null;
+    return globalThis.localStorage?.getItem(key) ?? null;
   } catch {
     return null;
   }
+}
+
+function writeLocal(key: string, value: string | null): void {
+  try {
+    if (value === null) globalThis.localStorage?.removeItem(key);
+    else globalThis.localStorage?.setItem(key, value);
+  } catch {
+    // The app still works for this launch; the next one starts at Connect.
+  }
+}
+
+function parseLegacy(json: string | null): LegacyAccount | null {
+  try {
+    const saved = json ? JSON.parse(json) as Partial<LegacyAccount> : null;
+    return saved?.server?.url ? { server: saved.server, user: saved.user ?? null, token: saved.token ?? null } : null;
+  } catch {
+    // A damaged record is treated as a fresh connection.
+    return null;
+  }
+}
+
+/**
+ * On the phone the list of accounts is not secret and lives in app storage, which an
+ * uninstall removes; each token is in the keychain. On Apple TV, tvOS may purge app
+ * storage, so the list lives in the keychain too.
+ */
+function accountBackend(): AccountBackend {
+  const tokenKey = (id: string) => `${Platform.isTV ? 'squirmy.tv.token' : 'squirmy.token'}.${id}`;
+  const tokens = {
+    getToken: (id: string) => keychain.get(tokenKey(id)),
+    setToken: (id: string, token: string) => keychain.set(tokenKey(id), token),
+    removeToken: (id: string) => keychain.remove(tokenKey(id)),
+  };
+  // A record an earlier version wrote is removed only once its replacement is in the keychain.
+  if (Platform.isTV) {
+    return {
+      ...tokens,
+      read: () => keychain.get(tvListKey),
+      write: json => keychain.set(tvListKey, json),
+      legacy: async () => parseLegacy(await keychain.get(tvLegacyKey)),
+      removeLegacy: async () => {
+        if (!keychain.refused) await keychain.remove(tvLegacyKey);
+      },
+      forgetStray: async () => undefined,
+    };
+  }
+  return {
+    ...tokens,
+    read: async () => readLocal(listKey),
+    write: async json => writeLocal(listKey, json),
+    legacy: async () => {
+      const saved = parseLegacy(readLocal(legacyKey));
+      return saved ? { ...saved, token: await keychain.get(legacyTokenKey) } : null;
+    },
+    removeLegacy: async () => {
+      // Kept unless the list it moved to is really there.
+      if (keychain.refused || !readLocal(listKey)) return;
+      writeLocal(legacyKey, null);
+      await keychain.remove(legacyTokenKey);
+    },
+    // The keychain outlives an uninstall. Without anything in app storage this is a fresh
+    // install, so a token found there belongs to an earlier one.
+    forgetStray: () => keychain.remove(legacyTokenKey),
+  };
+}
+
+/** The saved accounts on this device. One per `AccountProvider`. */
+export function createAccountStore(): AccountStore {
+  return new AccountStore(accountBackend(), { newId: () => uuid.v4() });
 }
 
 let device: Promise<ClientDevice> | undefined;

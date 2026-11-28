@@ -66,7 +66,11 @@ export type DownloadSource = {
 };
 
 /** `canFetch`: the user may have the server get songs it does not have (client-core's `canFetch`). */
-export type DownloadOptions = { quality: StreamQuality; wifiOnly: boolean; capBytes: number | null; canFetch: boolean };
+/**
+ * `capBytes` is the device's storage limit, for every account's downloads together:
+ * `otherBytes` is what the other accounts on the device have downloaded.
+ */
+export type DownloadOptions = { quality: StreamQuality; wifiOnly: boolean; capBytes: number | null; canFetch: boolean; otherBytes?: number };
 
 /** What `addCollection` needs to know about the album, playlist or Liked Songs. */
 export type CollectionMeta = Pick<CollectionRow, 'id' | 'kind' | 'title' | 'subtitle' | 'artworks'> & Partial<Pick<CollectionRow, 'album' | 'playlist'>>;
@@ -430,8 +434,8 @@ export class DownloadManager {
   // Internals
 
   private wait(): WaitReason | null {
-    const { wifiOnly, capBytes } = this.ports.options;
-    let usedBytes = 0;
+    const { wifiOnly, capBytes, otherBytes } = this.ports.options;
+    let usedBytes = otherBytes ?? 0;
     if (capBytes !== null) for (const row of this.rows.values()) usedBytes += row.file ? row.bytes ?? 0 : 0;
     return waitReason({ online: this.online, network: this.ports.network.kind(), wifiOnly, usedBytes, capBytes });
   }
