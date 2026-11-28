@@ -41,7 +41,7 @@ export type ImportStep = z.infer<typeof ImportStep>
 
 /**
  * Why a file was not taken. `unsupported_type`: not audio, a sidecar (`cover.*` and
- * `folder.*` images, `.lrc`, `.cue`, `.log`) or a `.zip`. `unsafe_path`: absolute, `..`,
+ * `folder.*` images, `.lrc`, `.ttml`, `.cue`, `.log`) or a `.zip`. `unsafe_path`: absolute, `..`,
  * control characters, too deep or too long. `hidden`: dot files and system folders, which
  * are skipped quietly. `duplicate_name`: the import already has a file at that path.
  * `nested_archive`: a zip inside a zip, which is not extracted. `unsafe_archive`: a zip
@@ -58,7 +58,7 @@ export type ImportFileRejection = z.infer<typeof ImportFileRejection>
 export const AUDIO_EXTENSIONS = ['mp3', 'flac', 'm4a', 'mp4', 'aac', 'ogg', 'oga', 'opus', 'wav', 'aiff', 'aif', 'wv', 'ape', 'wma', 'dsf'] as const
 const audioExtensions = new Set<string>(AUDIO_EXTENSIONS)
 const coverExtensions = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'])
-const sidecarExtensions = new Set(['lrc', 'cue', 'log'])
+const sidecarExtensions = new Set(['lrc', 'ttml', 'cue', 'log'])
 
 export type ImportFileKind = 'audio' | 'sidecar' | 'archive'
 

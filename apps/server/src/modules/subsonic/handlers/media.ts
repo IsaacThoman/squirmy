@@ -1,4 +1,5 @@
 /** Media retrieval: stream, download, cover art and lyrics. */
+import { stripWordStamps } from '@squirmy/client-core'
 import { ART_SIZES, type ArtSize } from '@squirmy/contracts'
 import { sql } from 'drizzle-orm'
 import { db } from '../../../database/client.js'
@@ -203,7 +204,7 @@ async function getLyrics({ params }: Context): Promise<Payload> {
       and ${hasPresentFile('recording_id', 'r.id')}
     limit 1`)
   if (!row) return { lyrics: { artist, title } }
-  const value = row.plain ?? parseLrc(row.synced!).lines.map((line) => line.value).join('\n')
+  const value = stripWordStamps(row.plain ?? parseLrc(row.synced!).lines.map((line) => line.value).join('\n'))
   return { lyrics: { artist: row.artist, title: row.title, value } }
 }
 

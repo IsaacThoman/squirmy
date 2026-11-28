@@ -282,7 +282,13 @@ describe('catalog pages', () => {
     expect(errorCode(await get(`/tracks/${recordingId}/lyrics`), 404)).toBe('lyrics_not_found')
     await db.update(lyrics).set({ synced: '[00:01.00] hi', plain: 'hi', source: 'lrclib' }).where(eq(lyrics.recordingId, recordingId))
     expect(body(await get(`/tracks/${recordingId}/lyrics`), Lyrics)).toEqual({
-      trackId: recordingId, synced: '[00:01.00] hi', plain: 'hi', instrumental: false, source: 'lrclib',
+      trackId: recordingId, synced: '[00:01.00] hi', plain: 'hi', instrumental: false, source: 'lrclib', lines: [{ startMs: 1000, text: 'hi' }],
+    })
+    // Word stamps stay out of `synced`, for clients that read only lines, and come as each word's time in `lines`.
+    await db.update(lyrics).set({ synced: '[00:01.00]<00:01.00>hi <00:01.40>there<00:02.00>', plain: 'hi there', source: 'sidecar' }).where(eq(lyrics.recordingId, recordingId))
+    expect(body(await get(`/tracks/${recordingId}/lyrics`), Lyrics)).toMatchObject({
+      synced: '[00:01.00]hi there',
+      lines: [{ startMs: 1000, text: 'hi there', words: [{ startMs: 1000, endMs: 1400, text: 'hi ' }, { startMs: 1400, endMs: 2000, text: 'there' }] }],
     })
   })
 

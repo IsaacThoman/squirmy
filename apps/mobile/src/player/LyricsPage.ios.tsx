@@ -1,3 +1,4 @@
+import type { LyricWord } from '@squirmy/contracts';
 import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import { AccessibilityInfo, StyleSheet, useWindowDimensions, View, type LayoutChangeEvent } from 'react-native';
 import Animated, {
@@ -8,6 +9,7 @@ import { scheduleOnRN, scheduleOnUI } from 'react-native-worklets';
 import { useTrackLyrics } from './useTrackLyrics';
 import { usePlaybackState, usePosition } from '../playback';
 import { LyricButton, LyricCredits } from './Controls';
+import { SungLyricButton } from './SungLyric';
 import { selectionFeedback } from './design';
 import {
   activeLine, blurReachFor, chromeDeadline, initialChrome, lineLook, lyricCredits, lyricLines, lyricsChrome, scrollRun, scrollTurn, springRemaining, waveDuration,
@@ -227,7 +229,8 @@ export default function LyricsPage({ selected, ref, onControlsHidden, keepContro
         {lines.map((line, index) => {
           // Before the first line is sung (`sung` is -1), it waits dim at the top like the rest.
           const look = lineLook(timed ? index - sung : null, { browsing, blur: blurs, reach });
-          return <LyricRow key={index} index={index} text={line.text} startMs={line.startMs} active={timed && index === sung}
+          return <LyricRow key={index} index={index} text={line.text} words={line.words} translation={line.translation}
+            startMs={line.startMs} active={timed && index === sung}
             opacity={look.opacity} blur={look.blur}
             wave={wave} onSeek={seek} onLayout={lineLaidOut} watched={index === watched} />;
         })}
@@ -242,6 +245,8 @@ export default function LyricsPage({ selected, ref, onControlsHidden, keepContro
 type LyricRowProps = {
   index: number;
   text: string;
+  words?: readonly LyricWord[];
+  translation?: string;
   startMs: number | null;
   active: boolean;
   opacity: number;
@@ -267,7 +272,7 @@ function Riding({ wave, children }: PropsWithChildren<{ wave: Wave }>) {
   return <Animated.View style={useWaveStyle(wave)}>{children}</Animated.View>;
 }
 
-const LyricRow = memo(function LyricRow({ index, text, startMs, active, opacity, blur, wave, onSeek, onLayout, watched }: LyricRowProps) {
+const LyricRow = memo(function LyricRow({ index, text, words, translation, startMs, active, opacity, blur, wave, onSeek, onLayout, watched }: LyricRowProps) {
   const style = useWaveStyle(wave);
   const top = useRef<number | null>(null);
   const laidOut = (event: LayoutChangeEvent) => {
@@ -280,11 +285,14 @@ const LyricRow = memo(function LyricRow({ index, text, startMs, active, opacity,
   }, [watched, index, onLayout]);
   return (
     <Animated.View style={style} onLayout={laidOut}>
-      <LyricButton line={text} active={active} opacity={opacity} blur={blur}
-        onPress={startMs === null ? undefined : () => onSeek(startMs)} />
+      {active && words?.length
+        ? <SungLyricButton line={text} words={words} translation={translation} active opacity={opacity} blur={blur}
+          onPress={startMs === null ? undefined : () => onSeek(startMs)} />
+        : <LyricButton line={text} translation={translation} active={active} opacity={opacity} blur={blur}
+          onPress={startMs === null ? undefined : () => onSeek(startMs)} />}
     </Animated.View>
   );
-}, (before, after) => before.text === after.text && before.startMs === after.startMs && before.active === after.active &&
+}, (before, after) => before.text === after.text && before.words === after.words && before.translation === after.translation && before.startMs === after.startMs && before.active === after.active &&
   before.opacity === after.opacity && before.blur === after.blur && before.watched === after.watched &&
   before.index === after.index && before.onSeek === after.onSeek && before.onLayout === after.onLayout);
 

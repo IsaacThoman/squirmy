@@ -10,6 +10,7 @@ import { badRequest, notFound } from '../../lib/errors.js'
 import { getServerSettings } from '../../lib/settings.js'
 import { queueAlbumResolve } from '../acquisition/coverage.js'
 import { ensureAlbumDetail, ensureArtistDetail, ensureLyrics } from '../enrichment/detail.js'
+import { servedLyrics } from '../library/lyrics.js'
 import { specialPurposeArtists } from '../metadata/musicbrainz.js'
 import { canStartArtistRadio, similarArtists } from '../radio/index.js'
 import { editionFreeTitle, labelFreeKey, prefixEnd, printedTitleKey, releaseKey } from '../search/keys.js'
@@ -491,5 +492,5 @@ export async function trackLyrics(id: string): Promise<Lyrics> {
     select recording_id as "trackId", synced, plain, instrumental, source from lyrics
     where recording_id = ${recordingId} and (synced is not null or plain is not null or instrumental)`)
   if (!row) throw notFound('No lyrics for this track', 'lyrics_not_found')
-  return row
+  return servedLyrics(row)
 }
