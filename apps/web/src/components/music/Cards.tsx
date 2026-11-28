@@ -14,7 +14,7 @@ import { useAlbumMenu } from '@/player/use-album-menu'
 import { usePlaylistMenu } from '@/player/use-playlist-menu'
 import { endTrackDrag, startCollectionDrag, type CollectionDrag } from '@/lib/drag'
 import { useResultMenus } from './result-menus'
-import { LikedCover, MixCover, PlaylistCover, RadioCover } from './CollectionArt'
+import { LikedCover, MixCover, PlaylistCover, RadioCover, SmartMark } from './CollectionArt'
 import { mixSlot } from './mix-menu'
 import { Cover } from './Cover'
 
@@ -250,12 +250,18 @@ export function Monogram({ name, className }: { name: string; className?: string
   )
 }
 
+/** "Playlist · Mira", or with the smart mark "Smart playlist · Mira". */
+function PlaylistKind({ playlist }: { playlist: PlaylistSummary }) {
+  if (!playlist.smart) return `Playlist · ${playlist.ownerName}`
+  return <><SmartMark className="mr-1 inline size-3 align-[-0.125em]" />Smart playlist · {playlist.ownerName}</>
+}
+
 export function PlaylistRow({ playlist, onPlay, className, pin }: { playlist: PlaylistSummary; onPlay?: () => void; className?: string; pin?: CardPin }) {
   return (
     <CollectionRow
       to={`/playlist/${playlist.id}`}
       title={playlist.name}
-      subtitle={`Playlist · ${playlist.ownerName}`}
+      subtitle={<PlaylistKind playlist={playlist} />}
       art={<PlaylistCover artworks={playlist.artworks} className={className} />}
       onPlay={playlist.trackCount ? onPlay : undefined}
       pin={pin}
@@ -269,7 +275,7 @@ export function PlaylistCard({ playlist, onPlay, pin }: { playlist: PlaylistSumm
     <Card
       to={`/playlist/${playlist.id}`}
       title={playlist.name}
-      subtitle={`Playlist · ${playlist.ownerName}`}
+      subtitle={<PlaylistKind playlist={playlist} />}
       art={<PlaylistCover artworks={playlist.artworks} />}
       onPlay={playlist.trackCount ? onPlay : undefined}
       pin={pin}

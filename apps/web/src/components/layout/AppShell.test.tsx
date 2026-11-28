@@ -81,7 +81,15 @@ describe('AppShell', () => {
   it('opens the new playlist dialog from the sidebar', async () => {
     await renderShell()
     await userEvent.click(screen.getByRole('button', { name: 'New playlist' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Playlist' }))
     expect(await screen.findByRole('dialog', { name: 'New playlist' })).toBeInTheDocument()
+  })
+
+  it('opens the new smart playlist dialog from the sidebar', async () => {
+    await renderShell()
+    await userEvent.click(screen.getByRole('button', { name: 'New playlist' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Smart playlist' }))
+    expect(await screen.findByRole('dialog', { name: 'New smart playlist' })).toBeInTheDocument()
   })
 
   describe('search', () => {
@@ -844,6 +852,7 @@ describe('AppShell', () => {
       await renderShell()
       await userEvent.click(opener())
       await userEvent.click(within(sidebar()).getByRole('button', { name: 'New playlist' }))
+      await userEvent.click(await screen.findByRole('menuitem', { name: 'Playlist' }))
       const dialog = within(await screen.findByRole('dialog', { name: 'New playlist' }))
       expect(drawerOpen()).toBe(true)
       await userEvent.type(dialog.getByLabelText('Name'), 'Late night drive')

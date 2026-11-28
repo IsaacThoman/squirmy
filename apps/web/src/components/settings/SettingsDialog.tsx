@@ -219,6 +219,13 @@ export function SettingsDialog({
                       />
                     </Row>
                     <Row
+                      htmlFor="library-ratings"
+                      label="Show star ratings"
+                      description="Rate songs from one to five stars in their menus, and use ratings in smart playlists. The heart still decides what is in your library."
+                    >
+                      <Switch id="library-ratings" checked={settings.showRatings} onCheckedChange={showRatings => onSettingsChange({ showRatings })} />
+                    </Row>
+                    <Row
                       htmlFor="allow-explicit"
                       label="Allow explicit content"
                       description={user.explicitRestricted

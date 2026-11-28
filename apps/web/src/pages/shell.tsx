@@ -111,7 +111,7 @@ function SearchDialogHost({ onOpenChange, commands: shell }: SearchDialogState) 
   const typed = query.trim()
   const library = useLibrary()
   const recents = useRecentSearches(user.id)
-  const search = useMergedSearch(query, { playlists: library.playlists })
+  const search = useMergedSearch(query, { playlists: library.ownPlaylists })
   const close = () => onOpenChange(false)
   const commands = usePaletteCommands(shell)
   // Today's mixes (Home's Made for you, as it was last loaded; it is loaded again only when there

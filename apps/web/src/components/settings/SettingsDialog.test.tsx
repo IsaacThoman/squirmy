@@ -126,6 +126,14 @@ describe('SettingsDialog', () => {
       expect(onOpenUploads).toHaveBeenCalled()
     })
 
+    it('turns star ratings on, off by default so the heart stays the one control', async () => {
+      const { onSettingsChange } = renderSettings({ section: 'library' })
+      const toggle = within(settings()).getByRole('switch', { name: 'Show star ratings' })
+      expect(toggle).not.toBeChecked()
+      await userEvent.click(toggle)
+      expect(onSettingsChange).toHaveBeenCalledWith({ showRatings: true })
+    })
+
     it('leaves out Your uploads for someone who may not upload', () => {
       renderSettings({ section: 'library' })
       expect(within(settings()).queryByRole('button', { name: 'Manage' })).toBeNull()

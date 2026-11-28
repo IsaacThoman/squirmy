@@ -44,6 +44,7 @@ export const userSettings: UserSettings = {
   scrobbleLastFm: false,
   libraryIncludesServerMusic: false,
   shareNowPlaying: false,
+  showRatings: false,
   allowExplicit: true,
 }
 

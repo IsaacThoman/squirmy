@@ -130,7 +130,7 @@ export async function alignedTrackSummaries(userId: string, refs: readonly Track
 
   const pairs = [...new Map(known.map((ref) => [`${ref.id}|${ref.albumId ?? ''}`, ref])).values()]
   const ids = [...new Set(pairs.map((pair) => pair.id))]
-  const [rows, artists, liked, availability, inLibrary, contributors, works] = await Promise.all([
+  const [rows, artists, liked, availability, inLibrary, contributors, works, rated] = await Promise.all([
     db.execute<TrackRow>(sql`
       select req.id, req.album_id as "albumContext", r.mbid, r.title, r.artist_credit as "artistCredit",
         r.primary_artist_id as "primaryArtistId", coalesce(r.duration_ms, place.duration_ms, 0) as "durationMs",
@@ -170,7 +170,11 @@ export async function alignedTrackSummaries(userId: string, refs: readonly Track
       ) member where member.library is not null`),
     trackCredits(ids),
     trackWorks(ids),
+    db.execute<{ id: string; rating: number }>(sql`
+      select entity_id as id, rating from ratings
+      where user_id = ${userId} and entity_type = 'recording' and entity_id = any(${uuidArray(ids)})`),
   ])
+  const ratingOf = new Map(rated.map((row) => [row.id, row.rating]))
 
   const likedIds = new Set(liked.map((row) => row.id))
   const libraryOf = new Map(inLibrary.map((row) => [row.id, row.library]))
@@ -196,6 +200,7 @@ export async function alignedTrackSummaries(userId: string, refs: readonly Track
       credits: contributors.get(row.id),
       works: works.get(row.id),
       hasLyrics: row.hasLyrics,
+      rating: ratingOf.get(row.id) ?? null,
     }
   })
 }

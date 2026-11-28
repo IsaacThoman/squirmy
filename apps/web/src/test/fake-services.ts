@@ -321,6 +321,8 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
       playlists: vi.fn(async () => list(playlistSummaries.map(playlist => ({ ...playlist, ownerId: currentUser.id })))),
       playlist: vi.fn(async (id: string) => ({ ...found(playlistDetail(id)), ownerId: currentUser.id })),
       createPlaylist: vi.fn(async ({ name }: { name: string }): Promise<PlaylistSummary> => ({ ...playlistSummaries[0], id: '00000000-0000-4000-8400-0000000000ff', name, trackCount: 0 })),
+      previewSmartPlaylist: vi.fn(async () => ({ trackCount: 12, durationMs: 45 * 60_000 })),
+      rate: vi.fn(async () => ok),
       wants: vi.fn(async () => list(wants)),
       want: vi.fn(async () => ok),
       unwant: vi.fn(async () => ok),
