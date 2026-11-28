@@ -20,8 +20,9 @@ async function playAlbum() {
 describe('PlayerProvider', () => {
   it('says on the player that a radio is starting, and why one did not, with no second request meanwhile', async () => {
     const { services, api } = fakeServices()
-    const request = Promise.withResolvers<never>()
-    const track = vi.fn(() => request.promise)
+    let fail!: (error: Error) => void
+    const request = new Promise<never>((_resolve, reject) => { fail = reject })
+    const track = vi.fn(() => request)
     Object.assign(api, { radio: { track, artist: vi.fn() } })
     renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
     const song = blueHour.discs[0].tracks[0]
@@ -32,7 +33,7 @@ describe('PlayerProvider', () => {
     const player = screen.getByRole('region', { name: 'Player' })
     expect(await within(player).findByText('Starting radio…')).toBeInTheDocument()
     expect(track).toHaveBeenCalledOnce()
-    await act(async () => { request.reject(new Error('Boom')) })
+    await act(async () => { fail(new Error('Boom')) })
     expect(within(player).getByText('Couldn’t start a radio from this song. Try again.')).toBeInTheDocument()
     expect(within(player).queryByText('Starting radio…')).toBeNull()
   })

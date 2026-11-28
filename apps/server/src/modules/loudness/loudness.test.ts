@@ -163,9 +163,10 @@ describe('loudness', () => {
     await makeTone(brokenRoot, tone)
     // When the scanner sees new content, it clears the error and queues the library pipeline.
     await db.update(mediaFiles).set({ probeError: null, probeStage: 2, mtime: (await stat(damaged)).mtime }).where(eq(mediaFiles.id, fileId))
-    const releaseAlbumJob = Promise.withResolvers<void>()
+    let releaseAlbumJob!: () => void
+    const albumJob = new Promise<void>((resolve) => { releaseAlbumJob = resolve })
     vi.mocked(measureRelease).mockClear()
-    vi.mocked(measureRelease).mockImplementationOnce(() => releaseAlbumJob.promise)
+    vi.mocked(measureRelease).mockImplementationOnce(() => albumJob)
     // An existing album job has already seen the incomplete file. Keep its singleton
     // active while the repaired track finishes so its follow-up has to survive that job.
     await enqueue('loudness.album', { releaseId }, { singletonKey: releaseId })
@@ -176,7 +177,7 @@ describe('loudness', () => {
         { state: 'completed', retry_count: 0 },
       ]))
     } finally {
-      releaseAlbumJob.resolve()
+      releaseAlbumJob()
     }
     await drainJobs()
     const repaired = await readFile()
