@@ -15,6 +15,7 @@ import { specialPurposeArtists } from '../metadata/musicbrainz.js'
 import { canStartArtistRadio, similarArtists } from '../radio/index.js'
 import { editionFreeTitle, labelFreeKey, prefixEnd, printedTitleKey, releaseKey } from '../search/keys.js'
 import { canonicalRelease, collectionCounts, collectionFile } from './availability.js'
+import { cleanTrackList } from './explicit.js'
 import { resolveOne } from './redirects.js'
 import { alignedTrackSummaries, albumSummaries, artistSummaries, trackSummaries } from './summaries.js'
 
@@ -207,7 +208,8 @@ export async function albumDetail(userId: string, id: string): Promise<AlbumDeta
   ])
   if (!summary || !extra) throw notFound('No such album', 'album_not_found')
 
-  const summaries = await alignedTrackSummaries(userId, tracks.map((track) => ({ id: track.recordingId, albumId })))
+  // Clean versions stand in for explicit songs for a user who has explicit content off.
+  const summaries = await cleanTrackList(userId, await alignedTrackSummaries(userId, tracks.map((track) => ({ id: track.recordingId, albumId }))), albumId)
   await queueAlbumResolve(summaries.flatMap((track) => track?.availability === 'on_demand' ? [track.id] : []), albumId)
   const discs: AlbumDisc[] = []
   for (const [index, track] of tracks.entries()) {

@@ -11,7 +11,8 @@ import { IconButton } from '@/components/ui/icon-button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Switch } from '@/components/ui/switch'
 import { dropIndex } from '@/lib/reorder'
-import { UNAVAILABLE_LABEL } from '@/lib/catalog'
+import { explicitBlocked, UNAVAILABLE_LABEL, unavailableLabel } from '@/lib/catalog'
+import { useViewer } from '@/player/on-demand-context'
 import { cn } from '@/lib/utils'
 import { useLibrary } from '@/player/library-context'
 import type { Player, QueueItem } from '@/player/player-context'
@@ -298,7 +299,10 @@ const revealed = 'opacity-0 focus-visible:opacity-100 data-[state=open]:opacity-
 function QueueRow({ item, current, playing = false, waiting = false, outage = null, faded, onPlay: play, queued, onNavigate, children, rowButton }: QueueRowProps) {
   const { track, entry } = item
   const library = useLibrary()
-  const failed = readsUnavailable(entry, outage)
+  const viewer = useViewer()
+  // An explicit song queued before explicit content was turned off is gray too: the server refuses it.
+  const failed = readsUnavailable(entry, outage) || explicitBlocked(track, viewer)
+  const failedText = readsUnavailable(entry, outage) ? UNAVAILABLE_LABEL : unavailableLabel(track, viewer)
   const loading = current && (waiting || entry.state === 'preparing')
   const onPlay = failed ? undefined : play
   const body = (
@@ -314,12 +318,12 @@ function QueueRow({ item, current, playing = false, waiting = false, outage = nu
       </div>
       <span className="min-w-0 flex-1 text-left">
         <span title={track.title} className={cn('block truncate text-sm font-medium', failed && 'text-muted-foreground')}>{track.title}</span>
-        <span className="block truncate text-xs text-muted-foreground">{failed ? UNAVAILABLE_LABEL : track.artistCredit}</span>
+        <span className="block truncate text-xs text-muted-foreground">{failed ? failedText : track.artistCredit}</span>
       </span>
     </>
   )
   return (
-    <div title={failed ? UNAVAILABLE_LABEL : undefined} className={cn('group/queue flex h-12 items-center rounded-lg pr-1 transition-colors', onPlay && 'hover:bg-accent/60')}>
+    <div title={failed ? failedText : undefined} className={cn('group/queue flex h-12 items-center rounded-lg pr-1 transition-colors', onPlay && 'hover:bg-accent/60')}>
       {onPlay || rowButton
         ? <button type="button" aria-label={onPlay ? `Play ${track.title}` : track.title} onClick={onPlay} {...rowButton} className={cn('flex min-w-0 flex-1 items-center gap-3 self-stretch rounded-lg px-2 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring', rowButton?.className)}>{body}</button>
         : <div className="flex min-w-0 flex-1 items-center gap-3 px-2">{body}</div>}

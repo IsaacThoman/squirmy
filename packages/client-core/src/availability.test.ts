@@ -1,6 +1,9 @@
 import type { AlbumSummary, TrackAvailability } from '@squirmy/contracts'
 import { describe, expect, it } from 'vitest'
-import { albumNote, albumPresentation, artistAvailabilityNote, artistReleaseCounts, canFetch, isPlayable, librarySave, UNAVAILABLE_LABEL, type Viewer } from './availability.js'
+import {
+  albumNote, albumPresentation, artistAvailabilityNote, artistReleaseCounts, canFetch, EXPLICIT_OFF_LABEL, explicitBlocked, isPlayable, librarySave, UNAVAILABLE_LABEL,
+  unavailableLabel, type Viewer,
+} from './availability.js'
 
 const admin: Viewer = { role: 'admin', canAcquire: false }
 const fetcher: Viewer = { role: 'member', canAcquire: true }
@@ -30,6 +33,23 @@ describe('isPlayable', () => {
     expect(isPlayable({ availability }, admin)).toBe(requester)
     expect(isPlayable({ availability }, member)).toBe(other)
     expect(isPlayable({ availability }, null)).toBe(other)
+  })
+})
+
+describe('explicit content', () => {
+  const off: Viewer = { ...admin, allowsExplicit: false }
+  it('keeps an explicit song from a viewer who has explicit content off, whatever its availability', () => {
+    expect(isPlayable({ availability: 'server', explicit: true }, off)).toBe(false)
+    expect(explicitBlocked({ explicit: true }, off)).toBe(true)
+    expect(unavailableLabel({ explicit: true }, off)).toBe(EXPLICIT_OFF_LABEL)
+  })
+  it('plays clean and unknown songs for them, and everything for anyone else', () => {
+    expect(isPlayable({ availability: 'server', explicit: false }, off)).toBe(true)
+    expect(isPlayable({ availability: 'server', explicit: null }, off)).toBe(true)
+    expect(isPlayable({ availability: 'server', explicit: true }, { ...admin, allowsExplicit: true })).toBe(true)
+    // A server from before the setting says nothing, and nothing is kept back.
+    expect(isPlayable({ availability: 'server', explicit: true }, admin)).toBe(true)
+    expect(unavailableLabel({ explicit: true }, admin)).toBe(UNAVAILABLE_LABEL)
   })
 })
 

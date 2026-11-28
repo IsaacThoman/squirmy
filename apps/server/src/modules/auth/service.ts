@@ -20,6 +20,14 @@ export function usernameKey(username: string) {
   return username.trim().toLowerCase()
 }
 
+/**
+ * Whether explicit songs play for the user: their own `allowExplicit` setting, unless an admin
+ * restricted it. `catalog/explicit.ts` applies the same rule in SQL (`explicitAllowed`).
+ */
+function allowsExplicit(row: Pick<AuthUser, 'explicitRestricted' | 'settings'>): boolean {
+  return !row.explicitRestricted && row.settings.allowExplicit !== false
+}
+
 export function toUser(row: AuthUser): User {
   return {
     id: row.id,
@@ -30,6 +38,8 @@ export function toUser(row: AuthUser): User {
     canAcquire: row.canAcquire,
     createdAt: row.createdAt.toISOString(),
     disabled: row.disabledAt !== null,
+    explicitRestricted: row.explicitRestricted,
+    allowsExplicit: allowsExplicit(row),
   }
 }
 

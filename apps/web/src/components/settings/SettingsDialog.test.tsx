@@ -130,6 +130,24 @@ describe('SettingsDialog', () => {
       renderSettings({ section: 'library' })
       expect(within(settings()).queryByRole('button', { name: 'Manage' })).toBeNull()
     })
+
+    it('turns explicit content off', async () => {
+      const { onSettingsChange } = renderSettings({ section: 'library' })
+      const toggle = within(settings()).getByRole('switch', { name: 'Allow explicit content' })
+      expect(toggle).toBeChecked()
+      await userEvent.click(toggle)
+      expect(onSettingsChange).toHaveBeenCalledWith({ allowExplicit: false })
+    })
+
+    it('says an admin turned explicit content off, and offers no way back', async () => {
+      const { onSettingsChange } = renderSettings({ section: 'library', user: { ...currentUser, explicitRestricted: true, allowsExplicit: false } })
+      const toggle = within(settings()).getByRole('switch', { name: 'Allow explicit content' })
+      expect(toggle).not.toBeChecked()
+      expect(toggle).toBeDisabled()
+      expect(within(settings()).getByText(/An admin turned explicit content off for your account/)).toBeInTheDocument()
+      await userEvent.click(toggle)
+      expect(onSettingsChange).not.toHaveBeenCalled()
+    })
   })
 
   describe('Admin panel', () => {

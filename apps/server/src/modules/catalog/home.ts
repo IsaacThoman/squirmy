@@ -6,6 +6,7 @@ import { newReleaseAlbumIds } from '../enrichment/releases.js'
 import { isRequester, listMixes, mixSummaries } from '../radio/index.js'
 import { listPlaylists, playlistSummaries } from '../userdata/playlists.js'
 import { refreshWants, wantedAlbumIds } from '../userdata/wants.js'
+import { explicitAllowed, withoutExplicit } from './explicit.js'
 import { homePicksOf, queueHomePicksWhenDue } from './home-picks.js'
 import { resolveMerged } from './redirects.js'
 import { listLibraryAlbums } from './library.js'
@@ -41,7 +42,8 @@ export async function home(userId: string, query: HomeQuery = {}): Promise<HomeR
  * section without content is left out.
  *
  * - `recently-played`: albums of the user's latest plays.
- * - `most-played`: the user's tracks with the most completed plays over the last 90 days.
+ * - `most-played`: the user's tracks with the most completed plays over the last 90 days,
+ *   without explicit ones for a user who has explicit content off.
  * - `playlists`: the user's own playlists, recently updated first.
  * - `recently-added`: the server's albums (its collection), the newest collection file
  *   first, whatever is in the user's library: Home is where the server's music is found,
@@ -89,7 +91,8 @@ async function classicHome(userId: string): Promise<HomeResponse> {
  *   user played most this month, with music on the server (radio/because.ts).
  * - `top-artists` (artists): the artists of the user's most completed plays over 30 days,
  *   when there are at least three.
- * - `rediscover` (tracks): songs the user played a lot six to 24 months ago and not lately.
+ * - `rediscover` (tracks): songs the user played a lot six to 24 months ago and not lately
+ *   (without explicit ones for a user who has explicit content off, as Most played).
  * - `most-played`: as in the classic Home.
  * - `playlists`, `new-releases`, `recently-added`, `wantlist`: as in the classic Home.
  *
@@ -102,8 +105,9 @@ async function classicHome(userId: string): Promise<HomeResponse> {
 async function personalHome(userId: string, tz: string | undefined): Promise<HomeResponse> {
   const { wantlistEnabled } = await getServerSettings()
   if (wantlistEnabled) await refreshWants(userId)
-  const [picks, mixes, requester] = await Promise.all([homePicksOf(userId), listMixes(userId), isRequester(userId)])
-  const playable = (track: TrackSummary) => track.availability === 'server' || (track.availability === 'on_demand' && requester)
+  const [picks, mixes, requester, allowsExplicit] = await Promise.all([homePicksOf(userId), listMixes(userId), isRequester(userId), explicitAllowed(userId)])
+  const playable = (track: TrackSummary) =>
+    (track.availability === 'server' || (track.availability === 'on_demand' && requester)) && (allowsExplicit || track.explicit !== true)
   const [jump, because, becauseSeed, topArtists, rediscover, mostPlayed, playlists, recentlyAdded, newReleases, wanted, daypart] = await Promise.all([
     jumpBackIn(userId),
     picks ? artistSummaries(picks.becauseArtistIds, userId) : [],
@@ -156,7 +160,8 @@ export const mostPlayedQuery = (userId: string) => sql`
   group by recording_id order by count(*) desc, max(started_at) desc limit ${RAIL}`
 
 async function mostPlayedTracks(userId: string): Promise<TrackSummary[]> {
-  return trackSummaries(userId, await db.execute<{ id: string; albumId: string | null }>(mostPlayedQuery(userId)))
+  const [rows, allowed] = await Promise.all([db.execute<{ id: string; albumId: string | null }>(mostPlayedQuery(userId)), explicitAllowed(userId)])
+  return withoutExplicit(await trackSummaries(userId, rows), allowed)
 }
 
 type Place = { kind: 'album' | 'artist' | 'playlist' | 'liked' | 'mix' | 'radio'; id: string }

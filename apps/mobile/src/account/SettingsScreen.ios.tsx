@@ -17,7 +17,8 @@ import { useColors } from '../theme';
 import { serviceNames } from './scrobbling';
 import {
   lastFmAdminNote, normalizationNote, normalizationOptions, openListenBrainzSettings, qualityNote, qualityOptions,
-  scrobbleDetail, scrobbleFooter, serverMusicLabel, serverMusicNote, shareNowPlayingLabel, shareNowPlayingNote, useSettingsScreen,
+  explicitLabel, explicitNote, explicitRestrictedNote, scrobbleDetail, scrobbleFooter, serverMusicLabel, serverMusicNote, shareNowPlayingLabel,
+  shareNowPlayingNote, useSettingsScreen,
 } from './settings';
 
 const clearRow = [listRowBackground('clear'), listRowInsets({ top: 0, leading: 0, bottom: 0, trailing: 0 })];
@@ -57,6 +58,11 @@ export function SettingsScreen() {
               <Text modifiers={[font({ textStyle: 'body' })]}>{serverMusicLabel}</Text>
             </Toggle>
             {screen.errors.library && <ServiceError message={screen.errors.library} />}
+          </Section>
+          <Section title="Explicit Content" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{screen.explicitRestricted ? explicitRestrictedNote : explicitNote}</Text>}>
+            <Toggle isOn={screen.allowExplicit} onIsOnChange={screen.setAllowExplicit} modifiers={[tint(colors.accent), disabled(screen.explicitRestricted)]}>
+              <Text modifiers={[font({ textStyle: 'body' })]}>{explicitLabel}</Text>
+            </Toggle>
           </Section>
         </> : screen.settingsFailure
           ? <LoadFailure title="Couldn’t load your settings" failure={screen.settingsFailure} />
