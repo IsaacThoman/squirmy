@@ -152,6 +152,7 @@ export async function authRoutes(app: FastifyInstance) {
       wantlistEnabled: settings.wantlistEnabled,
       sharingEnabled: settings.sharingEnabled,
       supportsTvDevices: true,
+      supportsTvPairing: true,
       passkeysAvailable: relyingParty() !== null,
       ssoName: await ssoProvider() ? settings.ssoName : null,
       passwordLoginEnabled: !settings.passwordLoginDisabled,

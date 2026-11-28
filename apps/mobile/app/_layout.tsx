@@ -88,6 +88,7 @@ function Routes() {
         <Stack.Screen name="track-info" options={sheet} />
         <Stack.Screen name="add-to-playlist" options={sheet} />
         <Stack.Screen name="account" options={sheet} />
+        <Stack.Screen name="pair" options={sheet} />
         <Stack.Screen name="settings" options={{ ...sheet, sheetAllowedDetents: [0.92] }} />
         <Stack.Screen name="downloads" options={{ ...sheet, sheetAllowedDetents: [0.92] }} />
         <Stack.Screen name="name-playlist" options={sheet} />

@@ -7,6 +7,7 @@ import { LoginPage, RegisterPage, SetupPage } from '@/pages/account'
 import {
   AlbumPage, ArtistPage, ArtistReleasesPage, CollectionPage, HomePage, LibraryPage, LibraryRedirect, LikedPage, MixPage, NotFoundPage, PlaylistPage, SearchPage, WantlistPage,
 } from '@/pages/music'
+import { PairPage } from '@/pages/pair'
 import { JoinJamPage } from '@/pages/jam'
 import { SettingsRoute, ShellPage } from '@/pages/shell'
 
@@ -59,6 +60,7 @@ export function AppRoutes() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
           </Route>
+          <Route path="/pair" element={<PairPage />} />
           <Route element={<SignedInOnly />}>
             <Route element={<ShellPage />}>
               <Route index element={<HomePage />} />

@@ -68,6 +68,8 @@ export function AccountSheet() {
       <SheetRows>
         {/* Opened over this sheet, so closing them comes back here. */}
         <SheetRow title="Settings" subtitle="Volume, streaming quality, scrobbling" icon="gearshape" onPress={() => router.push('/settings')} />
+        {Platform.OS === 'ios' && server.supportsTvPairing && <SheetRow title="Sign in a TV…" subtitle="Approve a code from your Apple TV"
+          icon="appletv" onPress={() => router.push('/pair')} />}
         <SheetRow title="Downloads" subtitle={kept ? keptLine : 'Music kept on this device'} icon="arrow.down.circle"
           onPress={() => router.push('/downloads')} />
         {__DEV__ && <SheetRow title="Engine test bench" subtitle="Development builds only" icon="waveform"

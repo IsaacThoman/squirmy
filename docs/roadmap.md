@@ -115,7 +115,8 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 
 - [x] tvOS target and TestFlight upload pipeline under the existing Squirmy bundle ID
 - [x] Rebuilt on Expo Router (`tv-app/`) for tvOS 17, with the system sidebar, context menus, search field and focus effects through native modules
-- [x] Typed server connection and sign-in, remote navigation and library browsing
+- [x] Manual server connection and password sign-in, remote navigation and library browsing
+- [x] Bonjour server discovery and phone-approved QR sign-in
 - [x] Now Playing, lyrics, queue and Connect playback transfer, and AirPlay from the playback device panel
 - [x] Settings in the system's style: account, playback, library and scrobbling state
 - [x] Layered app icon and Top Shelf images

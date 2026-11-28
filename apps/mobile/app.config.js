@@ -25,7 +25,12 @@ module.exports = ({ config }) => {
         ...config.ios,
         icon: config.icon,
         buildNumber: process.env.SQUIRMY_IOS_BUILD_NUMBER ?? config.ios.buildNumber,
-        infoPlist: { ...config.ios.infoPlist, UIBackgroundModes: ['audio'] },
+        infoPlist: {
+          ...config.ios.infoPlist,
+          UIBackgroundModes: ['audio'],
+          NSLocalNetworkUsageDescription: 'Squirmy finds your music server on your local network.',
+          NSBonjourServices: ['_squirmy._tcp'],
+        },
       },
       plugins: [
         ...plugins.filter(plugin => plugin !== 'expo-router' && plugin[0] !== 'expo-splash-screen'),
