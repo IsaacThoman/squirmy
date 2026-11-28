@@ -1,20 +1,22 @@
 import type { MixDetail, PlaybackContext, PlaylistDetail, TrackSummary } from '@squirmy/contracts'
-import { AudioLines, Globe, Heart, ListMusic, Lock, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { AudioLines, Globe, Heart, ListMusic, Lock, MoreHorizontal, Pencil, Play, Shuffle, Trash2 } from 'lucide-react'
+import { useCallback, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import type { MoreFailure } from '@/api/queries'
 import { LikedCover, likedTint, MixCover, PlaylistCover } from '@/components/music/CollectionArt'
 import { mixSlot } from '@/components/music/mix-menu'
 import { CollectionHeader, PlayActions } from '@/components/music/CollectionHeader'
-import { TrackList, VirtualTrackList } from '@/components/music/TrackList'
+import { VirtualTrackList } from '@/components/music/TrackList'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
 import { FormError } from '@/components/ui/input'
 import { DropdownMenu, type MenuEntry } from '@/components/ui/menu'
 import { LoadError } from '@/components/ui/query-state'
+import { isPlayable } from '@/lib/catalog'
 import { formatTotalDuration, plural } from '@/lib/format'
 import { useMediaQuery } from '@/lib/use-media-query'
+import { useViewer } from '@/player/on-demand-context'
 import { usePlayerControls, type PlayOptions } from '@/player/player-context'
 import { useTrackActions } from '@/player/use-track-actions'
 
@@ -34,6 +36,7 @@ type PlaylistViewProps = {
 
 export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete, onMove, onRemove, failure }: PlaylistViewProps) {
   const tracks = playlist.items.map(item => item.track)
+  const getItemKey = useCallback((index: number) => playlist.items[index].itemId, [playlist.items])
   // A finger cannot drag a song onto the sidebar (on a phone it is a drawer over the songs), so touch screens are told the menu's way.
   const touch = useMediaQuery('(pointer: coarse)')
   return (
@@ -46,6 +49,7 @@ export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete
       description={playlist.description}
       tracks={tracks}
       addedAt={playlist.items.map(item => item.addedAt)}
+      getItemKey={getItemKey}
       durationMs={playlist.durationMs}
       context={{ type: 'playlist', id: playlist.id, title: playlist.name }}
       onMove={owned ? onMove : undefined}
@@ -126,7 +130,8 @@ export function LikedView({ tracks, complete, onEndReached, moreFailure, onPlay 
       durationMs={complete ? tracks.reduce((sum, track) => sum + track.durationMs, 0) : null}
       context={{ type: 'liked', id: null, title: 'Liked Songs' }}
       onPlay={onPlay}
-      virtual={{ onEndReached, moreFailure }}
+      onEndReached={onEndReached}
+      moreFailure={moreFailure}
       empty={<EmptyState icon={<Heart />} title="Songs you like appear here" description="Tap the heart next to any song to save it." />}
     />
   )
@@ -141,6 +146,7 @@ type TrackCollectionProps = {
   description?: string | null
   tracks: TrackSummary[]
   addedAt?: string[]
+  getItemKey?: (index: number) => string
   /** Overrides "12 songs" while the list is still loading. */
   count?: string
   /** Null while unknown. */
@@ -150,17 +156,20 @@ type TrackCollectionProps = {
   onPlay?: (index: number, options?: PlayOptions) => void
   onMove?: (from: number, to: number) => void
   onRemove?: (index: number) => void
-  /** Render only the rows near the viewport, loading more as the end comes into view, until a page fails. */
-  virtual?: { onEndReached: () => void; moreFailure?: MoreFailure }
+  /** Loads another page when the end comes into view. */
+  onEndReached?: () => void
+  moreFailure?: MoreFailure
   menu?: ReactNode
   empty: ReactNode
   failure?: string
 }
 
-function TrackCollection({ kind, title, art, tint, byline, description, tracks, addedAt, count, durationMs, context, onPlay, onMove, onRemove, virtual, menu, empty, failure }: TrackCollectionProps) {
+function TrackCollection({ kind, title, art, tint, byline, description, tracks, addedAt, getItemKey, count, durationMs, context, onPlay, onMove, onRemove, onEndReached, moreFailure, menu, empty, failure }: TrackCollectionProps) {
   const controls = usePlayerControls()
+  const viewer = useViewer()
   const play = onPlay ?? ((index: number, options?: PlayOptions) => controls.playTracks(tracks, index, context, options))
   const actions = useTrackActions(tracks, context, { onPlay: index => play(index), onMove, onRemove })
+  const playable = tracks.some(track => isPlayable(track, viewer)) || !!count
   const size = tracks.length ? [count ?? plural(tracks.length, 'song'), durationMs !== null && formatTotalDuration(durationMs)].filter(Boolean).join(', ') : 'No songs yet'
   return (
     <div>
@@ -172,16 +181,28 @@ function TrackCollection({ kind, title, art, tint, byline, description, tracks, 
         byline={byline}
         meta={[size]}
         description={description}
-        actions={menu && <PlayActions>{menu}</PlayActions>}
+        actions={(tracks.length > 0 || menu) && (
+          <PlayActions>
+            {tracks.length > 0 && (
+              <>
+                <Button size="lg" variant="primary" disabled={!playable} onClick={() => play(0, { collection: true })}>
+                  <Play fill="currentColor" /> Play
+                </Button>
+                <IconButton label="Shuffle" size="lg" disabled={!playable} onClick={() => play(0, { collection: true, shuffle: true })}>
+                  <Shuffle />
+                </IconButton>
+              </>
+            )}
+            {menu}
+          </PlayActions>
+        )}
       />
       <div className="px-(--gutter) pb-10">
         {failure && <div className="mb-3"><FormError message={failure} /></div>}
         {!tracks.length
           ? empty
-          : virtual
-            ? <div className="-mx-2"><VirtualTrackList label={`${title} tracks`} tracks={tracks} variant="playlist" onEndReached={virtual.onEndReached} {...actions} /></div>
-            : <div className="-mx-2"><TrackList label={`${title} tracks`} tracks={tracks} addedAt={addedAt} variant="playlist" {...actions} /></div>}
-        {virtual?.moreFailure && <LoadError title="More songs didn’t load" {...virtual.moreFailure} className="mt-4" />}
+          : <div className="-mx-2"><VirtualTrackList label={`${title} tracks`} tracks={tracks} addedAt={addedAt} getItemKey={getItemKey} variant="playlist" onEndReached={onEndReached} {...actions} /></div>}
+        {moreFailure && <LoadError title="More songs didn’t load" {...moreFailure} className="mt-4" />}
       </div>
     </div>
   )

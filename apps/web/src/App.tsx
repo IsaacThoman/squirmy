@@ -24,6 +24,8 @@ const imports = (name: keyof typeof import('@/pages/imports')) => lazy(() => imp
 const ImportsPage = imports('ImportsPage')
 const ImportPage = imports('ImportPage')
 const uploads = (name: keyof typeof import('@/pages/uploads')) => lazy(() => import('@/pages/uploads').then(module => ({ default: module[name] })))
+const ReplayPage = lazy(() => import('@/pages/replay').then(module => ({ default: module.ReplayPage })))
+const ReplayTrackPage = lazy(() => import('@/pages/replay').then(module => ({ default: module.ReplayTrackPage })))
 const UploadsPage = uploads('UploadsPage')
 const AdminUploadsPage = uploads('AdminUploadsPage')
 // The developer pages run on fixtures, which production builds leave out.
@@ -51,6 +53,8 @@ export function AppRoutes() {
           <Route element={<SignedInOnly />}>
             <Route element={<ShellPage />}>
               <Route index element={<HomePage />} />
+              <Route path="replay" element={<Loading><ReplayPage /></Loading>} />
+              <Route path="track/:id" element={<Loading><ReplayTrackPage /></Loading>} />
               <Route path="search" element={<SearchPage />} />
               <Route path="library" element={<LibraryPage />} />
               {/* The list pages from before the combined Library, kept for links and bookmarks. */}

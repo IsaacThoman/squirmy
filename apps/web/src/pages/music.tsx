@@ -142,15 +142,12 @@ export function MixPage() {
   return (
     <Loaded query={query} skeleton={<CollectionSkeleton />}>
       {mix => {
-        const context = { type: 'mix', id: mix.id, title: mix.name } as const
         const playable = mix.tracks.filter(track => isPlayable(track, viewer))
         return (
           <MixView
             key={mix.id}
             mix={mix}
             menu={mixMenuEntries({
-              onPlay: () => controls.playTracks(mix.tracks, 0, context, { collection: true }),
-              onShuffle: () => controls.playTracks(mix.tracks, 0, context, { shuffle: true, collection: true }),
               onEnqueue: placement => controls.enqueue(playable, placement),
               playlists: library.playlists,
               onAddToPlaylist: playlist => (playlist ? library.addToPlaylist(playlist, mix.tracks) : library.newPlaylist(mix.tracks)),

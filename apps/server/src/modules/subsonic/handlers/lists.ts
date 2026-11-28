@@ -147,5 +147,8 @@ export const listEndpoints: Record<string, Handler> = {
   getSongsByGenre,
   getStarred2: async (context) => ({ starred2: await starred(context, true) }),
   getStarred: async (context) => ({ starred: await starred(context, false) }),
-  getNowPlaying: async ({ user }) => ({ nowPlaying: { entry: await nowPlaying(user.id) } }),
+  getNowPlaying: async ({ user, reply }) => {
+    reply.header('cache-control', 'private, no-store')
+    return { nowPlaying: { entry: await nowPlaying(user.id) } }
+  },
 }

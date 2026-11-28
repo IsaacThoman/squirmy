@@ -30,7 +30,7 @@ describe('catalog search from the local index', () => {
 
   beforeAll(async () => {
     app = await buildApp()
-    user = await signIn()
+    user = await signIn({ settings: { libraryIncludesServerMusic: true } })
     catalog = testCatalog()
     const file = path.join(getConfig().SQUIRMY_DATA_DIR, 'dump.tar.zst')
     await writeFile(file, buildDump(catalog))

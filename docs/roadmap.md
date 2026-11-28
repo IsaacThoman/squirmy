@@ -77,12 +77,13 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Acquisition provider protocol, on-demand playback, policy ([provider-protocol.md](./provider-protocol.md)), and on the web the Providers admin screen, "Get this album" and preparing tracks
 - [x] Reference adapters: cold storage and mock (`adapters/`)
 - [x] A song the provider doesn't have is skipped with a light notice and playback goes on; only an outage, or nothing left that is available, stops it (server, web and iOS)
-- [ ] Gray out songs a provider lacks before they are played: resolve ahead of the queue, or on album pages, for `assume_available` providers
+- [x] Gray out songs a provider lacks before they are played: resolve ahead of the queue and on album pages for `assume_available` providers
+- [x] Replay listening statistics, Year in Review and listening history import and export (web)
 - [x] Scrobbling to ListenBrainz and Last.fm (server, API, mobile and web settings)
 - [x] Radio and autoplay (server, API, web and iOS, and Subsonic similar songs)
 - [x] A personal Home: Jump back in, daily mixes (Made for you) with their own page, Because you listened to, Your top artists, Rediscover, ordered by the time of day (server, web, iOS and Apple TV; iOS and tvOS not yet checked on a device)
 - [ ] Mixes from how the music sounds, once audio analysis exists (the `artistSoundAffinity` seam)
-- [ ] Detached playback: one device plays its own queue apart from the shared session. Protocol, server and shared client code are done; the web and iOS controls are next ([detached-playback-ui.md](./detached-playback-ui.md))
+- [x] Detached playback: web and iOS devices can play their own queue and rejoin the shared session later ([detached-playback-ui.md](./detached-playback-ui.md))
 - [x] Local search index: importer, search and admin routes ([local-search-index.md](./local-search-index.md)), offered as the first search provider, and its admin screen
 - [x] Documentation site ([docs/](./index.md), built with VitePress)
 - [x] Docker health check on `/ready`, and the image reports its source version
@@ -96,6 +97,30 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Settings in the system's style: account, playback, library and scrobbling state
 - [x] Layered app icon and Top Shelf images
 - [ ] First tvOS TestFlight distribution
+
+## 10. Playback core
+
+Designed in [audio-engine.md](./audio-engine.md); each item is a pull request from its [implementation plan](./audio-engine.md#implementation-plan).
+
+- [x] Design, with measurements of today's gaps and spikes of the new engine and formats
+- [ ] S1. Transcode priorities and cancelling abandoned encodes
+- [ ] S2. Exact lengths and priming per file, estimated gains for unmeasured files
+- [ ] S3. Fragmented MP4 profiles (FLAC, Opus, AAC) with exact gapless numbers, and seeking live transcodes
+- [ ] C1. Queue diffs with checkpoints on the session socket
+- [ ] C2. Undoing queue edits
+- [ ] M1. The native iOS and tvOS engine, behind a setting
+- [ ] M2. Streaming to the cache in one pass
+- [ ] M3. Fragmented MP4 transcodes and live seeking on iOS
+- [ ] M4. Normalization with boost and a true-peak limiter, with a target setting
+- [ ] M5. Equalizer
+- [ ] M6. Crossfade
+- [ ] M7. Playback speed, with the rate in the session
+- [ ] M8. AirPlay 2 buffering
+- [ ] M9. The native engine by default, and `expo-audio` removed
+- [ ] W1. Ramped gain changes on the web
+- [ ] W2. Gapless web playback through Media Source Extensions
+- [ ] W3. Limiter, equalizer and output device on the web
+- [ ] W4. Crossfade on the web
 
 ## Deferred
 

@@ -596,6 +596,7 @@ export const queryKeys = {
   playlists: () => ['playlists'] as const,
   playlist: (id: string) => ['playlists', id] as const,
   history: () => ['history'] as const,
+  replay: () => ['history', 'replay'] as const,
   wants: () => ['wants'] as const,
   search: () => ['search'] as const,
   settings: () => ['settings'] as const,

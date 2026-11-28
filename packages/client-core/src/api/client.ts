@@ -38,6 +38,11 @@ import {
   type DirectoryQuery,
   GenrePage,
   HistoryPage,
+  HistoryImport,
+  HistoryImports,
+  type HistoryImportSource,
+  type ReplayQuery,
+  ReplayStats,
   HomeResponse,
   type HomeQuery,
   MixDetail,
@@ -231,7 +236,7 @@ type Input<T extends z.ZodType> = z.input<T>
 const DeviceList = page(DeviceInfo)
 const JobList = z.array(JobQueueStats)
 const likedPages = { track: TrackPage, album: AlbumPage, artist: ArtistPage } as const
-type SearchParams = { q: string; limit?: number; type?: SearchKind; offset?: number }
+type SearchParams = { q: string; limit?: number; type?: SearchKind; offset?: number; scope?: 'library' | 'server' }
 type LikedItems = { track: TrackSummary; album: AlbumSummary; artist: ArtistSummary }
 
 /**
@@ -450,6 +455,10 @@ export function createApiClient(options: ApiClientOptions) {
       removePlaylistItem: (playlistId: string, itemId: string) =>
         send('DELETE', `/playlists/${id(playlistId)}/items/${id(itemId)}`, PlaylistDetail),
       history: (query: Partial<PageQuery> = {}) => get('/me/history', HistoryPage, query),
+      replay: (query: Partial<ReplayQuery> = {}) => get('/me/replay', ReplayStats, query),
+      historyImports: () => get('/me/history/imports', HistoryImports),
+      importHistory: (source: HistoryImportSource, file: UploadFile, options: UploadOptions = {}) =>
+        upload(`/me/history/imports?source=${id(source)}`, [file], HistoryImport, options),
       wants: (query: Partial<PageQuery> = {}) => get('/me/wants', WantPage, query),
       want: (type: WantEntityType, entityId: string) => send('PUT', `/me/wants/${type}/${id(entityId)}`, Ok),
       unwant: (type: WantEntityType, entityId: string) => send('DELETE', `/me/wants/${type}/${id(entityId)}`, Ok),

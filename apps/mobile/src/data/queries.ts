@@ -281,7 +281,7 @@ export function useSearch(text: string) {
     queryKey: [...queryKeys.search(), scope, q],
     queryFn: async () => {
       try {
-        return prime(await api!.search[scope]({ q, limit: 20 }), results => results.tracks);
+        return prime(await api!.search[scope]({ q, limit: 20, scope: 'server' }), results => results.tracks);
       } catch (error) {
         if (error instanceof ApiError && error.status === 404) return emptyResults;
         throw error;
@@ -318,7 +318,7 @@ export function useSearchPages(text: string, kind: SearchKind | null) {
     enabled: Boolean(api && q && kind),
     initialPageParam: 0,
     queryFn: async ({ pageParam: offset }): Promise<SearchPage> => {
-      const params = { q, limit: searchPageSize, type: kind!, offset };
+      const params = { q, limit: searchPageSize, type: kind!, offset, scope: 'server' as const };
       const [library, catalog] = await Promise.allSettled([api!.search.library(params), api!.search.catalog(params)]);
       if (library.status === 'rejected' && catalog.status === 'rejected') throw library.reason;
       const value = (result: PromiseSettledResult<SearchResults>) => (result.status === 'fulfilled' ? prime(result.value, answer => answer.tracks) : null);

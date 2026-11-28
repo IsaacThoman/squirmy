@@ -320,7 +320,7 @@ const orMissing = (request: Promise<SearchResults>) => request.catch((error: unk
 /** One search of the library or the catalog. The search page and the search dialog share its answers. */
 export const searchQuery = (api: ApiClient, kind: 'library' | 'catalog', term: string) => ({
   queryKey: [...queryKeys.search(), kind, term],
-  queryFn: ({ signal }: { signal: AbortSignal }) => orMissing(api.search[kind]({ q: term, limit: 20 }, { signal })),
+  queryFn: ({ signal }: { signal: AbortSignal }) => orMissing(api.search[kind]({ q: term, limit: 20, scope: 'server' }, { signal })),
   enabled: term.length > 0,
   staleTime: 60_000,
 })
