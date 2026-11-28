@@ -79,7 +79,7 @@ describe('mix page', () => {
     const fake = fakeServices()
     const mix = mixes[0]!
     renderWithApp(<AppRoutes />, `/mix/${mix.id}`, fake.services)
-    expect(await screen.findByRole('heading', { level: 1, name: mix.name })).toBeInTheDocument()
+    const heading = await screen.findByRole('heading', { level: 1, name: mix.name })
     expect(screen.getByText('Mix', { selector: 'span' })).toBeInTheDocument()
     expect(screen.getByText(mix.description)).toBeInTheDocument()
     const list = screen.getByRole('list', { name: `${mix.name} tracks` })
@@ -90,7 +90,7 @@ describe('mix page', () => {
     expect(await screen.findByRole('menuitem', { name: 'Add to queue' })).toBeInTheDocument()
     expect(screen.queryByRole('menuitem', { name: 'Shuffle' })).toBeNull()
     await userEvent.keyboard('{Escape}')
-    await userEvent.click(screen.getByRole('button', { name: 'Shuffle' }))
+    await userEvent.click(within(heading.closest('header')!).getByRole('button', { name: 'Shuffle' }))
     await waitFor(() => expect(fake.socket.commands.find(command => command.type === 'playTracks')).toMatchObject({
       context: { type: 'mix', id: mix.id, title: mix.name },
       shuffle: true,
