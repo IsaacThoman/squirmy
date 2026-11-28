@@ -1,8 +1,8 @@
 import {
   ApiTokenScope, ChangePasswordRequest, ConnectListenBrainzRequest, CreateAppPasswordRequest, UpdateUserRequest,
-  type AppPassword, type NormalizationMode, type ShareLink, type ScrobbleService, type ScrobbleTarget, type ScrobblingStatus, type StreamQuality, type UpdateUserSettings, type User, type UserSettings,
+  type AppPassword, type NormalizationMode, type NormalizationTarget, type ShareLink, type ScrobbleService, type ScrobbleTarget, type ScrobblingStatus, type StreamQuality, type UpdateUserSettings, type User, type UserSettings,
 } from '@squirmy/contracts'
-import { AlertTriangle, AudioLines, Check, CircleCheck, FolderUp, Info, KeyRound, Library, Link2, LogOut, Palette, Pencil, Plus, Radio, Webhook, ShieldCheck, User as UserIcon, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, AudioLines, Check, CircleCheck, FolderUp, Info, KeyRound, Library, Link2, Lock, LogOut, Palette, Pencil, Plus, Radio, Webhook, ShieldCheck, User as UserIcon, type LucideIcon } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { useFormSubmit } from '@/api/errors'
 import { shareLinkDetail } from '@/components/share/share-detail'
@@ -20,6 +20,7 @@ import { modKey } from '@/lib/platform'
 import { cn } from '@/lib/utils'
 import { WebhookSettings } from '../integrations/WebhookSettings'
 import { AppearanceSettings } from './AppearanceSettings'
+import { SecuritySettings, type SecuritySettingsProps } from './SecuritySettings'
 import type { SettingsSection } from './settings-dialog'
 
 const sections: { id: SettingsSection; label: string; icon: LucideIcon }[] = [
@@ -27,9 +28,10 @@ const sections: { id: SettingsSection; label: string; icon: LucideIcon }[] = [
   { id: 'library', label: 'Library', icon: Library },
   { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'account', label: 'Account', icon: UserIcon },
-  { id: 'scrobbling', label: 'Scrobbling', icon: Radio },
+  { id: 'security', label: 'Security', icon: Lock },
   { id: 'app-passwords', label: 'App passwords', icon: KeyRound },
   { id: 'share-links', label: 'Share links', icon: Link2 },
+  { id: 'scrobbling', label: 'Scrobbling', icon: Radio },
   { id: 'webhooks', label: 'Webhooks', icon: Webhook },
   { id: 'about', label: 'About', icon: Info },
 ]
@@ -39,6 +41,14 @@ const normalizationOptions: SelectOption<NormalizationMode>[] = [
   { value: 'track', label: 'Per song' },
   { value: 'album', label: 'Per album' },
   { value: 'off', label: 'Off' },
+]
+
+// The select's values are strings; the setting is a number of LUFS.
+const targetOptions: SelectOption<`${NormalizationTarget}`>[] = [
+  { value: '-14', label: 'Loud (−14 LUFS)' },
+  { value: '-16', label: 'Medium (−16 LUFS)' },
+  { value: '-18', label: 'Standard (−18 LUFS)' },
+  { value: '-23', label: 'Quiet (−23 LUFS)' },
 ]
 
 const qualityOptions: SelectOption<StreamQuality>[] = [
@@ -89,6 +99,8 @@ export type SettingsDialogProps = {
   sharingEnabled: boolean
   onRevokeShareLink: (id: string) => Promise<unknown>
   onChangePassword: (request: ChangePasswordRequest) => Promise<unknown>
+  /** The Security section: two-factor authentication and signed-in devices. */
+  security: SecuritySettingsProps
   /** Only where the server lets this user rename themselves. */
   onRename?: (displayName: string | null) => Promise<unknown>
   onLogout: () => void
@@ -112,7 +124,7 @@ const SAVED_MS = 2500
 /** The user's settings in a dialog: sections down the left, the chosen one on the right. */
 export function SettingsDialog({
   open, onOpenChange, section, onSectionChange, user, serverName, version, settings, onSettingsChange, deviceName, defaultDeviceName, onDeviceNameChange,
-  scrobbling, onConnectListenBrainz, onConnectLastFm, onDisconnect, appPasswords, onCreateAppPassword, onRevokeAppPassword, shareLinks, sharingEnabled, onRevokeShareLink, onChangePassword, onRename, onLogout, onOpenAdmin, onOpenUploads, failures,
+  scrobbling, onConnectListenBrainz, onConnectLastFm, onDisconnect, appPasswords, onCreateAppPassword, onRevokeAppPassword, shareLinks, sharingEnabled, onRevokeShareLink, onChangePassword, security, onRename, onLogout, onOpenAdmin, onOpenUploads, failures,
   errors, lastFm, passwordChanged,
 }: SettingsDialogProps) {
   // The field shows the new name; "Saved" beside it says it reached the device lists.
@@ -185,6 +197,12 @@ export function SettingsDialog({
                     <Row htmlFor="normalization" label="Volume normalization" description="Evens out loudness between songs. Automatic uses album levels when you play an album in order.">
                       <Select id="normalization" label="Volume normalization" value={settings.normalization} options={normalizationOptions} onValueChange={normalization => onSettingsChange({ normalization })} className="w-40" />
                     </Row>
+                    {/* Only normalization has a target: with it off, songs play as they are. */}
+                    {settings.normalization !== 'off' && (
+                      <Row htmlFor="normalization-target" label="Target loudness" description="How loud songs play with normalization on. Loud is about as loud as most streaming services. A quiet song is turned up only as far as its peaks allow.">
+                        <Select id="normalization-target" label="Target loudness" value={`${settings.normalizationTarget ?? -18}`} options={targetOptions} onValueChange={target => onSettingsChange({ normalizationTarget: Number(target) as NormalizationTarget })} className="w-52" />
+                      </Row>
+                    )}
                     <Row htmlFor="quality-wifi" label="Streaming quality" description="On Wi-Fi and in the browser. Original plays the file untouched when your device supports it.">
                       <Select id="quality-wifi" label="Streaming quality" value={settings.qualityWifi} options={qualityOptions} onValueChange={qualityWifi => onSettingsChange({ qualityWifi })} className="w-40" />
                     </Row>
@@ -284,6 +302,12 @@ export function SettingsDialog({
                 <Row label="Sign out of this browser">
                   <Button size="sm" variant="outline" onClick={onLogout}><LogOut />Log out</Button>
                 </Row>
+              </Panel>
+            )}
+
+            {section === 'security' && (
+              <Panel title="Security" description="How you sign in, and the browsers and apps signed in to your account.">
+                <SecuritySettings {...security} />
               </Panel>
             )}
 

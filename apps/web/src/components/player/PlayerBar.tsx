@@ -11,9 +11,10 @@ import { songsLabel } from '@/components/music/track-menu'
 import { draggedMusic } from '@/lib/drag'
 import { cn } from '@/lib/utils'
 import { useDroppedMusic } from '@/player/use-dropped-music'
-import { playingElsewhere, usePosition, type Player } from '@/player/player-context'
+import { hostControls, playingElsewhere, useJamRights, usePosition, type Player } from '@/player/player-context'
 import { STILL_LOADING_LABEL, useStillLoading } from '@/player/use-still-loading'
 import { DevicesPopover } from './Devices'
+import { JamButton } from './ListenTogether'
 import { PlayerStatusLine } from './PlayerStatus'
 import { SleepTimerChip } from './SleepTimer'
 import { SongContextMenu } from './SongMenu'
@@ -86,14 +87,16 @@ function sameFit(a: number, b: number) {
  */
 /**
  * Songs or a card dropped on the player play next: the bar says so while they are over it, and
- * the status line once they are in.
+ * the status line once they are in. In someone's jam it takes them only where the jam lets
+ * everyone add songs, and the status line says they were added for everyone.
  */
 function usePlayNextDrop(player: PlayerChromeProps['player']) {
   const songsOf = useDroppedMusic()
+  const rights = useJamRights()
   const [over, setOver] = useState(false)
   const handlers = {
     onDragOver: (event: DragEvent) => {
-      if (!draggedMusic(event)) return
+      if (!rights.add || !draggedMusic(event)) return
       event.preventDefault()
       event.dataTransfer.dropEffect = 'copy'
       setOver(true)
@@ -104,11 +107,12 @@ function usePlayNextDrop(player: PlayerChromeProps['player']) {
     onDrop: (event: DragEvent) => {
       const music = draggedMusic(event)
       setOver(false)
-      if (!music) return
+      if (!music || !rights.add) return
       event.preventDefault()
       songsOf(music).then(
         tracks => {
           player.controls.enqueue(tracks, 'next')
+          if (!rights.transport) return
           player.controls.tell({ message: 'Playing next', detail: music.kind === 'collection' ? music.collection.title : songsLabel(tracks.length), tone: 'info' })
         },
         (error: unknown) => player.controls.tell({ message: 'Couldn’t add to the queue', detail: errorMessage(error), tone: 'error' }),
@@ -201,12 +205,13 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
         </div>)}
 
         <div className={cn('flex min-w-0 flex-col items-center gap-0.5', stacked && 'col-span-2 row-start-2')}>
-          <TransportButtons player={player} disabled={!item} modeClassName={stacked ? undefined : 'hidden @[36rem]:inline-flex'} />
-          <SeekBar durationMs={item?.entry.durationMs ?? 0} onSeek={controls.seek} disabled={!item} />
+          <TransportButtons player={player} disabled={!item || hostControls(state)} modeClassName={stacked ? undefined : 'hidden @[36rem]:inline-flex'} />
+          <SeekBar durationMs={item?.entry.durationMs ?? 0} onSeek={controls.seek} disabled={!item || hostControls(state)} />
         </div>
 
         <div className={cn('flex min-w-0 items-center justify-end gap-1', stacked && 'col-start-2 row-start-1')}>
           <SleepTimerChip player={player} />
+          <JamButton player={player} />
           {lyricsFit && <IconButton label={lyricsOpen ? 'Hide lyrics' : 'Lyrics'} size="sm" pressed={lyricsOpen} disabled={!item} onClick={onToggleLyrics} className={touchTarget}><MessageSquareQuote /></IconButton>}
           <IconButton label={queueOpen ? 'Hide queue' : 'Queue'} size="sm" pressed={queueOpen} onClick={onToggleQueue} aria-expanded={queueOpen} data-queue-toggle="" className={touchTarget}><ListMusic /></IconButton>
           <DevicesPopover
@@ -319,7 +324,7 @@ export function MiniPlayer({ player, onOpenNowPlaying }: Pick<PlayerChromeProps,
         </button>
         {devices}
         {/* A 40px disc whose touch target is 44px (the icon button's own). */}
-        <PlayPauseButton playing={state.playing} loading={state.waiting} onClick={controls.togglePlay} className="mx-1 size-10 [&_svg]:size-5" />
+        <PlayPauseButton playing={state.playing} loading={state.waiting} onClick={controls.togglePlay} disabled={hostControls(state)} className="mx-1 size-10 [&_svg]:size-5" />
       </div>
       {/* Outside the button, which names only the song. */}
       <PlayerStatusLine status={state.status} className="-mt-2 pb-1.5 pl-16 pr-3" />

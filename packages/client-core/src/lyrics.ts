@@ -8,6 +8,7 @@ export type TimedWord = { startMs: number; endMs: number; text: string }
  * or a romanization.
  */
 export type TimedLyric = { startMs: number; text: string; words?: TimedWord[]; translation?: string }
+type SourceLyric = Omit<TimedLyric, 'words'> & { words?: (Omit<TimedWord, 'endMs'> & { endMs?: number })[] }
 
 const stamp = /\[(\d+):(\d+(?:[.:]\d+)?)\]/g
 const wordStamp = /<(\d+):(\d+(?:[.:]\d+)?)>/g
@@ -67,7 +68,9 @@ function timedWords(body: string, lineMs: number): { text: string; words: TimedW
  * second. Two lines with the same time are one line and its translation, as LRC files put a
  * translation or a romanization under the original.
  */
-export function parseLrc(lrc: string): TimedLyric[] {
+export function parseLrc(lrc: string): TimedLyric[]
+export function parseLrc(lrc: string, options: { inferWordEnds: false }): SourceLyric[]
+export function parseLrc(lrc: string, options?: { inferWordEnds: false }): SourceLyric[] {
   const offset = Number(offsetTag.exec(lrc)?.[1] ?? 0)
   const shift = (at: number) => Math.max(0, Math.round(at) - offset)
   const lines: TimedLyric[] = []
@@ -95,6 +98,14 @@ export function parseLrc(lrc: string): TimedLyric[] {
       continue
     }
     merged.push(line)
+  }
+  if (options?.inferWordEnds === false) {
+    return merged.map((line) => ({
+      ...line,
+      words: line.words?.at(-1) && Number.isNaN(line.words.at(-1)!.endMs)
+        ? line.words.map(({ startMs, text }) => ({ startMs, text }))
+        : line.words?.map((word) => ({ ...word, endMs: Math.max(word.startMs, word.endMs) })),
+    }))
   }
   for (const [index, line] of merged.entries()) {
     const next = merged[index + 1]?.startMs

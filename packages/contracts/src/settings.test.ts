@@ -9,7 +9,7 @@ describe('settings patches', () => {
   })
 
   it('can change every stored setting', () => {
-    const derived = new Set(['listenBrainzTokenSet', 'acoustIdKeySet', 'fanartKeySet', 'lastFmKeySet'])
+    const derived = new Set(['listenBrainzTokenSet', 'acoustIdKeySet', 'fanartKeySet', 'lastFmKeySet', 'ssoClientSecretSet', 'ssoCallbackUrl'])
     const patchable = Object.keys(UpdateServerSettings.shape)
     for (const key of Object.keys(ServerSettings.shape)) {
       if (!derived.has(key)) expect(patchable, key).toContain(key)
@@ -34,5 +34,13 @@ describe('settings patches', () => {
   it('falls back to the public MusicBrainz server when a stored address is not usable', () => {
     expect(ServerSettings.parse({ musicBrainzBaseUrl: 'musicbrainz-mirror:5000' }).musicBrainzBaseUrl).toBe('https://musicbrainz.org')
     expect(ServerSettings.parse({ musicBrainzBaseUrl: 'https://mb.example.com/' }).musicBrainzBaseUrl).toBe('https://mb.example.com/')
+  })
+
+  it('asks for the openid scope and an http or https issuer', () => {
+    expect(UpdateServerSettings.safeParse({ ssoScopes: 'openid profile email' }).success).toBe(true)
+    expect(UpdateServerSettings.safeParse({ ssoScopes: 'profile email' }).success).toBe(false)
+    expect(UpdateServerSettings.safeParse({ ssoIssuerUrl: 'javascript:alert(1)' }).success).toBe(false)
+    expect(UpdateServerSettings.parse({ ssoIssuerUrl: null })).toEqual({ ssoIssuerUrl: null })
+    expect(ServerSettings.parse({ ssoIssuerUrl: 'not a url' }).ssoIssuerUrl).toBeNull()
   })
 })

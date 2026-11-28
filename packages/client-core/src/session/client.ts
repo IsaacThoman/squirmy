@@ -4,6 +4,9 @@ import {
   type DeviceInfo,
   type EntryFailure,
   type EngineReport,
+  JAM_DRIFT_MS,
+  type JamAck,
+  type JamRequest,
   type NormalizationMode,
   type PlaybackDescriptor,
   type QueueEntry,
@@ -11,6 +14,7 @@ import {
   type SessionHelloAck,
   type SessionMoveAck,
   type SessionQueue,
+  type ServerEvent,
   SessionQueueOps,
   type SessionScope,
   type SessionSnapshot,
@@ -20,9 +24,10 @@ import {
 } from '@squirmy/contracts'
 import { ApiError, streamUrl } from '../api/client.js'
 import type { EngineEvent, EngineMedia, EngineState, EngineStatus, PlayerEngine } from '../engine.js'
-import { appliedGain } from '../normalization.js'
+import { appliedGain, REFERENCE_LUFS, type GainContext } from '../normalization.js'
 import { signalReport } from '../signal.js'
 import { clearRepeating, setRepeating, setTimer } from '../timers.js'
+import { followsJam, memberCommandRoute } from './jam.js'
 import { applyQueueOps } from './queue-ops.js'
 import { createInitialSession, joinSession, positionAt, reduceParsedSession, type Session, splitSession } from './reducer.js'
 import { sleepFade } from './sleep.js'
@@ -54,10 +59,15 @@ export type SessionClientSnapshot = {
   detached: boolean
   /** Detaching is possible: this device can play and the server said it supports it. False until a hello has. */
   canDetach: boolean
-  /** The server takes `undo` (see "Undo" in the session contract). False until a hello has said so. */
+  /**
+   * The server takes `undo` (see "Undo" in the session contract) for this session. False until
+   * a hello has said so, and while following someone's jam, where only the host undoes.
+   */
   canUndo: boolean
   /** The server takes `setSleepTimer` (the `sleepTimer` capability). False until a hello has said so. */
   canSetSleepTimer: boolean
+  /** The server takes `session:jam` (the `jam` capability): listening together. False until a hello has said so. */
+  canJam: boolean
   /**
    * Why the session paused on its failed current entry, when the server said so with
    * `playback.unavailable`. Set in the same snapshot as the pause (the server sends the
@@ -103,6 +113,12 @@ export type SessionOutage = { trackId: string | null; kind: 'outage' | 'failures
  */
 export type SessionMoveResult = { ok: true } | { ok: false; error: string }
 
+/**
+ * How `jam` ends: the server's answer (see `JamAck`), or this client's `offline`,
+ * `unsupported` (see `canJam`) or `timeout`.
+ */
+export type JamResult = JamAck
+
 /** Audio output of a device that can play. */
 export type SessionPlayer = {
   engine: PlayerEngine
@@ -112,8 +128,15 @@ export type SessionPlayer = {
   baseUrl: string
   /** Initial normalization mode (the user's setting). Defaults to `auto`. */
   normalization?: NormalizationMode
+  /** Initial normalization target in LUFS (the user's setting). Defaults to -18. */
+  normalizationTarget?: number
   /** The engine can amplify above unity. Defaults to false. */
   canBoost?: boolean
+  /**
+   * The engine limits true peaks after the gain, so normalization is not held back to a
+   * song's peak (see `GainContext.limiter`). Defaults to false.
+   */
+  limiter?: boolean
   /**
    * This device's entry in the session's `volumes` is the system's output volume, which the
    * platform applies and keeps in step itself (iOS): the engine's gain leaves it out and
@@ -162,12 +185,16 @@ export type SessionClientOptions = {
    * away past the server's keep time; `missing`: cleaned up earlier or ended elsewhere).
    */
   onDetachedEnded?: (reason: 'expired' | 'missing') => void
+  /** A jam event for this user: an invite to one, or this member's jam ending (see `ServerEvent`). */
+  onJamEvent?: (event: Extract<ServerEvent, { type: 'jam.invite' | 'jam.left' }>) => void
   /** Local clock. Defaults to `Date.now`. */
   now?: () => number
   /** After the session's position moves, the engine is re-seeked only when it is further off than this. Defaults to 1000. */
   driftThresholdMs?: number
   /** Engine reports are sent on status changes and at this interval. Defaults to 10000. */
   reportIntervalMs?: number
+  /** How often a device playing a jam it follows checks its drift from the jam's clock. Defaults to 2000. */
+  jamAlignIntervalMs?: number
 }
 
 /** Dropped from the unsent commands when the server says another device took over. */
@@ -271,7 +298,9 @@ export class SessionClient {
   private readonly now: () => number
   private readonly driftThresholdMs: number
   private readonly reportIntervalMs: number
+  private readonly jamAlignIntervalMs: number
   private readonly onDetachedEnded: SessionClientOptions['onDetachedEnded']
+  private readonly onJamEvent: SessionClientOptions['onJamEvent']
 
   private server: { version: number; session: Session } | null = null
   /** The server state held is this device's own session. */
@@ -285,6 +314,7 @@ export class SessionClient {
   /** What this device last reported since the last hello, so a report goes out only when it changes. */
   private sentSignal: string | null = null
   private serverSleeps = false
+  private serverJams = false
   /** Moves the gain along a sleep timer's fade; see `followFade`. */
   private fadeTimer: unknown = null
   private move: Move | null = null
@@ -323,6 +353,7 @@ export class SessionClient {
   private serial = 0
 
   private normalization: NormalizationMode
+  private normalizationTarget: number
   private loadToken = 0
   private loadingEntryId: string | null = null
   /** The entry whose stream could not be had yet (offline), and where its first try would have started. */
@@ -360,13 +391,16 @@ export class SessionClient {
     this.now = options.now ?? (() => Date.now())
     this.driftThresholdMs = options.driftThresholdMs ?? 1000
     this.reportIntervalMs = options.reportIntervalMs ?? 10_000
+    this.jamAlignIntervalMs = options.jamAlignIntervalMs ?? 2000
     this.normalization = options.player?.normalization ?? 'auto'
+    this.normalizationTarget = options.player?.normalizationTarget ?? REFERENCE_LUFS
     this.onDetachedEnded = options.onDetachedEnded
+    this.onJamEvent = options.onJamEvent
     if (options.restore) this.restore(options.restore)
     const { state, queue } = splitSession(this.local)
     this.snapshot = {
       session: state, queue, devices: this.devices, connection: this.connection, isActiveDevice: this.isActive(),
-      detached: this.detached, canDetach: this.canDetach(), canSetSleepTimer: false, canUndo: false, outage: null, away: null, signal: null,
+      detached: this.detached, canDetach: this.canDetach(), canSetSleepTimer: false, canUndo: false, canJam: false, outage: null, away: null, signal: null,
     }
   }
 
@@ -400,6 +434,7 @@ export class SessionClient {
         this.publish()
       }),
       transport.on('event', event => {
+        if (event.type === 'jam.invite' || event.type === 'jam.left') return this.onJamEvent?.(event)
         if (event.type === 'playback.failed') {
           this.failures.delete(event.trackId)
           this.failures.set(event.trackId, event.failure)
@@ -421,6 +456,8 @@ export class SessionClient {
       this.cleanup.push(player.engine.subscribe(event => this.onEngineEvent(event)))
       const timer = setRepeating(() => this.report(player.engine.getStatus(), true), this.reportIntervalMs)
       this.cleanup.push(() => clearRepeating(timer))
+      const align = setRepeating(() => this.alignToJam(), this.jamAlignIntervalMs)
+      this.cleanup.push(() => clearRepeating(align))
       // A restored session this device was playing loads paused, ready to resume offline.
       this.syncEngine(this.local, false)
     }
@@ -446,6 +483,8 @@ export class SessionClient {
     // The server refuses these. Applying one until it does would stop this device's audio
     // for the round trip, so it is not tried at all.
     if (parsed.type === 'transfer' && this.outOfSession(parsed.deviceId)) return null
+    // The same for what only a jam's host may do, while this user follows someone's jam.
+    if (followsJam(this.local) && !this.memberMay(parsed)) return null
     const commandId = this.newCommandId()
     this.enqueue(parsed, commandId)
     this.recompute(parsed.type === 'seek')
@@ -472,6 +511,18 @@ export class SessionClient {
    */
   attach(options: { bringQueue?: boolean } = {}): Promise<SessionMoveResult> {
     return this.requestMove('session:attach', options.bringQueue ? { bringQueue: true } : {}, false)
+  }
+
+  /**
+   * Starts, joins, leaves, ends or changes a jam (see "Listen together" in the session
+   * contract). Nothing is applied optimistically: the session's update follows the answer.
+   */
+  jam(request: JamRequest): Promise<JamResult> {
+    if (this.connection !== 'online') return Promise.resolve({ ok: false, error: 'offline' })
+    if (!this.serverJams) return Promise.resolve({ ok: false, error: 'unsupported' })
+    return new Promise(resolve => {
+      this.transport.request('session:jam', request, REQUEST_TIMEOUT_MS, (_error, reply) => resolve(reply ?? { ok: false, error: 'timeout' }))
+    })
   }
 
   /** For `useSyncExternalStore`. Returns the same object until something changes. */
@@ -583,6 +634,14 @@ export class SessionClient {
     this.publish()
   }
 
+  /** Changes the loudness normalization brings songs to, in LUFS (the user's setting), at once. */
+  setNormalizationTarget(targetLufs: number): void {
+    if (targetLufs === this.normalizationTarget) return
+    this.normalizationTarget = targetLufs
+    if (this.isActive() && this.local.current) this.applyGain(this.local.current)
+    this.publish()
+  }
+
   // Sync
 
   private restore(saved: SavedSession): void {
@@ -685,6 +744,31 @@ export class SessionClient {
     // The server may have restarted, or this device moved session: it hears it again.
     this.sentSignal = null
     this.serverSleeps = reply.capabilities?.includes('sleepTimer') ?? false
+    this.serverJams = reply.capabilities?.includes('jam') ?? false
+  }
+
+  /** A member may send this to the jam they follow; see `memberCommandRoute`, and the jam's queue policy. */
+  private memberMay(command: SessionCommand): boolean {
+    const route = memberCommandRoute(command)
+    if (route === 'own') return true
+    if (route !== 'jam') return false
+    return command.type !== 'enqueue' || this.local.jam?.queuePolicy === 'everyone'
+  }
+
+  /**
+   * Keeps this device's audio on the jam's clock while it plays a jam it follows. Every
+   * listener plays from the same anchor; a device that drifted further than `JAM_DRIFT_MS`
+   * from it (a slow start, a stall, a clock estimate that improved) seeks back to it.
+   */
+  private alignToJam(): void {
+    const session = this.local
+    const current = session.current
+    if (!this.player || !followsJam(session) || !this.isActive() || this.connection !== 'online') return
+    if (!session.playing || session.stalled || current?.state !== 'ready') return
+    const status = this.player.engine.getStatus()
+    if (status.entryId !== current.id || status.state !== 'playing') return
+    const expected = positionAt(session, this.serverNow())
+    if (Math.abs(expected - status.positionMs) > JAM_DRIFT_MS) this.player.engine.seek(expected)
   }
 
   /**
@@ -938,7 +1022,8 @@ export class SessionClient {
     const queueHalf = shallowEqual(previous.queue, queue) ? previous.queue : queue
     const isActiveDevice = this.isActive()
     const canDetach = this.canDetach()
-    const canUndo = this.serverUndoes
+    // A jam's edits are undone by its host alone, so a member is not offered undo.
+    const canUndo = this.serverUndoes && !followsJam(this.local)
     const outage = this.outage()
     const away = this.away(previous.away)
     const signal = this.signal(previous.signal)
@@ -947,11 +1032,11 @@ export class SessionClient {
       session === previous.session && queueHalf === previous.queue && this.devices === previous.devices
       && this.connection === previous.connection && isActiveDevice === previous.isActiveDevice
       && this.detached === previous.detached && canDetach === previous.canDetach && this.serverSleeps === previous.canSetSleepTimer && canUndo === previous.canUndo
-      && outage === previous.outage && away === previous.away && signal === previous.signal
+      && this.serverJams === previous.canJam && outage === previous.outage && away === previous.away && signal === previous.signal
     ) return
     this.snapshot = {
       session, queue: queueHalf, devices: this.devices, connection: this.connection, isActiveDevice, detached: this.detached, canDetach,
-      canSetSleepTimer: this.serverSleeps, canUndo, outage, away, signal,
+      canSetSleepTimer: this.serverSleeps, canUndo, canJam: this.serverJams, outage, away, signal,
     }
     for (const listener of [...this.listeners]) listener()
   }
@@ -967,7 +1052,11 @@ export class SessionClient {
       const descriptor = current && this.inEngine.get(current.id)
       if (current && descriptor) {
         const albumContext = this.inAlbumContext(current, this.local)
-        const normalization = { mode: this.normalization, ...appliedGain(this.normalization, descriptor.normalization, { albumContext, canBoost: this.player?.canBoost ?? false }) }
+        const normalization = {
+          mode: this.normalization,
+          targetLufs: this.normalizationTarget,
+          ...appliedGain(this.normalization, descriptor.normalization, this.gainContext(albumContext)),
+        }
         signal = { ...signalReport(current.id, descriptor, normalization, descriptor.url.startsWith('file:')), deviceId: this.device.id }
       }
     } else {
@@ -1243,7 +1332,12 @@ export class SessionClient {
     const volume = this.player?.systemVolume ? 1 : session.volumes[this.device.id] ?? 1
     const albumContext = this.inAlbumContext(entry, session)
     const fade = entry.id === session.current?.id ? this.fadeOf(session) : 1
-    return volume * fade * appliedGain(this.normalization, descriptor?.normalization, { albumContext, canBoost: this.player?.canBoost ?? false }).gain
+    return volume * fade * appliedGain(this.normalization, descriptor?.normalization, this.gainContext(albumContext)).gain
+  }
+
+  /** What normalization depends on besides the song: the same for the gain applied and the one reported. */
+  private gainContext(albumContext: boolean): GainContext {
+    return { albumContext, canBoost: this.player?.canBoost ?? false, limiter: this.player?.limiter ?? false, targetLufs: this.normalizationTarget }
   }
 
   private inAlbumContext(entry: QueueEntry, session: Session): boolean {
@@ -1356,7 +1450,8 @@ function isRefusal(error: unknown): boolean {
 }
 
 function mediaOf(descriptor: PlaybackDescriptor): EngineMedia {
-  return { transcoded: descriptor.transcoded, gapless: descriptor.gapless ?? null }
+  const { transcoded, profile, mime, codec, sampleRate, durationMs } = descriptor
+  return { transcoded, gapless: descriptor.gapless ?? null, profile, mime, codec, sampleRate, durationMs }
 }
 
 function descriptorKey(entry: QueueEntry): string {

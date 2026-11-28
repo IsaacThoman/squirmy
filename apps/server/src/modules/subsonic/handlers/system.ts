@@ -12,9 +12,12 @@ export const extensions = [
   { name: 'apiKeyAuthentication', versions: [1] },
   { name: 'formPost', versions: [1] },
   { name: 'indexBasedQueue', versions: [1] },
-  { name: 'songLyrics', versions: [1] },
+  { name: 'playbackReport', versions: [1] },
+  { name: 'songLyrics', versions: [1, 2] },
+  { name: 'sonicSimilarity', versions: [1] },
   { name: 'topSongsByArtistId', versions: [1] },
   { name: 'transcodeOffset', versions: [1] },
+  { name: 'transcoding', versions: [1] },
 ]
 
 async function scanStatus(): Promise<Payload> {

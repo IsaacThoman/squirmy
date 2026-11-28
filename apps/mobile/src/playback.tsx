@@ -1,17 +1,17 @@
 import {
-  ApiError, artworkUrl, createInitialSession, randomSeed, refreshFetchedTracks, SessionClient, sleepTimerAccessibilityLabel, sleepTimerChoiceId,
+  addedByName, ApiError, artworkUrl, createInitialSession, followsJam, randomSeed, refreshFetchedTracks, SessionClient, sitOutNotice, sleepTimerAccessibilityLabel, sleepTimerChoiceId,
   sleepTimerChoices, sleepTimerLabel, splitSession,
-  type PlaybackNotice, type SessionClientSnapshot, type SessionMoveResult, type SessionPlayer, type SleepTimerChoice,
+  type JamResult, type PlaybackNotice, type SessionClientSnapshot, type SessionMoveResult, type SessionPlayer, type SleepTimerChoice,
 } from '@squirmy/client-core';
 import { createSocketTransport } from '@squirmy/client-core/socket';
 import type {
-  ClientDevice, DeviceInfo, LyricWord, PlaybackContext, QueueEntry, RadioResponse, SessionCommand, SleepTimer, SleepTimerRequest, TrackSummary, UserSettings,
+  ClientDevice, DeviceInfo, JamRequest, LyricWord, PlaybackContext, QueueEntry, RadioResponse, SessionCommand, SleepTimer, SleepTimerRequest, TrackSummary, UserSettings,
 } from '@squirmy/contracts';
 import * as Network from 'expo-network';
 import {
   createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PropsWithChildren,
 } from 'react';
-import { AppState, Platform } from 'react-native';
+import { Alert, AppState, Platform } from 'react-native';
 import { useAccount, useAccountKey, useServerUrl, useSignedInApi } from './account/AccountProvider';
 import { clientDevice } from './account/storage';
 import { useLibraryActions, useLikeChanges, useTrack, useTrackStore } from './data/library';
@@ -39,7 +39,11 @@ import { followSession } from './streamingCache/session';
 
 export type { QueueEntry };
 
-type Runtime = { client: SessionClient; device: ClientDevice; loading: LoadingWatch; seeks: PendingSeek };
+type Runtime = {
+  client: SessionClient; device: ClientDevice; loading: LoadingWatch; seeks: PendingSeek;
+  /** The engine turns quiet songs up with normalization, which takes its limiter. */
+  boosts: boolean;
+};
 type PlayOptions = { start?: number; shuffle?: boolean; context?: PlaybackContext };
 
 const defaultQuality: Pick<UserSettings, 'qualityWifi' | 'qualityCellular'> = { qualityWifi: 'original', qualityCellular: 'high' };
@@ -51,7 +55,7 @@ const saveDelayMs = 5000;
 
 const idle: SessionClientSnapshot = (() => {
   const { state, queue } = splitSession(createInitialSession());
-  return { session: state, queue, devices: [], connection: 'offline', isActiveDevice: false, detached: false, canDetach: false, canSetSleepTimer: false, canUndo: false, outage: null, away: null, signal: null };
+  return { session: state, queue, devices: [], connection: 'offline', isActiveDevice: false, detached: false, canDetach: false, canSetSleepTimer: false, canUndo: false, canJam: false, outage: null, away: null, signal: null };
 })();
 const idleSnapshot = () => idle;
 const noSubscription = () => () => undefined;
@@ -123,6 +127,21 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         transport: createSocketTransport(socket),
         device,
         restore: saved?.session,
+        onJamEvent: event => {
+          if (event.type === 'jam.left') {
+            return report({ message: event.reason === 'ended' ? 'The listening session ended.' : 'You were removed from the listening session.' });
+          }
+          // Joining replaces what this account plays, so it is asked rather than done.
+          Alert.alert(`${event.hostName} invited you to listen together`, 'You’ll hear what they play, in step, on this device.', [
+            { text: 'Not now', style: 'cancel' },
+            {
+              text: 'Join',
+              onPress: () => void client.jam({ action: 'join', jamId: event.jamId }).then(result => {
+                if (!result.ok) report({ message: jamFailure(result.error) });
+              }),
+            },
+          ]);
+        },
         onDetachedEnded: reason => {
           const here = Platform.isTV ? 'This Apple TV' : 'This phone';
           report({ message: reason === 'expired'
@@ -132,10 +151,12 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         player: {
           engine,
           baseUrl: serverUrl,
-          canBoost: false,
+          canBoost: engine.canBoost,
+          limiter: engine.limiter,
           // On iOS this phone's volume is the system's; the player stays at full volume.
           systemVolume: SystemVolume !== null,
           normalization: stream.current.settings?.normalization,
+          normalizationTarget: stream.current.settings?.normalizationTarget,
           onLoadError: (entry, error, willRetry) => loadFailed(entry, error, willRetry),
           resolvePlayback: entry => {
             const { settings: current, network: type } = stream.current;
@@ -282,10 +303,14 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         if (live.current.offline && session.playing && session.current?.state === 'preparing') skipToDownload(true);
       });
 
-      const failed = (entryId: string, message: string) => {
+      const failed = (entryId: string, message: string, error?: unknown) => {
         const { session, connection } = client.getSnapshot();
         if (session.current?.id !== entryId || (live.current.offline && skipToDownload(true))) return;
         const title = tracks.get(session.current.trackId, session.current.albumId)?.title;
+        // In someone else's jam skipping and pausing are the host's: the phone sits the song
+        // out silently and plays along again from the next one (explicit songs, for a
+        // listener who has them off, end up here).
+        if (followsJam(session)) return report(sitOutNotice(title, error));
         const notice = title ? { message: `Couldn’t play “${title}”`, detail: message } : { message };
         if (connection === 'online' && Date.now() - lastSkip > errorSkipWindowMs) {
           lastSkip = Date.now();
@@ -300,7 +325,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         if (event.type === 'error') failed(event.entryId, event.message);
       });
       const loadFailed: NonNullable<SessionPlayer['onLoadError']> = (entry, error, willRetry) => {
-        if (!willRetry) return failed(entry.id, refusalMessage(error));
+        if (!willRetry) return failed(entry.id, refusalMessage(error), error);
         // A stream the phone can't reach: offline, a download plays instead. Otherwise
         // the client keeps trying, so a short drop resumes where it was.
         if (error instanceof ApiError && error.status === 0 && client.getSnapshot().session.current?.id === entry.id) {
@@ -335,7 +360,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       client.start();
       followPlaying();
       holdWhilePreparing();
-      setRuntime({ client, device, loading, seeks });
+      setRuntime({ client, device, loading, seeks, boosts: engine.canBoost && engine.limiter });
       teardown = () => {
         // Saved for the account as it leaves (sign-out or a switch keeps what it saved), so
         // opening it again offline finds the queue as it was.
@@ -385,6 +410,10 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (runtime && normalization) runtime.client.setNormalization(normalization);
   }, [normalization, runtime]);
+  const normalizationTarget = settings?.normalizationTarget;
+  useEffect(() => {
+    if (runtime && normalizationTarget !== undefined) runtime.client.setNormalizationTarget(normalizationTarget);
+  }, [normalizationTarget, runtime]);
 
   return <RuntimeContext.Provider value={runtime}>{children}</RuntimeContext.Provider>;
 }
@@ -406,6 +435,22 @@ function createActions(runtime: Runtime | null, canPlay: (track: TrackSummary) =
   const enqueue = (tracks: readonly TrackSummary[], placement: 'next' | 'last') => {
     const { seeds } = playableSeeds(tracks, 0, canPlay);
     if (seeds.length) send({ type: 'enqueue', tracks: seeds, placement });
+  };
+  /**
+   * In someone else's jam only the host picks what plays: a member's pick joins the queue
+   * instead, when the host lets everyone add. True when it was handled so.
+   */
+  const asMember = (tracks: readonly TrackSummary[], start: number | undefined): boolean => {
+    const current = session();
+    if (!followsJam(current)) return false;
+    if (current.jam?.queuePolicy !== 'everyone') {
+      playbackStatus.report({ message: 'Only the host can choose what plays.' });
+      return true;
+    }
+    const picked = start === undefined ? tracks : tracks.slice(start, start + 1);
+    enqueue(picked, 'last');
+    playbackStatus.report({ message: picked.length === 1 ? `Added “${picked[0]!.title}” for everyone.` : 'Added for everyone.' });
+    return true;
   };
   /** Sends a queue edit and, where the server can take it back, says so in the player with Undo. */
   const undoable = (command: SessionCommand, notice: PlaybackNotice) => {
@@ -443,6 +488,7 @@ function createActions(runtime: Runtime | null, canPlay: (track: TrackSummary) =
      * index into `tracks`). `shuffle` left out keeps the session's shuffle setting.
      */
     playTracks: (tracks: readonly TrackSummary[], { start, shuffle, context }: PlayOptions = {}) => {
+      if (asMember(tracks, shuffle ? undefined : start)) return;
       const { seeds, startIndex } = playableSeeds(tracks, start, canPlay);
       if (!seeds.length) return;
       send({
@@ -453,6 +499,8 @@ function createActions(runtime: Runtime | null, canPlay: (track: TrackSummary) =
         startedFrom: start === undefined || shuffle ? 'collection' : 'song',
       });
     },
+    /** Starts, joins, leaves, ends or changes a jam (listening together). Resolves once the server has answered. */
+    jam: (request: JamRequest): Promise<JamResult> => runtime?.client.jam(request) ?? Promise.resolve({ ok: false, error: 'offline' }),
     playRadio: ({ tracks, context }: RadioResponse) => send({ type: 'playTracks', tracks, context, startIndex: 0, seed: randomSeed(), startedFrom: 'collection' }),
     /** Plays one track now and keeps the queue: it goes to the front, then playback moves to it. */
     playNow: (track: TrackSummary) => {
@@ -530,6 +578,12 @@ export function usePlaybackState() {
     detached: snapshot.detached,
     /** This phone can play separately: hide the control otherwise. */
     canDetach: snapshot.canDetach,
+    /** The jam this session hosts or follows, while it does. */
+    jam: session.jam,
+    /** The server can listen together: offer it. */
+    canJam: snapshot.canJam,
+    /** Someone else's jam: only its host controls playback. */
+    hostControls: followsJam(session),
     /** Every device the user has connected, the detached ones included, for the "Playing separately" group. */
     allDevices: devices,
     thisDeviceId: device?.id ?? '',
@@ -551,6 +605,14 @@ const noLoading = () => notLoading;
 export function useLoading(): LoadingPhase {
   const runtime = useContext(RuntimeContext);
   return useSyncExternalStore(runtime?.loading.subscribe ?? noSubscription, runtime?.loading.getSnapshot ?? noLoading).phase;
+}
+
+/**
+ * Whether this device's engine turns quiet songs up with normalization (the native engine,
+ * with its limiter) rather than only down, for Settings to say so. False before playback starts.
+ */
+export function useNormalizationBoosts(): boolean {
+  return useContext(RuntimeContext)?.boosts ?? false;
 }
 
 /** `useLoading` for a row: its phase while `trackId` is the current entry's track, otherwise `none`. */
@@ -602,6 +664,12 @@ export function usePosition(enabled = true): number {
 // and re-renders only when that fact changes, not on every session broadcast.
 
 /** Reads one value from the session client; re-renders only when it changes (compared with `Object.is`). */
+/** Who added the entry, by name, while the session is in a jam; null otherwise. */
+export function useAddedBy(entry: Pick<QueueEntry, 'addedBy'>): string | null {
+  const jam = useSessionValue(({ session }) => session.jam);
+  return jam ? addedByName({ jam }, entry) : null;
+}
+
 function useSessionValue<T>(select: (snapshot: SessionClientSnapshot) => T): T {
   const runtime = useContext(RuntimeContext);
   return useSyncExternalStore(runtime?.client.subscribe ?? noSubscription, () => select(runtime?.client.getSnapshot() ?? idle));
@@ -739,4 +807,17 @@ export function useCurrentDurationMs(): number {
   const albumId = useSessionValue(({ session }) => session.current?.albumId);
   const track = useTrack(trackId, albumId);
   return durationMs || track?.durationMs || 0;
+}
+
+/** What a refused jam request says. */
+export function jamFailure(error: string): string {
+  switch (error) {
+    case 'offline': return 'Can’t do that while offline.';
+    case 'jam_not_found': return 'That listening session has ended.';
+    case 'jam_full': return 'That listening session is full.';
+    case 'jam_hosting': return 'End your own listening session first.';
+    case 'jam_detached': return 'This device plays separately. Rejoin your other devices first.';
+    case 'jam_host_only': return 'Only the host can do that.';
+    default: return 'Something went wrong. Try again.';
+  }
 }

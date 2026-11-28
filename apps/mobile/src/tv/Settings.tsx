@@ -8,12 +8,13 @@ import { displayAddress } from '../account/address';
 import { unsavedSignIn, useAccount } from '../account/AccountProvider';
 import { serviceNames } from '../account/scrobbling';
 import {
-  lastFmAdminNote, normalizationNote, normalizationOptions, qualityOptions, saveFailure, scrobbleDetail, scrobbleFooter,
-  explicitLabel, explicitNote, explicitRestrictedNote, serverMusicLabel, serverMusicNote, useSettingsScreen,
+  explicitLabel, explicitNote, explicitRestrictedNote, lastFmAdminNote, normalizationNote, normalizationOptions, normalizationTarget,
+  qualityOptions, saveFailure, scrobbleDetail, scrobbleFooter, serverMusicLabel, serverMusicNote, targetNote, targetOptions, useSettingsScreen,
 } from '../account/settings';
 import { loadFailure } from '../data/errors';
 import { useUpdateSettings, useUserSettings } from '../data/queries';
 import { useAccountStorage } from '../account/storageUsage';
+import { useNormalizationBoosts } from '../playback';
 import { engineNote, engineOptions, showsEngineSetting, useEngineSetting } from '../player/engine/setting';
 import { Icon } from '../ui';
 import { Focusable } from './Focusable';
@@ -111,6 +112,7 @@ export function TvSettingsScreen() {
   const screen = useSettingsScreen();
   const [note, setNote] = useState<string | null>(null);
   const [engine, setEngine] = useEngineSetting();
+  const boosts = useNormalizationBoosts();
   if (state.status !== 'signedIn') return null;
   const { server, user } = state;
   const { settings } = screen;
@@ -151,7 +153,9 @@ export function TvSettingsScreen() {
     {settings ? <>
       <Section title="Playback" error={screen.errors.playback}>
         <Row title="Volume Normalization" value={optionLabel(normalizationOptions, settings.normalization)} chevron
-          note={normalizationNote} onNote={setNote} onPress={() => open('normalization')} />
+          note={normalizationNote(boosts)} onNote={setNote} onPress={() => open('normalization')} />
+        {settings.normalization !== 'off' && <Row title="Target Loudness" value={optionLabel(targetOptions, normalizationTarget(settings))} chevron
+          note={targetNote(boosts)} onNote={setNote} onPress={() => open('target')} />}
         <Row title="Streaming Quality" value={optionLabel(qualityOptions, settings.qualityWifi)} chevron
           note={tvQualityNote} onNote={setNote} onPress={() => open('quality')} />
         {/* Two values, so selecting the row switches between them, as a switch's row does. */}
@@ -228,9 +232,13 @@ export function TvSettingsChoiceScreen() {
   const settings = useUserSettings();
   const update = useUpdateSettings();
   const [error, setError] = useState<string | null>(null);
+  const boosts = useNormalizationBoosts();
   if (!isChoice(choice)) return <PageState message="There’s no such setting." />;
   if (!settings.data) return settings.isError ? <PageState message={loadFailure(settings.error).description} onRetry={() => void settings.refetch()} /> : <PageState loading />;
-  const spec = choiceSpec(choice, normalizationOptions, qualityOptions, normalizationNote);
+  const spec = choiceSpec(choice, {
+    normalization: normalizationOptions, target: targetOptions, quality: qualityOptions,
+    normalizationNote: normalizationNote(boosts), targetNote: targetNote(boosts),
+  });
   const current = spec.current(settings.data);
   const choose = (value: string) => {
     setError(null);

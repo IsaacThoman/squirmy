@@ -1,7 +1,7 @@
 /**
- * The `/rest` router. Every method answers GET and POST (a form body, the formPost
- * extension), with or without `.view`, in XML by default or JSON(P) with `f`. Failures,
- * unknown methods included, are Subsonic errors inside a 200 response.
+ * The `/rest` router serves XML and JSON(P) with or without `.view`. Most methods
+ * use GET or form POST and wrap errors in a 200. Transcode decisions take JSON POST
+ * and the negotiated binary stream reports failures with HTTP status codes.
  */
 import { getConfig } from '../../config.js'
 import { AppError } from '../../lib/errors.js'
@@ -13,6 +13,12 @@ import { envelope, serialize, type Format } from './serialize.js'
 
 const formats = new Set<string>(['xml', 'json', 'jsonp'])
 const callbackName = /^[A-Za-z_$][\w$.]{0,127}$/
+const streamErrorStatus: Record<number, number> = {
+  [ErrorCode.wrongCredentials]: 401,
+  [ErrorCode.invalidApiKey]: 401,
+  [ErrorCode.notAuthorized]: 403,
+  [ErrorCode.notFound]: 404,
+}
 
 /** Service errors become the closest Subsonic code. */
 function toSubsonic(error: unknown, request: FastifyRequest): SubsonicError {
@@ -38,17 +44,22 @@ function baseUrl(request: FastifyRequest): string {
 }
 
 async function handle(request: FastifyRequest, reply: FastifyReply) {
-  const params = Params.from(request.query, typeof request.body === 'object' ? request.body : undefined)
+  const method = (request.params as { '*': string })['*'].replace(/\.view$/, '')
+  const endpoint = endpoints.get(method.toLowerCase())
+  const contentType = request.headers['content-type']?.split(';')[0]?.trim().toLowerCase()
+  const params = Params.from(request.query, contentType === 'application/x-www-form-urlencoded' ? request.body : undefined)
   const requested = params.string('f')?.toLowerCase()
   const format: Format = requested && formats.has(requested) ? requested as Format : 'xml'
   const callback = params.string('callback')
-  if (format === 'jsonp' && !(callback && callbackName.test(callback))) {
+  if (!endpoint?.httpErrors && format === 'jsonp' && !(callback && callbackName.test(callback))) {
     return send(reply, 'json', undefined, envelope('failed', { error: { code: ErrorCode.missingParameter, message: 'Required parameter is missing: callback' } }))
   }
-  const method = (request.params as { '*': string })['*'].replace(/\.view$/, '')
   try {
-    const endpoint = endpoints.get(method.toLowerCase())
     if (!endpoint) throw new SubsonicError(ErrorCode.generic, `Unknown API method: ${method}`)
+    if (endpoint.jsonPost) {
+      if (request.method !== 'POST') return reply.header('allow', 'POST').code(405).send({ message: 'Use POST for this endpoint' })
+      if (contentType !== 'application/json') return reply.code(415).send({ message: 'Send an application/json ClientInfo body' })
+    }
     const user = endpoint.public ? null : await authenticate(params)
     if (endpoint.admin && user?.role !== 'admin') {
       throw new SubsonicError(ErrorCode.notAuthorized, 'User is not authorized for the given operation')
@@ -59,6 +70,11 @@ async function handle(request: FastifyRequest, reply: FastifyReply) {
   } catch (error) {
     if (reply.sent) throw error
     const failure = toSubsonic(error, request)
+    if (endpoint?.httpErrors) {
+      const status = error instanceof AppError ? error.status : error instanceof SubsonicError
+        ? streamErrorStatus[error.code] ?? 400 : 500
+      return reply.code(status).type('text/plain').send(failure.message)
+    }
     return send(reply, format, callback, envelope('failed', { error: { code: failure.code, message: failure.message } }))
   }
 }

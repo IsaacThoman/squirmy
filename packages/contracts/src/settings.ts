@@ -1,11 +1,12 @@
 import { z } from 'zod'
 import { Id } from './common.js'
-import { NormalizationMode, StreamQuality } from './playback.js'
+import { NormalizationMode, NormalizationTarget, StreamQuality } from './playback.js'
 import { SharePlayback } from './share.js'
 
 /** Per-user preferences, stored on the user row. */
 export const UserSettings = z.object({
   normalization: NormalizationMode.default('auto'),
+  normalizationTarget: NormalizationTarget.default(-18),
   qualityWifi: StreamQuality.default('original'),
   qualityCellular: StreamQuality.default('high'),
   downloadQuality: StreamQuality.default('original'),
@@ -41,6 +42,7 @@ export type UserSettings = z.infer<typeof UserSettings>
 /** `PATCH /api/v1/me/settings`. Keys left out keep their value; there are no defaults here. */
 export const UpdateUserSettings = z.object({
   normalization: NormalizationMode,
+  normalizationTarget: NormalizationTarget,
   qualityWifi: StreamQuality,
   qualityCellular: StreamQuality,
   downloadQuality: StreamQuality,
@@ -112,6 +114,26 @@ export const ServerSettings = z.object({
    * keeps what was measured; tempo, key and mood tags are read either way.
    */
   sonicAnalysisEnabled: z.boolean().default(true),
+  /** OpenID Connect single sign-on. Works only with an issuer, a client id, and PUBLIC_URL for the callback. */
+  ssoEnabled: z.boolean().default(false),
+  /** Shown as "Sign in with …". */
+  ssoName: z.string().trim().min(1).max(40).default('Single sign-on').catch('Single sign-on'),
+  ssoIssuerUrl: HttpUrl.nullable().default(null).catch(null),
+  ssoClientId: z.string().nullable().default(null),
+  ssoClientSecretSet: z.boolean().default(false),
+  ssoScopes: z.string().default('openid profile email'),
+  /** The claim a new account's username comes from. */
+  ssoUsernameClaim: z.string().default('preferred_username'),
+  /** The claim listing the person's groups; a dotted path reaches into nested claims. */
+  ssoGroupsClaim: z.string().default('groups'),
+  /** Groups allowed to sign in, separated by commas or spaces. Empty lets in everyone the provider accepts. */
+  ssoAllowedGroups: z.string().default(''),
+  /** Makes an account for someone the provider accepts who has none here yet. */
+  ssoAutoCreateUsers: z.boolean().default(false),
+  /** Password sign-in off: single sign-on and passkeys only. SQUIRMY_ADMIN_PASSWORD_LOGIN lets admins back in. */
+  passwordLoginDisabled: z.boolean().default(false),
+  /** Where the provider sends people back, to register with it. Null without PUBLIC_URL. Read only. */
+  ssoCallbackUrl: z.string().nullable().default(null),
   /**
    * Whether members can make public links to albums, playlists and songs. Off, every link
    * answers 404 but is kept, so turning it back on brings them back.
@@ -146,6 +168,17 @@ export const UpdateServerSettings = z.object({
   importMaxActivePerUser: z.number().int().min(1),
   wantlistEnabled: z.boolean(),
   sonicAnalysisEnabled: z.boolean(),
+  ssoEnabled: z.boolean(),
+  ssoName: z.string().trim().min(1).max(40),
+  ssoIssuerUrl: HttpUrl.nullable(),
+  ssoClientId: z.string().trim().min(1).max(200).nullable(),
+  ssoScopes: z.string().trim().max(200).refine((scopes) => scopes.split(/\s+/).includes('openid'), 'Include the openid scope'),
+  ssoUsernameClaim: z.string().trim().min(1).max(100),
+  ssoGroupsClaim: z.string().trim().min(1).max(100),
+  ssoAllowedGroups: z.string().max(2000),
+  ssoAutoCreateUsers: z.boolean(),
+  passwordLoginDisabled: z.boolean(),
+  ssoClientSecret: z.string().nullable(),
   sharingEnabled: z.boolean(),
   sharePlayback: SharePlayback,
   listenBrainzToken: z.string().nullable(),

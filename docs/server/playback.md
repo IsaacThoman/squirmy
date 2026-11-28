@@ -50,22 +50,37 @@ Completed conversions are kept in `<data>/transcodes/`, so the second play of a 
 
 Albums are mastered at very different levels. Normalization evens them out so you do not reach for the volume between songs.
 
-**What is measured.** Each file's integrated loudness and true peak are measured with ffmpeg's EBU R128 filter, in the background at low priority. The same decode records the exact number of audio frames and the source's encoder delay and trailing padding as reported by ffmpeg. The server decodes the tracks of an album one at a time into a continuous measurement. The album true peak is the highest of the track true peaks. The target is -18 LUFS, the ReplayGain reference.
+**What is measured.** Each file's integrated loudness and true peak are measured with ffmpeg's EBU R128 filter, in the background at low priority. The same decode records the exact number of audio frames and the source's encoder delay and trailing padding as reported by ffmpeg. The server decodes the tracks of an album one at a time into a continuous measurement. The album true peak is the highest of the track true peaks. The gains the server sends bring each song to -18 LUFS, the ReplayGain reference; your target loudness (below) moves them from there.
 
 **While a file awaits measurement.** The server uses its ReplayGain tags when present. Without tagged gains, the track gain is estimated from the median track gain of the library, when available. Streaming the track moves its measurement ahead of the background queue. Playback descriptors requested after measurement carry the track's own gain.
 
 **Decode failures.** After retries, the server records the error for the file and clears its measured gains and exact length, along with its release's album measurement. The next scan that detects a change to the file retries measurement. Check the failed `loudness.measure` job when investigating an unreadable file.
 
-**The modes**, per user in **Settings → Playback → Volume normalization** (web) or **Normalize Volume** (iOS):
+**The modes**, per user in **Settings → Playback → Volume normalization** (web) or **Volume Normalization** (iOS and Apple TV):
 
-| Mode (web / iOS) | Gain used |
+| Mode | Gain used |
 |---|---|
 | **Automatic** (default) | The album's gain when you play an album in order; each song's own gain otherwise (playlists, shuffle, radio). |
-| **Per song** / **Track** | Each song's own gain. |
-| **Per album** / **Album** | The album's gain, falling back to the song's. |
+| **Per song** | Each song's own gain. |
+| **Per album** | The album's gain, falling back to the song's. |
 | **Off** | None. |
 
-**How clients apply it.** The gain is applied on the device and capped using the peak for the selected gain. If the chosen gain is unavailable, clients try the other gain. When neither is available, playback uses the current volume with no normalization adjustment. The web app can raise quiet tracks as well as lower loud ones. The iOS app can only lower volume.
+**Target loudness**, per user beside the mode (**Target loudness** on the web, **Target Loudness** on iOS and Apple TV, shown while normalization is on), is how loud normalized songs play:
+
+| Target | Loudness | Gain against the server's |
+|---|---|---|
+| **Loud** | -14 LUFS, about as loud as most streaming services | +4 dB |
+| **Medium** | -16 LUFS | +2 dB |
+| **Standard** (default) | -18 LUFS, the ReplayGain reference | none |
+| **Quiet** | -23 LUFS, broadcast level (EBU R 128) | -5 dB |
+
+A louder target turns more songs up, and a quiet song turned up can have peaks above full scale.
+
+**How clients apply it.** The gain is applied on the device. If the chosen gain is unavailable, clients try the other gain. When neither is available, playback uses the current volume with no normalization adjustment. What happens to a song that needs turning up depends on the device:
+
+- **iOS and Apple TV with the Native engine** turn songs up as far as the target asks. A true-peak limiter at the end of the engine keeps every peak, between samples too, under -1 dBTP: it turns down over 1.5 ms ahead of a peak and comes back over 50 to 150 ms. While nothing goes over it does nothing, and the sound passes untouched. With normalization off the engine plays the file as it is. **Track info** says how far the limiter turns the song's loudest peak down, or that it isn't needed.
+- **The web app** turns songs up only as far as the peak of the gain in use allows without clipping. A song whose gain the server estimated (not yet measured, no tags) is not turned up at all, as its peak is unknown.
+- **iOS and Apple TV with the classic engine** only turn songs down: a louder target turns loud songs down less.
 
 ## Listening history
 
@@ -94,6 +109,20 @@ The sleep timer stops playback after a length of time (5, 10, 15, 30 or 45 minut
 - **Playing separately.** When the device that plays [steps out of the session](#devices-and-transferring-playback), the timer goes with it; a device that was not playing starts its own session without one.
 
 Set it from Now Playing: the moon button on the web, the **⋯** menu on iOS ([web](../use/web.md#playing-music), [iOS](../use/ios.md#using-it), [Apple TV](../use/apple-tv.md#now-playing)). Servers older than this feature do not offer it.
+
+## Listening together
+
+**Listen together** lets people with accounts on the same server hear the same music at the same time, each on their own phone, browser or Apple TV. One person hosts: what they play plays for everyone, in step.
+
+- **Starting and inviting.** The host starts it from the devices list ([web](../use/web.md#listening-together), [iOS](../use/ios.md#listening-together)), then shares the invite link or invites people from a list of the server's other users, who get an invite wherever they are signed in. The link works for anyone signed in to this server and only while the session lasts; it is long and random, so it can't be guessed. Nobody outside the server can use it.
+- **Who controls what.** The host plays, pauses, seeks, skips, shuffles and picks what plays. The host chooses who can add songs: **Everyone** (the default) or **Only me**. When everyone can, a member's Play adds the song to the queue for everyone, and members can take back songs they added. Each listener keeps their own volume and chooses which of their own devices plays. Up to 16 people can be in one session.
+- **In step.** Each device plays the music itself, from the same clock on the server, the way a device follows a seek. A member's device that drifts more than about a third of a second (a slow start, a stall) catches up by itself. The first device to reach the end of a song moves everyone on. When the host's device stops (it buffers, or goes away), everyone's clock waits for it; a member's device that stalls catches up and never holds anyone else back.
+- **Who added what.** The queue shows who added each song, with their initials.
+- **Explicit content.** A member who has [explicit content](users.md#explicit-content) off doesn't hear the host's explicit songs: their device stays quiet for that song, says so, and plays along again from the next one, still in step. The song doesn't count as a play for them and isn't sent to their scrobbling services. Members can't add explicit songs for everyone either.
+- **History.** Plays count for each listener, with the usual rules for skips and completed plays (see [Listening history](#listening-history)), and scrobble from each listener's own account.
+- **Leaving.** A member who leaves, or whom the host removes, keeps what was playing, paused where it was. When the host ends the session, everyone's copy pauses the same way, and the host's own music plays on. Joining replaces what the member was playing.
+- **Limits.** A device that [plays separately](#devices-and-transferring-playback) can't join or host; rejoin your other devices first. Only the host's sleep timer works during the session, and it pauses everyone (a timer a member had set ends when they join). Only the host can undo queue edits during the session, and the host's Undo changes the queue for everyone. A server restart keeps the session. Apps from before this feature still follow along in a session, but don't show who is in it, and the server refuses their playback controls while they are a member.
+- **Privacy.** Nothing is shared until someone starts a session. Members see the names of the people in it (display name, else username) and what plays. The invite list shows the server's other users' names to the person inviting.
 
 ## Devices and transferring playback
 
