@@ -7,7 +7,7 @@ import {
 import { librarySave } from '@squirmy/client-core';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { Platform, useWindowDimensions } from 'react-native';
-import { useWantlistEnabled } from '../account/AccountProvider';
+import { useSharingEnabled, useWantlistEnabled } from '../account/AccountProvider';
 import { useLiked, useLikeFailure, useWanted, useWantFailure } from '../data/library';
 import { useRealtime } from '../data/realtime';
 import { useCanPlay, useTrackDownload, useViewer } from '../downloads/DownloadsProvider';
@@ -129,6 +129,7 @@ const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
   const mark = downloadSymbol(download);
   const loading = useTrackLoading(track.id);
   const wantlist = useWantlistEnabled();
+  const sharing = useSharingEnabled();
   const wanted = useWanted(track.id);
   const wantFailure = useWantFailure(track.id);
   const viewer = useViewer();
@@ -142,7 +143,7 @@ const SongRow = memo(function SongRow({ item, run, handlers }: RowProps) {
   const rowFrame = measuresRows ? frame({ minHeight: rowHeight }) : frame({ height: rowHeight });
   const options = { playlist: playlist && { ...playlist, onRemove: handlers.remove }, album, artist };
   // Described from what the row already reads; nothing runs until an item is chosen.
-  const actions = trackActions(track, { liked, likeFailure, playable, offline, current: playing, download, onItsOwn, wantlist, wanted, wantFailure, viewer }, options);
+  const actions = trackActions(track, { liked, likeFailure, playable, offline, current: playing, download, onItsOwn, wantlist, wanted, wantFailure, viewer, sharing }, options);
   const heart = heartButton(liked, track.title, likeFailure);
   const perform = (action: TrackAction) => run(track, action, options);
 
