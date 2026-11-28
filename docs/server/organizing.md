@@ -94,3 +94,5 @@ For each file:
 Any failed check deletes the copy, leaves the original untouched, and records the reason on the move.
 
 MusicBrainz ids are written only for albums identified against MusicBrainz. ReplayGain values come from Squirmy's own loudness measurements, relative to -18 LUFS.
+
+To edit the tags in an album’s managed files directly, use [Edit tags](./library.md#edit-album-tags) from the album menu.
