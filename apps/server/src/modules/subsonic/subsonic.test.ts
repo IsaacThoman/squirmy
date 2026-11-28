@@ -4,7 +4,7 @@
  * audio tests with real files are in media.test.ts.
  */
 import { randomUUID } from 'node:crypto'
-import { COMMAND_TRACK_LIMIT, PLAYLIST_ITEM_LIMIT } from '@squirmy/contracts'
+import { COMMAND_TRACK_LIMIT, PLAYLIST_ITEM_LIMIT, type SessionCommand } from '@squirmy/contracts'
 import { eq } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -19,8 +19,10 @@ import { createAppPassword } from '../auth/service.js'
 import { listHistory } from '../userdata/history.js'
 import { likeEntity, listLikes } from '../userdata/likes.js'
 import { addPlaylistItems, createPlaylist, getPlaylist } from '../userdata/playlists.js'
+import { updateUserSettings } from '../userdata/settings.js'
 import { similarArtists } from '../radio/index.js'
 import { getSnapshot } from '../sessions/index.js'
+import { greet, leave, runCommand } from '../sessions/service.js'
 import { folderId } from './ids.js'
 import { extensions } from './handlers/system.js'
 import { methodNames } from './endpoints.js'
@@ -487,7 +489,7 @@ describe('subsonic', () => {
       expect(await kai.client.error('scrobble', { id: song(blueHour, 1), time: at * 1000 })).toBe(0)
     })
 
-    it('shows what others are playing with the stars, ratings and play counts of whoever asks', async () => {
+    it('shares Subsonic announcements only while opted in, with annotations for the viewer', async () => {
       const ren = await person('ren4')
       const ash = await person('ash4')
       await ren.client.call('star', { id: song(blueHour, 2) })
@@ -495,13 +497,44 @@ describe('subsonic', () => {
       await ren.client.json('scrobble', { id: song(blueHour, 2), time: Date.parse('2026-03-01T12:00:00Z') })
       await ren.client.call('scrobble', { id: song(blueHour, 2), submission: false })
 
+      expect((await ash.client.call('getNowPlaying')).nowPlaying.entry).toEqual([])
+      expect((await mira.client.call('getNowPlaying')).nowPlaying.entry).toEqual([])
+      const own = (await ren.client.call('getNowPlaying')).nowPlaying.entry.find((entry: { username: string }) => entry.username === 'ren4')
+      expect(own).toMatchObject({ id: song(blueHour, 2), playCount: 1, userRating: 5, starred: expect.any(String) })
+
+      await updateUserSettings(ren.id, { shareNowPlaying: true })
       const seen = (await ash.client.call('getNowPlaying')).nowPlaying.entry.find((entry: { username: string }) => entry.username === 'ren4')
       expect(seen).toMatchObject({ id: song(blueHour, 2), playCount: 0 })
       expect(seen).not.toHaveProperty('starred')
       expect(seen).not.toHaveProperty('userRating')
       expect(seen).not.toHaveProperty('played')
-      const own = (await ren.client.call('getNowPlaying')).nowPlaying.entry.find((entry: { username: string }) => entry.username === 'ren4')
-      expect(own).toMatchObject({ id: song(blueHour, 2), playCount: 1, userRating: 5, starred: expect.any(String) })
+      await updateUserSettings(ren.id, { shareNowPlaying: false })
+      expect((await ash.client.call('getNowPlaying')).nowPlaying.entry).toEqual([])
+      const privateResponse = await ren.client.raw('getNowPlaying')
+      expect(privateResponse.headers['cache-control']).toBe('private, no-store')
+      expect(privateResponse.body).toContain('username="ren4"')
+    })
+
+    it('also applies sharing to live Squirmy playback', async () => {
+      const listener = await person('native-player')
+      const device = { id: 'native-device', name: 'My iPhone', kind: 'ios' } as const
+      await greet(listener.id, 'native-socket', { device, canPlay: true, detached: false }, () => {})
+      const command = (command: SessionCommand) =>
+        runCommand(listener.id, device.id, { commandId: randomUUID(), command }, (ack) => expect(ack.ok).toBe(true))
+      try {
+        await command({ type: 'playTracks', seed: 0, tracks: [{ trackId: blueHour.tracks[0]!.recordingId, durationMs: 180_000 }] })
+        expect((await listener.client.call('getNowPlaying')).nowPlaying.entry).toEqual([
+          expect.objectContaining({ id: song(blueHour, 0), playerName: 'My iPhone' }),
+        ])
+        expect((await lune.client.call('getNowPlaying')).nowPlaying.entry).toEqual([])
+        await updateUserSettings(listener.id, { shareNowPlaying: true })
+        expect((await lune.client.call('getNowPlaying')).nowPlaying.entry).toEqual([
+          expect.objectContaining({ id: song(blueHour, 0), username: listener.username, playerName: 'My iPhone' }),
+        ])
+      } finally {
+        await command({ type: 'pause' })
+        leave(listener.id, 'native-socket', device.id)
+      }
     })
   })
 
