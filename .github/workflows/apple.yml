@@ -72,3 +72,18 @@ jobs:
             -destination "generic/platform=${{ matrix.platform }}" \
             CODE_SIGNING_ALLOWED=NO \
             build
+
+  audio-engine:
+    # The native audio engine's core (decoders, byte cache, timeline, feed loop) needs no app:
+    # it runs on macOS, which has the same AVFoundation and AudioToolbox, against committed fixtures.
+    name: Audio engine core tests
+    runs-on: xcode-27
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run swift test
+        run: swift test --package-path apps/mobile/modules/audio-engine/core

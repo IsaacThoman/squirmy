@@ -12,7 +12,8 @@ module.exports = ({ config }) => {
   const development = variant === 'development';
   // Xcode's bundling phase does not pass EXPO_TV on, but names the platform it builds for.
   const tv = process.env.EXPO_TV === '1' || /^appletv/.test(process.env.PLATFORM_NAME ?? '');
-  const plugins = [...config.plugins, ['expo-dev-client', { addGeneratedScheme: false }]];
+  // The native audio engine's Info.plist keys, for the phone and the TV alike.
+  const plugins = [...config.plugins, ['expo-dev-client', { addGeneratedScheme: false }], './modules/audio-engine/app.plugin.js'];
 
   if (tv) {
     return {
