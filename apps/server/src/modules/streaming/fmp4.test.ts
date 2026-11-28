@@ -137,6 +137,7 @@ describe('fragmented MP4 delivery', () => {
   it.each([
     { profile: 'flac_mp4', query: 'codecs=aac,flac&engine=native', input: 'alac', rate: 44100, priming: 0, packet: 0 },
     { profile: 'opus_mp4_192', query: 'quality=high&codecs=opus,flac', input: 'flac', rate: 48000, priming: 312, packet: 960 },
+    { profile: 'opus_mp4_192', query: 'quality=high&codecs=opus', input: 'm4a', rate: 48000, priming: 312, packet: 960 },
     { profile: 'opus_mp4_96', query: 'quality=data_saver&codecs=opus,flac', input: 'flac', rate: 48000, priming: 312, packet: 960 },
     { profile: 'aac_mp4_256', query: 'quality=high&codecs=aac,flac', input: 'flac', rate: 44100, priming: 1024, packet: 1024 },
     { profile: 'aac_mp4_128', query: 'quality=data_saver&codecs=aac,flac', input: 'flac', rate: 44100, priming: 1024, packet: 1024 },
@@ -144,14 +145,14 @@ describe('fragmented MP4 delivery', () => {
     { profile: 'copy_mp4', query: 'codecs=aac,flac', input: 'm4a', rate: 44100, priming: 1024, packet: 1024 },
     { profile: 'copy_mp4', query: 'codecs=aac,mp3_mp4', input: 'mp3', rate: 44100, priming: 1105, packet: 1152 },
   ])('joins $input halves through $profile, live and cached', async ({ profile, query, input, rate, priming, packet }) => {
-    const { tracks, fixture, lengths } = input === 'm4a' ? aac : input === 'mp3' ? mp3 : input === 'alac' ? alac : flac
+    const { tracks, fixture } = input === 'm4a' ? aac : input === 'mp3' ? mp3 : input === 'alac' ? alac : flac
     const reference = await decode(fixture.whole, rate)
     const expectedBoundary = Math.round(fixture.frames[0] * rate / fixture.rate)
     const tolerance = rate === fixture.rate ? 0 : 1
     const joinedFrames = { live: 0, cached: 0 }
     for (const [index, track] of tracks.entries()) {
       const playback = await descriptor(track.recordingId, query)
-      const frames = Math.ceil(lengths[index]! * rate / fixture.rate)
+      const frames = Math.ceil(fixture.frames[index]! * rate / fixture.rate)
       expect(playback).toMatchObject({ profile, mime: 'audio/mp4', bytes: null, gapless: { sampleRate: rate, primingFrames: priming, frames } })
       const live = await app.inject({ url: playback.url })
       expect(live.statusCode).toBe(200)
@@ -187,11 +188,11 @@ describe('fragmented MP4 delivery', () => {
         const trimmed = decoded.subarray(delay * 2, (delay + frames) * 2)
         joinedFrames[kind] += trimmed.length / 2
         expect(Math.abs(lag(trimmed, 512, reference, (index ? expectedBoundary : 0) + 512))).toBeLessThanOrEqual(tolerance)
-        const end = Math.min(frames, Math.ceil(fixture.frames[index]! * rate / fixture.rate)) - 2048
+        const end = frames - 2048
         expect(Math.abs(lag(trimmed, end, reference, (index ? expectedBoundary : 0) + end))).toBeLessThanOrEqual(tolerance)
       }
     }
-    const uncutFrames = input === 'm4a' ? lengths[0]! + lengths[1]! : reference.length / 2
+    const uncutFrames = reference.length / 2
     expect(Math.abs(joinedFrames.live - uncutFrames)).toBeLessThanOrEqual(tolerance)
     expect(Math.abs(joinedFrames.cached - uncutFrames)).toBeLessThanOrEqual(tolerance)
   })

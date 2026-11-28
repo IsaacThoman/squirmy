@@ -14,6 +14,7 @@ import { AppError, badRequest } from '../../lib/errors.js'
 import { audioInput } from '../../lib/ffmpeg.js'
 import { newId } from '../../lib/ids.js'
 import { libraryPath, serveFile, withLibraryFile, type StreamRequest, type StreamResponse } from './files.js'
+import { fragmentedSourceFrames } from './gapless.js'
 import { rewritePacketDurations } from './mp4.js'
 import { codecFamily, fragmentedEncoder, isFragmented, mp4Options, outputBitDepth, outputSampleRate, profiles, sourceSampleRate, type MediaFile, type TranscodeProfile } from './profiles.js'
 
@@ -154,6 +155,7 @@ class Transcode {
     try {
       signal.throwIfAborted()
       const input = await libraryPath(this.file)
+      const frames = fragmentedEncoder(this.profile) ? await fragmentedSourceFrames(this.file, input) : null
       signal.throwIfAborted()
       const target = path.join(cacheRoot(), storagePath)
       if (!this.seek) {
@@ -170,7 +172,8 @@ class Transcode {
       signal.throwIfAborted()
 
       const remuxSeek = this.profile === 'copy_mp4' && this.seek
-      const child = spawn(getConfig().FFMPEG_PATH, ffmpegArgs(input, this.file, this.profile, this.seek), {
+      const trimAt = frames !== null && frames !== this.file.decodedFrames ? frames : undefined
+      const child = spawn(getConfig().FFMPEG_PATH, ffmpegArgs(input, this.file, this.profile, this.seek, trimAt), {
         stdio: remuxSeek ? ['ignore', 'pipe', 'pipe', 'pipe'] : ['ignore', 'pipe', 'pipe'],
       })
       this.child = child
@@ -340,7 +343,7 @@ export const transcoderBusy = () => new AppError(503, 'transcoder_busy', 'Too ma
  * whitelist of tags taken from the database rather than whatever the source carries,
  * written to stdout so every byte is final the moment it is produced.
  */
-function ffmpegArgs(input: string, file: MediaFile, profile: TranscodeProfile, seek?: Seek): string[] {
+function ffmpegArgs(input: string, file: MediaFile, profile: TranscodeProfile, seek?: Seek, trimAt?: number): string[] {
   const tags = file.tags
   const metadata: [string, string | number | undefined][] = [
     ['title', tags.title],
@@ -355,6 +358,17 @@ function ffmpegArgs(input: string, file: MediaFile, profile: TranscodeProfile, s
   const sampleRate = outputSampleRate(file, profile)
   const copy = profile === 'copy_mp4'
   const remuxSeek = copy && seek
+  const filters: string[] = []
+  if (trimAt !== undefined) {
+    const inputRate = file.decodedRate!
+    const first = Math.round((seek?.seconds ?? 0) * inputRate)
+    if (seek && sampleRate && seek.frame >= Math.ceil(trimAt * sampleRate / inputRate)) {
+      throw badRequest('The seek starts beyond the end of the track', 'invalid_start')
+    }
+    filters.push(`atrim=end_sample=${trimAt - first}`)
+  }
+  if (seek?.trimFrames) filters.push(`aresample=${sampleRate}`, `atrim=start_sample=${seek.trimFrames}`)
+  if (filters.length) filters.push('asetpts=PTS-STARTPTS')
   // With copyts, the side muxer reports where the first packet sits on the source
   // timeline even though the MP4 muxer rebases the fragment timestamps to zero.
   const muxer = remuxSeek ? [
@@ -368,7 +382,7 @@ function ffmpegArgs(input: string, file: MediaFile, profile: TranscodeProfile, s
     '-map', '0:a:0', '-vn', '-sn', '-dn', '-map_metadata', '-1', '-map_chapters', '-1',
     ...metadata.flatMap(([key, value]) => value === undefined || value === '' ? [] : ['-metadata', `${key}=${value}`]),
     ...(sampleRate && !copy ? ['-ar', String(sampleRate)] : []),
-    ...(seek?.trimFrames ? ['-af', `aresample=${sampleRate},atrim=start_sample=${seek.trimFrames},asetpts=PTS-STARTPTS`] : []),
+    ...(filters.length ? ['-af', filters.join(',')] : []),
     ...(profile === 'flac_mp4' ? ['-sample_fmt', outputBitDepth(file, profile) === 16 ? 's16' : 's32'] : []),
     ...(copy && codecFamily(file) === 'aac' ? ['-bsf:a', 'aac_adtstoasc'] : []),
     ...muxer,

@@ -6,7 +6,8 @@ import { sign, verify } from '../../lib/crypto.js'
 import { notFound } from '../../lib/errors.js'
 import { resolveOne } from '../catalog/redirects.js'
 import { normalizationFor } from '../loudness/normalization.js'
-import { codecFamily, fragmentedEncoder, mimeFor, outputBitDepth, outputSampleRate, parseCodecs, profiles } from './profiles.js'
+import { fragmentedSourceFrames } from './gapless.js'
+import { codecFamily, fragmentedEncoder, isFragmented, mimeFor, outputBitDepth, outputSampleRate, parseCodecs, profiles } from './profiles.js'
 import { selectFile } from './select.js'
 import { readyTranscode } from './transcode.js'
 
@@ -78,8 +79,9 @@ export async function buildPlaybackDescriptor(userId: string, recordingId: strin
       bytes: file.size,
     },
   }
-  const sourceGapless = file.decodedFrames !== null && file.decodedRate !== null && file.primingFrames !== null
-    ? { sampleRate: file.decodedRate, primingFrames: file.primingFrames, frames: file.decodedFrames }
+  const frames = isFragmented(profile) ? await fragmentedSourceFrames(file) : file.decodedFrames
+  const sourceGapless = frames !== null && file.decodedRate !== null && file.primingFrames !== null
+    ? { sampleRate: file.decodedRate, primingFrames: file.primingFrames, frames }
     : null
   if (profile === 'original') {
     return {
