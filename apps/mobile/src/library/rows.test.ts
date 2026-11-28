@@ -1,6 +1,6 @@
 import type { TrackSummary } from '@squirmy/contracts';
 import { describe, expect, it } from 'vitest';
-import { chunk, pressVerb, sameRow, songRows } from './rows';
+import { chunk, endThreshold, nearListEnd, pressVerb, sameRow, songRows } from './rows';
 
 const track = (id: string, position: number | null = null) => ({ id, position } as TrackSummary);
 
@@ -46,5 +46,16 @@ describe('chunk', () => {
 describe('pressVerb', () => {
   it('says the current song pauses or resumes, and any other plays', () => {
     expect([pressVerb('playing'), pressVerb('paused'), pressVerb(null)]).toEqual(['Pause', 'Resume', 'Play']);
+  });
+});
+
+describe('nearListEnd', () => {
+  it('asks for the next page once the bottom of the screen is within the threshold of the end', () => {
+    const content = 10_000;
+    const visible = 800;
+    expect(nearListEnd(content - visible - endThreshold - 1, visible, content)).toBe(false);
+    expect(nearListEnd(content - visible - endThreshold + 1, visible, content)).toBe(true);
+    // A list shorter than the threshold is near its end from the start.
+    expect(nearListEnd(0, visible, 1_000)).toBe(true);
   });
 });

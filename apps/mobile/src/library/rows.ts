@@ -1,5 +1,6 @@
 import type { TrackSummary } from '@squirmy/contracts';
 import { useMemo, useRef, type ReactElement } from 'react';
+import type { SharedValue } from 'react-native-reanimated';
 import type { SongListProps } from './SongList';
 
 /** One row of a song list. It holds no callbacks, so a row redraws only when its own data changes. */
@@ -38,6 +39,32 @@ export type SongListItems = {
   renderItem: (info: { item: SongRowItem }) => ReactElement;
   keyExtractor: (item: SongRowItem) => string;
   rowHeight: number;
+};
+
+/** How close to the end of a list, in points, its next page starts loading. */
+export const endThreshold = 900;
+
+/** Whether a list scrolled to `offset`, showing `visible` of its `content` points, is near its end. */
+export function nearListEnd(offset: number, visible: number, content: number) {
+  'worklet';
+  return visible + offset > content - endThreshold;
+}
+
+/** A page that is mostly a long list of songs: Liked Songs, a playlist, a mix. */
+export type LongSongListProps = {
+  songs: SongListProps;
+  /** Scrolls above the rows: the page's cover, title, buttons and the songs' heading. */
+  header: ReactElement;
+  /** Under the rows, such as a spinner while the next page loads. */
+  footer?: ReactElement | false;
+  /** Called as the end of the rows comes near, to load the next page. */
+  onEndReached?: () => void;
+  /** Set to the list's scroll offset on the UI thread, for the page's status bar edge and its overscroll fill. */
+  scrollOffset: SharedValue<number>;
+  /** Space under the last row, for the mini-player and the tab bar. */
+  bottomInset: number;
+  /** The rows' inset from each side of the screen. */
+  inset: number;
 };
 
 export function songRows({ tracks, numbered, playlist, album, artist, kind, opens = false }: Pick<SongListProps, 'tracks' | 'numbered' | 'playlist' | 'album' | 'artist' | 'kind'> & {
