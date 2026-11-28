@@ -21,13 +21,10 @@ import { uuidArray } from './sql.js'
 
 const tierRank: Record<AudioTier, number> = { hi_res_lossless: 0, lossless: 1, lossy: 2 }
 
-/** The tier of a file with these facts: the same line client-core's quality badge draws. */
-export function fileTier(file: { lossless: boolean; sampleRate: number | null; bitDepth: number | null }): AudioTier {
-  if (!file.lossless) return 'lossy'
-  return (file.sampleRate ?? 0) > 48_000 || (file.bitDepth ?? 0) > 16 ? 'hi_res_lossless' : 'lossless'
-}
-
-/** SQL for `fileTier` of a `media_files` row (alias given). */
+/**
+ * SQL for the tier of a `media_files` row (alias given): the line client-core's quality
+ * badge draws, lossless above 48 kHz or 16 bits being hi-res.
+ */
 export function tierOf(file: string): SQL {
   return sql.raw(`(case when ${file}.lossless and (coalesce(${file}.sample_rate, 0) > 48000 or coalesce(${file}.bit_depth, 0) > 16) then 'hi_res_lossless'
     when ${file}.lossless then 'lossless' else 'lossy' end)`)
@@ -179,7 +176,7 @@ export async function albumVersions(albumId: string): Promise<AlbumVersions> {
 }
 
 /** Which of two versions is the better copy: complete, then tier, then more songs, then bitrate. */
-export function betterVersion(a: AlbumVersion, b: AlbumVersion): number {
+function betterVersion(a: AlbumVersion, b: AlbumVersion): number {
   const complete = (version: AlbumVersion) => (version.trackCount > 0 && version.ownedTrackCount >= version.trackCount ? 0 : 1)
   return complete(a) - complete(b)
     || tierRank[a.quality.tier] - tierRank[b.quality.tier]

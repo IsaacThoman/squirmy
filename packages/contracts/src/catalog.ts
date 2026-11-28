@@ -239,7 +239,7 @@ export type TrackVersion = z.infer<typeof TrackVersion>
 /** `GET /tracks/:id/versions`: every version of the song the server holds, for Track info. */
 export const TrackVersions = z.object({
   trackId: Id,
-  /** Best first: the order the server picks in when the user has picked nothing. */
+  /** The album asked about first, then the best tier first. */
   versions: z.array(TrackVersion),
   /** The user's pick for this song (`PUT /me/versions/track/:id`), or null for Automatic. */
   versionId: VersionId.nullable(),
