@@ -59,7 +59,7 @@ async function playableArtistTracks(userId: string, artistId: string, requester:
       )
       and r.merged_into_id is null
       ${requester ? sql`` : sql`and ${recordingOwned('r.id')}`}
-    order by (select count(*) from plays p where p.user_id = ${userId} and p.recording_id = r.id) desc,
+    order by (select count(*) from plays p where p.user_id = ${userId} and p.recording_id = r.id and not p.skipped) desc,
       exists (select 1 from likes l where l.user_id = ${userId} and l.entity_type = 'recording' and l.entity_id = r.id) desc,
       ${recordingOwned('r.id')} desc,
       r.popularity desc nulls last,
