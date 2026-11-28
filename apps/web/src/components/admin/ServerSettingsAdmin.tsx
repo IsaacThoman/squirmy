@@ -92,6 +92,9 @@ export function ServerSettingsAdmin({ settings, failure, managedRoots, onSave, s
           <Row htmlFor="grace-days" label="Keep missing files for" description="An unmounted drive does not empty the library during this time.">
             <DraftField id="grace-days" field="missingFileGraceDays" value={settings.missingFileGraceDays} schema={UpdateServerSettings} onSave={onSave} type="number" inputMode="numeric" className="w-24 text-right" unit="days" />
           </Row>
+          <Row label="Check file health every" description="Days between background audio integrity checks. Set to 0 to turn off automatic checks.">
+            <DraftField id="health-days" field="fileHealthIntervalDays" value={settings.fileHealthIntervalDays} schema={UpdateServerSettings} onSave={onSave} type="number" inputMode="numeric" className="w-24 text-right" unit="days" />
+          </Row>
         </Section>
 
         <ImportSettings settings={settings} managedRoots={managedRoots} onSave={onSave} />

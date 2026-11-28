@@ -2,7 +2,7 @@ import { stat } from 'node:fs/promises'
 import path from 'node:path'
 import { parseFile } from 'music-metadata'
 import { eq } from 'drizzle-orm'
-import { db } from '../../database/client.js'
+import { db, type Transaction } from '../../database/client.js'
 import { libraryRoots, mediaFiles, type FileTags } from '../../database/schema.js'
 import { enqueue } from '../../jobs/index.js'
 import { runFfprobe } from '../../lib/ffmpeg.js'
@@ -59,8 +59,18 @@ async function read(file: string, size: number): Promise<Probed | string> {
  * A file nothing can read gets `probe_error` and is left alone until it changes on disk;
  * the job does not fail, so it is not retried.
  */
-export async function probeFile({ fileId }: ProbeJob) {
-  const [row] = await db.select({ file: mediaFiles, rootPath: libraryRoots.path }).from(mediaFiles)
+export async function probeFile(job: ProbeJob) {
+  await probe(job)
+}
+
+/** A verified edit preserves the known audio hash. Commit the new groups together. */
+export function probeTagEdit(job: ProbeJob, tx: Transaction, rematch: boolean) {
+  return probe(job, { tx, rematch })
+}
+
+async function probe({ fileId }: ProbeJob, edit?: { tx: Transaction; rematch: boolean }) {
+  const executor = edit?.tx ?? db
+  const [row] = await executor.select({ file: mediaFiles, rootPath: libraryRoots.path }).from(mediaFiles)
     .innerJoin(libraryRoots, eq(libraryRoots.id, mediaFiles.rootId))
     .where(eq(mediaFiles.id, fileId))
   if (!row || row.file.missingSince) return
@@ -71,17 +81,17 @@ export async function probeFile({ fileId }: ProbeJob) {
   if (!info?.isFile()) return
   const mtime = new Date(Math.floor(info.mtimeMs))
   const unchanged = file.probeStage >= 1 && file.size === info.size && file.mtime.getTime() === mtime.getTime()
-  if (unchanged && file.tagVersion >= TAG_VERSION) return
+  if (!edit && unchanged && file.tagVersion >= TAG_VERSION) return
 
   const probed = await read(absolute, info.size)
   if (typeof probed === 'string') {
-    await db.update(mediaFiles).set({ probeError: probed, size: info.size, mtime, updatedAt: new Date() }).where(eq(mediaFiles.id, fileId))
-    reportProbeProgress(file.rootId)
-    return
+    await executor.update(mediaFiles).set({ probeError: probed, size: info.size, mtime, updatedAt: new Date() }).where(eq(mediaFiles.id, fileId))
+    if (!edit) reportProbeProgress(file.rootId)
+    return probed
   }
   const asset = probed.picture ? await storeEmbeddedPicture(fileId, probed.picture) : null
   const groupKey = groupKeyFor(file.rootId, file.relPath, probed.tags)
-  await db.update(mediaFiles).set({
+  await executor.update(mediaFiles).set({
     ...probed.technical,
     size: info.size,
     mtime,
@@ -93,14 +103,15 @@ export async function probeFile({ fileId }: ProbeJob) {
     tagAlbumPeak: probed.gains.albumPeak,
     groupKey,
     tagVersion: TAG_VERSION,
-    probeStage: unchanged ? file.probeStage : 1,
+    probeStage: unchanged || edit ? Math.max(1, file.probeStage) : 1,
+    ...(edit?.rematch && !file.matchLocked ? { matchStatus: 'pending', matchConfidence: null, matchSource: 'tags' } : {}),
     probeError: null,
     updatedAt: new Date(),
   }).where(eq(mediaFiles.id, fileId))
 
   for (const key of new Set([groupKey, file.groupKey])) {
-    if (key) await enqueue('library.ingest', { rootId: file.rootId, groupKey: key }, { singletonKey: key })
+    if (key) await enqueue('library.ingest', { rootId: file.rootId, groupKey: key }, { singletonKey: key, tx: edit?.tx })
   }
-  if (!unchanged || file.probeStage === 1) await enqueue('library.analyze', { fileId }, { singletonKey: fileId, priority: ANALYZE_PRIORITY })
-  reportProbeProgress(file.rootId)
+  if ((!edit && !unchanged) || file.probeStage < 2) await enqueue('library.analyze', { fileId }, { singletonKey: fileId, priority: ANALYZE_PRIORITY, tx: edit?.tx })
+  if (!edit) reportProbeProgress(file.rootId)
 }

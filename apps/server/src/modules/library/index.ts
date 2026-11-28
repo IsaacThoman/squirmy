@@ -4,6 +4,7 @@ import { libraryRoots } from '../../database/schema.js'
 import { schedule } from '../../jobs/index.js'
 import type { ServerModule } from '../types.js'
 import { analyzeFile, type AnalyzeJob } from './analyze.js'
+import { kickHealthCheck, scrubFiles } from './health.js'
 import { ingestGroup, type IngestJob } from './ingest.js'
 import { probeFile, type ProbeJob } from './probe.js'
 import { stopProgress } from './progress.js'
@@ -38,6 +39,9 @@ export const libraryModule: ServerModule = {
     jobs.define('library.purge-missing', {}, async () => {
       await purgeMissing()
     })
+    jobs.define('library.check-health', { timeoutSeconds: 20 * 60, retryLimit: 1 }, scrubFiles)
+    jobs.define('library.health-tick', {}, kickHealthCheck)
+    await schedule('library.health-tick', '* * * * *')
     await schedule('library.scan-all', '0 4 * * *')
     await schedule('library.purge-missing', '30 5 * * *')
   },

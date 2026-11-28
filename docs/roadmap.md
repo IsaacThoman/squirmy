@@ -43,6 +43,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Managed roots: preview, apply, journal, undo (server and API)
 - [x] Admin screens (web): library folders, review queue, Fix match, Organize, users and invites, server settings, jobs
 - [x] Tag writing with verification
+- [x] Admin tag editor, duplicate and bitrate review, and scheduled file health checks
 
 ## 5. OpenSubsonic
 
