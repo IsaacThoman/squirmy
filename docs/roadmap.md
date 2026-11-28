@@ -142,7 +142,7 @@ Designed in [audio-engine.md](./audio-engine.md); each item is a pull request fr
 - [x] W1. Ramped gain changes on the web
 - [x] W2. Gapless web playback through Media Source Extensions (Chromium; Firefox and Safari keep today's engine)
 - [x] W3. Limiter, equalizer and output device on the web
-- [ ] W4. Crossfade on the web
+- [x] W4. Crossfade on the web
 
 ## Deferred
 

@@ -836,6 +836,22 @@ describe('SessionClient engine', () => {
     expect(context.calls('preload').at(-1)?.[1]).toMatchObject({ media: { transcoded: true, gapless } })
   })
 
+  it('says when the preloaded entry is the next song of the album playing, which an engine never crossfades into', async () => {
+    const context = setup()
+    await context.settle()
+    const ALBUM = '00000000-0000-4000-8000-0000000000a1'
+    const album = (...ns: number[]) => seeds(...ns).map(seed => ({ ...seed, albumId: ALBUM }))
+    context.client.dispatch({ type: 'playTracks', tracks: album(1, 2, 3), seed: 1, context: { type: 'album', id: ALBUM, title: 'One' } })
+    await context.settle()
+    expect(context.calls('preload').at(-1)?.[1]).toMatchObject({ continuesAlbum: true })
+    context.client.dispatch({ type: 'playTracks', tracks: album(1, 2, 3), seed: 1, shuffle: true, context: { type: 'album', id: ALBUM, title: 'One' } })
+    await context.settle()
+    expect(context.calls('preload').at(-1)?.[1]).toMatchObject({ continuesAlbum: false })
+    context.client.dispatch({ type: 'playTracks', tracks: album(1, 2, 3), seed: 1, context: { type: 'playlist', id: 'list-1', title: 'Mix' } })
+    await context.settle()
+    expect(context.calls('preload').at(-1)?.[1]).toMatchObject({ continuesAlbum: false })
+  })
+
   it('does nothing with the engine while another device is active', async () => {
     const { server, engine, settle } = setup()
     server.apply({ type: 'playTracks', tracks: seeds(1, 2), seed: 1 }, WEB)
