@@ -87,7 +87,8 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] A song the provider doesn't have is skipped with a light notice and playback goes on; only an outage, or nothing left that is available, stops it (server, web and iOS)
 - [x] Gray out songs a provider lacks before they are played: resolve ahead of the queue and on album pages for `assume_available` providers
 - [x] Replay listening statistics, Year in Review and listening history import and export (web)
-- [x] Scrobbling to ListenBrainz and Last.fm (server, API, mobile and web settings)
+- [x] Scrobbling to ListenBrainz and Last.fm, compatible ListenBrainz destinations and optional two-way heart sync
+- [x] Webhooks, MQTT with Home Assistant discovery and scoped native API tokens
 - [x] Radio and autoplay (server, API, web and iOS, and Subsonic similar songs)
 - [x] A personal Home: Jump back in, daily mixes (Made for you) with their own page, Because you listened to, Your top artists, Rediscover, ordered by the time of day (server, web, iOS and Apple TV; iOS and tvOS not yet checked on a device)
 - [x] Sonic analysis: tempo, key, energy, danceability, intro and outro, and timbre vectors from Squirmy's own DSP; tempo, key and mood tags; Deezer's tempo as a fallback. Radio ranks with it, and the web app has **Songs that sound like this** ([sonic-analysis.md](./server/sonic-analysis.md))
