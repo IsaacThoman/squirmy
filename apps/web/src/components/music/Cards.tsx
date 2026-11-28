@@ -11,6 +11,9 @@ import { cn } from '@/lib/utils'
 import { useLibraryFailure } from '@/player/library-context'
 import { useViewer } from '@/player/on-demand-context'
 import { useAlbumMenu } from '@/player/use-album-menu'
+import { usePlaylistMenu } from '@/player/use-playlist-menu'
+import { endTrackDrag, startCollectionDrag, type CollectionDrag } from '@/lib/drag'
+import { useResultMenus } from './result-menus'
 import { LikedCover, PlaylistCover } from './CollectionArt'
 import { Cover } from './Cover'
 
@@ -31,7 +34,11 @@ type CardProps = {
   prefetch?: PrefetchHandlers
   /** A menu, from the ⋯ button by the title and from a right-click on the card. */
   menu?: CardMenu
+  /** The menu from a right-click (or a long press) alone, with no ⋯ button: cards that never had one keep their look. */
+  contextOnly?: boolean
   pin?: CardPin
+  /** An album or playlist dragged onto a sidebar playlist, the queue or the player brings its songs. */
+  drag?: CollectionDrag
 }
 
 /** What a card's or row's menu offers. `onOpenChange` lets it load what the entries need. */
@@ -104,11 +111,16 @@ function WithMenu({ menu, children }: { menu?: CardMenu; children: ReactNode }) 
 }
 
 /** Artwork, a title and a subtitle, linking to a page. The whole card is the link. */
-function Card({ to, title, subtitle, art, onPlay, want, dimmed, unavailable, round, prefetch, menu: own, pin }: CardProps) {
+function Card({ to, title, subtitle, art, onPlay, want, dimmed, unavailable, round, prefetch, menu: own, contextOnly = false, pin, drag }: CardProps) {
   const menu = withPin(own, pin)
   return (
     <WithMenu menu={menu}>
-      <div className={cn('group/card relative flex min-w-0 flex-col', round && 'items-center text-center')}>
+      <div
+        // The card is a link, which the browser lets be dragged; this adds what the app's drop targets read.
+        onDragStart={drag && (event => startCollectionDrag(event, drag))}
+        onDragEnd={drag && endTrackDrag}
+        className={cn('group/card relative flex min-w-0 flex-col', round && 'items-center text-center')}
+      >
         <div className="relative w-full">
           {art}
           <div aria-hidden className={cn('pointer-events-none absolute inset-0 transition-colors duration-150 group-hover/card:bg-black/10', round ? 'rounded-full' : 'rounded-cover')} />
@@ -128,7 +140,7 @@ function Card({ to, title, subtitle, art, onPlay, want, dimmed, unavailable, rou
             {title}
             {unavailable && unavailableName}
           </Link>
-          {menu && <MoreButton title={title} menu={menu} className="-my-1 -mr-1 size-6 [&_svg]:size-4" />}
+          {menu && (!contextOnly || pin) && <MoreButton title={title} menu={menu} className="-my-1 -mr-1 size-6 [&_svg]:size-4" />}
         </div>
         {/*
           * Words, not a target: a press on them belongs to the card's link (its pseudo-element
@@ -201,6 +213,7 @@ export function AlbumCard({ album, onPlay, wanted = false, onWant, subtitle = 'a
       unavailable={dimmed}
       menu={menu}
       pin={pin}
+      drag={{ kind: 'album', id: album.id, title: album.title }}
     />
   )
 }
@@ -208,6 +221,7 @@ export function AlbumCard({ album, onPlay, wanted = false, onWant, subtitle = 'a
 export function ArtistCard({ artist, pin }: { artist: ArtistSummary; pin?: CardPin }) {
   const prefetch = usePrefetch({ kind: 'artist', id: artist.id })
   const viewer = useViewer()
+  const menus = useResultMenus()
   // A requester plays any artist; for others, one with nothing in their library has little that plays.
   const dimmed = !artist.inLibrary && !canFetch(viewer)
   return (
@@ -219,6 +233,8 @@ export function ArtistCard({ artist, pin }: { artist: ArtistSummary; pin?: CardP
       round
       dimmed={dimmed}
       pin={pin}
+      menu={{ entries: menus({ type: 'artist', artist }) }}
+      contextOnly
       art={artist.image ? <Cover artwork={artist.image} round dimmed={dimmed} /> : <Monogram name={artist.name} className={cn(dimmed && 'opacity-55')} />}
     />
   )
@@ -247,6 +263,7 @@ export function PlaylistRow({ playlist, onPlay, className, pin }: { playlist: Pl
 }
 
 export function PlaylistCard({ playlist, onPlay, pin }: { playlist: PlaylistSummary; onPlay?: () => void; pin?: CardPin }) {
+  const menu = usePlaylistMenu(playlist, onPlay)
   return (
     <Card
       to={`/playlist/${playlist.id}`}
@@ -255,6 +272,9 @@ export function PlaylistCard({ playlist, onPlay, pin }: { playlist: PlaylistSumm
       art={<PlaylistCover artworks={playlist.artworks} />}
       onPlay={playlist.trackCount ? onPlay : undefined}
       pin={pin}
+      menu={menu}
+      contextOnly
+      drag={{ kind: 'playlist', id: playlist.id, title: playlist.name }}
     />
   )
 }

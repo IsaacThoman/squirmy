@@ -8,11 +8,12 @@ import { Equalizer } from '@/components/music/Equalizer'
 import { Kbd, Spinner } from '@/components/ui/feedback'
 import { ContextMenu, DropdownMenu, type MenuEntry } from '@/components/ui/menu'
 import { canUploadMusic } from '@/lib/catalog'
-import { draggedTracks } from '@/lib/drag'
+import { draggedMusic, type MusicDrag } from '@/lib/drag'
 import { modKey } from '@/lib/platform'
 import { cn } from '@/lib/utils'
 import { FAILURE_MS, useLibrary } from '@/player/library-context'
 import { usePlayer } from '@/player/player-context'
+import { useDroppedMusic } from '@/player/use-dropped-music'
 import { LogoMark } from './Logo'
 
 type SidebarProps = {
@@ -310,20 +311,23 @@ function PlaylistRow({ to, title, detail, art, playing, entries, collapsed, labe
   const [dropped, setDropped] = useState<Dropped | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
   useEffect(() => () => clearTimeout(timer.current), [])
-  const drop = (tracks: TrackSummary[]) => {
+  const songsOf = useDroppedMusic()
+  // Songs, or an album or playlist card, whose songs load first.
+  const drop = (music: MusicDrag) => {
     clearTimeout(timer.current)
     setDropped({ state: 'pending' })
     const settle = (next: Dropped, ms: number) => {
       setDropped(next)
       timer.current = setTimeout(() => setDropped(null), ms)
     }
-    onDropTracks!(tracks).then(
+    const added = music.kind === 'tracks' ? onDropTracks!(music.drag.tracks) : songsOf(music).then(tracks => onDropTracks!(tracks))
+    added.then(
       () => settle({ state: 'done' }, DROPPED_MS),
       (error: unknown) => settle({ state: 'failed', message: errorMessage(error) }, FAILURE_MS),
     )
   }
   const said = dropped?.state === 'done' ? (to === '/liked' ? 'Saved' : 'Added') : dropped?.state === 'failed' ? (to === '/liked' ? 'Couldn’t save' : 'Couldn’t add') : null
-  const accepts = (event: DragEvent) => Boolean(onDropTracks && draggedTracks(event))
+  const accepts = (event: DragEvent) => Boolean(onDropTracks && draggedMusic(event))
   const link = (
     <NavLink
       to={to}
@@ -337,11 +341,11 @@ function PlaylistRow({ to, title, detail, art, playing, entries, collapsed, labe
       // Moving onto the row's own cover or title is not leaving it.
       onDragLeave={event => { if (!(event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget))) setOver(false) }}
       onDrop={event => {
-        const drag = draggedTracks(event)
+        const music = draggedMusic(event)
         setOver(false)
-        if (!onDropTracks || !drag) return
+        if (!onDropTracks || !music) return
         event.preventDefault()
-        drop(drag.tracks)
+        drop(music)
       }}
       className={cn(
         'flex items-center gap-2 overflow-hidden rounded-lg text-sm text-sidebar-foreground/85 outline-none transition-colors hover:bg-sidebar-accent/60 focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-sidebar-accent aria-[current=page]:font-medium aria-[current=page]:text-sidebar-accent-foreground',

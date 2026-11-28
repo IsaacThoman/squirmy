@@ -1,5 +1,6 @@
 import type { AlbumSummary, PlaybackContext, TrackSummary } from '@squirmy/contracts'
 import type { TrackAction } from '@/components/music/TrackList'
+import type { BatchAction, TrackBatch } from '@/components/music/track-selection'
 import { albumPresentation } from '@/lib/catalog'
 import { useLibrary } from './library-context'
 import { useViewer } from './on-demand-context'
@@ -11,6 +12,8 @@ type TrackActionOptions = {
   /** Rows that may be moved and removed (a playlist the user owns). */
   onMove?: (from: number, to: number) => void
   onRemove?: (index: number) => void
+  /** Removes several rows at once; without it they go one by one through `onRemove`. */
+  onRemoveMany?: (indexes: number[]) => void | Promise<unknown>
 }
 
 /**
@@ -44,7 +47,31 @@ export function useTrackActions(tracks: TrackSummary[], context?: PlaybackContex
     }
   }
 
+  // Several picked rows at once. Saving waits for every save, for the bar to say how it went.
+  const act = (action: BatchAction, indexes: number[]): void | Promise<unknown> => {
+    const picked = indexes.flatMap(index => (tracks[index] ? [tracks[index]] : []))
+    if (!picked.length) return
+    if (action === 'play') return controls.playTracks(picked, 0, context)
+    if (action === 'play-next' || action === 'enqueue') return controls.enqueue(picked, action === 'play-next' ? 'next' : 'last')
+    if (action === 'save' || action === 'unsave') {
+      const saved = action === 'save'
+      return Promise.all(picked.filter(track => track.liked !== saved).map(track => library.setSaved({ type: 'track', id: track.id, title: track.title }, saved)))
+    }
+    if (action === 'remove') {
+      if (options.onRemoveMany) return options.onRemoveMany(indexes)
+      // From the last, so the indexes before it still point where they did.
+      for (const index of [...indexes].sort((a, b) => b - a)) options.onRemove?.(index)
+      return
+    }
+    const playlistId = action.slice('add-to:'.length)
+    const playlist = library.playlists.find(candidate => candidate.id === playlistId)
+    if (playlistId === 'new') library.newPlaylist(picked)
+    else if (playlist) return library.addToPlaylist(playlist, picked)
+  }
+  const batch: TrackBatch = { act, playlists: library.playlists, remove: options.onRemove ? 'playlist' : undefined }
+
   return {
+    batch,
     isWanted: library.wantlistEnabled ? (track: TrackSummary) => library.isWanted(track.id) : undefined,
     playlists: library.playlists,
     onPlay: options.onPlay ?? ((index: number) => controls.playTracks(tracks, index, context)),

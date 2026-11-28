@@ -2,7 +2,7 @@ import { contextLabel } from '@squirmy/client-core'
 import type { Artwork } from '@squirmy/contracts'
 import { ChevronDown, ListMusic, MessageSquareQuote, MonitorSpeaker } from 'lucide-react'
 import { Dialog as DialogPrimitive } from 'radix-ui'
-import { useRef, useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { ArtistLinks } from '@/components/music/ArtistLinks'
 import { Cover } from '@/components/music/Cover'
 import { SaveHeart } from '@/components/music/LibrarySave'
@@ -17,7 +17,7 @@ import { DevicesPopover } from './Devices'
 import { LyricsPane } from './Lyrics'
 import { PlayerStatusLine } from './PlayerStatus'
 import { QueueContent } from './Queue'
-import { SongMenuButton } from './SongMenu'
+import { SongContextMenu, SongMenuButton } from './SongMenu'
 import { SeekBar, TransportButtons, VolumeControl } from './Transport'
 import { useNowPlayingWheel } from './use-now-playing-wheel'
 import './now-playing.css'
@@ -41,7 +41,10 @@ function NowPlayingStage({ player, pane, artwork, onClose }: { player: Player; p
   return (
     <div data-pane={pane} className="now-playing-stage relative grid min-h-0 flex-1 px-6 py-4 md:px-8 lg:px-10 short-landscape:self-stretch short-landscape:py-2">
       <div className="now-playing-art relative flex min-h-0 min-w-0 items-center justify-center [container-type:size]">
-        <Cover artwork={artwork} size={1200} className="size-[min(100cqw,100cqh,34rem)] rounded-xl shadow-[0_32px_80px_-24px_rgb(0_0_0/0.6)]" />
+        {player.state.current
+          // A right-click (or a long press) on the artwork opens the song's menu, as on a row.
+          ? <SongContextMenu track={player.state.current.track} onNavigate={onClose}><div><Cover artwork={artwork} size={1200} className="size-[min(100cqw,100cqh,34rem)] rounded-xl shadow-[0_32px_80px_-24px_rgb(0_0_0/0.6)]" /></div></SongContextMenu>
+          : <Cover artwork={artwork} size={1200} className="size-[min(100cqw,100cqh,34rem)] rounded-xl shadow-[0_32px_80px_-24px_rgb(0_0_0/0.6)]" />}
       </div>
       <div className="now-playing-details relative min-h-0 min-w-0">
         <div data-now-playing-scroll id="now-playing-lyrics" inert={pane !== 'lyrics'} aria-hidden={pane !== 'lyrics'} className="now-playing-pane now-playing-lyrics overflow-clip">
@@ -101,6 +104,7 @@ function NowPlayingContent({ pane, onPaneChange, onOpenChange }: Omit<NowPlaying
   const label = contextLabel(state.context)
   const late = useStillLoading(item?.entry, state.waiting)
   const toggle = (next: NowPlayingPane) => onPaneChange(pane === next ? 'art' : next)
+  const song = (children: ReactNode) => (item ? <SongContextMenu track={item.track} onNavigate={() => onOpenChange(false)}>{children}</SongContextMenu> : children)
   const onToggleLike = () => {
     if (!item) return
     const { id, title, liked } = item.track
@@ -151,7 +155,7 @@ function NowPlayingContent({ pane, onPaneChange, onOpenChange }: Omit<NowPlaying
             <div aria-hidden data-show={pane !== 'art'} className="now-playing-small-cover shrink-0 overflow-clip lg:hidden">
               <Cover artwork={artwork} size={96} className="size-12 max-w-none" />
             </div>
-            <div className="min-w-0 flex-1">
+            {song(<div className="min-w-0 flex-1">
               <h2 className="truncate text-2xl font-semibold tracking-tight">{item?.track.title ?? 'Nothing playing'}</h2>
               {item && (
                 // A line of words, cut short; the song's menu goes to each artist too (`data-inline-links`).
@@ -162,7 +166,7 @@ function NowPlayingContent({ pane, onPaneChange, onOpenChange }: Omit<NowPlaying
                 </p>
               )}
               <PlayerStatusLine status={state.status} className="mt-1 text-sm" />
-            </div>
+            </div>)}
             {/* Named after the song, as in the player bar: never the page's own heart. */}
             {item && <SaveHeart id={item.track.id} liked={item.track.liked} onToggle={onToggleLike} title={item.track.title} size="lg" className="max-md:size-11 pointer-coarse:size-11" />}
             {item && <SongMenuButton track={item.track} onNavigate={() => onOpenChange(false)} size="lg" className="-ml-2 text-foreground max-md:size-11 pointer-coarse:size-11" />}

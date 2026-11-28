@@ -244,11 +244,23 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         })
         picked.set(byName ? latest().session.current?.id ?? null : null)
       },
-      enqueue: (tracks, placement) => {
+      enqueue: (tracks, placement, toIndex) => {
         const seeds = tracks.filter(playable).slice(0, MAX_SEEDS).map(seedOf)
         if (!seeds.length) return
         store.prime(tracks)
-        dispatch({ type: 'enqueue', tracks: seeds, placement })
+        const before = shown(latest().queue.queue)
+        const at = toIndex === undefined ? undefined : Math.max(0, Math.min(toIndex, before.length))
+        // The session adds only before or after Up next; a place between is the moves that follow.
+        dispatch({ type: 'enqueue', tracks: seeds, placement: at === 0 ? 'next' : at === undefined ? placement : 'last' })
+        if (at === undefined || at === 0 || at === before.length) return
+        const known = new Set(latest().queue.queue.map(entry => entry.id))
+        for (const entry of before) known.delete(entry.id)
+        const added = latest().queue.queue.filter(entry => known.has(entry.id))
+        added.forEach((entry, offset) => {
+          const list = latest().queue.queue
+          const target = shown(list)[at + offset]
+          if (target && target.id !== entry.id) dispatch({ type: 'moveInQueue', entryId: entry.id, toIndex: list.indexOf(target) })
+        })
       },
       startRadio,
       playEntry: entryId => {

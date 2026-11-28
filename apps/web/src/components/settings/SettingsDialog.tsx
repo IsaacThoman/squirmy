@@ -46,9 +46,10 @@ const shortcuts: { keys: string[]; action: string }[] = [
   { keys: ['Space'], action: 'Play or pause' },
   { keys: ['←', '→'], action: 'Seek 5 seconds' },
   { keys: ['↑', '↓'], action: 'Volume' },
-  { keys: [`${modKey}K`], action: 'Search' },
+  { keys: [`${modKey}K`], action: 'Search and commands' },
   { keys: [`${modKey}B`], action: 'Show or hide the sidebar' },
   { keys: [`${modKey},`], action: 'Settings' },
+  { keys: ['?'], action: 'All shortcuts' },
 ]
 
 export type SettingsDialogProps = {

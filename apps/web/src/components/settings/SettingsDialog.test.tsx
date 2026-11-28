@@ -410,7 +410,7 @@ describe('SettingsDialog', () => {
       renderSettings({ section: 'about' })
       const shortcuts = Object.fromEntries(screen.getAllByRole('term').map(term => [term.textContent, term.nextElementSibling?.textContent]))
       expect(screen.getByRole('heading', { level: 3, name: 'Keyboard shortcuts' })).toBeInTheDocument()
-      expect(shortcuts).toMatchObject({ Search: `${modKey}K`, 'Show or hide the sidebar': `${modKey}B`, Settings: `${modKey},`, 'Play or pause': 'Space' })
+      expect(shortcuts).toMatchObject({ 'Search and commands': `${modKey}K`, 'All shortcuts': '?', 'Show or hide the sidebar': `${modKey}B`, Settings: `${modKey},`, 'Play or pause': 'Space' })
     })
   })
 })

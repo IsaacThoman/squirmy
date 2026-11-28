@@ -1,8 +1,9 @@
 import type { TrackSummary } from '@squirmy/contracts'
-import { ArrowDown, ArrowUp, Disc3, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, Plus, Radio, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Disc3, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, Play, Plus, Radio, Trash2 } from 'lucide-react'
 import type { MenuEntry } from '@/components/ui/menu'
 import { librarySaveEntry, wantEntry } from './library-save-entry'
 import type { PlaylistChoice, TrackAction } from './TrackList'
+import type { BatchAction } from './track-selection'
 
 export type TrackMenuOptions = {
   unavailable: boolean
@@ -64,6 +65,49 @@ export function trackMenuEntries(track: TrackSummary, { unavailable, wanted, pla
       { label: 'Move up', icon: <ArrowUp />, disabled: reorder.index === 0, onSelect: () => act('move-up') },
       { label: 'Move down', icon: <ArrowDown />, disabled: reorder.index === reorder.count - 1, onSelect: () => act('move-down') },
       { label: 'Remove from playlist', icon: <Trash2 />, danger: true, onSelect: () => act('remove') },
+    ] : []),
+  ]
+}
+
+
+export type SelectionMenuOptions = {
+  /** None of the songs plays here: nothing to play or queue. */
+  unavailable: boolean
+  playlists?: PlaylistChoice[]
+  act: (action: BatchAction) => void | Promise<unknown>
+  /** What Remove takes them out of (the playlist the user owns, the queue); none where they cannot be removed. */
+  remove?: string
+}
+
+/** The words for `count` songs. */
+export const songsLabel = (count: number) => `${count.toLocaleString()} ${count === 1 ? 'song' : 'songs'}`
+
+/**
+ * The menu of several picked songs, from a right-click on one of them and the selection bar's
+ * More: what a song's menu offers that makes sense for many at once.
+ */
+export function selectionMenuEntries(tracks: TrackSummary[], { unavailable, playlists, act, remove }: SelectionMenuOptions): MenuEntry[] {
+  const allSaved = tracks.every(track => track.liked)
+  return [
+    { kind: 'label', label: `${songsLabel(tracks.length)} selected` },
+    { label: 'Play', icon: <Play />, onSelect: () => act('play'), disabled: unavailable },
+    { label: 'Play next', icon: <ListStart />, onSelect: () => act('play-next'), done: 'Playing next', disabled: unavailable },
+    { label: 'Add to queue', icon: <ListEnd />, onSelect: () => act('enqueue'), done: 'Added to queue', disabled: unavailable },
+    ...(playlists ? [{
+      kind: 'submenu' as const,
+      label: 'Add to playlist',
+      icon: <ListPlus />,
+      items: [
+        { label: 'New playlist…', icon: <Plus />, onSelect: () => act('add-to:new') },
+        ...(playlists.length ? [{ kind: 'separator' as const }] : []),
+        ...playlists.map(playlist => ({ label: playlist.name, icon: <ListMusic />, onSelect: () => act(`add-to:${playlist.id}`), done: `Added to ${playlist.name}` })),
+      ],
+    }] : []),
+    { kind: 'separator' },
+    librarySaveEntry({ liked: allSaved }, () => act(allSaved ? 'unsave' : 'save')),
+    ...(remove ? [
+      { kind: 'separator' as const },
+      { label: `Remove from ${remove}`, icon: <Trash2 />, danger: true, onSelect: () => act('remove') },
     ] : []),
   ]
 }

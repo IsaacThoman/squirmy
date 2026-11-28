@@ -29,25 +29,27 @@ Most pages have a bar across the top with the page's name and, on some, links to
 
 - The list is ordered by how well each name matches what you typed and how well known it is: for "tate", Tate McRae comes before an artist named exactly TATE whom few people listen to, but an artist named exactly as you typed still comes before another artist's songs that only share part of a name. Music in your library, and what you play and like, rank higher.
 - **All**, **Songs**, **Albums**, **Artists** and **Playlists** above the list narrow it to one kind. A narrowed list goes on as you scroll (or with **Show more**). If the next part does not load, the list ends with **More results didn’t load** and **Try again**, keeping what it already shows.
-- Click an artist, album or playlist to open it. Click a song to play it on its own: the other songs found are not queued, so when it ends **Autoplay** goes on with similar music (when it is on; otherwise playback stops). A song that cannot be played opens its album instead. The quick search box (Ctrl+K or ⌘K) plays a song the same way.
+- Click an artist, album or playlist to open it. Click a song to play it on its own: the other songs found are not queued, so when it ends **Autoplay** goes on with similar music (when it is on; otherwise playback stops). A song that cannot be played opens its album instead. The search box (Ctrl+K or ⌘K) plays a song the same way.
 - Every row has its menu, from the **⋯** button or a right-click (on a touch screen, tap **⋯**, or hold the row; a swipe that starts on **⋯** scrolls instead): a song's is the one it has everywhere; an album's plays it, queues it, adds it to a playlist, saves it to your library (or removes it) and goes to its artist; an artist's starts a radio and saves the artist to your library (or removes it).
 - Music that plays looks the same whether its file is on your server or not. What you cannot play is gray, sits lower in the list and says **Not available**; when your server has the Wantlist turned on, you can add it to your [wantlist](./wantlist.md) from its menu.
 - **Enter** in the search field opens or plays the best match. ↓ moves from the field into the results, and ↓ and ↑ move from row to row (↑ from the first row goes back to the field); **Enter** opens or plays the row you are on, and Tab reaches its heart and **⋯** button.
-- While you type on, the last results stay up, faded, until the new ones arrive; faded results cannot be opened. Results for a different search, or for another filter, never stand in. Your server's own music answers at once; the catalog search (Deezer by default, or the [local search index](../server/metadata-and-privacy.md#the-local-search-index)) takes a moment longer, so the list waits briefly for it, then shows what it has with a spinner at its end. If the catalog cannot be searched, the page says **Couldn’t search the catalog**, with **Try again**, above your server's music (or says that nothing on your server matches) rather than "No results"; the quick search box says so too. If neither can be searched, the page and the quick search box say so, with **Try again**.
+- While you type on, the last results stay up, faded, until the new ones arrive; faded results cannot be opened. Results for a different search, or for another filter, never stand in. Your server's own music answers at once; the catalog search (Deezer by default, or the [local search index](../server/metadata-and-privacy.md#the-local-search-index)) takes a moment longer, so the list waits briefly for it, then shows what it has with a spinner at its end. If the catalog cannot be searched, the page says **Couldn’t search the catalog**, with **Try again**, above your server's music (or says that nothing on your server matches) rather than "No results"; the search box says so too. If neither can be searched, the page and the search box say so, with **Try again**.
 - What you typed and the filter you chose are in the address, so **Back** from an album or artist returns to the same results, scrolled where you left them.
 
 Before you type, **Recently viewed** shows results you opened or played from Search. Use **×** beside a result to remove it, or **Clear all** to clear the list. Browse-by-genre tiles open your albums filtered to that genre. With neither, the page says what it is for. Recently viewed results are kept in this browser for your account.
 
 Album, artist, and playlist pages show a **Back to** breadcrumb when opened from another browsing page. **Back to Search** restores the same query, filters, and scroll position.
 
-### Quick search
+### Search and commands
 
-Ctrl+K (⌘K on a Mac) opens a search box over whatever page you are on. It searches as you type and lists the first ten results of the search page, in the same order and drawn the same way.
+Ctrl+K (⌘K on a Mac), Ctrl+F (⌘F) or **/** opens a search box over whatever page you are on. It searches as you type and lists the first ten results of the search page, in the same order and drawn the same way. It also runs commands, so most of the app is a few keys away.
 
 - Move through the results with ↑ and ↓ and press Enter, or click one. An artist, album or playlist opens; a song plays, followed by the other songs found. A song that cannot be played opens its album instead.
+- After the music it finds, it lists the best few **Commands and places** that match what you typed, by a few of their letters in order: `shuf` finds **Turn on shuffle**, `lyr` **Show lyrics**. Start with **>** (`>next`) to list commands alone.
+- The commands play or pause, go to the next or previous song, turn shuffle, repeat and Autoplay on or off, mute, save the song playing to your library, start a radio from it, go to its album or artists, show or hide the queue and the lyrics, open Now Playing, [pop out the player](#the-pop-out-player), move playback to another of your devices, clear the queue, start a new playlist, fold the sidebar, open Settings (or one of its sections) and list the keyboard shortcuts. Each says what it would do now (**Pause** while music plays), with its key beside it.
 - The last row, **See all results for "…"**, opens the search page with what you typed. It stays below the results, in sight however many there are.
-- With nothing typed, the box lists places to go: the pages of the sidebar, **Playlists**, **Liked Songs** and, for admins, **Admin panel**.
-- Escape closes it, and the keyboard is back where it was before you opened it.
+- With nothing typed, the box lists places to go (the pages of the sidebar, **Playlists**, **Liked Songs** and, for admins, **Admin panel**), then every command.
+- Escape closes it, and the keyboard is back where it was before you opened it. A second Ctrl+F (⌘F) while it is open is the browser's own Find.
 
 ## Playing music
 
@@ -65,9 +67,46 @@ Nothing pops up over the page to say what happened. What you change shows where 
 
 - **Song menus** (right-click or the **⋯** button): **Play next**, **Add to queue**, **Add to playlist** (or **New playlist…**), **Start radio**, **Save to library** or **Remove from library** (the same as the song's heart), **Go to album** (not on the album's own page), **Go to** each of its artists, and **Add to Wantlist** for music that is not available (when the Wantlist is turned on). You can also drag songs onto a playlist, or onto Liked Songs (which saves them), in the sidebar. Tab reaches the album and artist links in a song's row; a link the row cuts short is left out, and the menu goes to it instead. On a touch screen the menu starts with the song's whole title and artists, which a narrow row cuts short. An album's **Add to playlist** waits until its songs are known. The song playing has the same menu, from the **⋯** beside its heart in **Now Playing**, and so does every song in the queue.
 - **Album menus** (right-click a card or open its **⋯**, or the **⋯** in an album's header): **Play** and **Shuffle**, **Play next**, **Add to queue**, **Add to playlist**, **Save to library** or **Remove from library**, and **Go to** each of its artists.
+- **Other menus.** Right-click (or hold, on a touch screen) an artist's card to start a radio from it, save it to your library or go to it; a playlist's card to play it, queue it, add its songs to another playlist or open it; the song in the player bar, or the artwork or title in **Now Playing**, for that song's menu; and any song in the queue for its menu.
 - **Queue**: laid out as in the iOS app. It opens on the song playing, with the **History** above it (scroll up to see it, oldest first), the **Shuffle**, **Repeat** and **Autoplay** toggles under it, then the songs coming up and the Autoplay suggestions. The songs coming up are headed **Continue Playing** ("From" the album or playlist) while they all come from what is playing, and **Up Next** once you have queued songs yourself. Each list's heading stays at the top while you scroll through it. Click a song coming up to jump to it (the songs above it are skipped, except those you added yourself); drag the song row to reorder it (press and hold on a touchscreen), or focus the song and use the arrow keys. A song's **⋯** opens its menu; for a song coming up, **Play next** and **Move to end** move it rather than adding it again. Drag near the top or bottom to scroll the list; remove songs; **Clear** the queue, or the history (it asks first: a cleared history can't be brought back). How Previous, Shuffle and Repeat treat the list a song was played from is in [The queue](../server/playback.md#the-queue). The queue holds up to 10,000 songs; adding more than fit does nothing. **Autoplay** keeps music going with similar songs when the queue runs out: the same artist, artists like it, and the same genre and era, favoring what you like. If you may fetch music, that includes songs the server doesn't have yet.
 - **Your settings** in **Settings → Playback**: **Volume normalization**, **Streaming quality**, **Cellular quality** (for the iOS app), and **This browser's name**. See [Playback](../server/playback.md).
 - **Settings → Library** has **Show all of this server’s music in your library** (see [Your library](#your-library)) and, for people who may upload, a link to **Your uploads**.
+
+### Working with many songs
+
+In an album, a playlist, Liked Songs, an artist's top songs, your songs and the queue's songs coming up, you can pick several songs and act on them at once, as in a desktop music app:
+
+- With a mouse, click a song to pick it, Ctrl-click (⌘-click on a Mac) to add one or take it out, and Shift-click to pick every song between. Double-click still plays. On the search page and in the queue a click plays a song, so there you pick with Ctrl-click (⌘-click) and Shift-click. From the keyboard, ↑ and ↓ move between songs, Shift with them picks, Ctrl+A (⌘A) picks the whole list and Escape lets go. Pressing anywhere else on the page lets go too. A screen reader hears how many songs are picked.
+- A bar at the bottom of the list says how many songs are picked and has **Play**, **Play next**, **Add to queue**, **Save to library** (or **Remove from library**, when they are all saved), **Add to playlist**, **Go to album** (for one song) and, in a playlist you own, **Remove from playlist**; **⋯** has the same. In the queue the bar has **Move to top**, **Move to end**, **Save to library**, **Add to playlist** and **Remove from queue**. Each button says what it did for a moment (**Added to queue**), and a refusal is said in the bar. Right-click one of the picked songs for the same menu.
+- Drag the picked songs (or one song, or an album's or playlist's card) onto a playlist in the sidebar to add them, onto **Liked Songs** to save them, into the queue to put them where the line shows, or onto the player bar to play them next. The player bar says **Drop to play next** while they are over it, and **Playing next** once they are in. A playlist you own is still reordered by dragging one song within it.
+
+### The pop-out player
+
+In Chrome, Edge and other browsers with Document Picture-in-Picture, **Pop out player** (in the player bar, or under **More player controls** in a narrower window, or from the [search box's commands](#search-and-commands)) opens a small window that stays on top of your other windows, with the artwork, the song, how far it has played, the heart, **Previous**, play or pause and **Next**. Space plays and pauses there too. It follows the app's appearance and theme. Close it from its window or with **Close pop-out player**. Browsers without it (Safari, Firefox) do not offer it.
+
+### Keyboard shortcuts
+
+Press **?** for the list of every shortcut. The main ones (Cmd on a Mac where it says Ctrl):
+
+| Key | Action |
+|---|---|
+| Space | Play or pause |
+| ← / → | Back or forward 5 seconds |
+| Shift+← / Shift+→ | Previous or next song |
+| ↑ / ↓ | Volume |
+| M | Mute or unmute |
+| S | Shuffle |
+| R | Repeat |
+| L | Save the song playing to your library |
+| Q | Show or hide the queue |
+| Y | Show or hide the lyrics |
+| / or Ctrl+F | Search and commands |
+| Ctrl+K | Search and commands |
+| Ctrl+B | Fold the sidebar |
+| Ctrl+, | Settings |
+| ? | Every shortcut |
+
+None of the single keys work while you type in a field or a menu is open. All of them, and where each works, are in [keyboard shortcuts](./keyboard-shortcuts.md).
 
 ## Your library
 

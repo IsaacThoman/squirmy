@@ -16,6 +16,7 @@ import { useLogout } from '@/auth/actions'
 import { useCurrentUser, useWantlistEnabled } from '@/auth/session'
 import { AppShell, type SearchDialogState, type SettingsDialogState } from '@/components/layout/AppShell'
 import { ErrorBoundary, ErrorMessage } from '@/components/layout/ErrorBoundary'
+import { usePaletteCommands } from '@/components/layout/palette-commands'
 import { SearchDialog, type SearchChoice, type SearchDestination } from '@/components/layout/SearchDialog'
 import { isSettingsSection, useSettingsDialog } from '@/components/settings/settings-dialog'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
@@ -99,7 +100,7 @@ function SettingsDialogMount(state: SettingsDialogState) {
 }
 
 /** Mounted only while the dialog is open, so each search starts with nothing typed and nothing found. */
-function SearchDialogHost({ onOpenChange }: SearchDialogState) {
+function SearchDialogHost({ onOpenChange, commands: shell }: SearchDialogState) {
   const api = useApi()
   const navigate = useNavigate()
   const wantlistEnabled = useWantlistEnabled()
@@ -112,6 +113,7 @@ function SearchDialogHost({ onOpenChange }: SearchDialogState) {
   const recents = useRecentSearches(user.id)
   const search = useMergedSearch(query, { playlists: library.playlists })
   const close = () => onOpenChange(false)
+  const commands = usePaletteCommands(shell)
   const destinations = useMemo<SearchDestination[]>(() => [
     { label: 'Home', to: '/', icon: House },
     { label: 'Search and browse genres', to: '/search', icon: Search },
@@ -142,6 +144,7 @@ function SearchDialogHost({ onOpenChange }: SearchDialogState) {
 
   const choose = (choice: SearchChoice) => {
     close()
+    if (choice.kind === 'command') return choice.command.run()
     if (choice.kind === 'destination') return void navigate(choice.destination.to)
     if (choice.kind === 'all') return void navigate(`/search?q=${encodeURIComponent(choice.query)}`)
     const { item } = choice
@@ -177,6 +180,7 @@ function SearchDialogHost({ onOpenChange }: SearchDialogState) {
       isDimmed={item => (item.type === 'album' ? albumPresentation(item.album, viewer) === 'dimmed' : !item.artist.inLibrary && !canFetch(viewer))}
       onChoose={choose}
       onIntent={onIntent}
+      commands={commands}
     />
   )
 }

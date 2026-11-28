@@ -76,7 +76,8 @@ export type PlayerControls = {
   setAutoplay: (value: boolean) => void
   /** Replaces the queue with the playable `tracks`, starting at `startIndex` (or shuffled). */
   playTracks: (tracks: TrackSummary[], startIndex?: number, context?: PlaybackContext, options?: PlayOptions) => void
-  enqueue: (tracks: TrackSummary[], placement: 'next' | 'last') => void
+  /** Adds to Up next: before it, after it, or at `toIndex` of the entries it shows (a drop into the queue). */
+  enqueue: (tracks: TrackSummary[], placement: 'next' | 'last', toIndex?: number) => void
   startRadio: (seed: RadioSeed) => void
   /** Plays an entry of the queue, the autoplay queue or the history. */
   playEntry: (entryId: string) => void

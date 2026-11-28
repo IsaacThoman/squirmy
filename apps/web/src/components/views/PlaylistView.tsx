@@ -29,11 +29,13 @@ type PlaylistViewProps = {
   onDelete: () => void
   onMove: (from: number, to: number) => void
   onRemove: (index: number) => void
+  /** Removes the picked songs. */
+  onRemoveMany: (indexes: number[]) => Promise<unknown>
   /** A move or removal the server refused, said above the songs it went back among. */
   failure?: string
 }
 
-export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete, onMove, onRemove, failure }: PlaylistViewProps) {
+export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete, onMove, onRemove, onRemoveMany, failure }: PlaylistViewProps) {
   const tracks = playlist.items.map(item => item.track)
   const getItemKey = useCallback((index: number) => playlist.items[index].itemId, [playlist.items])
   // A finger cannot drag a song onto the sidebar (on a phone it is a drawer over the songs), so touch screens are told the menu's way.
@@ -53,6 +55,7 @@ export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete
       context={{ type: 'playlist', id: playlist.id, title: playlist.name }}
       onMove={owned ? onMove : undefined}
       onRemove={owned ? onRemove : undefined}
+      onRemoveMany={owned ? onRemoveMany : undefined}
       failure={failure}
       menu={owned && (
         <DropdownMenu
@@ -131,6 +134,7 @@ type TrackCollectionProps = {
   onPlay?: (index: number, options?: PlayOptions) => void
   onMove?: (from: number, to: number) => void
   onRemove?: (index: number) => void
+  onRemoveMany?: (indexes: number[]) => Promise<unknown>
   /** Loads another page when the end comes into view. */
   onEndReached?: () => void
   moreFailure?: MoreFailure
@@ -139,11 +143,11 @@ type TrackCollectionProps = {
   failure?: string
 }
 
-function TrackCollection({ kind, title, art, tint, byline, description, tracks, addedAt, getItemKey, count, durationMs, context, onPlay, onMove, onRemove, onEndReached, moreFailure, menu, empty, failure }: TrackCollectionProps) {
+function TrackCollection({ kind, title, art, tint, byline, description, tracks, addedAt, getItemKey, count, durationMs, context, onPlay, onMove, onRemove, onRemoveMany, onEndReached, moreFailure, menu, empty, failure }: TrackCollectionProps) {
   const controls = usePlayerControls()
   const viewer = useViewer()
   const play = onPlay ?? ((index: number, options?: PlayOptions) => controls.playTracks(tracks, index, context, options))
-  const actions = useTrackActions(tracks, context, { onPlay: index => play(index), onMove, onRemove })
+  const actions = useTrackActions(tracks, context, { onPlay: index => play(index), onMove, onRemove, onRemoveMany })
   const playable = tracks.some(track => isPlayable(track, viewer)) || !!count
   const size = tracks.length ? [count ?? plural(tracks.length, 'song'), durationMs !== null && formatTotalDuration(durationMs)].filter(Boolean).join(', ') : 'No songs yet'
   return (
