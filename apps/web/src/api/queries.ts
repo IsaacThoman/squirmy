@@ -39,10 +39,26 @@ async function everything<T>(load: (cursor: string | undefined) => Promise<Page<
 /** Imports: their list, each one, and the upload options. `import.updated` refreshes them all. */
 export const importsKey = ['imports'] as const
 
-export const homeQuery = (api: ApiClient) => ({ queryKey: queryKeys.home(), queryFn: () => api.catalog.home() })
+/** The device's time zone, by which the server orders Home for the time of day; undefined where the browser does not say. */
+function timeZone(): string | undefined {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined
+  } catch {
+    return undefined
+  }
+}
+
+export const homeQuery = (api: ApiClient) => ({ queryKey: queryKeys.home(), queryFn: () => api.catalog.home({ layout: 'personal', tz: timeZone() }) })
 
 export function useHome() {
   return useQuery(homeQuery(useApi()))
+}
+
+export const mixQuery = (api: ApiClient, id: string) => ({ queryKey: queryKeys.mix(id), queryFn: () => byId(id, () => api.radio.mix(id)) })
+
+/** A mix made for the user. Under Home's key, so a new day's mixes refresh an open mix too. */
+export function useMix(id: string) {
+  return useQuery(mixQuery(useApi(), id))
 }
 
 export const albumQuery = (api: ApiClient, id: string) => ({ queryKey: queryKeys.album(id), queryFn: () => byId(id, () => api.catalog.album(id)) })
