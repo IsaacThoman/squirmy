@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { db } from '../../database/client.js'
 import { badRequest, notFound } from '../../lib/errors.js'
 import { getServerSettings } from '../../lib/settings.js'
+import { queueAlbumResolve } from '../acquisition/coverage.js'
 import { ensureAlbumDetail, ensureArtistDetail, ensureLyrics } from '../enrichment/detail.js'
 import { specialPurposeArtists } from '../metadata/musicbrainz.js'
 import { canStartArtistRadio, similarArtists } from '../radio/index.js'
@@ -206,6 +207,7 @@ export async function albumDetail(userId: string, id: string): Promise<AlbumDeta
   if (!summary || !extra) throw notFound('No such album', 'album_not_found')
 
   const summaries = await alignedTrackSummaries(userId, tracks.map((track) => ({ id: track.recordingId, albumId })))
+  await queueAlbumResolve(summaries.flatMap((track) => track?.availability === 'on_demand' ? [track.id] : []), albumId)
   const discs: AlbumDisc[] = []
   for (const [index, track] of tracks.entries()) {
     const summary = summaries[index]

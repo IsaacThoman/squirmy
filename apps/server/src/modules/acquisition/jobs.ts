@@ -51,12 +51,12 @@ import { noteProviderDelivered, noteProviderFailure } from './health.js'
 import { currentMisses } from './misses.js'
 import { activeProviders, providerEndpoint, type ActiveProvider } from './providers.js'
 import { repairDeliveries } from './repair.js'
-import { announceAvailability, expireCaches, freshOffers, recordMisses, resolveRecordings, usableOffers } from './resolve.js'
+import { announceAvailability, expireCaches, recordingOffers, recordMisses, usableOffers, type RecordingTarget } from './resolve.js'
 import { verifyDelivery } from './verify.js'
 
 export type JobRow = typeof acquisitionJobs.$inferSelect
 /** `attempt` counts the times the provider said it was busy, for the backoff. */
-export type StartJob = { jobId: string; attempt?: number }
+export type StartJob = { jobId: string; attempt?: number; upcoming?: readonly RecordingTarget[] }
 
 /** Statuses in which the provider may still deliver files. */
 export const DELIVERING: AcquisitionJobStatus[] = ['resolving', 'queued', 'downloading']
@@ -249,7 +249,7 @@ type NewJob = { userId: string; providerId: string; recordingId: string | null; 
  * Inserts a job and queues its start in one transaction, or returns the job already in
  * flight for the same target.
  */
-async function createJob(input: NewJob): Promise<JobRow> {
+async function createJob(input: NewJob, upcoming?: readonly RecordingTarget[]): Promise<JobRow> {
   const key = input.recordingId ? `recording:${input.recordingId}` : `album:${input.albumId}`
   for (let attempt = 0; ; attempt += 1) {
     const created = await db.transaction(async (tx) => {
@@ -258,7 +258,7 @@ async function createJob(input: NewJob): Promise<JobRow> {
         id, providerId: input.providerId, requestedBy: input.userId, recordingId: input.recordingId, albumId: input.albumId,
         recordingIds: input.recordingIds, status: 'resolving', idempotencyKey: key, origin: input.origin,
       }).onConflictDoNothing({ target: acquisitionJobs.idempotencyKey }).returning()
-      if (row) await enqueue<StartJob>('acquisition.start', { jobId: id }, { singletonKey: id, tx })
+      if (row) await enqueue<StartJob>('acquisition.start', { jobId: id, upcoming }, { singletonKey: id, tx })
       return row
     })
     if (created) {
@@ -278,7 +278,7 @@ async function createJob(input: NewJob): Promise<JobRow> {
  * files beyond it are evicted (evict.ts). Fails with `track_not_found`, `already_available`,
  * `acquire_not_allowed`, `not_available` or `acquire_limit_reached`.
  */
-export async function requestTrack(userId: string, recordingId: string, albumId: string | null, origin: AcquisitionOrigin = 'library'): Promise<JobRow> {
+export async function requestTrack(userId: string, recordingId: string, albumId: string | null, origin: AcquisitionOrigin = 'library', upcoming?: readonly RecordingTarget[]): Promise<JobRow> {
   const target = await resolveOne('recordings', recordingId)
   if (!target) throw notFound('No such track', 'track_not_found')
   if ((await ownedRecordings([target])).size > 0) throw conflict('The server already has this track', 'already_available')
@@ -289,7 +289,7 @@ export async function requestTrack(userId: string, recordingId: string, albumId:
   const providers = await candidates(requester.providers, [target])
   if (providers.length === 0) throw notFound('No provider can supply this track right now', 'not_available')
   const album = albumId ? await resolveOne('albums', albumId) : null
-  return createJob({ userId, providerId: providers[0]!.id, recordingId: target, albumId: album, recordingIds: [target], origin })
+  return createJob({ userId, providerId: providers[0]!.id, recordingId: target, albumId: album, recordingIds: [target], origin }, upcoming)
 }
 
 /**
@@ -383,7 +383,7 @@ type NoChoice = {
  * A provider too busy to answer is skipped without counting against it; when no other has
  * an offer, the job waits for it (`busy`) rather than failing.
  */
-async function chooseProvider(job: JobRow): Promise<{ provider: ActiveProvider; offer: ProviderOffer } | NoChoice> {
+async function chooseProvider(job: JobRow, upcoming?: readonly RecordingTarget[]): Promise<{ provider: ActiveProvider; offer: ProviderOffer } | NoChoice> {
   const { preferLossless } = await getAcquisitionPolicy()
   const isAlbum = job.recordingId === null
   const providers = (await candidates(await activeProviders(), job.recordingIds))
@@ -401,8 +401,7 @@ async function chooseProvider(job: JobRow): Promise<{ provider: ActiveProvider; 
         const response = await resolveItems(provider, { items: [{ ref: 'album', kind: 'album', album }] })
         offers = usableOffers(response.items.find((item) => item.ref === 'album')?.offers ?? [])
       } else {
-        const recordingId = job.recordingId!
-        offers = await freshOffers(provider.id, recordingId) ?? (await resolveRecordings(provider, [recordingId], job.albumId)).get(recordingId) ?? []
+        offers = await recordingOffers(provider, job.recordingId!, job.albumId, upcoming)
       }
     } catch (error) {
       if (!(error instanceof ProviderCallError)) throw error
@@ -430,16 +429,16 @@ async function chooseProvider(job: JobRow): Promise<{ provider: ActiveProvider; 
  * stored. A run that finds the job past `resolving` does nothing, and a concurrent duplicate
  * loses the claim on the token.
  */
-export async function startJob(jobId: string, attempt = 0) {
+export async function startJob(jobId: string, attempt = 0, upcoming?: readonly RecordingTarget[]) {
   let job = await loadJob(jobId)
   if (!job || job.status !== 'resolving') return
   const providers = await activeProviders()
   let provider = job.offer ? providers.find((candidate) => candidate.id === job!.providerId) : undefined
   let offer = provider ? ProviderOffer.safeParse(job.offer).data : undefined
   if (!provider || !offer) {
-    const choice = await chooseProvider(job)
+    const choice = await chooseProvider(job, job.origin === 'prefetch' ? upcoming : undefined)
     if ('reason' in choice && choice.busy) {
-      await retryWhenFree(jobId, attempt, choice.busy.retryAfterSeconds)
+      await retryWhenFree(jobId, attempt, choice.busy.retryAfterSeconds, upcoming)
       return
     }
     if ('reason' in choice) {
@@ -556,11 +555,11 @@ async function wakeWaiting(providerId: string) {
  * tracks, and a miss would gray them out for a day. A job the provider never takes ends at
  * the policy's timeout, also without a miss.
  */
-async function retryWhenFree(jobId: string, attempt: number, retryAfterSeconds: number | null = null) {
+async function retryWhenFree(jobId: string, attempt: number, retryAfterSeconds: number | null = null, upcoming?: readonly RecordingTarget[]) {
   await db.update(acquisitionJobs).set({ uploadTokenHash: null, updatedAt: new Date() })
     .where(and(eq(acquisitionJobs.id, jobId), eq(acquisitionJobs.status, 'resolving')))
   const wait = busyWaitSeconds(attempt, retryAfterSeconds, { firstSeconds: timing.slotWaitSeconds, maxSeconds: timing.busyWaitMaxSeconds })
-  await enqueue<StartJob>('acquisition.start', { jobId, attempt: attempt + 1 }, { singletonKey: `${jobId}:${Date.now()}`, startAfter: wait })
+  await enqueue<StartJob>('acquisition.start', { jobId, attempt: attempt + 1, upcoming }, { singletonKey: `${jobId}:${Date.now()}`, startAfter: wait })
 }
 
 /**
