@@ -2,6 +2,7 @@ import { hasSearchFacets, LibrarySearchQuery, SearchQuery, type AlbumSummary, ty
 import type { FastifyInstance } from 'fastify'
 import { requireUser } from '../../lib/auth.js'
 import { matchKey } from '../../lib/text.js'
+import { explicitAllowed, withoutExplicit } from '../catalog/explicit.js'
 import { albumSummaries, artistSummaries, trackSummaries } from '../catalog/summaries.js'
 import { warmDetail } from '../enrichment/detail.js'
 import { searchLibrary } from './library.js'
@@ -21,13 +22,14 @@ import { warmAlbums } from './warm.js'
 const minQueryLength = 2
 const tooShort = (q: string, key: string) => (key === '' ? q.trim() === '' : [...key].length < minQueryLength)
 
-async function summaries(userId: string, ids: StubIds): Promise<Found> {
+/** Explicit songs are left out for a user who has explicit content off (`catalog/explicit.ts`). */
+async function summaries(userId: string, ids: StubIds, allowsExplicit: boolean): Promise<Found> {
   const [artists, albums, tracks] = await Promise.all([
     artistSummaries(ids.artists, userId),
     albumSummaries(ids.albums),
     trackSummaries(userId, ids.tracks.map((id) => ({ id }))),
   ])
-  return withLiked(userId, { artists, albums, tracks })
+  return withLiked(userId, { artists, albums, tracks: withoutExplicit(tracks, allowsExplicit) })
 }
 
 /**
@@ -68,13 +70,17 @@ export async function searchRoutes(app: FastifyInstance) {
     if (key === '' || (type !== 'playlist' && tooShort(q, key))) return empty
     const extraOnly = type === 'playlist' || type === 'lyrics' || type === 'credits'
     const universal = !type && scope === 'server' && !genre
-    const [ids, playlists, lyrics, credits] = await Promise.all([
+    const [ids, playlists, foundLyrics, foundCredits, allowsExplicit] = await Promise.all([
       extraOnly ? { artists: [], albums: [], tracks: [] } : searchLibrary(user.id, key, limit, { offset, types: type && [type], genre, scope, facets }),
       (type === 'playlist' || universal) && !hasSearchFacets(facets) ? searchPlaylists(user.id, key, limit, offset) : undefined,
       type === 'lyrics' || universal ? searchLyrics(user.id, q, limit, offset, scope ?? 'library', facets) : undefined,
       type === 'credits' || universal ? searchCredits(user.id, key, limit, offset, scope ?? 'library', facets) : undefined,
+      explicitAllowed(user.id),
     ])
-    const unique = distinct(await summaries(user.id, ids))
+    // Songs found by their lyrics or credits are songs too.
+    const lyrics = foundLyrics?.filter((hit) => allowsExplicit || hit.track.explicit !== true)
+    const credits = foundCredits?.filter((hit) => allowsExplicit || hit.track.explicit !== true)
+    const unique = distinct(await summaries(user.id, ids, allowsExplicit))
     const found = { ...unique, albums: oncePerTitle(unique.albums) }
     // Results matched from the local catalog get the library search's prominence boost.
     const list = await rankFound(q, found, { userId: user.id, owned: [...ids.artists, ...ids.albums, ...ids.tracks] })
@@ -98,9 +104,10 @@ export async function searchRoutes(app: FastifyInstance) {
     // catalog answer can leave out what the library answer already shows: on this page or
     // an earlier one. Results are matched to owned rows on purpose (materialize.ts), so
     // without this the user's own albums would come back a second time as "not in your library".
-    const [{ provider, results }, library] = await Promise.all([
+    const [{ provider, results }, library, allowsExplicit] = await Promise.all([
       searchCatalog(q, limit, undefined, { offset, types }),
       key ? searchLibrary(user.id, key, limit + offset, { types, scope }) : { artists: [], albums: [], tracks: [] },
+      explicitAllowed(user.id),
     ])
     if (!provider) return empty
     const stored = await materialize(provider.idSource, results)
@@ -110,11 +117,11 @@ export async function searchRoutes(app: FastifyInstance) {
       artists: await withoutNamesakes(without(stored.artists, library.artists), library.artists),
       albums: without(stored.albums, library.albums),
       tracks: without(stored.tracks, library.tracks),
-    }))
+    }, allowsExplicit))
     // The library answer's page is ranked here too, with what the provider knows about it
     // (fans, plays), so the client can place its rows among these on one scale.
     const page = { artists: library.artists.slice(offset), albums: library.albums.slice(offset), tracks: library.tracks.slice(offset) }
-    const libraryPage = await summaries(user.id, page)
+    const libraryPage = await summaries(user.id, page, allowsExplicit)
     own.albums = oncePerTitle(own.albums, libraryPage.albums)
     const list = await rankFound(q, {
       artists: [...own.artists, ...libraryPage.artists],

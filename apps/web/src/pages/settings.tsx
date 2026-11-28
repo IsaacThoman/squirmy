@@ -26,11 +26,11 @@ const lastFmReturns: Record<string, { message: string; ok: boolean }> = {
 
 const scrobbleSettings: (keyof UpdateUserSettings)[] = ['scrobbleListenBrainz', 'scrobbleLastFm', 'shareNowPlaying']
 
-/** The section whose controls made a change: a scrobbling switch is in Scrobbling, the library's in Library, the rest in Playback. */
+/** The section whose controls made a change: a scrobbling switch is in Scrobbling, the library's and explicit content's in Library, the rest in Playback. */
 function refusedIn(patch: UpdateUserSettings): 'scrobbling' | 'library' | 'playback' {
   const keys = Object.keys(patch) as (keyof UpdateUserSettings)[]
   if (keys.some(key => scrobbleSettings.includes(key))) return 'scrobbling'
-  return keys.includes('libraryIncludesServerMusic') ? 'library' : 'playback'
+  return keys.includes('libraryIncludesServerMusic') || keys.includes('allowExplicit') ? 'library' : 'playback'
 }
 
 /** The user's playback settings, saved as they change. */
@@ -48,6 +48,8 @@ function useSettingsUpdate() {
       return Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.scrobbling() }),
         ...patch.libraryIncludesServerMusic !== undefined ? [queryClient.invalidateQueries({ queryKey: queryKeys.library() })] : [],
+        // The user says whether explicit songs play (`allowsExplicit`), which grays them everywhere.
+        ...patch.allowExplicit !== undefined ? [queryClient.invalidateQueries({ queryKey: queryKeys.me(), exact: true })] : [],
       ])
     },
     onError: () => queryClient.invalidateQueries({ queryKey: queryKeys.settings() }),

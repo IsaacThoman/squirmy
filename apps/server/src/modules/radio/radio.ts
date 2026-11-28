@@ -4,6 +4,7 @@ import { db } from '../../database/client.js'
 import { AppError, notFound } from '../../lib/errors.js'
 import { albumCoveredWithoutTracks, onDemandRecordings } from '../acquisition/coverage.js'
 import { canonicalRelease, recordingOwned } from '../catalog/availability.js'
+import { explicitAllowed, recordingExplicit } from '../catalog/explicit.js'
 import { resolveOne } from '../catalog/redirects.js'
 import { trackSummaries } from '../catalog/summaries.js'
 import { ensureAlbumDetail } from '../enrichment/detail.js'
@@ -21,10 +22,11 @@ const TRACK_LIST_FETCHES = 2
 const nothingPlayable = () => new AppError(409, 'nothing_playable', 'Nothing by this artist can be played')
 
 async function radioFrom(userId: string, seedId: string, context: RadioResponse['context'], options: SuggestOptions, mode: SuggestRequest['mode'] = 'default'): Promise<RadioResponse> {
-  const [[track], requester] = await Promise.all([trackSummaries(userId, [{ id: seedId }]), isRequester(userId)])
+  const [[track], requester, allowsExplicit] = await Promise.all([trackSummaries(userId, [{ id: seedId }]), isRequester(userId), explicitAllowed(userId)])
   // The rule the queue applies: a file plays for everyone, `on_demand` only for a user who
-  // may have tracks fetched. Anything else would start a radio whose first entry is dropped.
-  if (!track || track.availability === 'none' || (track.availability === 'on_demand' && !requester)) {
+  // may have tracks fetched, and an explicit song not for a user who has explicit content
+  // off. Anything else would start a radio whose first entry is dropped.
+  if (!track || track.availability === 'none' || (track.availability === 'on_demand' && !requester) || (track.explicit === true && !allowsExplicit)) {
     throw new AppError(409, 'not_playable', 'This track cannot be played')
   }
   const seed: QueueSeed = {
@@ -57,12 +59,13 @@ export async function sonicRadio(userId: string, trackId: string, options: Sugge
 }
 
 /**
- * The artist's tracks the user can play, best start first: most played by the user, then
+ * The artist's tracks the user can play (no explicit ones for a user who has them off), best start first: most played by the user, then
  * liked, then owned (so a radio starts at once when it can), then popular; ties broken by
  * `salt`. For a requester that includes what a provider can fetch (`on_demand`), so an
  * artist with nothing on the server still starts from its top tracks and discography.
  */
 async function playableArtistTracks(userId: string, artistId: string, requester: boolean, salt: number): Promise<string[]> {
+  const allowsExplicit = await explicitAllowed(userId)
   const rows = await db.execute<{ id: string; owned: boolean }>(sql`
     select r.id, ${recordingOwned('r.id')} as owned from recordings r
     -- The artist's tracks as the artist page counts them: credited, or led without credit rows.
@@ -72,6 +75,7 @@ async function playableArtistTracks(userId: string, artistId: string, requester:
       )
       and r.merged_into_id is null
       ${requester ? sql`` : sql`and ${recordingOwned('r.id')}`}
+      ${allowsExplicit ? sql`` : sql`and not ${recordingExplicit(sql`r.id`, sql`r.explicit`)}`}
     order by (select count(*) from plays p where p.user_id = ${userId} and p.recording_id = r.id and not p.skipped) desc,
       exists (select 1 from likes l where l.user_id = ${userId} and l.entity_type = 'recording' and l.entity_id = r.id) desc,
       ${recordingOwned('r.id')} desc,
