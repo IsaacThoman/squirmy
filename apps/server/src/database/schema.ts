@@ -270,6 +270,7 @@ export const albums = pgTable('albums', {
   description: text('description'),
   descriptionSource: text('description_source'),
   artworkAssetId: uuid('artwork_asset_id'),
+  artworkLocked: boolean('artwork_locked').notNull().default(false),
   /** The edition whose track list the album page shows. */
   canonicalReleaseId: uuid('canonical_release_id'),
   /**
@@ -566,6 +567,10 @@ export const mediaFiles = pgTable('media_files', {
    * clears it when the file's size or mtime changes.
    */
   probeError: text('probe_error'),
+  healthCheckedAt: at('health_checked_at'),
+  healthStatus: text('health_status').$type<import('@squirmy/contracts').HealthStatus>(),
+  healthDetail: text('health_detail'),
+  healthRequestedAt: at('health_requested_at'),
   /** Set when a scan no longer finds the file. Cleared if it returns. */
   missingSince: at('missing_since'),
   addedAt: at('added_at').notNull().defaultNow(),
@@ -574,6 +579,9 @@ export const mediaFiles = pgTable('media_files', {
   uniqueIndex('media_files_path').on(t.rootId, t.relPath),
   // Byte order, so a scan can merge a sorted directory walk with the rows page by page.
   index('media_files_scan_order').on(t.rootId, sql`${t.relPath} collate "C"`),
+  index('media_files_health_due').on(sql`coalesce(${t.healthCheckedAt}, '-infinity'::timestamptz)`, t.id)
+    .where(sql`${t.missingSince} is null and not ${t.cached}`),
+  index('media_files_health_requested').on(t.healthRequestedAt).where(sql`${t.healthRequestedAt} is not null`),
   index('media_files_audio_hash').on(t.audioHash),
   index('media_files_release_track').on(t.releaseTrackId),
   index('media_files_recording').on(t.recordingId),

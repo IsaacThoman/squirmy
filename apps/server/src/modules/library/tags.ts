@@ -309,7 +309,7 @@ export function normalizeTags(common: Partial<ICommonTagsResult>, raw: RawTags):
     track,
     trackTotal: trackOf ?? numberPair(first('totaltracks', 'tracktotal'))[0],
     disc,
-    discTotal: discOf ?? numberPair(first('totaldiscs', 'disctotal'))[0],
+    discTotal: discOf ?? common.disk?.of ?? numberPair(first('totaldiscs', 'disctotal'))[0],
     genres: splitGenres(common.genre ?? raw.get('genre')),
     compilation: common.compilation ?? truthy(first('compilation', 'tcmp', 'cpil', 'itunescompilation')),
     releaseType: releaseTypeOf(common.releasetype ?? raw.get('releasetype') ?? raw.get('musicbrainzalbumtype')),
