@@ -945,11 +945,11 @@ describe('sessions', () => {
     expect(a.queues().at(-1)?.queue.autoplayQueue ?? []).toEqual([])
   })
 
-  it('accounts plays from the anchor arithmetic: pauses and seeks add nothing, skips write nothing', async () => {
+  it('accounts plays from the anchor arithmetic and records early skips with their context', async () => {
     const clock = stoppedClock()
     const start = clock.now()
     const a = await device('device-a-0014')
-    const [first, , third] = album.tracks
+    const [first, second, third] = album.tracks
     await a.send(playAlbum(), 'acct')
     await a.state(1)
     clock.advance(60_000)
@@ -971,6 +971,7 @@ describe('sessions', () => {
 
     await eventually(() => db.select().from(plays).where(eq(plays.userId, user.id)).orderBy(plays.startedAt), (rows) => expect(rows).toMatchObject([
       { recordingId: first!.recordingId, albumId: album.albumId, deviceId: 'device-a-0014', client: 'app', msPlayed: 95_000, completed: true, startedAt: new Date(start) },
+      { recordingId: second!.recordingId, albumId: album.albumId, contextType: 'album', contextId: album.albumId, msPlayed: 2000, skipped: true, completed: false },
       { recordingId: third!.recordingId, msPlayed: third!.durationMs, completed: true },
     ]))
     await eventually(() => a.events('invalidate'), (value) => expect(value).toContainEqual({ keys: [['history'], ['home']] }))
@@ -1017,6 +1018,22 @@ describe('sessions', () => {
     await sessionsModule.stop!()
     expect(await db.select({ recordingId: plays.recordingId, msPlayed: plays.msPlayed }).from(plays).where(eq(plays.userId, user.id)))
       .toEqual([{ recordingId: album.tracks[0]!.recordingId, msPlayed: 120_000 }])
+  })
+
+  it('does not record an early skip when a still-open play is interrupted by shutdown', async () => {
+    const clock = stoppedClock()
+    const a = await device('device-a-0020')
+    await a.send(playAlbum())
+    await a.state(1)
+    clock.advance(2000)
+    await sessionsModule.stop!()
+    expect(await db.select().from(plays).where(eq(plays.userId, user.id))).toEqual([])
+    clock.advance(60_000)
+    await a.send({ type: 'next' })
+    await a.state(2)
+    await eventually(() => db.select().from(plays).where(eq(plays.userId, user.id)), (rows) => expect(rows).toMatchObject([
+      { recordingId: album.tracks[0]!.recordingId, msPlayed: 62_000, skipped: false },
+    ]))
   })
 
   it('waits for the write of a play that closed just before shutdown', async () => {

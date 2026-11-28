@@ -144,7 +144,7 @@ export async function songs(userId: string, refs: readonly SongRef[]): Promise<P
     left join likes lk on lk.user_id = ${userId} and lk.entity_type = 'recording' and lk.entity_id = r.id
     left join ratings rating on rating.user_id = ${userId} and rating.entity_type = 'recording' and rating.entity_id = r.id
     left join lateral (
-      select count(*) as count, max(p.started_at) as last from plays p where p.recording_id = r.id and p.user_id = ${userId}
+      select count(*) as count, max(p.started_at) as last from plays p where p.recording_id = r.id and p.user_id = ${userId} and not p.skipped
     ) stats on true`)
 
   const [trackArtists, albumArtists] = await Promise.all([

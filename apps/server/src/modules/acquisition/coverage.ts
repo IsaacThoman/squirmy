@@ -9,7 +9,9 @@ import { AppError } from '../../lib/errors.js'
 import { requestTrack } from './jobs.js'
 import { announceOutcome, stillWorking } from './outcomes.js'
 import { activeProviders } from './providers.js'
-import { announceAvailability, coveredRecordings } from './resolve.js'
+import { announceAvailability, coveredRecordings, type RecordingTarget } from './resolve.js'
+
+export { queueAlbumResolve } from './resolve.js'
 
 /**
  * Of the given unowned recordings (ids already redirect-resolved), the ones an enabled
@@ -50,9 +52,11 @@ export async function requestRecording(request: {
    * prefetch never holds up what is playing.
    */
   origin?: Extract<AcquisitionOrigin, 'play' | 'prefetch'>
+  /** Other entries nearing playback, with the album context of each entry. */
+  upcoming?: readonly RecordingTarget[]
 }): Promise<void> {
   try {
-    await requestTrack(request.userId, request.recordingId, request.albumId ?? null, request.origin ?? 'play')
+    await requestTrack(request.userId, request.recordingId, request.albumId ?? null, request.origin ?? 'play', request.upcoming)
   } catch (error) {
     if (!(error instanceof AppError)) throw error
     if (error.code === 'already_available') {

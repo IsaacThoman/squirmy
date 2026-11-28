@@ -221,13 +221,14 @@ describe('provider misses', () => {
     })
 
     /** Answers `capabilities`; everything else is refused with 429 and `Retry-After: 7`. */
-    const rateLimited = async (coverage: 'must_resolve' | 'assume_available') => {
+    const rateLimited = async (coverage: 'must_resolve' | 'assume_available', onResolve?: () => void) => {
       handle = (request, response) => {
         if (request.url === '/capabilities') {
           response.writeHead(200, { 'content-type': 'application/json' })
           response.end(JSON.stringify({ protocol: 1, name: 'Limited', coverage, kinds: ['recording'], formats: ['flac'], maxConcurrent: 2 }))
           return
         }
+        if (request.url === '/resolve') onResolve?.()
         response.writeHead(429, { 'content-type': 'application/json', 'retry-after': '7' })
         response.end(JSON.stringify({ error: 'Too many requests' }))
       }
@@ -247,6 +248,20 @@ describe('provider misses', () => {
       expect(retry?.data).toMatchObject({ providerId, attempt: 1 })
       // Retry-After (7 s) is longer than the first backoff (5 s).
       expect(new Date(retry!.startAfter).getTime() - Date.now()).toBeGreaterThan(5_000)
+    })
+
+    it('backs off subsequent optimistic batches during Retry-After without graying out tracks', async () => {
+      let requests = 0
+      const providerId = await rateLimited('assume_available', () => { requests++ })
+      const [one, two] = await tracks(2) as [string, string]
+      await runResolveJob({ providerId, recordingIds: [one] })
+      await runResolveJob({ providerId, recordingIds: [two] })
+      expect(requests).toBe(1)
+      expect(await db.$count(acquisitionMisses, eq(acquisitionMisses.providerId, providerId))).toBe(0)
+      expect((await health(providerId)).lastError).toBeNull()
+      const retries = (await queued('acquisition.resolve')).filter((job) => job.data.providerId === providerId)
+      expect(retries).toHaveLength(2)
+      expect(retries.every((job) => new Date(job.startAfter).getTime() - Date.now() > 5000)).toBe(true)
     })
 
     it('waits out a job it refused, at resolve or at acquire, without a miss or a failure', async () => {

@@ -2,10 +2,14 @@ name: Apple apps
 
 on:
   pull_request:
+    # Only what changes the native build. TypeScript in apps/mobile and the shared packages is
+    # covered by the typecheck and tests in ci.yml; run this workflow by hand when unsure.
     paths:
-      - 'apps/mobile/**'
-      - 'packages/client-core/**'
-      - 'packages/contracts/**'
+      - 'apps/mobile/modules/**'
+      - 'apps/mobile/assets/**'
+      - 'apps/mobile/app.config.js'
+      - 'apps/mobile/app.json'
+      - 'apps/mobile/package.json'
       - 'patches/**'
       - 'package.json'
       - 'package-lock.json'
