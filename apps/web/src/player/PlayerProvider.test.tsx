@@ -36,6 +36,18 @@ describe('PlayerProvider', () => {
     expect(within(player).queryByText('Starting radio…')).toBeNull()
   })
 
+  it('starts a radio of songs that sound like a song', async () => {
+    const { services, api } = fakeServices()
+    const sonic = vi.fn(() => new Promise<never>(() => {}))
+    Object.assign(api, { radio: { track: vi.fn(), artist: vi.fn(), sonic } })
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    const song = blueHour.discs[0].tracks[0]
+    await userEvent.click(await screen.findByRole('button', { name: `More options for ${song.title}` }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Songs that sound like this' }))
+    expect(await within(screen.getByRole('region', { name: 'Player' })).findByText('Starting radio…')).toBeInTheDocument()
+    expect(sonic).toHaveBeenCalledWith(song.id)
+  })
+
   it('plays an album through the session, never sending what cannot play', async () => {
     const { services, socket } = fakeServices()
     renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)

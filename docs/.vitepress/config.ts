@@ -24,6 +24,7 @@ const sidebar = [
       { text: 'Adding music', link: '/server/adding-music' },
       { text: 'Metadata and privacy', link: '/server/metadata-and-privacy' },
       { text: 'Playback', link: '/server/playback' },
+      { text: 'Sonic analysis', link: '/server/sonic-analysis' },
     ],
   },
   {

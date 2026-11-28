@@ -73,9 +73,24 @@ export function editionFreeKey(title: string): string {
   return matchKey(editionFreeTitle(title))
 }
 
+/** The whole title and both readings of each split, bounded for long free-text queries. */
+export function readings(key: string): { title: string; context: string | null }[] {
+  const words = key.split(' ')
+  const list: { title: string; context: string | null }[] = [{ title: key, context: null }]
+  if (words.length > 6) return list
+  for (let split = 1; split < words.length; split++) {
+    const head = words.slice(0, split).join(' ')
+    const tail = words.slice(split).join(' ')
+    list.push({ context: head, title: tail }, { context: tail, title: head })
+  }
+  return list
+}
+
+export const hasUnicode = (key: string) => /[^\u0020-\u007f]/u.test(key)
+
 /** The smallest string greater than every string that starts with `prefix`, in C collation. */
 export function prefixEnd(prefix: string): string {
-  const last = prefix.codePointAt(prefix.length - 1)!
+  const last = [...prefix].at(-1)!.codePointAt(0)!
   return prefix.slice(0, prefix.length - String.fromCodePoint(last).length) + String.fromCodePoint(last + 1)
 }
 

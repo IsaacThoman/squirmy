@@ -32,6 +32,8 @@ export function useTrackActions(tracks: TrackSummary[], context?: PlaybackContex
       return library.setWanted({ type: 'track', track }, !library.isWanted(track.id))
     } else if (action === 'radio') {
       controls.startRadio({ type: 'track', id: track.id })
+    } else if (action === 'sonic-radio') {
+      controls.startRadio({ type: 'sonic', id: track.id })
     } else if (action === 'share') {
       library.share({ kind: 'track', id: track.id, albumId: track.album?.id ?? null, title: track.title })
     } else if (action === 'remove') {

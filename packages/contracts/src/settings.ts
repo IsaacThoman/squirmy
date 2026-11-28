@@ -85,6 +85,12 @@ export const ServerSettings = z.object({
    */
   wantlistEnabled: z.boolean().default(false),
   /**
+   * Whether files are analysed for tempo, key, energy and timbre (the sonic analysis radio
+   * uses). It runs in the background at the lowest priority. Off stops new analysis and
+   * keeps what was measured; tempo, key and mood tags are read either way.
+   */
+  sonicAnalysisEnabled: z.boolean().default(true),
+  /**
    * Whether members can make public links to albums, playlists and songs. Off, every link
    * answers 404 but is kept, so turning it back on brings them back.
    */
@@ -116,6 +122,7 @@ export const UpdateServerSettings = z.object({
   importMaxBytes: z.number().int().min(1),
   importMaxActivePerUser: z.number().int().min(1),
   wantlistEnabled: z.boolean(),
+  sonicAnalysisEnabled: z.boolean(),
   sharingEnabled: z.boolean(),
   sharePlayback: SharePlayback,
   listenBrainzToken: z.string().nullable(),

@@ -25,7 +25,7 @@ import { useEndReached } from './use-end-reached'
  * `like` is the heart, which saves the track to the library or takes it out. `add-to:<playlist id>`
  * adds the track to a playlist; `add-to:new` starts one with it.
  */
-export type TrackAction = 'play-next' | 'enqueue' | 'like' | 'want' | 'radio' | 'share' | 'remove' | 'move-up' | 'move-down' | `add-to:${string}`
+export type TrackAction = 'play-next' | 'enqueue' | 'like' | 'want' | 'radio' | 'sonic-radio' | 'share' | 'remove' | 'move-up' | 'move-down' | `add-to:${string}`
 
 export type PlaylistChoice = { id: string; name: string }
 

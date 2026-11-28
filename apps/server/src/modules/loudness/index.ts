@@ -1,22 +1,28 @@
-import { and, asc, gte, isNull, sql } from 'drizzle-orm'
+import { and, asc, gte, isNull, or, sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { mediaFiles } from '../../database/schema.js'
-import { enqueue, schedule } from '../../jobs/index.js'
+import { enqueue, enqueueAtPriority, schedule } from '../../jobs/index.js'
 import type { ServerModule } from '../types.js'
 import { LOUDNESS_ERROR_PREFIX, measureFile, measureRelease } from './measure.js'
 
 type MeasureJob = { fileId: string }
 type AlbumJob = { releaseId: string }
 
-/** Loudness work runs below everything else; measurement is the lowest of all. */
+/** Sweep jobs yield to on-demand work within the same queue. */
 const MEASURE_PRIORITY = -20
+const PLAY_PRIORITY = 20
 const ALBUM_PRIORITY = -10
 /** Files queued per sweep. Measured files drop out, so each sweep moves the window on. */
 const SWEEP_BATCH = 500
 const MEASURE_RETRIES = 2
 
-function enqueueMeasure(fileId: string) {
-  return enqueue<MeasureJob>('loudness.measure', { fileId }, { singletonKey: fileId, priority: MEASURE_PRIORITY })
+type MeasurementState = Pick<typeof mediaFiles.$inferSelect,
+  'id' | 'loudnessLufs' | 'decodedFrames' | 'decodedRate' | 'probeError' | 'probeStage' | 'missingSince'>
+
+export async function measureOnPlay(file: MeasurementState): Promise<void> {
+  if (file.probeStage < 1 || file.probeError || file.missingSince
+    || (file.loudnessLufs !== null && file.decodedFrames !== null && file.decodedRate !== null)) return
+  await enqueueAtPriority<MeasureJob>('loudness.measure', { fileId: file.id }, file.id, PLAY_PRIORITY)
 }
 
 function enqueueAlbum(releaseId: string) {
@@ -24,16 +30,21 @@ function enqueueAlbum(releaseId: string) {
 }
 
 /**
- * Queues a bounded batch of present, probed files without loudness, and every release
+ * Queues a bounded batch of present, probed files without loudness or lengths, and every release
  * whose album loudness is missing or stale: its file count changed, a file changed after
  * it was computed, or no file is left.
  */
 export async function sweepLoudness() {
   const files = await db.select({ id: mediaFiles.id }).from(mediaFiles)
-    .where(and(isNull(mediaFiles.loudnessLufs), isNull(mediaFiles.probeError), isNull(mediaFiles.missingSince), gte(mediaFiles.probeStage, 1)))
+    .where(and(
+      or(isNull(mediaFiles.loudnessLufs), isNull(mediaFiles.decodedFrames), isNull(mediaFiles.decodedRate)),
+      isNull(mediaFiles.probeError), isNull(mediaFiles.missingSince), gte(mediaFiles.probeStage, 1),
+    ))
     .orderBy(asc(mediaFiles.addedAt))
     .limit(SWEEP_BATCH)
-  for (const file of files) await enqueueMeasure(file.id)
+  for (const { id } of files) {
+    await enqueue<MeasureJob>('loudness.measure', { fileId: id }, { singletonKey: id, priority: MEASURE_PRIORITY })
+  }
 
   const releases = await db.execute<{ release_id: string }>(sql`
     select f.release_id from media_files f

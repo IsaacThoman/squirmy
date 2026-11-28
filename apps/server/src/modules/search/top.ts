@@ -25,7 +25,7 @@ export function rankInputs(found: Found): RankInput[] {
     })),
     ...found.tracks.map((track, position): RankInput => ({
       type: 'track', id: track.id, name: track.title, artistCredit: track.artistCredit,
-      artistNames: track.artists.map((artist) => artist.name), artistIds: track.artists.map((artist) => artist.id), albumId: track.album?.id ?? null, position,
+      albumTitle: track.album?.title, artistNames: track.artists.map((artist) => artist.name), artistIds: track.artists.map((artist) => artist.id), albumId: track.album?.id ?? null, position,
     })),
   ]
 }

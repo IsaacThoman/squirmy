@@ -184,6 +184,7 @@ These run on their own; nothing needs configuring. Times are UTC.
 | New releases from the artists in each user's library | Mondays at 06:00 |
 | Retry identification of albums still waiting | every 10 minutes |
 | Measure loudness of files that have none | every 10 minutes |
+| [Analyse](./sonic-analysis.md) files not analysed yet, and read their tempo, key and mood tags | every 10 minutes |
 | Fill in covers, images and lyrics still missing | every 30 minutes |
 | Trim the transcode cache to its size | hourly |
 | Trim the [fetched-music cache](./acquisition.md#the-cache) to its limit | hourly at :17 |

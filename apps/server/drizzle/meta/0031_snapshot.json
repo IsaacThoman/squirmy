@@ -1,5 +1,5 @@
 {
-  "id": "069c8536-1758-483c-a2c5-93bee6985b2b",
+  "id": "2c2427d1-a5cf-4324-bfc5-0d28538e667e",
   "prevId": "55dbbd60-54bb-414a-80b0-c0bbe5bba4d2",
   "version": "7",
   "dialect": "postgresql",
@@ -6208,175 +6208,206 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.shares": {
-      "name": "shares",
+    "public.sonic_analyses": {
+      "name": "sonic_analyses",
       "schema": "",
       "columns": {
-        "id": {
-          "name": "id",
+        "file_id": {
+          "name": "file_id",
           "type": "uuid",
           "primaryKey": true,
           "notNull": true
         },
-        "token_hash": {
-          "name": "token_hash",
+        "audio_hash": {
+          "name": "audio_hash",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
+        "version": {
+          "name": "version",
+          "type": "smallint",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "kind": {
-          "name": "kind",
+        "error": {
+          "name": "error",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "album_id": {
-          "name": "album_id",
-          "type": "uuid",
+        "analyzed_ms": {
+          "name": "analyzed_ms",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false
         },
-        "playlist_id": {
-          "name": "playlist_id",
-          "type": "uuid",
+        "bpm": {
+          "name": "bpm",
+          "type": "real",
           "primaryKey": false,
           "notNull": false
         },
-        "recording_id": {
-          "name": "recording_id",
-          "type": "uuid",
+        "bpm_confidence": {
+          "name": "bpm_confidence",
+          "type": "real",
           "primaryKey": false,
           "notNull": false
         },
-        "created_at": {
-          "name": "created_at",
+        "beat_offset_ms": {
+          "name": "beat_offset_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "key": {
+          "name": "key",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mode": {
+          "name": "mode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "key_strength": {
+          "name": "key_strength",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tuning_cents": {
+          "name": "tuning_cents",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "level_db": {
+          "name": "level_db",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dynamic_range_db": {
+          "name": "dynamic_range_db",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "onset_rate": {
+          "name": "onset_rate",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "centroid_hz": {
+          "name": "centroid_hz",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "energy": {
+          "name": "energy",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "danceability": {
+          "name": "danceability",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "audible_start_ms": {
+          "name": "audible_start_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "audible_end_ms": {
+          "name": "audible_end_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "intro_end_ms": {
+          "name": "intro_end_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "outro_start_ms": {
+          "name": "outro_start_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "vector": {
+          "name": "vector",
+          "type": "real[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "analyzed_at": {
+          "name": "analyzed_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "open_count": {
-          "name": "open_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "last_opened_at": {
-          "name": "last_opened_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
         }
       },
-      "indexes": {
-        "shares_token_hash": {
-          "name": "shares_token_hash",
-          "columns": [
-            {
-              "expression": "token_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "shares_user": {
-          "name": "shares_user",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "shares_created": {
-          "name": "shares_created",
-          "columns": [
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
-        "shares_user_id_users_id_fk": {
-          "name": "shares_user_id_users_id_fk",
-          "tableFrom": "shares",
-          "tableTo": "users",
+        "sonic_analyses_file_id_media_files_id_fk": {
+          "name": "sonic_analyses_file_id_media_files_id_fk",
+          "tableFrom": "sonic_analyses",
+          "tableTo": "media_files",
           "columnsFrom": [
-            "user_id"
+            "file_id"
           ],
           "columnsTo": [
             "id"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.sonic_hints": {
+      "name": "sonic_hints",
+      "schema": "",
+      "columns": {
+        "recording_id": {
+          "name": "recording_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
         },
-        "shares_album_id_albums_id_fk": {
-          "name": "shares_album_id_albums_id_fk",
-          "tableFrom": "shares",
-          "tableTo": "albums",
-          "columnsFrom": [
-            "album_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+        "deezer_bpm": {
+          "name": "deezer_bpm",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
         },
-        "shares_playlist_id_playlists_id_fk": {
-          "name": "shares_playlist_id_playlists_id_fk",
-          "tableFrom": "shares",
-          "tableTo": "playlists",
-          "columnsFrom": [
-            "playlist_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "shares_recording_id_recordings_id_fk": {
-          "name": "shares_recording_id_recordings_id_fk",
-          "tableFrom": "shares",
+        "deezer_checked_at": {
+          "name": "deezer_checked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "sonic_hints_recording_id_recordings_id_fk": {
+          "name": "sonic_hints_recording_id_recordings_id_fk",
+          "tableFrom": "sonic_hints",
           "tableTo": "recordings",
           "columnsFrom": [
             "recording_id"
@@ -6391,12 +6422,7 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {
-        "shares_target": {
-          "name": "shares_target",
-          "value": "case \"shares\".\"kind\" when 'album' then \"shares\".\"album_id\" is not null and \"shares\".\"playlist_id\" is null and \"shares\".\"recording_id\" is null\n    when 'playlist' then \"shares\".\"playlist_id\" is not null and \"shares\".\"album_id\" is null and \"shares\".\"recording_id\" is null\n    when 'track' then \"shares\".\"recording_id\" is not null and \"shares\".\"playlist_id\" is null\n    else false end"
-        }
-      },
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.transcodes": {
