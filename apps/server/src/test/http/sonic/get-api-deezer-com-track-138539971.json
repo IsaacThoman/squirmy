@@ -1,0 +1,31 @@
+{
+  "note": "Trimmed by hand from the track/isrc:GBAYE9701274 answer (deezer folder): the same track looked up by id, with the fields the client reads.",
+  "request": {
+    "method": "GET",
+    "url": "https://api.deezer.com/track/138539971"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8"
+    },
+    "json": {
+      "id": 138539971,
+      "title": "Airbag",
+      "isrc": "GBAYE9701274",
+      "link": "https://www.deezer.com/track/138539971",
+      "duration": 287,
+      "track_position": 1,
+      "disk_number": 1,
+      "rank": 597984,
+      "explicit_lyrics": false,
+      "explicit_content_lyrics": 0,
+      "bpm": 168.06,
+      "gain": -9.3,
+      "contributors": [{ "id": 399, "name": "Radiohead", "role": "Main" }],
+      "artist": { "id": 399, "name": "Radiohead" },
+      "album": { "id": 14879699, "title": "OK Computer", "cover_xl": "https://cdn-images.dzcdn.net/images/cover/05a186e0a859a36f9cd51cdae2158fe1/1000x1000-000000-80-0-0.jpg" },
+      "type": "track"
+    }
+  }
+}

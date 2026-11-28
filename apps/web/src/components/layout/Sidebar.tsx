@@ -1,5 +1,5 @@
 import type { PlaylistSummary, TrackSummary, User } from '@squirmy/contracts'
-import { Bookmark, Check, CircleAlert, FolderUp, House, Library, LogOut, PanelLeftClose, PanelLeftOpen, Play, Plus, Search, Settings, ShieldCheck, Upload, type LucideIcon } from 'lucide-react'
+import { AudioLines, Bookmark, Check, CircleAlert, FolderUp, House, Library, LogOut, PanelLeftClose, PanelLeftOpen, Play, Plus, Search, Settings, ShieldCheck, Upload, type LucideIcon } from 'lucide-react'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router'
 import { errorMessage } from '@/api/errors'
@@ -174,6 +174,7 @@ const SidebarView = memo(function SidebarView({
           {navItem('/', 'Home', House, { end: true })}
           {navItem('/search', 'Search', Search, { hint: mobile ? undefined : <Kbd>{modKey}K</Kbd> })}
           {navItem('/library', 'Library', Library)}
+          {navItem('/replay', 'Replay', AudioLines)}
           {library.wantlistEnabled && navItem('/wantlist', 'Wantlist', Bookmark)}
           {canUploadMusic(user) && navItem('/imports', 'Add music', Upload)}
         </nav>

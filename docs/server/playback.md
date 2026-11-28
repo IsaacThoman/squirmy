@@ -20,11 +20,15 @@ Each user picks a streaming quality in **Settings → Playback** (web) or **Sett
 
 Each client says which formats it decodes. The iOS app lists FLAC, ALAC, AAC, MP3, WAV and AIFF, so an Opus, Ogg Vorbis or WMA file is converted to AAC for it even at **Original**.
 
-Conversions are done with ffmpeg and sent while they are encoded, so playback starts after a moment rather than after the whole file. At most half the CPU cores (at least two) encode at once. Subsonic apps can also ask for MP3 at 320 or 192 kbps; see [Subsonic clients](./subsonic.md#streaming-and-transcoding).
+Conversions are done with ffmpeg and sent as they are encoded, so playback can start while the rest of the file is being converted. The server reserves at most half the CPU cores (at least two) for encoders, with up to four concurrent conversions started by each user. New playback gets priority over preloading, cache fills and downloads. If a download or cache fill is interrupted to make room for playback, its conversion starts over when requested again. Subsonic apps can also ask for MP3 at 320 or 192 kbps. See [Subsonic clients](./subsonic.md#streaming-and-transcoding).
+
+### Seeing what plays
+
+Now Playing shows a **Lossless** badge while the device playing receives a lossless file as it is, and **Hi-Res Lossless** when that file is above 48 kHz or 16-bit. A lossy stream has no badge, and neither has a lossless file converted on its way (by **High**, **Data saver**, or a device that can't play its format). The badge and **Track info** in the song's menu open the song's details: its file (format, sample rate, bit depth, bitrate, channels, size), what the device receives (the file as it is, or a conversion and why), the volume normalization applied, and the device playing. Each device says this itself, so a phone controlling a TV shows what the TV plays. A device running an older version of Squirmy doesn't say, and its listeners see no badge.
 
 ### The transcode cache
 
-Every conversion is kept in `<data>/transcodes/`, so the second play of a track starts at once and seeks like the original. The cache is capped by **Admin → Server settings → Transcoding → Transcode cache** (default 10 GB). Once an hour, the least recently used conversions beyond the cap are deleted, except those played in the last half hour. The folder is safe to delete at any time; it refills as people listen.
+Completed conversions are kept in `<data>/transcodes/`, so the second play of a track starts at once and seeks like the original. If everyone leaves a stream early, the server gives readers up to 10 seconds to reconnect before stopping the conversion. Cache fills, downloads and conversions already at least halfway through the track keep running after a disconnect. The cache is capped by **Admin → Server settings → Transcoding → Transcode cache** (default 10 GB). Once an hour, the least recently used conversions beyond the cap are deleted, except those played in the last half hour. The folder is safe to delete at any time and refills as people listen.
 
 ## Loudness normalization
 
@@ -47,7 +51,7 @@ Albums are mastered at very different levels. Normalization evens them out so yo
 
 ## Listening history
 
-Squirmy records app plays with less than five seconds of listening as early skips when the play closes. They stay out of listening history, Home's Recently played and Most played, and scrobbles. Radio and Autoplay slightly lower a track's ranking if you skipped it early at least twice in the past 30 days.
+Squirmy records app plays with less than five seconds of listening as early skips when the play closes. They stay out of listening history, Home's Recently played and Most played, and scrobbles. Radio and Autoplay slightly lower a track's ranking if you skipped it early at least twice in the past 30 days. They also use the [sonic analysis](./sonic-analysis.md#how-radio-uses-it) to keep to songs that sound alike and to let tempo, key and energy flow.
 
 Home's **Most played** counts the past 90 days of plays that reached half the song or four minutes, whichever came first. Scrobbles use the same listening threshold.
 
@@ -58,6 +62,18 @@ The queue works as in other streaming apps:
 - **Playing a song from a list** (an album, a playlist, an artist's top songs, search results, liked songs) plays the whole list from that song. **Previous** goes back through the songs before it, and **Repeat** comes round to the first song after the last. Previous never goes back past the start of the list into what played before it: on the first song it starts the song again.
 - **Shuffle** shuffles what is still to come of the list, including songs before the one you started from. Turning it off goes back to the list's order after the song that is playing.
 - **Clicking a song further down Up next** jumps there: the songs above it are skipped, and Previous goes back through them. Songs you added with **Play next** or **Add to queue** stay queued, keep their place when you shuffle, and are not repeated.
+
+## Sleep timer
+
+The sleep timer stops playback after a length of time (5, 10, 15, 30 or 45 minutes, or an hour), at the end of the song that is playing, or at the end of the album, playlist or queue (before Repeat starts it over or Autoplay suggestions begin).
+
+- **It belongs to the session, not to a device.** Set it on your phone while the Apple TV plays, and the Apple TV stops. It stays through a transfer to another device, and every device shows it.
+- **The server keeps it.** The timer runs on the server, so it stops playback on time even if the phone that set it is locked, asleep or gone.
+- **The music fades out** over the last ten seconds on the device that plays, then pauses. Its volume is back where it was for when you play again. A device on an older version of the app does not fade: it just pauses.
+- **"End of song" stops at the end of whatever song plays**, even after you skip. Playback moves on to the next song and pauses there, so play continues from it. It also stops a song on **Repeat one**.
+- **Playing separately.** When the device that plays [steps out of the session](#devices-and-transferring-playback), the timer goes with it; a device that was not playing starts its own session without one.
+
+Set it from Now Playing: the moon button on the web, the **⋯** menu on iOS ([web](../use/web.md#playing-music), [iOS](../use/ios.md#using-it), [Apple TV](../use/apple-tv.md#now-playing)). Servers older than this feature do not offer it.
 
 ## Devices and transferring playback
 

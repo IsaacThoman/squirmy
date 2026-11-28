@@ -1,7 +1,7 @@
-import { listedDevices } from '@squirmy/client-core'
+import { listedDevices, sleepTimerChoices } from '@squirmy/client-core'
 import {
   Disc3, Heart, Infinity as InfinityIcon, Keyboard, ListMusic, ListPlus, ListX, MessageSquareQuote, MicVocal, MonitorSpeaker, PanelLeft, Pause, PictureInPicture2, Play, Radio, Repeat,
-  Repeat1, Settings, Shuffle, SkipBack, SkipForward, Volume2, VolumeX, Maximize2,
+  Moon, Repeat1, Settings, Shuffle, SkipBack, SkipForward, TimerOff, Volume2, VolumeX, Maximize2,
 } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { isApple } from '@/lib/platform'
@@ -57,6 +57,17 @@ export function usePaletteCommands(shell: ShellCommands): PaletteCommand[] {
       { id: 'radio', label: `Start radio from “${track.title}”`, icon: Radio, keywords: ['station', 'similar'], run: () => controls.startRadio({ type: 'track', id: track.id }) },
       ...(track.album ? [{ id: 'go-album', label: `Go to “${track.album.title}”`, icon: Disc3, keywords: ['album of the song playing'], run: () => void navigate(`/album/${track.album!.id}`) }] : []),
       ...track.artists.map(artist => ({ id: `go-artist:${artist.id}`, label: `Go to ${artist.name}`, icon: MicVocal, keywords: ['artist of the song playing'], run: () => void navigate(`/artist/${artist.id}`) })),
+    ] : []),
+    // The session's sleep timer, where the server takes one: each length and end, and off.
+    ...(state.canSetSleepTimer ? [
+      ...sleepTimerChoices(state.context).map(choice => ({
+        id: `sleep:${choice.id}`,
+        label: `Sleep timer: ${choice.label}`,
+        icon: Moon,
+        keywords: ['sleep', 'stop playing', 'timer'],
+        run: () => controls.setSleepTimer(choice.request),
+      })),
+      ...(state.sleepTimer ? [{ id: 'sleep:off', label: 'Turn off the sleep timer', icon: TimerOff, keywords: ['sleep', 'timer'], run: () => controls.setSleepTimer(null) }] : []),
     ] : []),
     { id: 'queue', label: shell.queueOpen ? 'Hide queue' : 'Show queue', icon: ListMusic, keywords: ['up next'], shortcut: 'Q', run: shell.toggleQueue },
     { id: 'lyrics', label: shell.lyricsOpen ? 'Hide lyrics' : 'Show lyrics', icon: MessageSquareQuote, keywords: ['words', 'karaoke'], shortcut: 'Y', disabled: none, run: shell.toggleLyrics },

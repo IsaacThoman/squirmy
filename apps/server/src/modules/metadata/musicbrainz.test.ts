@@ -1,4 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { db } from '../../database/client.js'
+import { createUser } from '../../test/factories.js'
+import { trackSummaries } from '../catalog/summaries.js'
+import { upsertRelease } from '../matching/apply.js'
 import { updateServerSettings } from '../../lib/settings.js'
 import { useTestDatabase } from '../../test/database.js'
 import { useHttpFixtures } from '../../test/http.js'
@@ -133,6 +137,27 @@ describe('musicbrainz', () => {
     const tracks = release!.mediums.flatMap((medium) => medium.tracks)
     expect(new Set(tracks.map((track) => track.artistName)).size).toBeGreaterThan(5)
     expect(tracks.every((track) => track.artistName !== 'Various Artists')).toBe(true)
+  })
+
+  it('persists recording performers and work composers from the release lookup', async () => {
+    const before = http.requests.length
+    const release = await mb.getRelease('00000000-0000-4000-8000-000000000320')
+    expect(http.requests.slice(before)).toHaveLength(1)
+    expect(release).not.toBeNull()
+    const first = await db.transaction((tx) => upsertRelease(tx, release!))
+    const refreshed = await db.transaction((tx) => upsertRelease(tx, release!))
+    expect([...first.tracks.values()]).toEqual([...refreshed.tracks.values()])
+    const user = await createUser()
+    const tracks = await trackSummaries(user.id, [...refreshed.tracks.values()].map(({ recordingId }) => ({ id: recordingId })))
+    expect(tracks.map((track) => track.works?.[0]?.movementNumber)).toEqual([1, 2])
+    const [prelude, rondo] = tracks
+    expect(prelude?.works).toMatchObject([{ title: 'Suite for Winds', movementName: 'Prelude', mbid: '00000000-0000-4000-8000-000000000334' }])
+    expect(rondo?.works?.[0]?.id).toBe(prelude?.works?.[0]?.id)
+    expect(prelude?.credits).toMatchObject([
+      { role: 'composer', artist: { name: 'Robin Fenn' } },
+      { role: 'performer', artist: { name: 'Sage Hale' }, instrument: 'bassoon' },
+      { role: 'producer', artist: { name: 'Alex Fern' } },
+    ])
   })
 
   it('gets a recording with its releases', async () => {

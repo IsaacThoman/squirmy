@@ -18,6 +18,8 @@ export type SongMenuOptions = {
   queued?: { entryId: string; index: number; count: number }
   /** Before going to the song's album or artist, as Now Playing closes over the page. */
   onNavigate?: () => void
+  /** Entries after the song's own, for where it plays: Track info in Now Playing. */
+  extraMenu?: MenuEntry[]
 }
 
 /**
@@ -26,7 +28,7 @@ export type SongMenuOptions = {
  * the library and the song's album and artists. Built when asked, so a row that never opens it
  * builds nothing.
  */
-export function useSongMenuEntries({ track, unavailable = false, queued, onNavigate }: SongMenuOptions): () => MenuEntry[] {
+export function useSongMenuEntries({ track, unavailable = false, queued, onNavigate, extraMenu }: SongMenuOptions): () => MenuEntry[] {
   const navigate = useNavigate()
   const viewer = useViewer()
   const controls = usePlayerControls()
@@ -45,5 +47,6 @@ export function useSongMenuEntries({ track, unavailable = false, queued, onNavig
       void navigate(to)
     },
     queued: queued && { index: queued.index, count: queued.count },
+    extraMenu,
   })
 }

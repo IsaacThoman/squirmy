@@ -1,7 +1,7 @@
 import type { AlbumSummary, PlaybackContext, PlaylistSummary, TrackSummary } from '@squirmy/contracts'
 import { useQueryClient, type QueryKey } from '@tanstack/react-query'
 import { errorMessage } from '@/api/errors'
-import { albumQuery, loadItems, playlistQuery, type PagedResult } from '@/api/queries'
+import { albumQuery, artistQuery, loadItems, playlistQuery, type PagedResult } from '@/api/queries'
 import { useApi } from '@/api/services'
 import { usePlayerControls, type PlayOptions, type StatusMessage } from './player-context'
 
@@ -35,6 +35,8 @@ export function usePlayCollections() {
       play(items)
       if (!complete) controls.tell(incompleteList)
     },
+    playArtist: (artist: { id: string; name: string }) => play(artist.name, artistQuery(api, artist.id),
+      detail => detail.topTracks, detail => ({ type: 'artist', id: detail.id, title: detail.name })),
     playAlbum: (album: AlbumSummary, options?: PlayOptions) => play(album.title, albumQuery(api, album.id), detail => detail.discs.flatMap(disc => disc.tracks), detail => ({ type: 'album', id: detail.id, title: detail.title }), options),
     playPlaylist: (playlist: PlaylistSummary) => play(playlist.name, playlistQuery(api, playlist.id), detail => detail.items.map(item => item.track), detail => ({ type: 'playlist', id: detail.id, title: detail.name })),
   }

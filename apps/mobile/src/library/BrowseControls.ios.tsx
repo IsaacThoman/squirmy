@@ -127,7 +127,8 @@ function HostedCover({ cover, size, zoom, dim }: { cover: React.ReactElement; si
 }
 
 function menuItems(actions: readonly RowAction[]) {
-  return actions.map(action => <Button key={action.title} label={action.title} systemImage={action.icon as ButtonSymbol} onPress={action.onPress} />);
+  return actions.map(action => <Button key={action.title} label={action.title} systemImage={action.icon as ButtonSymbol}
+    role={action.destructive ? 'destructive' : undefined} onPress={action.onPress} />);
 }
 
 export function CollectionTile(props: CollectionButtonProps) {

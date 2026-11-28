@@ -186,6 +186,36 @@ describe('detached sessions', () => {
     expect(await storedRows()).toHaveLength(1)
   })
 
+  it('takes the sleep timer along with the device that plays, and leaves none behind', async () => {
+    const a = await device('device-a-30')
+    const b = await device('device-b-30')
+    await a.send(play())
+    await a.send({ type: 'setSleepTimer', timer: { kind: 'queue' } })
+    // Another device that detaches gets a paused copy, without the timer.
+    expect(ok(await b.detach()).snapshot.state.sleepTimer).toBeUndefined()
+    expect((await getSnapshot(user.id)).state.sleepTimer).toEqual({ kind: 'queue' })
+    ok(await b.attach())
+    const moved = ok(await a.detach())
+    expect(moved.snapshot.state.sleepTimer).toEqual({ kind: 'queue' })
+    expect((await getSnapshot(user.id)).state.sleepTimer).toBeUndefined()
+    // Brought back, the own session's timer comes too.
+    const back = ok(await a.attach(true))
+    expect(back.snapshot.state.sleepTimer).toEqual({ kind: 'queue' })
+  })
+
+  it('ends a timer that went with the device in its own session', async () => {
+    const a = await device('device-a-31')
+    await a.send(play())
+    await a.send({ type: 'setSleepTimer', timer: { kind: 'time', durationMs: 200 } })
+    ok(await a.detach())
+    time += 200
+    await eventually(() => a.lastState(), (state) => {
+      expect(state).toMatchObject({ playing: false, activeDeviceId: 'device-a-31' })
+      expect(state?.sleepTimer).toBeUndefined()
+    })
+    expect((await getSnapshot(user.id)).state).toMatchObject({ playing: false })
+  })
+
   it('gives a device that was not playing a paused copy and leaves the shared session alone', async () => {
     const a = await device('device-a-3')
     const b = await device('device-b-3')

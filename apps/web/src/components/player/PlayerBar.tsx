@@ -15,6 +15,7 @@ import { playingElsewhere, usePosition, type Player } from '@/player/player-cont
 import { STILL_LOADING_LABEL, useStillLoading } from '@/player/use-still-loading'
 import { DevicesPopover } from './Devices'
 import { PlayerStatusLine } from './PlayerStatus'
+import { SleepTimerChip } from './SleepTimer'
 import { SongContextMenu } from './SongMenu'
 import { progressPosition } from './progress'
 import { PlayPauseButton, SeekBar, touchTarget, TransportButtons, VolumeControl } from './Transport'
@@ -205,6 +206,7 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
         </div>
 
         <div className={cn('flex min-w-0 items-center justify-end gap-1', stacked && 'col-start-2 row-start-1')}>
+          <SleepTimerChip player={player} />
           {lyricsFit && <IconButton label={lyricsOpen ? 'Hide lyrics' : 'Lyrics'} size="sm" pressed={lyricsOpen} disabled={!item} onClick={onToggleLyrics} className={touchTarget}><MessageSquareQuote /></IconButton>}
           <IconButton label={queueOpen ? 'Hide queue' : 'Queue'} size="sm" pressed={queueOpen} onClick={onToggleQueue} aria-expanded={queueOpen} data-queue-toggle="" className={touchTarget}><ListMusic /></IconButton>
           <DevicesPopover

@@ -582,7 +582,7 @@ await step('priced offers', async () => {
 })
 
 await step('fix match from the album page', async () => {
-  const album = (await get('/search/library?q=OK%20Computer&limit=5')).albums.find(item => item.title === 'OK Computer')
+  const album = (await get('/search/library?q=OK%20Computer&limit=5&scope=server')).albums.find(item => item.title === 'OK Computer')
   await page.goto(`${base}/album/${album.id}`)
   await page.getByRole('button', { name: 'More options', exact: true }).click()
   await page.getByRole('menuitem', { name: 'Fix match…' }).click()

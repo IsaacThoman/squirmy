@@ -204,6 +204,27 @@
       "when": 1795843976934,
       "tag": "0028_play_skips",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1795844824095,
+      "tag": "0029_listening_replay",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1795848240704,
+      "tag": "0030_credits_and_works",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1795848832357,
+      "tag": "0031_sonic_analysis",
+      "breakpoints": true
     }
   ]
 }

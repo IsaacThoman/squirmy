@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
 import { FormError } from '@/components/ui/input'
-import { DropdownMenu } from '@/components/ui/menu'
+import { DropdownMenu, type MenuEntry } from '@/components/ui/menu'
 import { LoadError } from '@/components/ui/query-state'
 import { isPlayable } from '@/lib/catalog'
 import { formatTotalDuration, plural } from '@/lib/format'
@@ -57,20 +57,14 @@ export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete
       onRemove={owned ? onRemove : undefined}
       onRemoveMany={owned ? onRemoveMany : undefined}
       failure={failure}
-      menu={owned && (
-        <DropdownMenu
-          align="start"
-          entries={[
-            { label: 'Edit details', icon: <Pencil />, onSelect: onEdit },
-            playlist.isPublic
-              ? { label: 'Make private', icon: <Lock />, onSelect: onTogglePublic }
-              : { label: 'Make public', icon: <Globe />, onSelect: onTogglePublic },
-            { kind: 'separator' },
-            { label: 'Delete playlist', icon: <Trash2 />, danger: true, onSelect: onDelete },
-          ]}
-          trigger={<IconButton label="More options" size="lg"><MoreHorizontal /></IconButton>}
-        />
-      )}
+      menuEntries={owned ? [
+        { label: 'Edit details', icon: <Pencil />, onSelect: onEdit },
+        playlist.isPublic
+          ? { label: 'Make private', icon: <Lock />, onSelect: onTogglePublic }
+          : { label: 'Make public', icon: <Globe />, onSelect: onTogglePublic },
+        { kind: 'separator' },
+        { label: 'Delete playlist', icon: <Trash2 />, danger: true, onSelect: onDelete },
+      ] : undefined}
       empty={(
         <EmptyState
           icon={<ListMusic />}
@@ -138,17 +132,27 @@ type TrackCollectionProps = {
   /** Loads another page when the end comes into view. */
   onEndReached?: () => void
   moreFailure?: MoreFailure
-  menu?: ReactNode
+  /** After Play and Shuffle in the collection's menu. */
+  menuEntries?: MenuEntry[]
   empty: ReactNode
   failure?: string
 }
 
-function TrackCollection({ kind, title, art, tint, byline, description, tracks, addedAt, getItemKey, count, durationMs, context, onPlay, onMove, onRemove, onRemoveMany, onEndReached, moreFailure, menu, empty, failure }: TrackCollectionProps) {
+function TrackCollection({ kind, title, art, tint, byline, description, tracks, addedAt, getItemKey, count, durationMs, context, onPlay, onMove, onRemove, onRemoveMany, onEndReached, moreFailure, menuEntries, empty, failure }: TrackCollectionProps) {
   const controls = usePlayerControls()
   const viewer = useViewer()
   const play = onPlay ?? ((index: number, options?: PlayOptions) => controls.playTracks(tracks, index, context, options))
   const actions = useTrackActions(tracks, context, { onPlay: index => play(index), onMove, onRemove, onRemoveMany })
   const playable = tracks.some(track => isPlayable(track, viewer)) || !!count
+  // Like an album's, the menu plays or shuffles the collection; there are no Play and Shuffle buttons.
+  const entries: MenuEntry[] = [
+    ...(tracks.length > 0 ? [
+      { label: 'Play', icon: <Play />, disabled: !playable, onSelect: () => play(0, { collection: true }) },
+      { label: 'Shuffle', icon: <Shuffle />, disabled: !playable, onSelect: () => play(0, { collection: true, shuffle: true }) },
+    ] : []),
+    ...(tracks.length > 0 && menuEntries?.length ? [{ kind: 'separator' as const }] : []),
+    ...(menuEntries ?? []),
+  ]
   const size = tracks.length ? [count ?? plural(tracks.length, 'song'), durationMs !== null && formatTotalDuration(durationMs)].filter(Boolean).join(', ') : 'No songs yet'
   return (
     <div>
@@ -160,19 +164,9 @@ function TrackCollection({ kind, title, art, tint, byline, description, tracks, 
         byline={byline}
         meta={[size]}
         description={description}
-        actions={(tracks.length > 0 || menu) && (
+        actions={entries.length > 0 && (
           <PlayActions>
-            {tracks.length > 0 && (
-              <>
-                <Button size="lg" variant="primary" disabled={!playable} onClick={() => play(0, { collection: true })}>
-                  <Play fill="currentColor" /> Play
-                </Button>
-                <IconButton label="Shuffle" size="lg" disabled={!playable} onClick={() => play(0, { collection: true, shuffle: true })}>
-                  <Shuffle />
-                </IconButton>
-              </>
-            )}
-            {menu}
+            <DropdownMenu align="start" entries={entries} trigger={<IconButton label="More options" size="lg"><MoreHorizontal /></IconButton>} />
           </PlayActions>
         )}
       />

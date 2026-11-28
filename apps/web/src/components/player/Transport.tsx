@@ -1,6 +1,6 @@
 import type { RepeatMode } from '@squirmy/contracts'
 import { Pause, Play, Repeat, Repeat1, Shuffle, SkipBack, SkipForward, Volume, Volume1, Volume2, VolumeX } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Spinner } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
 import { Slider } from '@/components/ui/slider'
@@ -80,11 +80,13 @@ type SeekBarProps = {
   disabled?: boolean
   /** The times go under the slider's ends instead of beside it. */
   stacked?: boolean
+  /** Between the stacked times: the quality badge in Now Playing. */
+  center?: ReactNode
   className?: string
 }
 
 /** Elapsed time, the seek slider and the time left. Reads the clock itself so only it re-renders. */
-export function SeekBar({ durationMs, onSeek, disabled, stacked, className }: SeekBarProps) {
+export function SeekBar({ durationMs, onSeek, disabled, stacked, center, className }: SeekBarProps) {
   const position = usePosition(positionMs => seekBarPosition(positionMs, durationMs))
   const [draft, setDraft] = useState<number | null>(null)
   const shown = Math.min(draft ?? position, durationMs)
@@ -110,8 +112,9 @@ export function SeekBar({ durationMs, onSeek, disabled, stacked, className }: Se
     return (
       <div className={cn('w-full', className)}>
         {slider}
-        <div className={cn('mt-1 flex justify-between text-xs tabular text-muted-foreground', disabled && 'opacity-50')}>
+        <div className={cn('relative mt-1 flex items-center justify-between text-xs tabular text-muted-foreground', disabled && 'opacity-50')}>
           <span>{elapsed}</span>
+          {center && <div className="absolute left-1/2 -translate-x-1/2">{center}</div>}
           <span>{left}</span>
         </div>
       </div>
