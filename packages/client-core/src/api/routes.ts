@@ -84,6 +84,7 @@ export const apiRoutes = {
 
   'userdata.settings': 'GET /me/settings',
   'userdata.updateSettings': 'PATCH /me/settings',
+  'userdata.rate': 'PUT /me/ratings/:type/:id',
   'userdata.like': 'PUT /me/likes/:type/:id',
   'userdata.unlike': 'DELETE /me/likes/:type/:id',
   'userdata.likes': 'GET /me/likes/:type',
@@ -91,6 +92,7 @@ export const apiRoutes = {
   'userdata.unpin': 'DELETE /me/pins/:kind/:id',
   'userdata.playlists': 'GET /playlists',
   'userdata.createPlaylist': 'POST /playlists',
+  'userdata.previewSmartPlaylist': 'POST /playlists/smart/preview',
   'userdata.playlist': 'GET /playlists/:id',
   'userdata.updatePlaylist': 'PATCH /playlists/:id',
   'userdata.deletePlaylist': 'DELETE /playlists/:id',

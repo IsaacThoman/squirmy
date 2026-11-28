@@ -44,6 +44,7 @@ export function SongMenuButton({ track, unavailable = false, queued, onNavigate,
     unavailable: unavailable || !isPlayable(track, viewer),
     wanted: actions.isWanted?.(track),
     playlists: actions.playlists,
+    ratings: actions.ratings,
     act,
     navigate: to => {
       onNavigate?.()

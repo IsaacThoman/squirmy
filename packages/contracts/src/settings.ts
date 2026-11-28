@@ -22,6 +22,12 @@ export const UserSettings = z.object({
   libraryIncludesServerMusic: z.boolean().default(false),
   shareNowPlaying: z.boolean().default(false),
   /**
+   * Whether the apps offer 1 to 5 star ratings of songs beside the heart. Off by default: the
+   * heart is the one way to keep something, and ratings are for people who also want to grade
+   * it (Subsonic apps set the same ratings).
+   */
+  showRatings: z.boolean().default(false),
+  /**
    * Whether explicit songs play for the user. On by default. Off, explicit songs are gray
    * and never play: queues, radio and autoplay leave them out, search and Home hide them,
    * and a known clean version plays instead where there is one. An admin can turn it off
@@ -44,6 +50,7 @@ export const UpdateUserSettings = z.object({
   scrobbleLastFm: z.boolean(),
   libraryIncludesServerMusic: z.boolean(),
   shareNowPlaying: z.boolean(),
+  showRatings: z.boolean(),
   /** Turning it on while an admin restricts the user is 403 `explicit_restricted`. */
   allowExplicit: z.boolean(),
 }).partial()
