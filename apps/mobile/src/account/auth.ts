@@ -75,6 +75,7 @@ export function reduceAuth(state: AuthState, event: AuthEvent): AuthState {
 function sameServer(a: Server, b: Server): boolean {
   return a.name === b.name && a.version === b.version && a.registrationRequiresInvite === b.registrationRequiresInvite
     && a.wantlistEnabled === b.wantlistEnabled && a.supportsTvDevices === b.supportsTvDevices
+    && a.supportsTvPairing === b.supportsTvPairing
     && a.ssoName === b.ssoName && a.passwordLogin === b.passwordLogin
     && (a.sharingEnabled ?? false) === (b.sharingEnabled ?? false);
 }

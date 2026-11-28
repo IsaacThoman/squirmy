@@ -88,6 +88,7 @@ type AccountContextValue = {
    * Resolves with `twoFactor` (the challenge) when the password was right but the account also
    * wants a code from an authenticator app: `signInWithCode` finishes then.
    */
+  acceptTvSession: (response: import('@squirmy/contracts').AuthResponse) => Promise<void>;
   signIn: (username: string, password: string) => Promise<{ twoFactor: string } | void>;
   signInWithCode: (challenge: string, code: string) => Promise<void>;
   /**
@@ -219,6 +220,12 @@ export function AccountProvider({ children }: PropsWithChildren) {
       unsaved,
       accounts,
       connect: next => dispatch({ type: 'connected', server: next }),
+      acceptTvSession: async response => {
+        if (!server || state.status !== 'signIn') return;
+        rememberUsername(server.url, response.user.username);
+        await open(response.user);
+        dispatch({ type: 'signedIn', token: response.token, user: response.user });
+      },
       signIn: async (username, password) => {
         let response;
         try {

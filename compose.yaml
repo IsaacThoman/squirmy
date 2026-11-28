@@ -22,6 +22,7 @@ services:
       # SQUIRMY_MANAGED_LIBRARY_PATHS: /music
       # The address people use, such as https://music.example.com.
       PUBLIC_URL: ${PUBLIC_URL:-}
+      SQUIRMY_LAN_DISCOVERY: ${SQUIRMY_LAN_DISCOVERY:-}
       # Which proxies to believe about the client's address: true for one proxy on this
       # machine or a private network. See docs/server/reverse-proxy.md.
       TRUST_PROXY: ${TRUST_PROXY:-false}

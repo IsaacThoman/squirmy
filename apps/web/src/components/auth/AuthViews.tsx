@@ -32,7 +32,7 @@ type AuthFrameProps = {
 }
 
 /** The logo over a centered card, for every page shown before the app itself. */
-function AuthFrame({ title, description, header, footer, version, wide, children }: AuthFrameProps) {
+export function AuthFrame({ title, description, header, footer, version, wide, children }: AuthFrameProps) {
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-background px-4 py-10">
       <Logo className="mb-8" />

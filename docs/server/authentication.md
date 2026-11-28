@@ -8,6 +8,7 @@ How people sign in to a Squirmy server, and what an admin can do when something 
 | Password and an authenticator code ([two-factor](#two-factor-authentication)) | yes | yes | no |
 | [Passkey](#passkeys) | yes | not yet | no |
 | [Single sign-on](#single-sign-on-openid-connect) (OpenID Connect) | yes | iOS: yes; Apple TV: no | no |
+| [TV pairing](#apple-tv-pairing) | approve | iOS: approve, Apple TV: sign in | no |
 | [App password](./users.md#app-passwords) | no | no | yes |
 
 ## Sessions
@@ -19,6 +20,18 @@ Each sign-in opens a session: a random token that the server keeps only as a has
 The list shows no locations: Squirmy does not look addresses up with outside services.
 
 An admin can do the same for anyone, from **Admin → Users & invites → Manage → Sign-ins and security…**: sign out one session, or **Sign out everywhere**. Changing your password, an admin resetting it and disabling an account still end sessions as described in [Managing accounts](./users.md#managing-accounts).
+
+## Apple TV pairing
+
+Connect the TV to a server. It shows a QR code and an eight-character code that expire in ten minutes. The QR uses `PUBLIC_URL` when configured, or the server address the TV used. Squirmy draws the QR locally. Approve from an existing Squirmy session in your phone’s browser or iOS app. Password, authenticator, passkey, and single sign-on sessions can approve a TV. API tokens and Subsonic app passwords cannot approve one.
+
+Only approve a request you started. Check the code against the TV screen and review the TV name, IP address seen by the server, and the account to be signed in. Approval and redemption each work once. Ending the approving session before the TV redeems the code cancels the approval. The TV appears in **Settings → Security → Where you're signed in**, where you can sign it out independently.
+
+### LAN discovery
+
+Set `SQUIRMY_LAN_DISCOVERY=true` and restart the API server to advertise its direct HTTP port as `_squirmy._tcp` over Bonjour. The default is off. Enable it only when the direct port is reachable on a trusted LAN. It is independent of `PUBLIC_URL`, so the TV can connect over the LAN while the phone opens the QR at your HTTPS address. For an HTTPS connection on the TV, enter the HTTPS address manually.
+
+The TV and server need to be on a network that passes multicast DNS. A bridged Docker network usually keeps these announcements inside the container. Use a directly reachable host network where supported or enter the server address manually.
 
 ## Two-factor authentication
 
@@ -113,7 +126,7 @@ In **Settings → Security**, **Connect** (with your password) sends you to the 
 
 ### The iOS app
 
-The iOS app's sign-in shows **Sign In with …** and opens the provider in the system's sign-in sheet, which returns to the app with a one-time code (valid for two minutes, used once) that the app trades for a session. Only the app's own `squirmy://` address is accepted as a return address. The Apple TV app has no browser, so it cannot use single sign-on; with password sign-in off it cannot sign in.
+The iOS app's sign-in shows **Sign In with …** and opens the provider in the system's sign-in sheet, which returns to the app with a one-time code (valid for two minutes, used once) that the app trades for a session. Only the app's own `squirmy://` address is accepted as a return address. To sign in on Apple TV with that account, use [TV pairing](#apple-tv-pairing) from an iOS or web session that signed in through the provider.
 
 ### Turning password sign-in off
 

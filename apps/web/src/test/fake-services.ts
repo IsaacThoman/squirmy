@@ -242,6 +242,8 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
       appPasswords: vi.fn(async () => list(appPasswords)),
       createAppPassword: vi.fn(async ({ name }: { name: string }) => ({ ...appPasswords[0], name, secret: 'sq-secret' })),
       deleteAppPassword: vi.fn(async () => ({ ok: true as const })),
+      lookupTvPairing: vi.fn(async (_body: { code: string }) => ({ id: users[0]!.id, deviceName: 'Living Room Apple TV', ipAddress: '192.168.1.20' })),
+      approveTvPairing: vi.fn(async (_body: { code: string; id: string }) => ({ ok: true as const })),
       loginTwoFactor: vi.fn(async () => ({ user: currentUser, token: 'token' })),
       sessions: vi.fn(async () => list(authSessions)),
       revokeSession: vi.fn(async () => ({ ok: true as const })),
