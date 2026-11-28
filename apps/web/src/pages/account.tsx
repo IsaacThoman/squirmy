@@ -1,14 +1,16 @@
 import { ApiError } from '@squirmy/client-core'
-import { DuplicateLibraryRootDetails, queryKeys, type CreateLibraryRootRequest, type UpdateLibraryRootRequest, type User } from '@squirmy/contracts'
+import { DuplicateLibraryRootDetails, queryKeys, TwoFactorChallenge, type CreateLibraryRootRequest, type UpdateLibraryRootRequest, type User } from '@squirmy/contracts'
 import { notifyManager, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router'
 import { errorMessage } from '@/api/errors'
 import { useFolderListing } from '@/api/folders'
 import { useApi } from '@/api/services'
-import { setSetupDone, setSignedInUser, useMe, useSetupStatus, useSignInNotice } from '@/auth/session'
-import { LoginView, RegisterView, SetupAccountView, SetupDoneView, SetupLibraryView } from '@/components/auth/AuthViews'
+import { safeNext, setSetupDone, setSignedInUser, useMe, useSetupStatus, useSignInNotice } from '@/auth/session'
+import { LoginView, RegisterView, SetupAccountView, SetupDoneView, SetupLibraryView, TwoFactorView } from '@/components/auth/AuthViews'
 import { webDevice } from '@/lib/device'
+import { browserSupportsPasskeys, getPasskey, passkeyCancelled } from '@/lib/passkeys'
+import { ssoMessage, startSso } from '@/lib/sso'
 
 /** Signing in only updates the session; the signed-out guard then moves on to `next`. */
 function useSignedIn() {
@@ -18,17 +20,57 @@ function useSignedIn() {
 
 export function LoginPage() {
   const api = useApi()
+  const [params] = useSearchParams()
+  const ssoError = params.get('sso_error')
   const { data: status } = useSetupStatus()
   const signedIn = useSignedIn()
   const notice = useSignInNotice()
+  // Set when the password was right and the account wants a code as well.
+  const [challenge, setChallenge] = useState<string | null>(null)
   const login = useMutation({ mutationFn: api.auth.login, onSuccess: response => signedIn(response.user), meta: { inline: true } })
+  const secondStep = useMutation({ mutationFn: api.auth.loginTwoFactor, onSuccess: response => signedIn(response.user), meta: { inline: true } })
+  const passkeys = status!.passkeysAvailable && browserSupportsPasskeys()
+  const signInWithPasskey = async () => {
+    const { challenge, options } = await api.auth.passkeyLoginOptions()
+    let response
+    try {
+      response = await getPasskey(options)
+    } catch (error) {
+      if (passkeyCancelled(error)) return
+      throw error
+    }
+    signedIn((await api.auth.loginWithPasskey({ challenge, response, device: webDevice() })).user)
+  }
+  const submitPassword = async (credentials: { username: string; password: string }) => {
+    try {
+      await login.mutateAsync({ ...credentials, device: webDevice() })
+    } catch (error) {
+      const details = error instanceof ApiError && error.code === 'two_factor_required' ? TwoFactorChallenge.safeParse(error.details).data : undefined
+      if (!details) throw error
+      setChallenge(details.challenge)
+    }
+  }
+  if (challenge) {
+    return (
+      <TwoFactorView
+        serverName={status!.serverName}
+        version={status!.version}
+        onSubmit={code => secondStep.mutateAsync({ challenge, code, device: webDevice() })}
+        onBack={() => setChallenge(null)}
+      />
+    )
+  }
   return (
     <LoginView
       serverName={status!.serverName}
       version={status!.version}
       inviteRequired={status!.registrationRequiresInvite}
       notice={notice}
-      onSubmit={credentials => login.mutateAsync({ ...credentials, device: webDevice() })}
+      onSubmit={submitPassword}
+      onPasskey={passkeys ? signInWithPasskey : undefined}
+      sso={status!.ssoName ? { name: status!.ssoName, onStart: () => startSso(safeNext(params.get('next'))) } : undefined}
+      passwordLogin={status!.passwordLoginEnabled}
+      ssoError={ssoError ? ssoMessage(ssoError) : null}
     />
   )
 }

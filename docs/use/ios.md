@@ -43,7 +43,7 @@ For working on the app itself, the [README](https://github.com/IsaacThoman/squir
 
 1. On first launch, **Connect to your server** asks for its address. Type it as you would in a browser: `music.example.com`, or `http://192.168.1.20:4747` on your home network. Without `http://` or `https://`, the app tries HTTPS first and then HTTP.
 2. Choose **Continue**. The first time it reaches a server on your local network, iOS asks to allow Local Network access; allow it.
-3. Sign in with your username and password, or create an account with an invite code from your admin.
+3. Sign in with your username and password, or create an account with an invite code from your admin. If your account has [two-factor authentication](../server/authentication.md#two-factor-authentication) on, the app then asks for the code from your authenticator app (or a recovery code). When the server has [single sign-on](../server/authentication.md#single-sign-on-openid-connect), **Sign In with …** opens its sign-in page in the system's sign-in sheet and returns to the app.
 
 If the server has not been set up, the app says so, shows which version of Squirmy it runs, and offers **Open in Browser** to create the admin account. On a public address over plain HTTP, the sign-in screen warns that your password is sent unencrypted; see [Reverse proxies and HTTPS](../server/reverse-proxy.md). For connection errors, see [Troubleshooting](../server/troubleshooting.md#the-app-cannot-connect).
 
@@ -97,7 +97,7 @@ The app has Home, Library (playlists, albums, artists and songs: what you hearte
 
 To listen with someone else on your server, open **Playback device** and choose **Listen together**, then **Start listening together**. Share the invite link with **Share invite link**, or invite people one by one from the list below it; an invited person gets an alert with **Join**. To join from a link someone sent you, paste it into **Paste an invite link to join** in the same sheet (the web app opens links directly).
 
-In a session, the sheet lists who is listening, with the host marked; the host can remove people, choose **Who can add songs**, and **End for everyone**. A member sees **Leave**. As a member the host controls playback: the play and skip buttons are dimmed, and playing a song adds it to the queue for everyone when the host lets everyone add. The queue says who added each song. Members' queue edits have no **Undo**; the host's changes the queue for everyone. See [Listening together](../server/playback.md#listening-together).
+In a session, the sheet lists who is listening, with the host marked; the host can remove people, choose **Who can add songs**, and **End for everyone**. A member sees **Leave**. As a member the host controls playback: the play and skip buttons are dimmed, and playing a song adds it to the queue for everyone when the host lets everyone add. The queue says who added each song. Members' queue edits have no **Undo**; the host's changes the queue for everyone. A song your phone can't play, such as an explicit one while explicit content is off for you, isn't skipped for everyone: the phone stays quiet, the player says it **isn’t playing for you**, and you hear the next song with everyone. See [Listening together](../server/playback.md#listening-together).
 
 ## Playing separately on one device
 

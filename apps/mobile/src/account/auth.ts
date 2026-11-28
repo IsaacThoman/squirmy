@@ -75,6 +75,7 @@ export function reduceAuth(state: AuthState, event: AuthEvent): AuthState {
 function sameServer(a: Server, b: Server): boolean {
   return a.name === b.name && a.version === b.version && a.registrationRequiresInvite === b.registrationRequiresInvite
     && a.wantlistEnabled === b.wantlistEnabled && a.supportsTvDevices === b.supportsTvDevices
+    && a.ssoName === b.ssoName && a.passwordLogin === b.passwordLogin
     && (a.sharingEnabled ?? false) === (b.sharingEnabled ?? false);
 }
 
@@ -89,6 +90,9 @@ export function signInErrorMessage(error: unknown, serverName: string): string {
     case 'invalid_invite': return 'That invite code isn’t valid. It may have expired or been used.';
     case 'invite_required': return 'You need an invite code to create an account on this server.';
     case 'username_taken': return 'That username is taken. Try another one.';
+    case 'invalid_code': return 'That code isn’t right. Enter the newest code from your authenticator app, or a recovery code.';
+    case 'invalid_challenge': return 'That sign-in took too long. Enter your password again.';
+    case 'password_login_disabled': return `${serverName} doesn’t take passwords. Sign in with single sign-on.`;
     case 'invalid_request': return invalidFieldMessage(error.details);
   }
   return error.status >= 500 ? `${serverName} ran into a problem. Try again in a moment.` : error.message;
@@ -101,4 +105,33 @@ function invalidFieldMessage(details: unknown): string {
   if (field === 'password') return 'That password is too long.';
   if (field === 'username') return 'Usernames are 2 to 40 letters, numbers, dots, dashes or underscores.';
   return 'Check what you entered and try again.';
+}
+
+/** What single sign-on's redirect back to the app means, by its `error` code. */
+export function ssoErrorMessage(code: string, providerName: string): string {
+  switch (code) {
+    case 'sso_unavailable': return 'Single sign-on isn’t set up on this server any more.';
+    case 'sso_expired': return 'That sign-in took too long. Try again.';
+    case 'sso_denied': return 'The sign-in was cancelled.';
+    case 'sso_not_allowed': return `Your ${providerName} account isn’t in a group that may use this server.`;
+    case 'sso_no_account': return 'There’s no account here for you yet. Ask the server’s admin to add one with your email address.';
+    case 'sso_username_taken': return 'An account here already has your username. Ask the server’s admin to add your email address to it.';
+    case 'sso_username_invalid': return `${providerName} gave no username this server can use. Ask the server’s admin.`;
+    case 'sso_linked_elsewhere': return `That ${providerName} account is connected to another account here.`;
+    case 'account_disabled': return 'This account is disabled. Ask the server’s admin to turn it back on.';
+  }
+  return `${providerName} didn’t sign you in. Try again.`;
+}
+
+/** The `code` or `error` of the app's redirect back from single sign-on. */
+export function ssoRedirectResult(url: string): { code: string } | { error: string } | null {
+  const query = url.split('?')[1]?.split('#')[0] ?? '';
+  const params = new Map(query.split('&').filter(Boolean).map(pair => {
+    const [key, value = ''] = pair.split('=');
+    return [decodeURIComponent(key!), decodeURIComponent(value.replace(/\+/g, ' '))] as const;
+  }));
+  const code = params.get('code');
+  if (code) return { code };
+  const error = params.get('error');
+  return error ? { error } : null;
 }

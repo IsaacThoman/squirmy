@@ -57,6 +57,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] `/rest` router with XML and JSON ([subsonic.md](./server/subsonic.md))
 - [x] App passwords and API keys
 - [x] Browsing, search, streaming, cover art, stars, playlists, scrobble, play queue, lyrics
+- [x] Enhanced lyrics, playback timelines, negotiated transcoding, sonic similarity and BPM and mood metadata
 - [x] Client test pass: py-opensonic, py-sonic, subsonic-api (Node) and Airsonic Refix
 
 ## 6. Search everything
@@ -95,7 +96,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Radio and autoplay (server, API, web and iOS, and Subsonic similar songs)
 - [x] A personal Home: Jump back in, daily mixes (Made for you) with their own page, Because you listened to, Your top artists, Rediscover, ordered by the time of day (server, web, iOS and Apple TV; iOS and tvOS not yet checked on a device)
 - [x] Sonic analysis: tempo, key, energy, danceability, intro and outro, and timbre vectors from Squirmy's own DSP; tempo, key and mood tags; Deezer's tempo as a fallback. Radio ranks with it, and the web app has **Songs that sound like this** ([sonic-analysis.md](./server/sonic-analysis.md))
-- [ ] Sonic radio on iOS and Apple TV, tempo and key in the song info, and BPM in Subsonic songs
+- [ ] Sonic radio on iOS and Apple TV, tempo and key in the song info
 - [ ] Mixes and DJ-style transitions from the sonic analysis (the `artistSoundAffinity` seam and the hooks in [Sonic analysis](./architecture.md#sonic-analysis))
 - [x] Detached playback: web and iOS devices can play their own queue and rejoin the shared session later ([detached-playback-ui.md](./detached-playback-ui.md))
 - [x] Local search index: importer, search and admin routes ([local-search-index.md](./local-search-index.md)), offered as the first search provider, and its admin screen
@@ -103,6 +104,9 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [ ] Edit smart playlist rules in the iOS app
 - [x] Documentation site ([docs/](./index.md), built with VitePress)
 - [x] Docker health check on `/ready`, and the image reports its source version
+- [x] Sessions list and sign-out, TOTP two-factor with recovery codes (server, web, iOS and Apple TV sign-in) ([authentication.md](./server/authentication.md))
+- [x] Passkeys on the web: add, rename, remove, and username-less sign-in
+- [x] OpenID Connect single sign-on (server, web, admin settings, iOS sign-in), linking accounts, and turning password sign-in off
 - [x] Explicit content controls: a per-user switch an admin can enforce, explicit songs gray and kept out of queues, radio, search, Home and Subsonic, and known clean versions in their place (server, web, iOS and Apple TV)
 - [x] Public share links to albums, playlists and songs: expiring and revocable, a public page with previews or whole songs as the admin allows, managed in Settings and Admin → Sharing (server, web, and Share on iOS)
 
@@ -135,8 +139,8 @@ Designed in [audio-engine.md](./audio-engine.md); each item is a pull request fr
 - [ ] M7. Playback speed, with the rate in the session
 - [ ] M8. AirPlay 2 buffering
 - [ ] M9. The native engine by default, and `expo-audio` removed
-- [ ] W1. Ramped gain changes on the web
-- [ ] W2. Gapless web playback through Media Source Extensions
+- [x] W1. Ramped gain changes on the web
+- [x] W2. Gapless web playback through Media Source Extensions (Chromium; Firefox and Safari keep today's engine)
 - [ ] W3. Limiter, equalizer and output device on the web
 - [ ] W4. Crossfade on the web
 

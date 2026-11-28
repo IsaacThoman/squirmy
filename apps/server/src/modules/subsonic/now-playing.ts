@@ -8,6 +8,8 @@ import { and, eq, isNull, or, sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { users } from '../../database/schema.js'
 import { getDevices, getSnapshot } from '../sessions/service.js'
+import { playbackTimelines, timelinePosition } from './playback-report.js'
+import { trackId } from './ids.js'
 import type { Payload } from './protocol.js'
 import { songs } from './songs.js'
 
@@ -34,10 +36,22 @@ export async function nowPlaying(viewerId: string): Promise<Payload[]> {
     isNull(users.disabledAt),
     or(eq(users.id, viewerId), sql`${users.settings}->'shareNowPlaying' = 'true'::jsonb`),
   ))
+  const timelines = playbackTimelines(new Set(people.map((person) => person.id)), now)
   const entries = await Promise.all(people.map(async (person): Promise<Payload[]> => {
     const found: Payload[] = []
+    const current = timelines.get(person.id) ?? []
+    const active = current.filter((timeline) => timeline.state !== 'stopped')
+    const timelineSongs = new Map((await songs(viewerId, active.map((timeline) => ({ id: timeline.recordingId })))).map((song) => [song.id, song]))
+    for (const timeline of active) {
+      const song = timelineSongs.get(trackId(timeline.recordingId))
+      if (song) found.push({
+        ...song, username: person.username, minutesAgo: Math.floor(Math.max(0, now - timeline.at) / 60_000),
+        playerId: playerId(timeline.playerKey), playerName: timeline.client, state: timeline.state,
+        positionMs: Math.round(timelinePosition(timeline, now)), playbackRate: timeline.playbackRate,
+      })
+    }
     const report = reports.get(person.id)
-    if (report) {
+    if (report && !current.some((timeline) => timeline.recordingId === report.recordingId && timeline.client === report.client && (timeline.state !== 'stopped' || timeline.at >= report.at))) {
       const [song] = await songs(viewerId, [{ id: report.recordingId }])
       const elapsed = now - report.at
       if (song && elapsed <= ((song.duration as number) + 60) * 1000) {

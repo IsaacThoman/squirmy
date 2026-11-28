@@ -12,7 +12,7 @@ import {
   albumDetail, allTracks, artistDetail, genres, home, libraryAlbums, mixDetail, libraryArtists, libraryTracks, likedTracks, lyricsFor, playlistDetail, playlistSummaries,
   searchFixtures, searchPage, wantlist,
 } from '@/fixtures/catalog'
-import { appPasswords, currentUser, invites, jobs, publicShare, serverSettings, shareLinks, userSettings, users } from '@/fixtures/server'
+import { accountSecurity, appPasswords, authSessions, currentUser, invites, jobs, publicShare, serverSettings, shareLinks, userSettings, users } from '@/fixtures/server'
 
 type Listener = (...args: never[]) => void
 
@@ -242,6 +242,24 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
       appPasswords: vi.fn(async () => list(appPasswords)),
       createAppPassword: vi.fn(async ({ name }: { name: string }) => ({ ...appPasswords[0], name, secret: 'sq-secret' })),
       deleteAppPassword: vi.fn(async () => ({ ok: true as const })),
+      loginTwoFactor: vi.fn(async () => ({ user: currentUser, token: 'token' })),
+      sessions: vi.fn(async () => list(authSessions)),
+      revokeSession: vi.fn(async () => ({ ok: true as const })),
+      revokeOtherSessions: vi.fn(async () => ({ ok: true as const })),
+      security: vi.fn(async () => accountSecurity),
+      startTwoFactor: vi.fn(async () => ({ secret: 'JBSWY3DPEHPK3PXP', otpauthUrl: 'otpauth://totp/Squirmy:alex?secret=JBSWY3DPEHPK3PXP', qrCode: 'data:image/svg+xml;base64,PHN2Zy8+' })),
+      enableTwoFactor: vi.fn(async () => ({ recoveryCodes: ['abcde-fghjk', 'mnpqr-stuvw'] })),
+      disableTwoFactor: vi.fn(async () => ({ ok: true as const })),
+      regenerateRecoveryCodes: vi.fn(async () => ({ recoveryCodes: ['abcde-fghjk', 'mnpqr-stuvw'] })),
+      startPasskey: vi.fn(async () => ({ challenge: 'passkey-challenge', options: { challenge: 'abc' } })),
+      addPasskey: vi.fn(async () => accountSecurity.passkeys[0]),
+      renamePasskey: vi.fn(async () => accountSecurity.passkeys[0]),
+      deletePasskey: vi.fn(async () => ({ ok: true as const })),
+      passkeyLoginOptions: vi.fn(async () => ({ challenge: 'login-challenge', options: { challenge: 'abc' } })),
+      loginWithPasskey: vi.fn(async () => ({ user: currentUser, token: 'token' })),
+      linkSso: vi.fn(async () => ({ url: 'https://sso.example.com/authorize' })),
+      unlinkSso: vi.fn(async () => ({ ok: true as const })),
+      ssoExchange: vi.fn(async () => ({ user: currentUser, token: 'token' })),
     },
     admin: {
       duplicates: vi.fn(async (): Promise<DuplicatePage> => list([])),
@@ -256,6 +274,11 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
       createUser: vi.fn(async () => users[1]),
       updateUser: vi.fn(async (id: string, patch: Partial<User>) => ({ ...users.find(candidate => candidate.id === id)!, ...patch })),
       deleteUser: vi.fn(async () => ({ ok: true as const })),
+      userSecurity: vi.fn(async () => ({ twoFactorEnabled: true, sessions: authSessions.map(session => ({ ...session, current: false })), passkeys: accountSecurity.passkeys })),
+      revokeUserSession: vi.fn(async () => ({ ok: true as const })),
+      revokeUserSessions: vi.fn(async () => ({ ok: true as const })),
+      resetTwoFactor: vi.fn(async () => ({ ok: true as const })),
+      testSso: vi.fn(async () => ({ ok: true, issuer: 'https://sso.example.com', message: 'Found https://sso.example.com.' })),
       invites: vi.fn(async () => list(invites)),
       createInvite: vi.fn(async () => invites[0]),
       deleteInvite: vi.fn(async () => ({ ok: true as const })),

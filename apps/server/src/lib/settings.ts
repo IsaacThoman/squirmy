@@ -2,12 +2,13 @@ import { ServerSettings, type UpdateServerSettings } from '@squirmy/contracts'
 import { eq, like } from 'drizzle-orm'
 import { db } from '../database/client.js'
 import { serverSettings } from '../database/schema.js'
+import { getConfig } from '../config.js'
 import { decrypt, encrypt } from './crypto.js'
 
 /** Operator secrets. Stored encrypted, one row each, under `secret:<name>`. */
-export type ServerSecretName = 'listenBrainzToken' | 'acoustIdKey' | 'fanartKey' | 'lastFmKey' | 'lastFmSecret'
+export type ServerSecretName = 'listenBrainzToken' | 'acoustIdKey' | 'fanartKey' | 'lastFmKey' | 'lastFmSecret' | 'ssoClientSecret'
 
-const secretNames: ServerSecretName[] = ['listenBrainzToken', 'acoustIdKey', 'fanartKey', 'lastFmKey', 'lastFmSecret']
+const secretNames: ServerSecretName[] = ['listenBrainzToken', 'acoustIdKey', 'fanartKey', 'lastFmKey', 'lastFmSecret', 'ssoClientSecret']
 const settingsKey = 'settings'
 const cacheMs = 5_000
 
@@ -30,6 +31,8 @@ export async function getServerSettings(): Promise<ServerSettings> {
     acoustIdKeySet: present.has('acoustIdKey'),
     fanartKeySet: present.has('fanartKey'),
     lastFmKeySet: present.has('lastFmKey') && present.has('lastFmSecret'),
+    ssoClientSecretSet: present.has('ssoClientSecret'),
+    ssoCallbackUrl: getConfig().PUBLIC_URL ? `${new URL(getConfig().PUBLIC_URL!).origin}/api/v1/auth/sso/callback` : null,
   })
   cache = { value, at: Date.now() }
   return value

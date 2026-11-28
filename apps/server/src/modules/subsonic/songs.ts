@@ -16,6 +16,7 @@ import { isoTime, uuidArray } from '../catalog/sql.js'
 import { resolveMerged } from '../catalog/redirects.js'
 import { pickedBy } from '../catalog/versions.js'
 import { normalizationValues } from '../loudness/normalization.js'
+import { sonicPoints } from '../sonic/index.js'
 import { mimeFor } from '../streaming/index.js'
 import { albumId, artistId, coverArtId, trackId } from './ids.js'
 import type { Payload } from './protocol.js'
@@ -158,11 +159,12 @@ export async function songs(userId: string, refs: readonly SongRef[]): Promise<P
     ) stats on true`)
 
   const ids = [...new Set(rows.map((row) => row.id))]
-  const [trackArtists, albumArtists, contributors, works] = await Promise.all([
+  const [trackArtists, albumArtists, contributors, works, sonic] = await Promise.all([
     credits('recording_artists', ids),
     credits('album_artists', rows.flatMap((row) => row.albumId ? [row.albumId] : [])),
     trackCredits(ids),
     trackWorks(ids),
+    sonicPoints(ids),
   ])
   const byPair = new Map(rows.map((row) => [`${row.requestId}|${row.requestAlbumId ?? ''}`, row]))
   return resolved.flatMap((ref) => {
@@ -176,6 +178,7 @@ export async function songs(userId: string, refs: readonly SongRef[]): Promise<P
     const genres = row.genres ?? []
     const credits = contributors.get(row.id) ?? []
     const compositions = works.get(row.id) ?? []
+    const sound = sonic.get(row.id)
     return [{
       id: trackId(row.id),
       parent: row.albumId ? albumId(row.albumId) : undefined,
@@ -207,7 +210,9 @@ export async function songs(userId: string, refs: readonly SongRef[]): Promise<P
       type: 'music',
       mediaType: 'song',
       played: row.played ?? undefined,
-      musicBrainzId: row.mbid ?? undefined,
+      musicBrainzId: row.mbid ?? '',
+      bpm: Math.round(sound?.bpm ?? 0),
+      moods: sound?.moods ?? [],
       isrc: row.isrcs,
       genres: genres.map((name) => ({ name })),
       artists: toArtists(artists),
