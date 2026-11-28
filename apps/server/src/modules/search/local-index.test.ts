@@ -30,7 +30,7 @@ describe('catalog search from the local index', () => {
 
   beforeAll(async () => {
     app = await buildApp()
-    user = await signIn()
+    user = await signIn({ settings: { libraryIncludesServerMusic: true } })
     catalog = testCatalog()
     const file = path.join(getConfig().SQUIRMY_DATA_DIR, 'dump.tar.zst')
     await writeFile(file, buildDump(catalog))
@@ -66,6 +66,12 @@ describe('catalog search from the local index', () => {
     expect(yesterday.album?.id).toBe(album!.id)
     const [row] = await db.select().from(recordings).where(eq(recordings.id, yesterday.id))
     expect(row).toMatchObject({ mbid: yesterday.mbid, albumHintId: album!.id })
+  })
+
+  it.each(['beatles yesterday', 'yesterday beatles', 'yesterday help'])('ranks a composite match for %s', async (query) => {
+    const answer = await search(query)
+    expect(answer.tracks[0]).toMatchObject({ title: 'Yesterday', mbid: catalog.ids['recording:beatles-yesterday'] })
+    expect(answer.top).toMatchObject({ type: 'track', id: answer.tracks[0]!.id })
   })
 
   it("matches the user's own copy and leaves it to the library answer", async () => {

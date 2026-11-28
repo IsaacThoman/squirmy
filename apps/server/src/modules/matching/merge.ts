@@ -12,7 +12,7 @@ import { and, eq, sql, type SQL } from 'drizzle-orm'
 import type { PgTable } from 'drizzle-orm/pg-core'
 import { db, type Executor, type Transaction } from '../../database/client.js'
 import {
-  albumArtists, albums, artists, externalIds, lyrics, mediaFiles, playlistItems, plays, recordingArtists, recordings, releases,
+  albumArtists, albums, artists, externalIds, lyrics, mediaFiles, playlistItems, plays, recordingArtists, recordingCredits, recordings, recordingWorks, releases,
   releaseTracks,
 } from '../../database/schema.js'
 import { conflict } from '../../lib/errors.js'
@@ -127,6 +127,16 @@ export async function mergeRecording(fromId: string, intoId: string, executor: E
     await tx.execute(sql`
       update ${recordingArtists} set recording_id = ${into} where recording_id = ${fromId}
         and not exists (select 1 from ${recordingArtists} r where r.recording_id = ${into})`)
+    await tx.execute(sql`
+      insert into ${recordingCredits} (recording_id, artist_id, role, instrument)
+      select ${into}, artist_id, role, instrument from ${recordingCredits} where recording_id = ${fromId}
+      on conflict do nothing`)
+    await tx.delete(recordingCredits).where(eq(recordingCredits.recordingId, fromId))
+    await tx.execute(sql`
+      insert into ${recordingWorks} (recording_id, work_id, movement_name, movement_number, movement_total)
+      select ${into}, work_id, movement_name, movement_number, movement_total from ${recordingWorks} where recording_id = ${fromId}
+      on conflict do nothing`)
+    await tx.delete(recordingWorks).where(eq(recordingWorks.recordingId, fromId))
     await moveExternalIds(tx, 'recording', fromId, into)
     for (const table of ['likes', 'ratings', 'wants'] as const) await moveUserRows(tx, table, 'recording', fromId, into)
     // ISRCs and the explicit flag are facts about the sound, so the winner learns the
@@ -166,7 +176,9 @@ export async function mergeAlbum(fromId: string, intoId: string, executor: Execu
     await moveLibraryPins(tx, 'album', fromId, into)
     await tx.execute(sql`
       update ${albums} a set
-        artwork_asset_id = coalesce(a.artwork_asset_id, f.artwork_asset_id),
+        artwork_asset_id = case when f.artwork_locked and not a.artwork_locked then f.artwork_asset_id
+          else coalesce(a.artwork_asset_id, f.artwork_asset_id) end,
+        artwork_locked = a.artwork_locked or f.artwork_locked,
         canonical_release_id = coalesce(a.canonical_release_id, f.canonical_release_id),
         year = coalesce(a.year, f.year),
         release_date = coalesce(a.release_date, f.release_date)
@@ -188,6 +200,11 @@ export async function mergeArtist(fromId: string, intoId: string, executor: Exec
     await tx.update(recordingArtists).set({ artistId: into }).where(eq(recordingArtists.artistId, fromId))
     await tx.update(albums).set({ primaryArtistId: into }).where(eq(albums.primaryArtistId, fromId))
     await tx.update(recordings).set({ primaryArtistId: into }).where(eq(recordings.primaryArtistId, fromId))
+    await tx.execute(sql`
+      insert into ${recordingCredits} (recording_id, file_id, artist_id, role, instrument)
+      select recording_id, file_id, ${into}, role, instrument from ${recordingCredits} where artist_id = ${fromId}
+      on conflict do nothing`)
+    await tx.delete(recordingCredits).where(eq(recordingCredits.artistId, fromId))
     await moveExternalIds(tx, 'artist', fromId, into)
     for (const table of ['likes', 'ratings'] as const) await moveUserRows(tx, table, 'artist', fromId, into)
     await moveCollectionPlays(tx, 'artist', fromId, into)

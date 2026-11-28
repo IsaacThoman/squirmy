@@ -1,4 +1,4 @@
-import { API_PREFIX, type PlaybackDescriptor, type PlaybackQuery, type StreamProfile } from '@squirmy/contracts'
+import { API_PREFIX, type PlaybackDescriptor, type PlaybackQuery, type StreamIntent, type StreamProfile } from '@squirmy/contracts'
 import { and, eq, isNull } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { users } from '../../database/schema.js'
@@ -6,7 +6,8 @@ import { sign, verify } from '../../lib/crypto.js'
 import { notFound } from '../../lib/errors.js'
 import { resolveOne } from '../catalog/redirects.js'
 import { normalizationFor } from '../loudness/normalization.js'
-import { codecFamily, mimeFor, outputSampleRate, profiles } from './profiles.js'
+import { fragmentedSourceFrames } from './gapless.js'
+import { codecFamily, fragmentedEncoder, isFragmented, mimeFor, outputBitDepth, outputSampleRate, parseCodecs, profiles } from './profiles.js'
 import { selectFile } from './select.js'
 import { readyTranscode } from './transcode.js'
 
@@ -20,13 +21,14 @@ const signedMessage = (fileId: string, profile: StreamProfile, userId: string, e
 
 /**
  * A relative stream URL for one user, valid for 12 hours. The signature binds the file,
- * the profile, the user and the expiry; `download=1` only changes the response headers.
+ * the profile, the user and the expiry. Download and scheduling hints can be added separately.
  */
-export function signStreamUrl(fileId: string, profile: StreamProfile, userId: string, options: { download?: boolean; now?: number } = {}) {
+export function signStreamUrl(fileId: string, profile: StreamProfile, userId: string, options: { download?: boolean; intent?: StreamIntent; now?: number } = {}) {
   const expiresAt = new Date((options.now ?? Date.now()) + STREAM_URL_TTL_MS)
   const exp = Math.floor(expiresAt.getTime() / 1000)
   const params = new URLSearchParams({ exp: String(exp), uid: userId, sig: sign('stream', signedMessage(fileId, profile, userId, exp)) })
   if (options.download) params.set('download', '1')
+  if (options.intent) params.set('intent', options.intent)
   const suffix = profile === 'original' ? '' : `/${profile}`
   return { url: `${API_PREFIX}/stream/${fileId}${suffix}?${params}`, expiresAt: new Date(exp * 1000) }
 }
@@ -54,10 +56,10 @@ export async function buildPlaybackDescriptor(userId: string, recordingId: strin
     resolveOne('recordings', recordingId).then((id) => id ?? recordingId),
     query.albumId ? resolveOne('albums', query.albumId).then((id) => id ?? query.albumId) : undefined,
   ])
-  const selection = await selectFile(target, { albumId, codecs: query.codecs, quality: query.quality })
+  const selection = await selectFile(target, { ...query, albumId })
   if (!selection) throw notFound('No file of this track is available', 'not_available')
   const { file, profile } = selection
-  const { url, expiresAt } = signStreamUrl(file.id, profile, userId, { download: query.download })
+  const { url, expiresAt } = signStreamUrl(file.id, profile, userId, query)
   const base = {
     trackId: recordingId,
     albumId: file.albumId,
@@ -67,7 +69,20 @@ export async function buildPlaybackDescriptor(userId: string, recordingId: strin
     profile,
     durationMs: file.durationMs,
     normalization: await normalizationFor(file),
+    source: {
+      codec: codecFamily(file),
+      lossless: file.lossless,
+      bitrate: file.bitrate,
+      sampleRate: file.sampleRate,
+      bitDepth: file.bitDepth,
+      channels: file.channels,
+      bytes: file.size,
+    },
   }
+  const frames = isFragmented(profile) ? await fragmentedSourceFrames(file) : file.decodedFrames
+  const sourceGapless = frames !== null && file.decodedRate !== null && file.primingFrames !== null
+    ? { sampleRate: file.decodedRate, primingFrames: file.primingFrames, frames }
+    : null
   if (profile === 'original') {
     return {
       ...base,
@@ -79,19 +94,32 @@ export async function buildPlaybackDescriptor(userId: string, recordingId: strin
       sampleRate: file.sampleRate,
       bitDepth: file.bitDepth,
       bytes: file.size,
+      gapless: sourceGapless,
+      transcodeReason: null,
     }
   }
   const spec = profiles[profile]
+  const encoder = fragmentedEncoder(profile)
   const cached = await readyTranscode(file, profile)
+  const sampleRate = outputSampleRate(file, profile)
+  const gapless = profile === 'copy_mp4' ? sourceGapless : encoder && sourceGapless && sampleRate
+    ? {
+        sampleRate,
+        primingFrames: encoder.primingFrames,
+        frames: Math.ceil(sourceGapless.frames * sampleRate / sourceGapless.sampleRate),
+      }
+    : null
   return {
     ...base,
     transcoded: true,
     mime: spec.mime,
-    codec: spec.codec,
-    lossless: false,
-    bitrate: spec.bitrate,
-    sampleRate: outputSampleRate(file, profile) ?? file.sampleRate,
-    bitDepth: null,
+    codec: 'codec' in spec ? spec.codec : base.source.codec,
+    lossless: profile === 'flac_mp4' || (profile === 'copy_mp4' && file.lossless),
+    bitrate: 'bitrate' in spec ? spec.bitrate : file.bitrate,
+    sampleRate,
+    bitDepth: outputBitDepth(file, profile),
     bytes: cached?.bytes ?? null,
+    gapless,
+    transcodeReason: profile === 'copy_mp4' ? null : parseCodecs(query.codecs).has(base.source.codec) && query.quality !== 'original' ? 'quality' : 'codec',
   }
 }

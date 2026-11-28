@@ -1,8 +1,8 @@
-import type { AlbumSummary, HomeSection, PlaylistSummary } from '@squirmy/contracts'
+import type { AlbumSummary, HomeItem, HomeSection, MixSummary, PlaylistSummary, RadioSummary } from '@squirmy/contracts'
 import { FolderPlus, Search } from 'lucide-react'
 import { Link } from 'react-router'
 import { Page, PageHeader } from '@/components/layout/Page'
-import { AlbumCard, ArtistCard, PlaylistCard } from '@/components/music/Cards'
+import { AlbumCard, ArtistCard, LikedCard, MixCard, PlaylistCard, RadioCard } from '@/components/music/Cards'
 import { Rail, RailItem } from '@/components/music/Rail'
 import { SectionHeader } from '@/components/music/SectionHeader'
 import { TrackList } from '@/components/music/TrackList'
@@ -10,6 +10,7 @@ import { RailSkeleton } from '@/components/music/Skeletons'
 import { Button } from '@/components/ui/button'
 import { ProgressBar } from '@/components/ui/feedback'
 import { plural } from '@/lib/format'
+import { useMixMenu } from '@/player/use-mix-menu'
 import { useTrackActions } from '@/player/use-track-actions'
 
 export type ScanProgress = { processed: number; total: number }
@@ -27,10 +28,19 @@ type HomeViewProps = {
   scan: ScanProgress | null
   onPlayAlbum: (album: AlbumSummary) => void
   onPlayPlaylist: (playlist: PlaylistSummary) => void
+  onPlayMix: (mix: MixSummary) => void
+  onPlayLiked: () => void
+  onStartRadio: (radio: RadioSummary) => void
 }
 
-/** Home sections, in the order the server sends them. */
-export function HomeView({ sections, empty, canAddMusic, canFindMusic = false, scan, onPlayAlbum, onPlayPlaylist }: HomeViewProps) {
+type ItemHandlers = Pick<HomeViewProps, 'onPlayAlbum' | 'onPlayPlaylist' | 'onPlayMix' | 'onPlayLiked' | 'onStartRadio'>
+
+/**
+ * Home sections, in the order the server sends them, each drawn by its kind alone. A kind this
+ * app does not know (from a newer server) is left out.
+ */
+export function HomeView({ sections, empty, canAddMusic, canFindMusic = false, scan, ...handlers }: HomeViewProps) {
+  const { onPlayAlbum, onPlayPlaylist } = handlers
   return (
     <>
       <PageHeader title="Listen now" />
@@ -53,9 +63,17 @@ export function HomeView({ sections, empty, canAddMusic, canFindMusic = false, s
                 </Rail>
               )
             case 'artists':
+              // Your top artists and Because you listened to are the whole list; no page holds more.
               return (
-                <Rail key={section.id} title={section.title} href="/library?filter=artists">
+                <Rail key={section.id} title={section.title}>
                   {section.artists.map(artist => <RailItem key={artist.id}><ArtistCard artist={artist} /></RailItem>)}
+                </Rail>
+              )
+            case 'items':
+              if (!section.items.length) return null
+              return (
+                <Rail key={section.id} title={section.title}>
+                  {section.items.map(item => <RailItem key={itemKey(item)}><ItemCard item={item} {...handlers} /></RailItem>)}
                 </Rail>
               )
             case 'playlists':
@@ -66,11 +84,41 @@ export function HomeView({ sections, empty, canAddMusic, canFindMusic = false, s
               )
             case 'tracks':
               return <TrackSection key={section.id} title={section.title} tracks={section.tracks} />
+            default:
+              return null
           }
         })}
       </Page>
     </>
   )
+}
+
+function itemKey(item: HomeItem): string {
+  switch (item.kind) {
+    case 'album': return `album:${item.album.id}`
+    case 'artist': return `artist:${item.artist.id}`
+    case 'playlist': return `playlist:${item.playlist.id}`
+    case 'liked': return 'liked'
+    case 'mix': return `mix:${item.mix.id}`
+    case 'radio': return `radio:${item.radio.seed}:${item.radio.id}`
+  }
+}
+
+/** One card of a rail of several kinds (Jump back in, Made for you): each kind's own card. */
+function ItemCard({ item, onPlayAlbum, onPlayPlaylist, onPlayMix, onPlayLiked, onStartRadio }: { item: HomeItem } & ItemHandlers) {
+  switch (item.kind) {
+    case 'album': return <AlbumCard album={item.album} onPlay={() => onPlayAlbum(item.album)} />
+    case 'artist': return <ArtistCard artist={item.artist} />
+    case 'playlist': return <PlaylistCard playlist={item.playlist} onPlay={() => onPlayPlaylist(item.playlist)} />
+    case 'liked': return <LikedCard onPlay={onPlayLiked} />
+    case 'mix': return <HomeMixCard mix={item.mix} onPlay={() => onPlayMix(item.mix)} />
+    case 'radio': return <RadioCard radio={item.radio} onPlay={() => onStartRadio(item.radio)} />
+    default: return null
+  }
+}
+
+function HomeMixCard({ mix, onPlay }: { mix: MixSummary; onPlay: () => void }) {
+  return <MixCard mix={mix} onPlay={onPlay} menu={useMixMenu(mix)} />
 }
 
 function TrackSection({ title, tracks }: Pick<Extract<HomeSection, { kind: 'tracks' }>, 'title' | 'tracks'>) {

@@ -11,6 +11,7 @@ import { createServices, ServicesContext } from '@/api/services'
 import { ErrorBoundary } from '@/components/layout/ErrorBoundary'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { startAppearance } from '@/lib/appearance'
+import { startDensity } from '@/lib/density'
 import { claimTabDevice } from '@/lib/device'
 import { EngineProvider } from '@/player/engine/EngineProvider'
 import { AppRoutes } from './App'
@@ -18,6 +19,7 @@ import '@fontsource-variable/inter'
 import './index.css'
 
 startAppearance()
+startDensity()
 // The player waits for this tab's device; asked now, it is usually settled before the first
 // render, which then does not stop at the splash screen.
 void claimTabDevice()

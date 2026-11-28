@@ -12,6 +12,7 @@ function pageLabel(pathname: string): string | undefined {
     case 'album': return 'album'
     case 'artist': return matchPath('/artist/:id/releases/:section', pathname) ? 'releases' : 'artist'
     case 'playlist': return 'playlist'
+    case 'mix': return 'mix'
   }
 }
 
@@ -39,7 +40,7 @@ export function BackBreadcrumb() {
 
   const source = history.sources.get(key)
   const label = source && source !== pathname ? pageLabel(source) : undefined
-  const detail = ['/album/:id', '/artist/:id', '/playlist/:id'].some(pattern => matchPath(pattern, pathname))
+  const detail = ['/album/:id', '/artist/:id', '/playlist/:id', '/mix/:id'].some(pattern => matchPath(pattern, pathname))
   if (!detail || !label) return null
 
   return (

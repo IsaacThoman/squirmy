@@ -45,6 +45,8 @@ export function ArtistView({ artist, onPlayAlbum }: { artist: ArtistDetail; onPl
   const radioStarting = useRadioStarting({ type: 'artist', id: artist.id })
   const context = { type: 'artist' as const, id: artist.id, title: artist.name }
   const actions = useTrackActions(artist.topTracks, context)
+  const contributions = artist.composedOrProduced ?? []
+  const creditActions = useTrackActions(contributions, context)
   const wants = useAlbumWants()
   // A requester plays everything here, so only someone who may not fetch music is told how much plays.
   const { total } = artistReleaseCounts(artist, viewer)
@@ -78,6 +80,13 @@ export function ArtistView({ artist, onPlayAlbum }: { artist: ArtistDetail; onPl
           <section>
             <SectionHeader title="Top songs" />
             <div className="-mx-2"><TrackList label="Top songs" tracks={artist.topTracks} variant="compact" header={false} {...actions} /></div>
+          </section>
+        )}
+
+        {contributions.length > 0 && (
+          <section>
+            <SectionHeader title="Composed / Produced" />
+            <div className="-mx-2"><TrackList label="Composed / Produced" tracks={contributions} variant="compact" header={false} {...creditActions} /></div>
           </section>
         )}
 

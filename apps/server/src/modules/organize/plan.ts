@@ -50,7 +50,7 @@ const audioExtensions = new Set([
   'flac', 'mp3', 'm4a', 'm4b', 'mp4', 'aac', 'alac', 'ogg', 'oga', 'opus', 'wav', 'aif', 'aiff', 'wma', 'ape', 'wv', 'mpc', 'dsf', 'dff', 'tta',
 ])
 /** Files that travel with their album when the whole folder moves. */
-const sidecarExtensions = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'lrc', 'cue', 'log', 'txt', 'pdf', 'm3u', 'm3u8'])
+const sidecarExtensions = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'lrc', 'ttml', 'cue', 'log', 'txt', 'pdf', 'm3u', 'm3u8'])
 
 const extensionOf = (name: string) => path.extname(name).slice(1).toLowerCase()
 
@@ -388,7 +388,7 @@ function orderMoves(moves: Plan[]): { moves: Plan[]; cycle?: Plan } {
 
 /**
  * Plans sidecars for every source folder whose audio files all move to one other
- * folder: covers, booklets, logs, cue sheets, playlists and `.lrc` files, the latter
+ * folder: covers, booklets, logs, cue sheets, playlists and `.lrc` and `.ttml` lyrics, the latter
  * renamed to follow their audio file. A folder with any audio file staying behind
  * keeps all its sidecars.
  */
@@ -426,7 +426,7 @@ async function planSidecars(planned: Plan[], inRoot: RootFile[], disk: DiskView,
       const extension = extensionOf(entry.name)
       if (!entry.isFile() || entry.name.startsWith('.') || !sidecarExtensions.has(extension)) continue
       const stem = path.basename(entry.name, path.extname(entry.name))
-      const audioMove = extension === 'lrc' ? stems.get(stem) : undefined
+      const audioMove = extension === 'lrc' || extension === 'ttml' ? stems.get(stem) : undefined
       const newStem = audioMove ? path.posix.basename(audioMove.to, path.posix.extname(audioMove.to)) : stem
       const to = `${targetDir}/${fileName(newStem, sanitizeExtension(extension))}`
       const plan: Plan = { fileId: null, kind: 'sidecar', from: prefix + entry.name, to, rendered: null, status: 'planned', reason: null }

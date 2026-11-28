@@ -1,8 +1,8 @@
-import { mergeSearch, type SearchFilter, type SearchItem, type Viewer } from '@squirmy/client-core';
+import { mergeSearch, searchItemKey, type SearchFilter, type SearchItem, type Viewer } from '@squirmy/client-core';
 import type { PlaylistSummary, SearchResults } from '@squirmy/contracts';
 
 /** The filters above the results, as the segmented control names them. */
-export const searchFilterLabels: Record<SearchFilter, string> = { all: 'All', track: 'Songs', album: 'Albums', artist: 'Artists', playlist: 'Playlists' };
+export const searchFilterLabels: Record<SearchFilter, string> = { all: 'All', track: 'Songs', album: 'Albums', artist: 'Artists', playlist: 'Playlists', lyrics: 'Lyrics', credits: 'Credits' };
 
 /**
  * How long the library's answer waits for the catalog's before it shows alone. The two
@@ -20,7 +20,14 @@ export function searchItems(
   library: SearchResults | undefined, catalog: SearchResults | undefined, viewer: Viewer | null | undefined,
   query: string, playlists: readonly PlaylistSummary[] = [],
 ): SearchItem[] {
-  return mergeSearch(library, catalog, viewer, { query, playlists: { query, items: playlists } }).items;
+  const { items, lyricItems, creditItems } = mergeSearch(library, catalog, viewer, { query, playlists: { query, items: playlists } });
+  const seen = new Set(items.map(searchItemKey));
+  return [...items, ...[...lyricItems, ...creditItems].filter(item => {
+    const key = searchItemKey(item);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  })];
 }
 
 /**
@@ -41,14 +48,15 @@ type NoticeInput = {
 };
 
 /**
- * What the results say above their rows, as on web: offline; neither search answered; still
+ * What the results say above their rows, as on web: offline with nothing on the phone that
+ * matches (offline results otherwise show as they are); neither search answered; still
  * waiting; the catalog failed with nothing else found (`catalogEmpty`: not "No results", which
  * would say there is nothing to find); nothing found; or the catalog failed beside rows from
  * the server (`catalogNote`, not over an earlier search's rows). Null for just the rows.
  */
 export function searchNotice(list: NoticeInput, offline: boolean):
   'offline' | 'failed' | 'searching' | 'catalogEmpty' | 'noResults' | 'catalogNote' | null {
-  if (offline) return 'offline';
+  if (offline) return list.items?.length ? null : 'offline';
   if (list.failed) return 'failed';
   if (list.items === null) return 'searching';
   const empty = !list.items.length && !list.pending && !list.stale;

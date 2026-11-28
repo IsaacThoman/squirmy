@@ -41,6 +41,7 @@ export const userSettings: UserSettings = {
   scrobbleListenBrainz: true,
   scrobbleLastFm: false,
   libraryIncludesServerMusic: false,
+  shareNowPlaying: false,
 }
 
 export const serverSettings: ServerSettings = {
@@ -56,6 +57,7 @@ export const serverSettings: ServerSettings = {
   fanartKeySet: false,
   lastFmKeySet: false,
   matchAutoAcceptScore: 0.9,
+  fileHealthIntervalDays: 7,
   missingFileGraceDays: 14,
   transcodeCacheMaxBytes: 10 * 1024 ** 3,
   registrationRequiresInvite: true,
@@ -65,6 +67,7 @@ export const serverSettings: ServerSettings = {
   importMaxBytes: 64 * 1024 ** 3,
   importMaxActivePerUser: 3,
   wantlistEnabled: false,
+  sonicAnalysisEnabled: true,
 }
 
 export const jobs: JobQueueStats[] = [

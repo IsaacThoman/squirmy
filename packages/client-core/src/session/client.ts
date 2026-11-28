@@ -11,13 +11,21 @@ import {
   type SessionHelloAck,
   type SessionMoveAck,
   type SessionQueue,
+  SessionQueueOps,
+  type SessionScope,
+  type SessionSnapshot,
   type SessionState,
+  type SessionSyncAck,
+  type SignalPath,
 } from '@squirmy/contracts'
 import { ApiError, streamUrl } from '../api/client.js'
 import type { EngineEvent, EngineState, EngineStatus, PlayerEngine } from '../engine.js'
-import { gainFor } from '../normalization.js'
+import { appliedGain } from '../normalization.js'
+import { signalReport } from '../signal.js'
 import { clearRepeating, setRepeating, setTimer } from '../timers.js'
+import { applyQueueOps } from './queue-ops.js'
 import { createInitialSession, joinSession, positionAt, reduceParsedSession, type Session, splitSession } from './reducer.js'
+import { sleepFade } from './sleep.js'
 import type { SessionTransport } from './transport.js'
 
 /** Track failures remembered for `failureOf`: far more than are ever near the current entry. */
@@ -46,6 +54,10 @@ export type SessionClientSnapshot = {
   detached: boolean
   /** Detaching is possible: this device can play and the server said it supports it. False until a hello has. */
   canDetach: boolean
+  /** The server takes `undo` (see "Undo" in the session contract). False until a hello has said so. */
+  canUndo: boolean
+  /** The server takes `setSleepTimer` (the `sleepTimer` capability). False until a hello has said so. */
+  canSetSleepTimer: boolean
   /**
    * Why the session paused on its failed current entry, when the server said so with
    * `playback.unavailable`. Set in the same snapshot as the pause (the server sends the
@@ -59,6 +71,13 @@ export type SessionClientSnapshot = {
    * active device is listed or is this one.
    */
   away: AwayDevice | null
+  /**
+   * What the active device plays, as it plays it (see "Signal path" in the session contract):
+   * this device's own while it plays here, once the current entry is loaded; otherwise the
+   * active device's last report, while it is about the current entry. Null when there is
+   * none: nothing loaded yet, or a device or server that does not report.
+   */
+  signal: SignalPath | null
 }
 
 /**
@@ -156,6 +175,13 @@ const PLAYBACK_COMMANDS = new Set<SessionCommand['type']>([
   'play', 'pause', 'next', 'previous', 'seek', 'playTracks', 'playQueueEntry', 'transfer', 'trackEnded',
 ])
 const REQUEST_TIMEOUT_MS = 10_000
+/** How often the gain follows a sleep timer's fade while one is set and this device plays. */
+const FADE_TICK_MS = 200
+/**
+ * Past a sleep timer's end, how long a device that plays offline waits for the server's pause
+ * before it pauses itself: the server cannot reach it, and it would go on playing silence.
+ */
+const SLEEP_OFFLINE_GRACE_MS = 2000
 const CLOCK_SAMPLES = 5
 const RETRY_MS = 3000
 /** Signed URLs are refreshed this long before they expire. */
@@ -226,6 +252,12 @@ type Move = {
  * waiting to be sent are dropped, because they were made for the other session. While
  * detached, everything above applies to the device's own session unchanged.
  *
+ * **Queue diffs.** The hello accepts `queueOps`, so a server that can sends most queue
+ * changes as operations on the queue held here (see "Queue diffs" in the session contract).
+ * The client tracks the `queueVersion` it holds; operations for another version or session,
+ * or that do not apply, make it ask for the whole session with `session:sync`. Until the
+ * answer it applies states with the queue it has, and drops further operations.
+ *
  * **Engine.** While active, the client loads the current entry, preloads the one that
  * would follow it, follows play/pause/seek, applies `volumes[device] × normalization`,
  * and on the engine's `ended` advances locally with `trackEnded` without waiting for the
@@ -245,8 +277,24 @@ export class SessionClient {
   /** The server state held is this device's own session. */
   private detached = false
   private serverDetaches = false
+  private serverUndoes = false
+  /** The server takes and passes on `session:signal`. */
+  private serverSignals = false
+  /** The last signal path the server passed on, from whichever device sent it. */
+  private remoteSignal: SignalPath | null = null
+  /** What this device last reported since the last hello, so a report goes out only when it changes. */
+  private sentSignal: string | null = null
+  private serverSleeps = false
+  /** Moves the gain along a sleep timer's fade; see `followFade`. */
+  private fadeTimer: unknown = null
   private move: Move | null = null
   private heldQueue: { version: number; queue: SessionQueue } | null = null
+  /** The `queueVersion` of the newest queue held (`heldQueue`'s, else the server state's). Null before the first hello. */
+  private queueVersion: number | null = null
+  /** Queue operations did not apply: the whole session has been asked for (`session:sync`). */
+  private outOfSync = false
+  /** A `session:sync` is waiting for its answer. */
+  private syncing = false
   private pending: Pending[] = []
   /**
    * The pause and seek `restore` adds for a session this device was playing, and the
@@ -318,7 +366,7 @@ export class SessionClient {
     const { state, queue } = splitSession(this.local)
     this.snapshot = {
       session: state, queue, devices: this.devices, connection: this.connection, isActiveDevice: this.isActive(),
-      detached: this.detached, canDetach: this.canDetach(), outage: null, away: null,
+      detached: this.detached, canDetach: this.canDetach(), canSetSleepTimer: false, canUndo: false, outage: null, away: null, signal: null,
     }
   }
 
@@ -338,9 +386,14 @@ export class SessionClient {
       transport.onConnectionChange(connected => (connected ? this.connect() : this.disconnected())),
       transport.on('session:state', update => this.onState(update)),
       transport.on('session:queue', update => this.onQueue(update)),
+      transport.on('session:queueOps', update => this.onQueueOps(update)),
       transport.on('session:moved', update => {
         // Before the hello is answered there is nothing to replace; its answer says the same.
         if (this.connection === 'online') this.onMoved(update)
+      }),
+      transport.on('session:signal', signal => {
+        this.remoteSignal = signal
+        this.publish()
       }),
       transport.on('devices', devices => {
         this.setDevices(devices)
@@ -380,20 +433,24 @@ export class SessionClient {
     this.attempt += 1
     this.settleMove({ ok: false, error: 'disposed' })
     this.stopEngine()
+    this.followFade(false)
   }
 
   /**
-   * Applies a command locally at once and sends it (now, or after reconnecting).
+   * Applies a command locally at once and sends it (now, or after reconnecting). Returns
+   * the command's id, which `undo` names it by; null when it was not sent.
    * Throws a ZodError when the command does not match `SessionCommand`.
    */
-  dispatch(command: SessionCommand): void {
+  dispatch(command: SessionCommand): string | null {
     const parsed = SessionCommand.parse(command)
     // The server refuses these. Applying one until it does would stop this device's audio
     // for the round trip, so it is not tried at all.
-    if (parsed.type === 'transfer' && this.outOfSession(parsed.deviceId)) return
-    this.enqueue(parsed, this.newCommandId())
+    if (parsed.type === 'transfer' && this.outOfSession(parsed.deviceId)) return null
+    const commandId = this.newCommandId()
+    this.enqueue(parsed, commandId)
     this.recompute(parsed.type === 'seek')
     this.flush()
+    return commandId
   }
 
   /**
@@ -521,6 +578,7 @@ export class SessionClient {
   setNormalization(mode: NormalizationMode): void {
     this.normalization = mode
     if (this.isActive() && this.local.current) this.applyGain(this.local.current)
+    this.publish()
   }
 
   // Sync
@@ -549,7 +607,7 @@ export class SessionClient {
     const attempt = ++this.attempt
     this.setConnection('connecting')
     const sentAt = this.now()
-    const hello = { device: this.device, canPlay: Boolean(this.player), detached: this.detached }
+    const hello = { device: this.device, canPlay: Boolean(this.player), detached: this.detached, accepts: ['queueOps'] }
     this.transport.request('session:hello', hello, REQUEST_TIMEOUT_MS, (_error, reply) => {
       if (attempt !== this.attempt) return
       if (reply) return this.onHello(reply, sentAt, attempt)
@@ -613,9 +671,18 @@ export class SessionClient {
     const { snapshot } = reply
     this.server = { version: snapshot.version, session: joinSession(snapshot.state, snapshot.queue) }
     this.heldQueue = null
+    this.queueVersion = snapshot.queueVersion
+    this.outOfSync = false
+    this.syncing = false
     this.setDevices(reply.devices)
     this.detached = snapshot.scope?.type === 'device'
     this.serverDetaches = reply.capabilities?.includes('detach') ?? false
+    this.serverUndoes = reply.capabilities?.includes('undo') ?? false
+    this.serverSignals = reply.capabilities?.includes('signal') ?? false
+    this.remoteSignal = reply.signal ?? null
+    // The server may have restarted, or this device moved session: it hears it again.
+    this.sentSignal = null
+    this.serverSleeps = reply.capabilities?.includes('sleepTimer') ?? false
   }
 
   /**
@@ -729,9 +796,66 @@ export class SessionClient {
     this.offset = serverTime - (sentAt + rtt / 2)
   }
 
-  private onQueue(update: { version: number; queue: SessionQueue }): void {
+  private onQueue(update: { version: number; queueVersion: number; queue: SessionQueue }): void {
     if (this.server && update.version <= this.server.version) return
-    if (!this.heldQueue || update.version >= this.heldQueue.version) this.heldQueue = update
+    if (this.heldQueue && update.version < this.heldQueue.version) return
+    this.heldQueue = { version: update.version, queue: update.queue }
+    // The whole queue: whatever was missing, this is it.
+    this.queueVersion = update.queueVersion
+    this.outOfSync = false
+  }
+
+  /** Operations on the queue held, held like a whole queue until the state of the same version. */
+  private onQueueOps(update: SessionQueueOps): void {
+    if (!this.server || update.version <= this.server.version || this.outOfSync) return
+    if (this.heldQueue && update.version < this.heldQueue.version) return
+    // Small, so checked whole: a server's mistake asks for the queue rather than corrupting it.
+    const parsed = SessionQueueOps.safeParse(update)
+    const base = this.heldQueue?.queue ?? splitSession(this.server.session).queue
+    const queue = parsed.success && update.baseQueueVersion === this.queueVersion && this.holdsScope(update.scope)
+      ? applyQueueOps(base, parsed.data.ops, parsed.data.lengths)
+      : null
+    if (!queue) {
+      this.outOfSync = true
+      return this.requestSync()
+    }
+    this.heldQueue = { version: update.version, queue }
+    this.queueVersion = update.queueVersion
+  }
+
+  /** `scope` is the session held here: a detached device's own counts versions of its own. */
+  private holdsScope(scope: SessionScope | undefined): boolean {
+    if (!scope) return !this.detached
+    return this.detached ? scope.type === 'device' && scope.deviceId === this.device.id : scope.type === 'shared'
+  }
+
+  /** Asks for the whole session after operations did not apply, again every few seconds until it comes. */
+  private requestSync(): void {
+    if (this.syncing || this.connection !== 'online') return
+    this.syncing = true
+    const epoch = this.epoch
+    this.transport.request('session:sync', {}, REQUEST_TIMEOUT_MS, (_error: Error | null, reply?: SessionSyncAck) => {
+      // A hello since answered with the whole session.
+      if (epoch !== this.epoch) return
+      this.syncing = false
+      if (!this.outOfSync) return
+      if (reply?.ok && this.adoptSync(reply.snapshot)) return
+      setTimer(() => {
+        if (epoch === this.epoch && this.outOfSync) this.requestSync()
+      }, RETRY_MS)
+    })
+  }
+
+  /** Makes a `session:sync` answer the server state held here, when it is of this session and not older. */
+  private adoptSync(snapshot: SessionSnapshot): boolean {
+    if (!this.server || !this.holdsScope(snapshot.scope) || snapshot.version < this.server.version) return false
+    this.server = { version: snapshot.version, session: joinSession(snapshot.state, snapshot.queue) }
+    if (this.heldQueue && this.heldQueue.version <= snapshot.version) this.heldQueue = null
+    this.queueVersion = snapshot.queueVersion
+    this.outOfSync = false
+    this.prune()
+    this.recompute()
+    return true
   }
 
   private onState(update: { version: number; state: SessionState }): void {
@@ -812,18 +936,61 @@ export class SessionClient {
     const queueHalf = shallowEqual(previous.queue, queue) ? previous.queue : queue
     const isActiveDevice = this.isActive()
     const canDetach = this.canDetach()
+    const canUndo = this.serverUndoes
     const outage = this.outage()
     const away = this.away(previous.away)
+    const signal = this.signal(previous.signal)
+    this.sendSignal(signal)
     if (
       session === previous.session && queueHalf === previous.queue && this.devices === previous.devices
       && this.connection === previous.connection && isActiveDevice === previous.isActiveDevice
-      && this.detached === previous.detached && canDetach === previous.canDetach && outage === previous.outage
-      && away === previous.away
+      && this.detached === previous.detached && canDetach === previous.canDetach && this.serverSleeps === previous.canSetSleepTimer && canUndo === previous.canUndo
+      && outage === previous.outage && away === previous.away && signal === previous.signal
     ) return
     this.snapshot = {
-      session, queue: queueHalf, devices: this.devices, connection: this.connection, isActiveDevice, detached: this.detached, canDetach, outage, away,
+      session, queue: queueHalf, devices: this.devices, connection: this.connection, isActiveDevice, detached: this.detached, canDetach,
+      canSetSleepTimer: this.serverSleeps, canUndo, outage, away, signal,
     }
     for (const listener of [...this.listeners]) listener()
+  }
+
+  /**
+   * The signal path to show: this device's while it plays the current entry, else the
+   * active device's report about it. `previous` is kept while it says the same.
+   */
+  private signal(previous: SignalPath | null): SignalPath | null {
+    const current = this.local.current
+    let signal: SignalPath | null = null
+    if (this.isActive()) {
+      const descriptor = current && this.inEngine.get(current.id)
+      if (current && descriptor) {
+        const albumContext = this.inAlbumContext(current, this.local)
+        const normalization = { mode: this.normalization, ...appliedGain(this.normalization, descriptor.normalization, { albumContext, canBoost: this.player?.canBoost ?? false }) }
+        signal = { ...signalReport(current.id, descriptor, normalization, descriptor.url.startsWith('file:')), deviceId: this.device.id }
+      }
+    } else {
+      const remote = this.remoteSignal
+      if (remote && remote.entryId === current?.id && remote.deviceId === this.local.activeDeviceId) signal = remote
+    }
+    if (signal === previous || (signal && previous && JSON.stringify(signal) === JSON.stringify(previous))) return previous
+    return signal
+  }
+
+  /**
+   * Tells the server what this device plays, when it is the active device and that changed.
+   * Only once the server's own state has the entry current on this device: it drops a report
+   * about any other, so one sent ahead of the `trackEnded` or `transfer` that gets it there
+   * would be lost. That state's arrival publishes again.
+   */
+  private sendSignal(signal: SignalPath | null): void {
+    if (!signal || signal.deviceId !== this.device.id || this.connection !== 'online' || !this.serverSignals) return
+    const held = this.server?.session
+    if (held?.current?.id !== signal.entryId || held.activeDeviceId !== this.device.id) return
+    const { deviceId: _deviceId, ...report } = signal
+    const key = JSON.stringify(report)
+    if (key === this.sentSignal) return
+    this.sentSignal = key
+    this.transport.signal(report)
   }
 
   private setDevices(devices: DeviceInfo[]): void {
@@ -895,6 +1062,7 @@ export class SessionClient {
     const { engine } = this.player
     const session = this.local
     const current = session.current
+    this.followFade(this.isActive() && session.playing && session.sleepTimer !== undefined)
     if (!this.isActive() || !current || current.state !== 'ready') return this.stopEngine()
     this.takeover = null
 
@@ -989,6 +1157,8 @@ export class SessionClient {
       gain: this.gain,
     })
     this.preloadNext()
+    // The signal path follows what the engine now holds.
+    this.publish()
   }
 
   /**
@@ -1068,8 +1238,47 @@ export class SessionClient {
 
   private gainOf(entry: QueueEntry, descriptor: PlaybackDescriptor | undefined, session: Session): number {
     const volume = this.player?.systemVolume ? 1 : session.volumes[this.device.id] ?? 1
-    const albumContext = !session.shuffle && session.context?.type === 'album' && session.context.id === entry.albumId
-    return volume * gainFor(this.normalization, descriptor?.normalization, { albumContext, canBoost: this.player?.canBoost ?? false })
+    const albumContext = this.inAlbumContext(entry, session)
+    const fade = entry.id === session.current?.id ? this.fadeOf(session) : 1
+    return volume * fade * appliedGain(this.normalization, descriptor?.normalization, { albumContext, canBoost: this.player?.canBoost ?? false }).gain
+  }
+
+  private inAlbumContext(entry: QueueEntry, session: Session): boolean {
+    return !session.shuffle && session.context?.type === 'album' && session.context.id === entry.albumId
+  }
+
+  /**
+   * The sleep timer's fade for `session`'s current entry, measured from the engine's own
+   * position while it plays that entry: it is what the listener hears end.
+   */
+  private fadeOf(session: Session): number {
+    if (!session.sleepTimer) return 1
+    const status = this.player?.engine.getStatus()
+    const engineMs = status && status.entryId === session.current?.id && status.state !== 'loading' && status.state !== 'error' ? status.positionMs : undefined
+    return sleepFade(session, this.serverNow(), engineMs)
+  }
+
+  /**
+   * While a sleep timer is set and this device plays, brings the gain along the timer's fade
+   * a few times a second; nothing changes until its last seconds. The server pauses the
+   * session when the timer ends, and the gain comes back with the pause. A device playing
+   * offline, which the server's pause cannot reach, pauses itself a little later.
+   */
+  private followFade(on: boolean): void {
+    if (on === (this.fadeTimer !== null)) return
+    if (!on) {
+      clearRepeating(this.fadeTimer)
+      this.fadeTimer = null
+      return
+    }
+    this.fadeTimer = setRepeating(() => {
+      const { current, sleepTimer, playing } = this.local
+      if (!this.isActive() || !current || current.state !== 'ready') return
+      this.applyGain(current)
+      if (this.connection !== 'online' && playing && sleepTimer?.kind === 'time' && this.serverNow() >= sleepTimer.endsAt + SLEEP_OFFLINE_GRACE_MS) {
+        this.dispatch({ type: 'pause' })
+      }
+    }, FADE_TICK_MS)
   }
 
   private applyGain(entry: QueueEntry): void {

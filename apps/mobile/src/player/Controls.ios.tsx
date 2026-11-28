@@ -1,4 +1,4 @@
-import { Button, Capsule, Host, Image, Menu, Rectangle, Text, VStack } from '@expo/ui/swift-ui';
+import { Button, Capsule, Divider, Host, Image, Menu, Rectangle, Text, VStack } from '@expo/ui/swift-ui';
 import {
   accessibilityAddTraits, accessibilityHint, accessibilityLabel, animation, Animation, blur, dynamicTypeSize, font, foregroundStyle, frame,
   lineLimit, menuIndicator, menuOrder, minimumScaleFactor, opacity, padding,
@@ -7,6 +7,7 @@ import type { ComponentProps } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { trackActionKey, trackLinks } from '../library/trackActionList';
 import { useRunTrackAction } from '../library/trackActions';
+import { usePlaybackActions, useSleepTimer } from '../playback';
 import { IconButton, Symbol, TrackMenu, hitShape, plainButton } from '../native/Controls';
 import type { DeviceButtonProps, LyricButtonProps, PlayerButtonProps, TrackLinksMenuProps, TrackMenuButtonProps } from './Controls';
 import { useColors } from '../theme';
@@ -36,7 +37,30 @@ export function CollapseButton({ onPress }: { onPress: () => void }) {
 
 export function TrackMenuButton({ track }: TrackMenuButtonProps) {
   const colors = useColors();
-  return <Host ignoreSafeArea="container" style={styles.icon}><TrackMenu track={track} label="Song options" color={colors.text} /></Host>;
+  return <Host ignoreSafeArea="container" style={styles.icon}>
+    <TrackMenu track={track} label="Song options" color={colors.text}><SleepTimerMenu /></TrackMenu>
+  </Host>;
+}
+
+/**
+ * Sleep timer, at the end of Now Playing's ellipsis menu as in Apple Music: the lengths and the
+ * ends to stop at, a check mark on the one set, and Turn off timer while one is. The timer is
+ * the session's, so it stops whichever device plays. Absent when the server does not take one.
+ */
+function SleepTimerMenu() {
+  const sleep = useSleepTimer();
+  const actions = usePlaybackActions();
+  if (!sleep.canSet) return null;
+  return <>
+    <Divider />
+    <Menu label={sleep.label ? `Sleep timer, ${sleep.label}` : 'Sleep timer'} systemImage="moon.zzz"
+      modifiers={sleep.spoken ? [accessibilityLabel(sleep.spoken)] : []}>
+      {sleep.choices.map(choice => <Button key={choice.id} label={choice.label}
+        systemImage={choice.id === sleep.chosen ? 'checkmark' : undefined} onPress={() => actions.setSleepTimer(choice.request)} />)}
+      {sleep.timer && <Divider />}
+      {sleep.timer && <Button label="Turn off timer" systemImage="moon.zzz" onPress={() => actions.setSleepTimer(null)} />}
+    </Menu>
+  </>;
 }
 
 /**
@@ -82,7 +106,7 @@ export function DeviceButton({ icon, name, highlighted, onPress }: DeviceButtonP
   </Host>;
 }
 
-export function LyricButton({ line, active, onPress, opacity: shown, blur: blurred = 0 }: LyricButtonProps) {
+export function LyricButton({ line, active, onPress, opacity: shown, blur: blurred = 0, words, sung = 0, translation }: LyricButtonProps) {
   const colors = useColors();
   // Given a look, the line is drawn in the text color and dimmed by opacity, so a line coming
   // into song brightens and sharpens in one ease, with the rest of the lines.
@@ -90,11 +114,19 @@ export function LyricButton({ line, active, onPress, opacity: shown, blur: blurr
     blur(blurred), opacity(shown),
     animation(Animation.easeInOut({ duration: 0.42 }), shown * 100 + blurred),
   ];
+  const spelled = active && words?.length;
+  // The sung line's words are one SwiftUI text of a span each, so the line wraps exactly as it
+  // did before it was sung; a word lights as it starts, eased by SwiftUI.
+  const spans = spelled ? words.map((word, index) => <Text key={index}
+    modifiers={[foregroundStyle(index < sung ? colors.text : comingColor(colors.text))]}>{word.text}</Text>) : [];
+  const second = translation ? [<Text key="translation" modifiers={[font({ textStyle: 'title3', weight: 'semibold' }),
+    foregroundStyle(colors.muted)]}>{`\n${translation}`}</Text>] : [];
   const text = <Text modifiers={[
     foregroundStyle(active || shown !== undefined ? colors.text : colors.quiet), font({ textStyle: 'largeTitle', weight: 'bold' }),
     // Only the words take a tap, so a tap beside or between lines can bring the controls back without seeking.
     hitShape, frame({ maxWidth: Infinity, alignment: 'leading' }), padding({ bottom: 20 }), ...look,
-  ]}>{line}</Text>;
+    ...(spelled ? [animation(Animation.easeOut({ duration: 0.24 }), sung)] : []),
+  ]}>{spans.length || second.length ? [...(spans.length ? spans : [<Text key="line">{line}</Text>]), ...second] : line}</Text>;
   return <View style={styles.lyricRow}>
     <Host ignoreSafeArea="container" matchContents={{ vertical: true }}>
       {onPress ? <Button onPress={onPress} modifiers={[
@@ -104,6 +136,9 @@ export function LyricButton({ line, active, onPress, opacity: shown, blur: blurr
     </Host>
   </View>;
 }
+
+/** The words of the sung line still to come: the text's color, dimmed, over the player's backdrop. */
+const comingColor = (text: string) => `${text}73`;
 
 /** "Written By" after the last line, quieter and smaller than the lyrics. */
 export function LyricCredits({ credits, opacity: shown }: { credits: string; opacity: number }) {

@@ -1,20 +1,33 @@
 import { parseLrc } from '@squirmy/client-core';
-import type { Lyrics } from '@squirmy/contracts';
+import type { Lyrics, LyricWord } from '@squirmy/contracts';
 
-export type LyricLine = { text: string; startMs: number | null };
+/** A line to show: its words' times when the lyrics have them, and a translation to show under it. */
+export type LyricLine = { text: string; startMs: number | null; words?: readonly LyricWord[]; translation?: string };
 
 /**
  * Lines to show for a track's lyrics: timed lines in order when synced LRC exists, the
- * plain text otherwise, read by the LRC parser the web app shares (it applies `[offset:…]`).
+ * plain text otherwise. Timed lines are the server's reading (`lines`, with word times and
+ * translations), or for an older server's answer the LRC read by the parser the web app shares
+ * (it applies `[offset:…]`).
  */
-export function lyricLines(lyrics: Pick<Lyrics, 'synced' | 'plain'> | null | undefined): { lines: LyricLine[]; synced: boolean } {
+export function lyricLines(lyrics: Pick<Lyrics, 'synced' | 'plain' | 'lines'> | null | undefined): { lines: LyricLine[]; synced: boolean } {
   if (lyrics?.synced) {
     // Empty timed lines mark instrumental gaps; they keep the timing but are not shown.
-    const shown: LyricLine[] = parseLrc(lyrics.synced).filter(line => line.text);
+    const shown: LyricLine[] = (lyrics.lines ?? parseLrc(lyrics.synced)).filter(line => line.text);
     if (shown.length) return { lines: shown, synced: true };
   }
   const plain = (lyrics?.plain ?? '').split(/\r?\n/).map(text => text.trim()).filter(Boolean);
   return { lines: plain.map(text => ({ text, startMs: null })), synced: false };
+}
+
+/**
+ * How many of a line's words have started at `positionMs`, and when the next one starts (null
+ * once all have), so the sung line can light word by word without a clock ticking between them.
+ */
+export function wordsStarted(words: readonly Pick<LyricWord, 'startMs'>[], positionMs: number): { count: number; nextAt: number | null } {
+  let count = 0;
+  while (count < words.length && words[count]!.startMs <= positionMs) count += 1;
+  return { count, nextAt: words[count]?.startMs ?? null };
 }
 
 /** The index of the line sung at `positionMs`, or -1 before the first. */

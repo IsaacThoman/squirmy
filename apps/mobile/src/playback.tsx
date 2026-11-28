@@ -1,10 +1,11 @@
 import {
-  ApiError, artworkUrl, createInitialSession, randomSeed, refreshFetchedTracks, SessionClient, splitSession,
-  type PlaybackNotice, type SessionClientSnapshot, type SessionMoveResult, type SessionPlayer,
+  ApiError, artworkUrl, createInitialSession, randomSeed, refreshFetchedTracks, SessionClient, sleepTimerAccessibilityLabel, sleepTimerChoiceId,
+  sleepTimerChoices, sleepTimerLabel, splitSession,
+  type PlaybackNotice, type SessionClientSnapshot, type SessionMoveResult, type SessionPlayer, type SleepTimerChoice,
 } from '@squirmy/client-core';
 import { createSocketTransport } from '@squirmy/client-core/socket';
 import type {
-  ClientDevice, DeviceInfo, PlaybackContext, QueueEntry, RadioResponse, SessionCommand, TrackSummary, UserSettings,
+  ClientDevice, DeviceInfo, LyricWord, PlaybackContext, QueueEntry, RadioResponse, SessionCommand, SleepTimer, SleepTimerRequest, TrackSummary, UserSettings,
 } from '@squirmy/contracts';
 import * as Network from 'expo-network';
 import {
@@ -19,6 +20,7 @@ import { useRealtime } from './data/realtime';
 import { useAvailability, useDownloadManager } from './downloads/DownloadsProvider';
 import { connectAudioSession, connectNowPlaying, createPlayerEngine } from './player/engine';
 import { favoriteState } from './player/engine/favorite';
+import { wordsStarted } from './player/lyrics';
 import { loadSession, sessionSaver } from './player/savedSession';
 import {
   codecsFor, deviceRows, findEntry, isRemote, nextDownloaded, nextRepeat, outputDevice, playableSeeds,
@@ -48,7 +50,7 @@ const saveDelayMs = 5000;
 
 const idle: SessionClientSnapshot = (() => {
   const { state, queue } = splitSession(createInitialSession());
-  return { session: state, queue, devices: [], connection: 'offline', isActiveDevice: false, detached: false, canDetach: false, outage: null, away: null };
+  return { session: state, queue, devices: [], connection: 'offline', isActiveDevice: false, detached: false, canDetach: false, canSetSleepTimer: false, canUndo: false, outage: null, away: null, signal: null };
 })();
 const idleSnapshot = () => idle;
 const noSubscription = () => () => undefined;
@@ -334,8 +336,9 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       holdWhilePreparing();
       setRuntime({ client, device, loading, seeks });
       teardown = () => {
-        // Not saved here: this runs on sign-out too, after the account's data was removed.
-        clearTimeout(saveTimer);
+        // Saved for the account as it leaves (sign-out or a switch keeps what it saved), so
+        // opening it again offline finds the queue as it was.
+        if (saveTimer !== undefined) save();
         appState.remove();
         stopFollowing();
         stopFollowingEngine();
@@ -402,6 +405,15 @@ function createActions(runtime: Runtime | null, canPlay: (track: TrackSummary) =
     const { seeds } = playableSeeds(tracks, 0, canPlay);
     if (seeds.length) send({ type: 'enqueue', tracks: seeds, placement });
   };
+  /** Sends a queue edit and, where the server can take it back, says so in the player with Undo. */
+  const undoable = (command: SessionCommand, notice: PlaybackNotice) => {
+    const commandId = send(command);
+    if (!commandId || !runtime?.client.getSnapshot().canUndo) return;
+    const id = playbackStatus.report({ ...notice, action: { label: 'Undo', run: () => {
+      playbackStatus.withdraw(id);
+      send({ type: 'undo', commandId });
+    } } });
+  };
   return {
     playPause: () => send({ type: session().playing ? 'pause' : 'play' }),
     play: () => send({ type: 'play' }),
@@ -422,6 +434,8 @@ function createActions(runtime: Runtime | null, canPlay: (track: TrackSummary) =
     toggleShuffle: () => send({ type: 'setShuffle', value: !session().shuffle, seed: randomSeed() }),
     cycleRepeat: () => send({ type: 'setRepeat', value: nextRepeat(session().repeat) }),
     toggleAutoplay: () => send({ type: 'setAutoplay', value: !session().autoplay }),
+    /** Sets the session's sleep timer, which stops whichever device plays; null turns it off. */
+    setSleepTimer: (timer: SleepTimerRequest | null) => send({ type: 'setSleepTimer', timer }),
     /**
      * Replaces the queue with the playable tracks of a list, starting at `start` (an
      * index into `tracks`). `shuffle` left out keeps the session's shuffle setting.
@@ -446,6 +460,9 @@ function createActions(runtime: Runtime | null, canPlay: (track: TrackSummary) =
     enqueue,
     playQueueEntry: (entryId: string) => send({ type: 'playQueueEntry', entryId }),
     removeFromQueue: (entryId: string) => send({ type: 'removeFromQueue', entryId }),
+    /** Takes an entry out of the queue as the listener asked, offering Undo. `title`: the song's, for the line. */
+    removeWithUndo: (entryId: string, title?: string) =>
+      undoable({ type: 'removeFromQueue', entryId }, title ? { message: 'Removed from queue', detail: title } : { message: 'Removed from queue' }),
     moveInQueue: (entryId: string, toIndex: number) => send({ type: 'moveInQueue', entryId, toIndex: Math.max(0, toIndex) }),
     /** Up next for a queued entry; an autoplay suggestion is copied into the queue first. */
     promote: (entry: QueueEntry, track: TrackSummary | undefined, autoplay: boolean) => {
@@ -454,7 +471,10 @@ function createActions(runtime: Runtime | null, canPlay: (track: TrackSummary) =
       send({ type: 'removeFromQueue', entryId: entry.id });
     },
     clearHistory: () => send({ type: 'clearHistory' }),
-    clearQueue: () => send({ type: 'clearQueue' }),
+    clearQueue: () => {
+      if ((runtime?.client.getSnapshot() ?? idle).queue.queue.length) undoable({ type: 'clearQueue' }, { message: 'Queue cleared' });
+      else send({ type: 'clearQueue' });
+    },
     /**
      * Pauses or resumes `trackId` when it is the current song, as tapping it again in a list
      * does on the web; false when it is not (or it failed), so the tap plays it instead.
@@ -511,6 +531,8 @@ export function usePlaybackState() {
     /** Every device the user has connected, the detached ones included, for the "Playing separately" group. */
     allDevices: devices,
     thisDeviceId: device?.id ?? '',
+    /** What the device playing says it plays: the file, the stream and normalization (see `SessionClientSnapshot.signal`). */
+    signal: snapshot.signal,
     actions,
   };
 }
@@ -538,7 +560,8 @@ export function useTrackLoading(trackId: string | undefined): LoadingPhase {
   });
 }
 
-function useAppActive(): boolean {
+/** Whether the app is on screen (not in the background or the app switcher). */
+export function useAppActive(): boolean {
   const [active, setActive] = useState(AppState.currentState === 'active');
   useEffect(() => {
     const subscription = AppState.addEventListener('change', status => setActive(status === 'active'));
@@ -634,6 +657,77 @@ export function usePositionEvery(intervalMs: number, enabled = true): number {
     };
   }, [active, anchor, enabled, intervalMs, moving, runtime]);
   return position;
+}
+
+/**
+ * How many of `words` have started, read again just as the next one starts rather than on a
+ * steady tick: the sung line re-renders once a word, and nothing else does.
+ */
+export function useWordsStarted(words: readonly Pick<LyricWord, 'startMs'>[] | undefined, enabled = true): number {
+  const runtime = useContext(RuntimeContext);
+  const moving = useSessionValue(({ session }) => session.playing && !session.stalled);
+  // Seeks and track changes move the clock without a word starting.
+  const anchor = useSessionValue(({ session }) => `${session.current?.id ?? ''}:${session.positionMs}:${session.anchorAt}`);
+  const active = useAppActive();
+  const [started, setStarted] = useState(() => (words ? wordsStarted(words, runtime?.seeks.position() ?? 0).count : 0));
+  useEffect(() => {
+    if (!words?.length || !runtime) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const read = () => {
+      clearTimeout(timer);
+      const at = runtime.seeks.position();
+      const { count, nextAt } = wordsStarted(words, at);
+      setStarted(count);
+      if (enabled && active && moving && nextAt !== null) timer = setTimeout(read, Math.max(16, nextAt - at));
+    };
+    read();
+    const stopSeeks = runtime.seeks.subscribe(read);
+    return () => {
+      stopSeeks();
+      clearTimeout(timer);
+    };
+  }, [active, anchor, enabled, moving, runtime, words]);
+  return started;
+}
+
+export type SleepTimerState = {
+  /** The server takes a sleep timer: offer one. */
+  canSet: boolean;
+  timer: SleepTimer | undefined;
+  /** What a menu offers, in order, and the id of the one set (null for none, or a length none has). */
+  choices: SleepTimerChoice[];
+  chosen: string | null;
+  /** The time left (`12:04`) or what it waits for, and how VoiceOver says it; null while none is set. */
+  label: string | null;
+  spoken: string | null;
+};
+
+/**
+ * The session's sleep timer as the player shows it, read again every second while one is set
+ * and the app is on screen. Only the component calling this re-renders as it counts down.
+ */
+export function useSleepTimer(): SleepTimerState {
+  const runtime = useContext(RuntimeContext);
+  const timer = useSessionValue(({ session }) => session.sleepTimer);
+  const canSet = useSessionValue(snapshot => snapshot.canSetSleepTimer);
+  const context = useSessionValue(({ session }) => session.context);
+  const active = useAppActive();
+  const [now, setNow] = useState(() => runtime?.client.serverNow() ?? Date.now());
+  useEffect(() => {
+    if (!timer || !active) return;
+    const read = () => setNow(runtime?.client.serverNow() ?? Date.now());
+    read();
+    const interval = setInterval(read, 1000);
+    return () => clearInterval(interval);
+  }, [active, runtime, timer]);
+  const choices = useMemo(() => sleepTimerChoices(context), [context]);
+  const snapshot = runtime?.client.getSnapshot() ?? idle;
+  const view = { ...snapshot.session, queue: snapshot.queue.queue };
+  const positionMs = runtime?.seeks.position();
+  return {
+    canSet, timer, choices, chosen: sleepTimerChoiceId(timer),
+    label: sleepTimerLabel(view, now, positionMs), spoken: sleepTimerAccessibilityLabel(view, now, positionMs),
+  };
 }
 
 /** The current entry's length, from the session or, while it is unknown there, the track. */

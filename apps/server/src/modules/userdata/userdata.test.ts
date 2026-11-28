@@ -7,7 +7,7 @@ import type { FastifyInstance, InjectOptions } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { albums, assets, playlistItems, playlists, ratings, recordings, users, wants } from '../../database/schema.js'
+import { albums, assets, playlistItems, playlists, plays, ratings, recordings, users, wants } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { updateServerSettings } from '../../lib/settings.js'
 import { invalidate, publishChanges } from '../../realtime/index.js'
@@ -157,11 +157,11 @@ describe('userdata', () => {
     it('creates, lists, reads and updates playlists with owner-only changes', async () => {
       const mine = await create(mira, { name: 'Morning', description: 'Slow start' })
       expect(mine).toMatchObject({ name: 'Morning', description: 'Slow start', ownerId: mira.id, ownerName: 'mira', isPublic: false, trackCount: 0, durationMs: 0, artworks: [] })
-      expect(invalidated).toHaveBeenCalledWith({ user: mira.id }, [queryKeys.playlists(), queryKeys.libraryItems(), queryKeys.home()])
+      expect(invalidated).toHaveBeenCalledWith({ user: mira.id }, [queryKeys.playlists(), queryKeys.libraryItems(), queryKeys.home(), queryKeys.search()])
       invalidated.mockClear()
       const shared = await create(lune, { name: 'Shared', isPublic: true })
       // Everyone refreshes the list once, the owner included (they are in 'all' too).
-      expect(invalidated.mock.calls).toEqual([[[{ user: lune.id }, 'all'], [queryKeys.playlists(), queryKeys.libraryItems()]], [{ user: lune.id }, [queryKeys.home()]]])
+      expect(invalidated.mock.calls).toEqual([[[{ user: lune.id }, 'all'], [queryKeys.playlists(), queryKeys.libraryItems(), queryKeys.search()]], [{ user: lune.id }, [queryKeys.home()]]])
       const secret = await create(lune, { name: 'Secret' })
 
       const visible = body(await call(mira, { url: '/playlists' }), PlaylistPage).items.map((playlist) => playlist.name)
@@ -319,6 +319,11 @@ describe('userdata', () => {
       for (const [index, recordingId] of sequence.entries()) {
         await createPlay({ userId: listener.id, recordingId: recordingId!, albumId: album.albumId, minutesAgo: 100 - index })
       }
+      // A skipped track between the last two repeats should neither show nor break the run.
+      await db.insert(plays).values({
+        id: newId(), userId: listener.id, recordingId: b!, albumId: album.albumId, startedAt: new Date(Date.now() - 94.5 * 60_000),
+        skipped: true, msPlayed: 2000,
+      })
       const expected = [c, a, b, a]
       for (const limit of [1, 2, 50]) {
         const seen: string[] = []

@@ -1,4 +1,4 @@
-import { artworkUrl, canFetch, streamUrl, type Viewer } from '@squirmy/client-core';
+import { ApiError, artworkUrl, canFetch, streamUrl, type Viewer } from '@squirmy/client-core';
 import type { AlbumDetail, PlaylistDetail, TrackSummary } from '@squirmy/contracts';
 import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PropsWithChildren,
@@ -11,7 +11,8 @@ import { useUserSettings } from '../data/queries';
 import { useRealtime } from '../data/realtime';
 import { codecsFor } from '../player/session';
 import { useCached, useCachedArtwork, useCacheFilesVersion, useStreamingCache } from '../streamingCache/context';
-import { downloadIndex } from './database';
+import { otherAccountsBytes } from '../account/accounts';
+import { downloadIndex, downloadUsage } from './database';
 import { downloadFiles, downloadNetwork } from './files';
 import { DownloadManager, type CollectionContent, type DownloadSource } from './manager';
 import {
@@ -48,7 +49,7 @@ const capItem = accountItem<number | null>('downloadCap', 'device');
 function source(current: () => Api, serverUrl: string): DownloadSource {
   return {
     describe: (trackId, albumId, quality) => current().streaming.playback(trackId, {
-      albumId: albumId ?? undefined, quality, codecs: codecsFor(Platform.OS), download: true,
+      albumId: albumId ?? undefined, quality, codecs: codecsFor(Platform.OS), download: true, intent: 'download',
     }),
     url: descriptor => streamUrl(serverUrl, descriptor),
     artworkUrl: artwork => artworkUrl(serverUrl, artwork, keptArtSize),
@@ -73,6 +74,14 @@ function source(current: () => Api, serverUrl: string): DownloadSource {
     summaries: async tracks => (await current().catalog.trackSummaries({ tracks: tracks.map(track => ({ id: track.id, albumId: track.albumId })) })).tracks,
     acquireTrack: (trackId, query) => current().acquisition.acquireTrack(trackId, query),
     acquireAlbum: (albumId, query) => current().acquisition.acquireAlbum(albumId, query),
+    lyrics: async trackId => {
+      try {
+        return await current().catalog.lyrics(trackId);
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) return null;
+        throw error;
+      }
+    },
   };
 }
 
@@ -102,6 +111,7 @@ export function DownloadsProvider({ children }: PropsWithChildren) {
   const fetches = canFetch(viewer);
 
   // Built once per account: rebuilding would cancel the downloads in flight and start them over.
+  // Another account's downloads stay on the device, in the same folder, and wait for it to be opened again.
   useEffect(() => {
     if (Platform.isTV || !apiRef.current || !account) return;
     const network = downloadNetwork();
@@ -112,6 +122,8 @@ export function DownloadsProvider({ children }: PropsWithChildren) {
       }, serverUrl),
       options: {
         quality: settings?.downloadQuality ?? 'original', wifiOnly: settings?.downloadOnWifiOnly ?? true, capBytes: savedLimit(capItem.read()), canFetch: fetches,
+        // The limit is the device's: the other accounts' downloads, kept for when they are opened again, count too.
+        otherBytes: otherAccountsBytes(downloadUsage(), account),
       },
     });
     next.start();

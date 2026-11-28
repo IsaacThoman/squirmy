@@ -13,6 +13,7 @@
 import {
   bigint,
   boolean,
+  check,
   foreignKey,
   index,
   integer,
@@ -27,6 +28,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
+import type { CreditRole, HistoryImport, HistoryImportSource } from '@squirmy/contracts'
 
 const id = () => uuid('id').primaryKey()
 const at = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' })
@@ -40,7 +42,7 @@ export type LikeEntityType = 'recording' | 'album' | 'artist'
 export type LibraryRootMode = 'read_only' | 'managed'
 export type MatchStatus = 'pending' | 'matched' | 'review' | 'unmatched'
 /** How a file's links were decided. `request`: the file was delivered for an acquisition request that named them. */
-export type MatchSource = 'tags' | 'tags-mbid' | 'search' | 'acoustid' | 'manual' | 'request'
+export type MatchSource = 'tags' | 'tags-mbid' | 'tags-barcode' | 'tags-isrc' | 'search' | 'acoustid' | 'manual' | 'request'
 export type ImportKind = 'upload' | 'inbox' | 'acquisition'
 export type AcquisitionOrigin = 'play' | 'prefetch' | 'download' | 'library'
 export type ImportStatus = 'receiving' | 'processing' | 'completed' | 'failed'
@@ -74,6 +76,21 @@ export type FileTags = {
   mbArtistIds?: string[]
   mbAlbumArtistIds?: string[]
   hasLyrics?: boolean
+  /** Tempo a tagger or DJ software wrote (`TBPM`, `BPM`, MP4 `tmpo`). */
+  bpm?: number
+  /** Musical key as written (`TKEY`, `INITIALKEY`): "Am", "F#", "8A" or "1m". `sonic/keys.ts` reads it. */
+  key?: string
+  /** Mood tags (`TMOO`, `MOOD`), as written. */
+  moods?: string[]
+  credits?: { name: string; role: CreditRole; instrument?: string }[]
+  work?: string
+  movementName?: string
+  movementNumber?: number
+  movementTotal?: number
+  explicit?: boolean
+  comment?: string
+  /** A file's rating, in the original tag's units. */
+  ratingHint?: { source: 'popm' | 'fmps' | 'rating'; value: number }
 }
 
 // ---------------------------------------------------------------------------
@@ -200,6 +217,7 @@ export const artists = pgTable('artists', {
 }, (t) => [
   uniqueIndex('artists_mbid').on(t.mbid),
   index('artists_name_key_trgm').using('gin', t.nameKey.op('gin_trgm_ops')),
+  index('artists_name_key_unicode').using('gin', sql`search_unicode_bigrams(${t.nameKey})`),
   index('artists_name_key').on(t.nameKey),
   // Prefix search (modules/search): byte order, so a range scan finds every name starting with the query.
   index('artists_name_key_prefix').on(sql`${t.nameKey} collate "C"`),
@@ -252,6 +270,7 @@ export const albums = pgTable('albums', {
   description: text('description'),
   descriptionSource: text('description_source'),
   artworkAssetId: uuid('artwork_asset_id'),
+  artworkLocked: boolean('artwork_locked').notNull().default(false),
   /** The edition whose track list the album page shows. */
   canonicalReleaseId: uuid('canonical_release_id'),
   /**
@@ -279,6 +298,7 @@ export const albums = pgTable('albums', {
   index('albums_match_key').on(t.matchKey),
   // Search (modules/search): fuzzy "artist title" queries, and title prefixes in byte order.
   index('albums_match_key_trgm').using('gin', t.matchKey.op('gin_trgm_ops')),
+  index('albums_match_key_unicode').using('gin', sql`search_unicode_bigrams(${t.matchKey})`),
   index('albums_title_key_prefix').on(sql`${t.titleKey} collate "C"`),
   index('albums_primary_artist').on(t.primaryArtistId),
   index('albums_edition_of').on(t.editionOfId).where(sql`${t.editionOfId} is not null`),
@@ -357,6 +377,7 @@ export const recordings = pgTable('recordings', {
   index('recordings_title_key_trgm').using('gin', t.titleKey.op('gin_trgm_ops')),
   index('recordings_match_key').on(t.matchKey),
   index('recordings_match_key_trgm').using('gin', t.matchKey.op('gin_trgm_ops')),
+  index('recordings_match_key_unicode').using('gin', sql`search_unicode_bigrams(${t.matchKey})`),
   index('recordings_title_key_prefix').on(sql`${t.titleKey} collate "C"`),
   index('recordings_album_hint').on(t.albumHintId),
   index('recordings_isrcs').using('gin', t.isrcs),
@@ -457,7 +478,7 @@ export const lyrics = pgTable('lyrics', {
   source: text('source').notNull(),
   language: text('language'),
   fetchedAt: at('fetched_at').notNull().defaultNow(),
-})
+}, (t) => [index('lyrics_search').using('gin', sql`to_tsvector('simple', search_lyric_text(${t.plain}, ${t.synced}))`).where(sql`not ${t.instrumental}`)])
 
 // ---------------------------------------------------------------------------
 // Library: files on disk and everything derived from them.
@@ -504,6 +525,11 @@ export const mediaFiles = pgTable('media_files', {
   // Measured loudness (EBU R128). Null until the loudness job has run.
   loudnessLufs: real('loudness_lufs'),
   truePeakDb: real('true_peak_db'),
+  // Frames per channel after source trimming, at the decoder's sample rate.
+  decodedFrames: bigint('decoded_frames', { mode: 'number' }),
+  decodedRate: integer('decoded_rate'),
+  primingFrames: integer('priming_frames'),
+  paddingFrames: integer('padding_frames'),
   // ReplayGain values read from the file's own tags, when present.
   tagTrackGainDb: real('tag_track_gain_db'),
   tagTrackPeak: real('tag_track_peak'),
@@ -535,11 +561,16 @@ export const mediaFiles = pgTable('media_files', {
   importId: uuid('import_id'),
   /** 0 discovered, 1 tags read (playable), 2 audio hash and loudness done. */
   probeStage: smallint('probe_stage').notNull().default(0),
+  tagVersion: smallint('tag_version').notNull().default(0),
   /**
    * Why the last probe or analysis of this file failed. Set instead of retrying; a scan
    * clears it when the file's size or mtime changes.
    */
   probeError: text('probe_error'),
+  healthCheckedAt: at('health_checked_at'),
+  healthStatus: text('health_status').$type<import('@squirmy/contracts').HealthStatus>(),
+  healthDetail: text('health_detail'),
+  healthRequestedAt: at('health_requested_at'),
   /** Set when a scan no longer finds the file. Cleared if it returns. */
   missingSince: at('missing_since'),
   addedAt: at('added_at').notNull().defaultNow(),
@@ -548,6 +579,9 @@ export const mediaFiles = pgTable('media_files', {
   uniqueIndex('media_files_path').on(t.rootId, t.relPath),
   // Byte order, so a scan can merge a sorted directory walk with the rows page by page.
   index('media_files_scan_order').on(t.rootId, sql`${t.relPath} collate "C"`),
+  index('media_files_health_due').on(sql`coalesce(${t.healthCheckedAt}, '-infinity'::timestamptz)`, t.id)
+    .where(sql`${t.missingSince} is null and not ${t.cached}`),
+  index('media_files_health_requested').on(t.healthRequestedAt).where(sql`${t.healthRequestedAt} is not null`),
   index('media_files_audio_hash').on(t.audioHash),
   index('media_files_release_track').on(t.releaseTrackId),
   index('media_files_recording').on(t.recordingId),
@@ -567,6 +601,45 @@ export const mediaFiles = pgTable('media_files', {
   index('media_files_import').on(t.importId),
 ])
 
+/** File credits follow the file's current recording, including after a manual rematch. */
+export const recordingCredits = pgTable('recording_credits', {
+  recordingId: uuid('recording_id').references(() => recordings.id, { onDelete: 'cascade' }),
+  fileId: uuid('file_id').references(() => mediaFiles.id, { onDelete: 'cascade' }),
+  artistId: uuid('artist_id').notNull().references(() => artists.id, { onDelete: 'cascade' }),
+  role: text('role').$type<CreditRole>().notNull(),
+  instrument: text('instrument').notNull().default(''),
+}, (t) => [
+  check('recording_credits_owner', sql`num_nonnulls(${t.recordingId}, ${t.fileId}) = 1`),
+  uniqueIndex('recording_credits_recording').on(t.recordingId, t.artistId, t.role, t.instrument).where(sql`${t.recordingId} is not null`),
+  uniqueIndex('recording_credits_file').on(t.fileId, t.artistId, t.role, t.instrument).where(sql`${t.fileId} is not null`),
+  index('recording_credits_artist_role').on(t.artistId, t.role),
+])
+
+export const works = pgTable('works', {
+  id: id(),
+  mbid: uuid('mbid'),
+  tagKey: text('tag_key'),
+  title: text('title').notNull(),
+}, (t) => [
+  uniqueIndex('works_mbid').on(t.mbid),
+  uniqueIndex('works_tag_key').on(t.tagKey),
+  check('works_identity', sql`num_nonnulls(${t.mbid}, ${t.tagKey}) = 1`),
+])
+
+export const recordingWorks = pgTable('recording_works', {
+  recordingId: uuid('recording_id').references(() => recordings.id, { onDelete: 'cascade' }),
+  fileId: uuid('file_id').references(() => mediaFiles.id, { onDelete: 'cascade' }),
+  workId: uuid('work_id').notNull().references(() => works.id, { onDelete: 'cascade' }),
+  movementName: text('movement_name'),
+  movementNumber: integer('movement_number'),
+  movementTotal: integer('movement_total'),
+}, (t) => [
+  check('recording_works_owner', sql`num_nonnulls(${t.recordingId}, ${t.fileId}) = 1`),
+  uniqueIndex('recording_works_recording').on(t.recordingId, t.workId).where(sql`${t.recordingId} is not null`),
+  uniqueIndex('recording_works_file').on(t.fileId, t.workId).where(sql`${t.fileId} is not null`),
+  index('recording_works_work').on(t.workId),
+])
+
 /** Album loudness, measured across the owned files of one release. */
 export const releaseLoudness = pgTable('release_loudness', {
   releaseId: uuid('release_id').primaryKey().references(() => releases.id, { onDelete: 'cascade' }),
@@ -574,6 +647,51 @@ export const releaseLoudness = pgTable('release_loudness', {
   truePeakDb: real('true_peak_db').notNull(),
   fileCount: integer('file_count').notNull(),
   computedAt: at('computed_at').notNull().defaultNow(),
+})
+
+/**
+ * Sonic analysis of one file (`modules/sonic`): tempo, key, energy and the timbre vector
+ * radio compares tracks with. A row also records that the file's tempo, key and mood tags
+ * were read (`version` null: tags only, analysis off). Redone when the file's audio hash
+ * or the analysis version changes.
+ */
+export const sonicAnalyses = pgTable('sonic_analyses', {
+  fileId: uuid('file_id').primaryKey().references(() => mediaFiles.id, { onDelete: 'cascade' }),
+  /** The file's audio hash when it was analysed. */
+  audioHash: text('audio_hash'),
+  /** `ANALYSIS_VERSION` of the code that analysed it; null when only its tags were read. */
+  version: smallint('version'),
+  /** Why the analysis failed. Not retried until the version changes or the audio does. */
+  error: text('error'),
+  analyzedMs: integer('analyzed_ms'),
+  bpm: real('bpm'),
+  bpmConfidence: real('bpm_confidence'),
+  beatOffsetMs: integer('beat_offset_ms'),
+  /** Pitch class of the tonic, 0 = C. */
+  key: smallint('key'),
+  mode: text('mode').$type<'major' | 'minor'>(),
+  keyStrength: real('key_strength'),
+  tuningCents: smallint('tuning_cents'),
+  levelDb: real('level_db'),
+  dynamicRangeDb: real('dynamic_range_db'),
+  onsetRate: real('onset_rate'),
+  centroidHz: real('centroid_hz'),
+  energy: real('energy'),
+  danceability: real('danceability'),
+  audibleStartMs: integer('audible_start_ms'),
+  audibleEndMs: integer('audible_end_ms'),
+  introEndMs: integer('intro_end_ms'),
+  outroStartMs: integer('outro_start_ms'),
+  /** Raw timbre descriptors in `VECTOR_LAYOUT` order; similarity standardizes them over the library. */
+  vector: real('vector').array(),
+  analyzedAt: at('analyzed_at').notNull().defaultNow(),
+})
+
+/** What other sources say about a recording's sound: Deezer's tempo, for files nothing else describes. */
+export const sonicHints = pgTable('sonic_hints', {
+  recordingId: uuid('recording_id').primaryKey().references(() => recordings.id, { onDelete: 'cascade' }),
+  deezerBpm: real('deezer_bpm'),
+  deezerCheckedAt: at('deezer_checked_at'),
 })
 
 /** Albums whose best match scored below the auto-accept threshold. */
@@ -767,16 +885,97 @@ export const plays = pgTable('plays', {
   recordingId: uuid('recording_id').notNull().references(() => recordings.id, { onDelete: 'cascade' }),
   albumId: uuid('album_id').references(() => albums.id, { onDelete: 'set null' }),
   deviceId: text('device_id'),
-  /** app | subsonic */
+  /** app | subsonic | history-import */
   client: text('client').notNull().default('app'),
   startedAt: at('started_at').notNull().defaultNow(),
   msPlayed: integer('ms_played').notNull().default(0),
   /** True once the play passed the scrobble threshold (half the track or four minutes). */
   completed: boolean('completed').notNull().default(false),
+  /** A closed app play with less than five seconds listened. */
+  skipped: boolean('skipped').notNull().default(false),
+  /** Session context when the play started. Radio context ids are not UUIDs. */
+  contextType: text('context_type'),
+  contextId: text('context_id'),
 }, (t) => [
-  index('plays_user_recent').on(t.userId, t.startedAt),
+  index('plays_user_recent').on(t.userId, t.startedAt, t.id),
   index('plays_recording').on(t.recordingId),
+  // Most played and the daily picks read months of a user's completed plays: from the index alone.
+  index('plays_user_completed').on(t.userId, t.startedAt, t.recordingId, t.albumId).where(sql`completed and not skipped`),
 ])
+
+export const historyImports = pgTable('history_imports', {
+  id: id(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  source: text('source').$type<HistoryImportSource>().notNull(),
+  jsonLines: boolean('json_lines').notNull().default(false),
+  status: text('status').$type<HistoryImport['status']>().notNull().default('queued'),
+  createdAt: createdAt(),
+  processed: integer('processed').notNull().default(0),
+  matched: integer('matched').notNull().default(0),
+  unmatched: integer('unmatched').notNull().default(0),
+  duplicates: integer('duplicates').notNull().default(0),
+  ignored: integer('ignored').notNull().default(0),
+  error: text('error'),
+}, (t) => [index('history_imports_user_recent').on(t.userId, t.createdAt)])
+
+export const historyImportedPlays = pgTable('history_imported_plays', {
+  id: id(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  source: text('source').$type<HistoryImportSource>().notNull(),
+  fingerprint: text('fingerprint').notNull(),
+  /** A private row remains in Replay even if the matched recording is later deleted. */
+  playId: uuid('play_id').references(() => plays.id, { onDelete: 'set null' }),
+  startedAt: at('started_at').notNull(),
+  msPlayed: integer('ms_played'),
+  skipped: boolean('skipped').notNull().default(false),
+  title: text('title').notNull(),
+  artist: text('artist').notNull(),
+  album: text('album'),
+  trackKey: text('track_key').notNull(),
+  artistKey: text('artist_key').notNull(),
+  albumKey: text('album_key'),
+}, (t) => [
+  uniqueIndex('history_imported_plays_fingerprint').on(t.userId, t.source, t.fingerprint),
+  index('history_imported_plays_link').on(t.playId).where(sql`${t.playId} is not null`),
+  index('history_imported_plays_unmatched_recent').on(t.userId, t.startedAt, t.id).where(sql`${t.playId} is null`),
+])
+
+/**
+ * The mixes made for each user (Home's Made for you; radio/mixes.ts), one row per slot:
+ * "Mix 1" keeps its id while its songs are picked again each day. `artist_ids` are the
+ * mix's artists, most played first; `tracks` its songs in play order. Ids are not followed
+ * through merges here: reads resolve them, and the next day's run writes current ones.
+ */
+export const mixes = pgTable('mixes', {
+  id: id(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  /** 1 for "Mix 1". */
+  position: integer('position').notNull(),
+  /** What follows the slot in its name: its leading genres, else its first artists. */
+  label: text('label').notNull(),
+  artistIds: uuid('artist_ids').array().notNull(),
+  tracks: jsonb('tracks').$type<{ id: string; albumId: string | null; durationMs: number }[]>().notNull(),
+  generatedAt: at('generated_at').notNull().defaultNow(),
+}, (t) => [uniqueIndex('mixes_user_position').on(t.userId, t.position)])
+
+/**
+ * Home's rails made ahead of time for a user, once a day with their mixes, by the catalog's
+ * `catalog.home-picks` job (catalog/home-picks.ts): Because you listened to (an artist the
+ * user plays, and similar artists with music on the server), Your top artists, Rediscover
+ * (songs played a lot six to 24 months ago and not lately) and `hourly`, when in the day the
+ * user plays their artists (plays per UTC hour, 24 numbers per artist), which orders Home by
+ * the time of day. Each would otherwise cost a scan of months of plays on every Home.
+ * `generated_at` is when they and the mixes were last made.
+ */
+export const homePicks = pgTable('home_picks', {
+  userId: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  generatedAt: at('generated_at').notNull(),
+  becauseArtistId: uuid('because_artist_id').references(() => artists.id, { onDelete: 'set null' }),
+  becauseArtistIds: uuid('because_artist_ids').array().notNull().default(sql`'{}'::uuid[]`),
+  topArtistIds: uuid('top_artist_ids').array().notNull().default(sql`'{}'::uuid[]`),
+  rediscover: jsonb('rediscover').$type<{ id: string; albumId: string | null }[]>().notNull().default([]),
+  hourly: jsonb('hourly').$type<Record<string, number[]>>().notNull().default({}),
+})
 
 /**
  * When the user last started playback from a collection: an album, artist or playlist
@@ -999,6 +1198,7 @@ export const catalogIndex = pgTable('catalog_index', {
   index('catalog_index_album_head').using('gin', t.nameKey.op('gin_trgm_ops')).where(sql`kind = 'album' and head`),
   index('catalog_index_recording_head').using('gin', t.nameKey.op('gin_trgm_ops')).where(sql`kind = 'recording' and head`),
   index('catalog_index_prefix').on(t.kind, sql`(${t.nameKey} collate "C")`),
+  // Unicode and composite indexes are owned by the catalog-index importer and upgrade job.
 ])
 
 /**

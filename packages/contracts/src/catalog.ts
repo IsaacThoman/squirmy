@@ -100,6 +100,24 @@ export type AlbumSummary = z.infer<typeof AlbumSummary>
 export const TrackLibrary = z.enum(['collection', 'album', 'saved'])
 export type TrackLibrary = z.infer<typeof TrackLibrary>
 
+export const CreditRole = z.enum([
+  'composer', 'lyricist', 'conductor', 'arranger', 'producer', 'engineer', 'mixer', 'remixer', 'performer', 'ensemble',
+])
+export type CreditRole = z.infer<typeof CreditRole>
+
+export const TrackCredit = z.object({ artist: ArtistRef, role: CreditRole, instrument: z.string().optional() })
+export type TrackCredit = z.infer<typeof TrackCredit>
+
+export const TrackWork = z.object({
+  id: Id,
+  mbid: z.string().nullable(),
+  title: z.string(),
+  movementName: z.string().optional(),
+  movementNumber: z.number().int().positive().optional(),
+  movementTotal: z.number().int().positive().optional(),
+})
+export type TrackWork = z.infer<typeof TrackWork>
+
 /**
  * A track is a recording. `id` is the recording id; `album` is the album it is being
  * shown in, which decides the artwork and which file is preferred for playback.
@@ -122,6 +140,8 @@ export const TrackSummary = z.object({
    */
   liked: z.boolean(),
   explicit: z.boolean().nullable(),
+  credits: z.array(TrackCredit).optional(),
+  works: z.array(TrackWork).optional(),
   hasLyrics: z.boolean(),
   /**
    * True when the track is in the viewer's library: a collection file links it, the viewer
@@ -227,6 +247,7 @@ export const ArtistDetail = ArtistSummary.extend({
   /** The heart: the viewer saved (follows) this artist, which puts it in their library. */
   liked: z.boolean(),
   topTracks: z.array(TrackSummary),
+  composedOrProduced: z.array(TrackSummary).optional(),
   /**
    * The artist's own releases (led by the artist), newest first, each release once: rows
    * of one release (editions, store copies) show as the one that stands for it. Only the
@@ -268,13 +289,41 @@ export const ArtistDetail = ArtistSummary.extend({
 })
 export type ArtistDetail = z.infer<typeof ArtistDetail>
 
+/** A word of a synced line and when it is sung, in milliseconds into the song. */
+export const LyricWord = z.object({
+  startMs: z.number().int().nonnegative(),
+  endMs: z.number().int().nonnegative(),
+  /** The word as written, with the space after it: a line's words joined spell its text. */
+  text: z.string(),
+})
+export type LyricWord = z.infer<typeof LyricWord>
+
+export const LyricLine = z.object({
+  startMs: z.number().int().nonnegative(),
+  /** Empty for an instrumental gap. */
+  text: z.string(),
+  /** Each word's time, when the lyrics have them (Enhanced LRC or TTML word timing). */
+  words: z.array(LyricWord).optional(),
+  /** A translation or romanization the lyrics give for the line. */
+  translation: z.string().optional(),
+})
+export type LyricLine = z.infer<typeof LyricLine>
+
 export const Lyrics = z.object({
   trackId: Id,
-  /** LRC text with [mm:ss.xx] timestamps, when synced lyrics exist. */
+  /**
+   * LRC text with [mm:ss.xx] timestamps, when synced lyrics exist. Only line stamps: word
+   * timing, where there is some, is in `lines`.
+   */
   synced: z.string().nullable(),
   plain: z.string().nullable(),
   instrumental: z.boolean(),
   source: z.string(),
+  /**
+   * `synced` read into lines, with each word's time and a line's translation when the lyrics
+   * have them. Optional: older servers send only `synced`, which clients then read themselves.
+   */
+  lines: z.array(LyricLine).optional(),
 })
 export type Lyrics = z.infer<typeof Lyrics>
 

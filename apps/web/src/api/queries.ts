@@ -1,3 +1,4 @@
+import { hasSearchFacets, type SearchFacets } from '@squirmy/contracts'
 import { ApiError, type ApiClient } from '@squirmy/client-core'
 import { Id, queryKeys, type AlbumSummary, type ArtistSectionKey, type ArtistSummary, type LibraryItem, type LibraryItemsSort, type LibraryQuery, type Page, type SearchResults, type TrackSummary, type UploaderFilter } from '@squirmy/contracts'
 import { infiniteQueryOptions, keepPreviousData, useInfiniteQuery, useQuery, type InfiniteData, type InfiniteQueryObserverResult } from '@tanstack/react-query'
@@ -38,10 +39,26 @@ async function everything<T>(load: (cursor: string | undefined) => Promise<Page<
 /** Imports: their list, each one, and the upload options. `import.updated` refreshes them all. */
 export const importsKey = ['imports'] as const
 
-export const homeQuery = (api: ApiClient) => ({ queryKey: queryKeys.home(), queryFn: () => api.catalog.home() })
+/** The device's time zone, by which the server orders Home for the time of day; undefined where the browser does not say. */
+function timeZone(): string | undefined {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined
+  } catch {
+    return undefined
+  }
+}
+
+export const homeQuery = (api: ApiClient) => ({ queryKey: queryKeys.home(), queryFn: () => api.catalog.home({ layout: 'personal', tz: timeZone() }) })
 
 export function useHome() {
   return useQuery(homeQuery(useApi()))
+}
+
+export const mixQuery = (api: ApiClient, id: string) => ({ queryKey: queryKeys.mix(id), queryFn: () => byId(id, () => api.radio.mix(id)) })
+
+/** A mix made for the user. Under Home's key, so a new day's mixes refresh an open mix too. */
+export function useMix(id: string) {
+  return useQuery(mixQuery(useApi(), id))
 }
 
 export const albumQuery = (api: ApiClient, id: string) => ({ queryKey: queryKeys.album(id), queryFn: () => byId(id, () => api.catalog.album(id)) })
@@ -302,9 +319,9 @@ const orMissing = (request: Promise<SearchResults>) => request.catch((error: unk
 })
 
 /** One search of the library or the catalog. The search page and the search dialog share its answers. */
-export const searchQuery = (api: ApiClient, kind: 'library' | 'catalog', term: string) => ({
-  queryKey: [...queryKeys.search(), kind, term],
-  queryFn: ({ signal }: { signal: AbortSignal }) => orMissing(api.search[kind]({ q: term, limit: 20 }, { signal })),
+export const searchQuery = (api: ApiClient, kind: 'library' | 'catalog', term: string, facets: SearchFacets = {}) => ({
+  queryKey: [...queryKeys.search(), kind, term, ...(hasSearchFacets(facets) ? [facets] : [])],
+  queryFn: ({ signal }: { signal: AbortSignal }) => orMissing(api.search[kind]({ q: term, limit: 20, scope: 'server', ...facets }, { signal })),
   enabled: term.length > 0,
   staleTime: 60_000,
 })

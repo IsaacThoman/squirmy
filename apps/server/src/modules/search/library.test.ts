@@ -65,6 +65,29 @@ describe('GET /search/library', () => {
     expect(titles((await search('karma')).tracks)).toEqual(['Karma Police'])
   })
 
+  it('matches Library membership with or without server music and keeps global lookup available', async () => {
+    const savesOnly = await signIn({ settings: { libraryIncludesServerMusic: false } })
+    const collected = await createAlbum({
+      title: 'Scope Collection Album', artist: await createArtist({ name: 'Scope Collection Artist' }),
+      owned: true, tracks: [{ title: 'Scope Collection Track' }],
+    })
+    const cached = await createAlbum({
+      title: 'Scope Cached Album', artist: await createArtist({ name: 'Scope Cached Artist' }),
+      owned: true, source: 'provider:fixture', tracks: [{ title: 'Scope Cached Track' }],
+    })
+    const ids = (results: SearchResults) => [results.artists, results.albums, results.tracks].map((items) => items.map(({ id }) => id))
+    const matches = (one: typeof collected) => [[one.artist.id], [one.albumId], [one.tracks[0]!.recordingId]]
+    expect(ids(await search('scope collection', user))).toEqual(matches(collected))
+    expect(ids(await search('scope collection', savesOnly))).toEqual([[], [], []])
+    expect(ids(await search('scope cached', user))).toEqual([[], [], []])
+    const global = await app.inject({ url: '/api/v1/search/library?q=scope+collection&scope=server', headers: savesOnly.headers })
+    expect(ids(body(global, SearchResults))).toEqual(matches(collected))
+
+    await db.insert(likes).values({ userId: savesOnly.id, entityType: 'album', entityId: cached.albumId })
+    expect(ids(await search('scope cached', savesOnly))).toEqual(matches(cached))
+    expect(ids(await search('scope cached', user))).toEqual([[], [], []])
+  })
+
   it('keeps a search inside a genre: albums of it, their songs and their artists', async () => {
     const [inGenre, outside] = [
       await createAlbum({ title: 'Genre Search Inside', artist: await createArtist({ name: 'Genre Act One' }), owned: true, tracks: [{ title: 'Genre Search Song' }] }),
@@ -188,10 +211,27 @@ describe('GET /search/library', () => {
     expect(titles((await search('丸の内')).tracks)).toEqual(['丸の内サディスティック'])
   })
 
-  it('understands "artist title" and "title artist" queries', async () => {
+  it.each([
+    ['宇多田ヒカル', '宇多田ひかる'],
+    ['宇多田ヒカル', '宇多田ヒカフ'],
+    ['Кино', 'Кно'],
+    ['Μίκης Θεοδωράκης', 'Μίκης Θεοδωράκς'],
+    ['فيروز', 'فيرز'],
+    ['방탄소년단', '방탄소녀단'],
+  ])('fuzzily matches %s from %s without a locale-dependent trigram', async (name, query) => {
+    const artist = await createArtist({ name })
+    await createAlbum({ title: name, artist, owned: true, tracks: [{ title: name }] })
+    const found = await search(query)
+    expect(found.artists.map((item) => item.name)).toContain(name)
+    expect(titles(found.albums)).toContain(name)
+    expect(titles(found.tracks)).toContain(name)
+  })
+
+  it('understands artist and album context for titles', async () => {
     expect(titles((await search('radiohead karma')).tracks)[0]).toBe('Karma Police')
     expect(titles((await search('karma police radiohead')).tracks)[0]).toBe('Karma Police')
     expect(titles((await search('radiohead kid a')).albums)[0]).toBe('Kid A')
+    expect(titles((await search('karma police ok computer')).tracks)[0]).toBe('Karma Police')
     // The credit carries a featured artist; the primary artist still counts.
     expect(titles((await search('daft punk get lucky')).tracks)[0]).toBe('Get Lucky')
   })
@@ -221,10 +261,12 @@ describe('GET /search/library', () => {
     expect((await search('the money store')).top).toEqual({ type: 'album', id: store.albumId, score: 3 })
   })
 
-  it('counts a track credited to an artist as theirs', async () => {
+  it('finds featured artists in global search and uses album credits for Library membership', async () => {
     const guest = await createArtist({ name: 'Pharrell Williams' })
     const [getLucky] = await db.select().from(recordings).where(eq(recordings.title, 'Get Lucky'))
     await db.insert(recordingArtists).values({ recordingId: getLucky!.id, position: 1, artistId: guest.id, creditedName: guest.name })
-    expect((await search('pharrell')).artists.map((artist) => artist.name)).toEqual(['Pharrell Williams'])
+    expect((await search('pharrell')).artists).toEqual([])
+    const global = await app.inject({ url: '/api/v1/search/library?q=pharrell&scope=server', headers: user.headers })
+    expect(body(global, SearchResults).artists.map((artist) => artist.name)).toEqual(['Pharrell Williams'])
   })
 })

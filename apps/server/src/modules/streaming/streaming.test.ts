@@ -4,17 +4,18 @@ import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import type { FastifyInstance, InjectOptions } from 'fastify'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
 import { fileMoves, mediaFiles, organizeBatches, releaseLoudness, users } from '../../database/schema.js'
-import { startJobs, stopJobs } from '../../jobs/index.js'
+import { enqueue, startJobs, stopJobs } from '../../jobs/index.js'
 import { newId } from '../../lib/ids.js'
 import { makeTone } from '../../test/audio.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createLibraryRoot } from '../../test/factories.js'
+import { measureFile } from '../loudness/measure.js'
 import { signStreamUrl } from './playback.js'
 
 describe('streaming originals', () => {
@@ -46,7 +47,11 @@ describe('streaming originals', () => {
     const album = await createAlbum({ owned: true, rootId, tracks: [{ title: 'Night Swimming' }, { title: 'Not On Disk' }] })
     const fileId = album.tracks[0]!.fileId!
     const bytes = await readFile(file)
-    await db.update(mediaFiles).set({ relPath: 'Mira/Blue Hour/01 Night.flac', tags: { title: 'Night Swimming', artist: 'Mira Välé' }, size: bytes.length, durationMs: 3000, loudnessLufs: -21, truePeakDb: -6 })
+    await db.update(mediaFiles).set({
+      relPath: 'Mira/Blue Hour/01 Night.flac', tags: { title: 'Night Swimming', artist: 'Mira Välé' },
+      size: bytes.length, durationMs: 3000, loudnessLufs: -21, truePeakDb: -6,
+      decodedFrames: 132300, decodedRate: 44100, primingFrames: 0, paddingFrames: 0,
+    })
       .where(eq(mediaFiles.id, fileId))
     await db.insert(releaseLoudness).values({ releaseId: album.releaseId, loudnessLufs: -20, truePeakDb: -3, fileCount: 1 })
     flac = { recordingId: album.tracks[0]!.recordingId, fileId, bytes }
@@ -71,6 +76,7 @@ describe('streaming originals', () => {
       trackId: flac.recordingId, fileId: flac.fileId, profile: 'original', transcoded: false, mime: 'audio/flac', codec: 'flac',
       lossless: true, bytes: flac.bytes.length, durationMs: 3000,
       normalization: { trackGainDb: 3, trackPeak: 0.501187, albumGainDb: 2, albumPeak: 0.707946 },
+      gapless: { frames: 132300, sampleRate: 44100, primingFrames: 0 },
     })
     expect(body.url).toMatch(new RegExp(`^/api/v1/stream/${flac.fileId}\\?exp=\\d+&uid=[0-9a-f-]+&sig=[\\w-]+$`))
     const hours = (Date.parse(body.expiresAt) - Date.now()) / 3_600_000
@@ -78,7 +84,12 @@ describe('streaming originals', () => {
     expect(hours).toBeLessThanOrEqual(12)
 
     const high = await descriptor('?quality=high')
-    expect(high).toMatchObject({ profile: 'aac_256', transcoded: true, mime: 'audio/aac', codec: 'aac', lossless: false, bitrate: 256_000, bytes: null })
+    expect(high).toMatchObject({ profile: 'aac_256', transcoded: true, mime: 'audio/aac', codec: 'aac', lossless: false, bitrate: 256_000, bytes: null, gapless: null })
+    // The file is described whatever is delivered, and so is why it is a transcode.
+    const file = { codec: 'flac', lossless: true, bytes: flac.bytes.length, channels: expect.any(Number), sampleRate: expect.any(Number) }
+    expect(body).toMatchObject({ source: file, transcodeReason: null })
+    expect(high).toMatchObject({ source: file, transcodeReason: 'quality' })
+    expect(await descriptor('?codecs=mp3,aac')).toMatchObject({ profile: 'aac_256', source: file, transcodeReason: 'codec' })
     expect(high.url).toContain(`/stream/${flac.fileId}/aac_256?`)
     expect((await descriptor('?download=1')).url).toContain('&download=1')
     expect((await descriptor('?download=false')).url).not.toContain('download')
@@ -87,6 +98,51 @@ describe('streaming originals', () => {
     const missing = await call({ url: `/api/v1/tracks/${unowned}/playback`, headers: admin })
     expect(missing.statusCode).toBe(404)
     expect(missing.json().error.code).toBe('not_available')
+  })
+
+  it('estimates an unmeasured gain and raises its singleton measurement on play', async () => {
+    const { tracks } = await createAlbum({
+      owned: true, rootId, tracks: ['First', 'Second', 'Tagged', 'Missing', 'Cached', 'Silent'].map((title) => ({ title })),
+    })
+    const [first, second, tagged, missing, cached, silent] = tracks.map((track) => track.fileId!)
+    await db.update(mediaFiles).set({ tagTrackGainDb: -3 }).where(eq(mediaFiles.id, tagged!))
+    await db.update(mediaFiles).set({ tagTrackGainDb: 90, missingSince: new Date() }).where(eq(mediaFiles.id, missing!))
+    await db.update(mediaFiles).set({ tagTrackGainDb: 90, source: 'provider:test' }).where(eq(mediaFiles.id, cached!))
+    await db.update(mediaFiles).set({ loudnessLufs: -70, truePeakDb: -144 }).where(eq(mediaFiles.id, silent!))
+    for (const [index, fileId] of [first!, second!].entries()) {
+      const relPath = `measure-on-play/${index}.flac`
+      await makeTone(root, { path: relPath, volumeDb: -30 })
+      await db.update(mediaFiles).set({ relPath }).where(eq(mediaFiles.id, fileId))
+    }
+
+    const playback = async (index: number, query = '') => (await call({
+      url: `/api/v1/tracks/${tracks[index]!.recordingId}/playback${query}`, headers: admin,
+    })).json()
+    const measurements = (fileId: string) => db.execute<{ id: string; priority: number }>(sql`
+      select id, priority from pgboss.job where name = 'loudness.measure' and singleton_key = ${fileId}`)
+    const { url, normalization, gapless } = await playback(0)
+    // The existing measured +3 dB and the tagged -3 dB give an even-sample median of 0 dB.
+    expect(normalization).toEqual({ trackGainDb: 0, trackPeak: null, albumGainDb: null, albumPeak: null, estimated: true })
+    expect(gapless).toBeNull()
+    expect((await playback(2)).normalization).toMatchObject({ trackGainDb: -3 })
+    expect((await playback(2)).normalization.estimated).toBeUndefined()
+    expect((await playback(5)).normalization).toBeNull()
+    expect((await call({ method: 'HEAD', url })).statusCode).toBe(200)
+    expect((await call({ url: (await playback(0, '?download=1')).url })).statusCode).toBe(200)
+    expect(await measurements(first!)).toEqual([])
+
+    const id = await enqueue('loudness.measure', { fileId: first }, { singletonKey: first, priority: -20 })
+    const responses = await Promise.all([call({ url }), call({ url })])
+    expect(responses.map((response) => response.statusCode)).toEqual([200, 200])
+    await expect.poll(() => measurements(first!)).toEqual([{ id, priority: 20 }])
+
+    expect((await call({ url: (await playback(1)).url })).statusCode).toBe(200)
+    await expect.poll(() => measurements(second!)).toEqual([{ id: expect.any(String), priority: 20 }])
+    await measureFile(second!, false)
+    const updated = await playback(1)
+    expect(updated.normalization).toMatchObject({ trackGainDb: expect.any(Number), trackPeak: expect.any(Number) })
+    expect(updated.normalization.estimated).toBeUndefined()
+    expect(updated.gapless).toEqual({ frames: 88200, sampleRate: 44100, primingFrames: 0 })
   })
 
   it('serves byte-exact ranges', async () => {
@@ -139,6 +195,16 @@ describe('streaming originals', () => {
     const headRange = await call({ method: 'HEAD', url, headers: { range: 'bytes=0-9' } })
     expect(headRange.statusCode).toBe(206)
     expect(headRange.headers['content-length']).toBe('10')
+  })
+
+  it('carries stream intent on a signed URL without binding it to the signature', async () => {
+    const { url } = await descriptor('?intent=cache')
+    const stream = new URL(url, 'http://localhost')
+    expect(stream.searchParams.get('intent')).toBe('cache')
+    stream.searchParams.set('intent', 'next')
+    expect((await call({ url: stream.pathname + stream.search })).statusCode).toBe(200)
+    stream.searchParams.set('intent', 'invalid')
+    expect((await call({ url: stream.pathname + stream.search })).statusCode).toBe(400)
   })
 
   it('checks signatures and falls back to the session', async () => {

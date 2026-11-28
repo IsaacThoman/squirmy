@@ -24,6 +24,7 @@ const sidebar = [
       { text: 'Adding music', link: '/server/adding-music' },
       { text: 'Metadata and privacy', link: '/server/metadata-and-privacy' },
       { text: 'Playback', link: '/server/playback' },
+      { text: 'Sonic analysis', link: '/server/sonic-analysis' },
     ],
   },
   {
@@ -55,6 +56,7 @@ const sidebar = [
       { text: 'Provider protocol', link: '/provider-protocol' },
       { text: 'Local search index', link: '/local-search-index' },
       { text: 'Detached playback UI', link: '/detached-playback-ui' },
+      { text: 'Audio engine', link: '/audio-engine' },
     ],
   },
 ]

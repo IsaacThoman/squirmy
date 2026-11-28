@@ -96,7 +96,7 @@ export function queueChanged(previous: Session, next: Session): boolean {
  * Position of the current entry at server time `now`, in milliseconds. Advances only
  * while `playing && !stalled`, and is capped at the entry's duration when it is known.
  */
-export function positionAt(session: SessionState, now: number): number {
+export function positionAt(session: Pick<SessionState, 'current' | 'playing' | 'stalled' | 'positionMs' | 'anchorAt'>, now: number): number {
   if (!session.current) return 0
   const elapsed = session.playing && !session.stalled ? Math.max(0, now - session.anchorAt) : 0
   return capPosition(session.current, session.positionMs + elapsed)
@@ -214,6 +214,9 @@ function apply(s: Session, command: AnySessionCommand, context: Context): Sessio
       return s.queue.length || s.playOrder.length ? { ...s, queue: [], playOrder: [] } : s
     case 'clearHistory':
       return s.history.length ? { ...s, history: [] } : s
+    case 'undo':
+      // Only the server keeps what an edit replaced; its answer brings the change.
+      return s
     case 'transfer': {
       const playing = (command.play ?? s.playing) && s.current !== null && s.current.state !== 'failed'
       if (command.deviceId === s.activeDeviceId && playing === s.playing) return s
@@ -222,10 +225,25 @@ function apply(s: Session, command: AnySessionCommand, context: Context): Sessio
     case 'setVolume':
       if (s.volumes[command.deviceId] === command.value) return s
       return { ...s, volumes: { ...s.volumes, [command.deviceId]: command.value } }
-    case 'trackEnded':
+    case 'setSleepTimer': {
+      const { timer } = command
+      if (!timer) return withoutSleepTimer(s)
+      if (timer.kind === 'time') return { ...s, sleepTimer: { kind: 'time', endsAt: now + timer.durationMs, durationMs: timer.durationMs } }
+      return s.sleepTimer?.kind === timer.kind ? s : { ...s, sleepTimer: { kind: timer.kind } }
+    }
+    case 'endSleepTimer': {
+      const timer = s.sleepTimer
+      if (timer?.kind !== 'time' || now < timer.endsAt) return s
+      return withoutSleepTimer(s.playing ? { ...reanchor(s, now), playing: false } : s)
+    }
+    case 'trackEnded': {
       if (!s.current || command.entryId !== s.current.id) return s
       if (context.deviceId && s.activeDeviceId && context.deviceId !== s.activeDeviceId) return s
-      return advance(s, context, 'ended')
+      const ended = advance(s, context, 'ended')
+      // The sleep timer stops here: on what would play next, paused, as a song that was
+      // stopped there would be. Repeat one gives way to it too.
+      return sleepsAtEnd(s) ? { ...withoutSleepTimer(ended), playing: false } : ended
+    }
     case 'setEntryState':
       return setEntryState(s, command.trackId, command.state, context)
     case 'updateTracks':
@@ -241,6 +259,20 @@ function apply(s: Session, command: AnySessionCommand, context: Context): Sessio
       if (!s.current || s.current.id !== command.entryId || s.current.state === 'preparing') return s
       return { ...s, positionMs: capPosition(s.current, command.positionMs), anchorAt: now, stalled: command.stalled }
   }
+}
+
+/** The session without its sleep timer; the same object when it has none. */
+export function withoutSleepTimer(s: Session): Session {
+  if (s.sleepTimer === undefined) return s
+  const rest = { ...s }
+  delete rest.sleepTimer
+  return rest
+}
+
+/** The sleep timer stops playback when the current entry ends: a `track` one, or a `queue` one on the queue's last entry. */
+function sleepsAtEnd(s: Session): boolean {
+  const kind = s.sleepTimer?.kind
+  return kind === 'track' || (kind === 'queue' && !s.queue.some(isPlayable))
 }
 
 /**

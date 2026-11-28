@@ -29,9 +29,10 @@ function storedLimit(): number {
 
 /**
  * The streaming cache of the signed-in account. It follows the user's streaming quality
- * for the network it is on and the device's size limit, fetches only while the server is
- * reachable, and is emptied on sign-out (see `removeStreamingCache`). `PlaybackProvider` tells it what
- * the session will play next.
+ * for the network it is on and the device's size limit (shared with the other accounts'
+ * caches), and fetches only while the server is reachable. What it holds stays when the
+ * account signs out or another one is opened. `PlaybackProvider` tells it what the session
+ * will play next.
  */
 export function StreamingCacheProvider({ children }: PropsWithChildren) {
   const api = useSignedInApi();
@@ -53,7 +54,7 @@ export function StreamingCacheProvider({ children }: PropsWithChildren) {
       describe: (trackId, albumId, quality) => {
         const current = live.current.api;
         if (!current) return Promise.reject(new Error('Signed out'));
-        return current.streaming.playback(trackId, { albumId: albumId ?? undefined, quality, codecs: codecsFor(Platform.OS) });
+        return current.streaming.playback(trackId, { albumId: albumId ?? undefined, quality, codecs: codecsFor(Platform.OS), intent: 'cache' });
       },
       url: descriptor => streamUrl(live.current.serverUrl, descriptor),
       track: async (trackId, albumId) => {

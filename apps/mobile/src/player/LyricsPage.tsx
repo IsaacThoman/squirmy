@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type Ref } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useLyrics } from '../data/queries';
+import { useTrackLyrics } from './useTrackLyrics';
 import { secondaryFontScale } from '../fontScale';
 import { usePlaybackState, usePosition } from '../playback';
 import { createThemedStyles, useColors } from '../theme';
 import { Icon } from '../ui';
 import { LyricButton } from './Controls';
+import { SungLyricButton } from './SungLyric';
 import LyricsEmpty from './LyricsEmpty';
 import { selectionFeedback } from './design';
 import { activeLine, lineInView, lyricLines } from './lyrics';
@@ -33,7 +34,7 @@ export default function LyricsPage({ selected }: LyricsProps) {
   const shown = usePlayerShown();
   const visible = selected && shown;
   const { track, actions } = usePlaybackState();
-  const lyrics = useLyrics(track);
+  const lyrics = useTrackLyrics(track);
   const { lines, synced } = lyricLines(lyrics.data);
   const position = usePosition(visible && synced);
   const active = synced ? Math.max(0, activeLine(lines, position)) : -1;
@@ -95,8 +96,11 @@ export default function LyricsPage({ selected }: LyricsProps) {
               lineCenters.current[index] = y + height / 2;
               if (index === active) setPlaced(true);
             }}>
-              <LyricButton line={line.text} active={!synced || index === active}
-                onPress={line.startMs === null ? undefined : () => { selectionFeedback(); setFollowing(true); actions.seek(line.startMs!); }} />
+              {synced && index === active && line.words?.length
+                ? <SungLyricButton line={line.text} words={line.words} translation={line.translation} active
+                  onPress={() => { selectionFeedback(); setFollowing(true); actions.seek(line.startMs!); }} />
+                : <LyricButton line={line.text} translation={line.translation} active={!synced || index === active}
+                  onPress={line.startMs === null ? undefined : () => { selectionFeedback(); setFollowing(true); actions.seek(line.startMs!); }} />}
             </View>
           ))}
         </ScrollView>

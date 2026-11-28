@@ -12,21 +12,21 @@ import { spawn } from 'node:child_process'
 import { stat } from 'node:fs/promises'
 import { PassThrough, Readable, Transform } from 'node:stream'
 import { getConfig } from '../../config.js'
-import { AppError, notFound } from '../../lib/errors.js'
+import { notFound } from '../../lib/errors.js'
 import { audioInput } from '../../lib/ffmpeg.js'
 import { libraryPath } from '../streaming/files.js'
 import { transcoderBusy, tryAcquireSlot } from '../streaming/transcode.js'
-import { codecFamily, outputSampleRate, profiles, type MediaFile, type TranscodeProfile } from '../streaming/profiles.js'
+import { codecFamily, outputSampleRate, profiles, type LegacyProfile, type MediaFile } from '../streaming/profiles.js'
 
 export type Codec = 'mp3' | 'opus' | 'aac'
 
 export type StreamPlan =
   | { kind: 'original' }
-  | { kind: 'profile'; profile: TranscodeProfile }
+  | { kind: 'profile'; profile: LegacyProfile }
   | { kind: 'live'; codec: Codec; bitrate: number; offsetSeconds: number }
 
 /** Profiles per codec, best first. */
-const codecProfiles: Record<Codec, TranscodeProfile[]> = { mp3: ['mp3_320', 'mp3_192'], opus: ['opus_128'], aac: ['aac_256'] }
+const codecProfiles: Record<Codec, LegacyProfile[]> = { mp3: ['mp3_320', 'mp3_192'], opus: ['opus_128'], aac: ['aac_256'] }
 
 const formatCodecs: Record<string, Codec> = { mp3: 'mp3', opus: 'opus', ogg: 'opus', oga: 'opus', aac: 'aac', m4a: 'aac', adts: 'aac' }
 
@@ -62,8 +62,6 @@ export const liveMime = (codec: Codec) => profiles[codecProfiles[codec][0]!].mim
 /** Live encodes one user may run at once: a player and a prefetch, with room for a seek. */
 export const LIVE_ENCODES_PER_USER = 3
 
-const liveByUser = new Map<string, number>()
-
 /**
  * Encodes `file` from `offsetSeconds` at `bitrate` and streams it as it is produced.
  * The encoder is the streaming profile's, with its bitrate replaced; it is killed when
@@ -73,21 +71,8 @@ const liveByUser = new Map<string, number>()
  * the user already runs LIVE_ENCODES_PER_USER.
  */
 export async function liveEncode(file: MediaFile, plan: Extract<StreamPlan, { kind: 'live' }>, userId: string): Promise<Readable> {
-  if ((liveByUser.get(userId) ?? 0) >= LIVE_ENCODES_PER_USER) {
-    throw new AppError(429, 'too_many_live_encodes', 'Too many streams are being converted for this user; try again shortly')
-  }
-  const releaseSlot = tryAcquireSlot()
-  if (!releaseSlot) throw transcoderBusy()
-  liveByUser.set(userId, (liveByUser.get(userId) ?? 0) + 1)
-  let released = false
-  const release = () => {
-    if (released) return
-    released = true
-    releaseSlot()
-    const count = (liveByUser.get(userId) ?? 1) - 1
-    if (count > 0) liveByUser.set(userId, count)
-    else liveByUser.delete(userId)
-  }
+  const release = tryAcquireSlot(userId, LIVE_ENCODES_PER_USER)
+  if (!release) throw transcoderBusy()
   try {
     const input = await libraryPath(file)
     await stat(input).catch(() => {
@@ -106,19 +91,21 @@ export async function liveEncode(file: MediaFile, plan: Extract<StreamPlan, { ki
       ...args,
       'pipe:1',
     ], { stdio: ['ignore', 'pipe', 'ignore'] })
-    // The slot is held while ffmpeg runs, and given back when it exits or the client leaves
-    // (which kills it).
-    child.once('close', release)
-    const output = new PassThrough()
+    const exited = new Promise<void>((resolve) => child.once('close', () => {
+      release()
+      resolve()
+    }))
+    const output = new PassThrough({
+      destroy(error, callback) {
+        if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
+        // A pipe paused by an unread response would otherwise delay ChildProcess 'close'.
+        child.stdout.destroy()
+        // Keep the slot reserved until ffmpeg has actually stopped.
+        void exited.then(() => callback(error))
+      },
+    })
     child.stdout.pipe(output)
-    child.once('error', (error) => {
-      release()
-      output.destroy(error)
-    })
-    output.once('close', () => {
-      if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
-      release()
-    })
+    child.once('error', (error) => output.destroy(error))
     return output
   } catch (error) {
     release()

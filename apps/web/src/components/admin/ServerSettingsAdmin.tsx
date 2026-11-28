@@ -16,7 +16,7 @@ import { DraftField, SaveStatus, type SavePatch, type SaveState } from './DraftF
 import { SettingRow } from './Panel'
 
 type Save = SavePatch<UpdateServerSettings>
-type Toggle = 'musicBrainzEnabled' | 'coverArtArchiveEnabled' | 'deezerEnabled' | 'wikidataEnabled' | 'lrclibEnabled' | 'registrationRequiresInvite' | 'wantlistEnabled'
+type Toggle = 'musicBrainzEnabled' | 'coverArtArchiveEnabled' | 'deezerEnabled' | 'wikidataEnabled' | 'lrclibEnabled' | 'registrationRequiresInvite' | 'wantlistEnabled' | 'sonicAnalysisEnabled'
 type Secret = 'listenBrainz' | 'acoustId' | 'fanart' | 'lastFm'
 
 type ServerSettingsProps = {
@@ -92,6 +92,10 @@ export function ServerSettingsAdmin({ settings, failure, managedRoots, onSave, s
           <Row htmlFor="grace-days" label="Keep missing files for" description="An unmounted drive does not empty the library during this time.">
             <DraftField id="grace-days" field="missingFileGraceDays" value={settings.missingFileGraceDays} schema={UpdateServerSettings} onSave={onSave} type="number" inputMode="numeric" className="w-24 text-right" unit="days" />
           </Row>
+          <Row htmlFor="health-days" label="Check file health every" description="Days between background audio integrity checks. Set to 0 to turn off automatic checks.">
+            <DraftField id="health-days" field="fileHealthIntervalDays" value={settings.fileHealthIntervalDays} schema={UpdateServerSettings} onSave={onSave} type="number" inputMode="numeric" className="w-24 text-right" unit="days" />
+          </Row>
+          {toggle('sonicAnalysisEnabled', 'Sonic analysis', 'Listens to every song for its tempo, key, energy and sound, so radio keeps a consistent feel. Runs in the background, one song at a time. Off stops new analysis and keeps what was measured.')}
         </Section>
 
         <ImportSettings settings={settings} managedRoots={managedRoots} onSave={onSave} />

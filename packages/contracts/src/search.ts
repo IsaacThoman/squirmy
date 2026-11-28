@@ -1,18 +1,36 @@
 import { z } from 'zod'
-import { AlbumSummary, ArtistSummary, TrackSummary } from './catalog.js'
+import { AlbumSummary, ArtistSummary, TrackCredit, TrackSummary } from './catalog.js'
 import { Id } from './common.js'
+import { PlaylistSummary } from './userdata.js'
 
 /** The kinds of result a search lists. */
 export const SearchKind = z.enum(['artist', 'album', 'track'])
 export type SearchKind = z.infer<typeof SearchKind>
 
-export const SearchQuery = z.object({
+export const SearchResultKind = z.enum([...SearchKind.options, 'playlist', 'lyrics', 'credits'])
+export type SearchResultKind = z.infer<typeof SearchResultKind>
+export const isCatalogSearchKind = (kind: SearchResultKind): kind is SearchKind => SearchKind.options.some((one) => one === kind)
+
+export const SearchFacets = z.object({
+  /** Match a present source file. Hi-res means lossless with depth above 16 bits or rate above 48 kHz. */
+  quality: z.enum(['lossless', 'hi-res']).optional(),
+  /** The first year of an album's release decade. */
+  decade: z.coerce.number().int().min(1000).max(2990).multipleOf(10).optional(),
+  liked: z.stringbool().optional(),
+})
+export type SearchFacets = z.infer<typeof SearchFacets>
+
+export const hasSearchFacets = ({ quality, decade, liked }: SearchFacets) => Boolean(quality || decade || liked)
+
+export const SearchQuery = SearchFacets.extend({
   q: z.string().trim().min(1).max(200),
   limit: z.coerce.number().int().min(1).max(50).default(10),
   /** Only this kind; the other lists come back empty. For a client's filter, which pages one kind. */
-  type: SearchKind.optional(),
+  type: SearchResultKind.optional(),
   /** Skips this many results of each kind: the next page of a `type` search. */
   offset: z.coerce.number().int().min(0).max(450).default(0),
+  /** Global search includes everything playable from files on the server. */
+  scope: z.enum(['library', 'server']).optional(),
 })
 export type SearchQuery = z.infer<typeof SearchQuery>
 
@@ -66,10 +84,19 @@ export type SearchRanked = z.infer<typeof SearchRanked>
  * Catalog results are stored as stub catalog rows before they are returned, so every
  * item has a normal id and opens through the normal artist/album/track routes.
  */
+export const LyricSearchResult = z.object({ track: TrackSummary, snippet: z.string() })
+export type LyricSearchResult = z.infer<typeof LyricSearchResult>
+
+export const CreditSearchResult = z.object({ track: TrackSummary, matched: z.array(TrackCredit) })
+export type CreditSearchResult = z.infer<typeof CreditSearchResult>
+
 export const SearchResults = z.object({
   artists: z.array(ArtistSummary),
   albums: z.array(AlbumSummary),
   tracks: z.array(TrackSummary),
+  playlists: z.array(PlaylistSummary).optional(),
+  lyrics: z.array(LyricSearchResult).optional(),
+  credits: z.array(CreditSearchResult).optional(),
   /** Which provider answered a catalog search: deezer, musicbrainz, local-index. */
   provider: z.string().nullable(),
   /**

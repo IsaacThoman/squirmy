@@ -6,7 +6,7 @@
  */
 import { sql, type SQL } from 'drizzle-orm'
 import { db } from '../../../database/client.js'
-import { sortKeys } from '../../catalog/sql.js'
+import { completedPlay, listened, sortKeys } from '../../catalog/sql.js'
 import { albumAsChild, albums } from '../albums.js'
 import { artistID3, artistRows, indexArtist } from '../artists.js'
 import { rootParam } from '../folders.js'
@@ -60,12 +60,18 @@ async function albumListIds(userId: string, params: Params, rootId: string | und
         select a.id from ratings r join albums a on a.id = r.entity_id
         where r.user_id = ${userId} and r.entity_type = 'album' and ${owned}
         order by r.rating desc, r.updated_at desc, a.id ${page}`)
+    // Plays count as Home counts them (catalog/sql.ts): `frequent` as Most played, by completed
+    // plays; `recent` as Recently played and Jump back in, by any play but an early skip.
     case 'frequent':
+      return ids(sql`
+        select a.id from plays p join albums a on a.id = p.album_id
+        where p.user_id = ${userId} and ${completedPlay('p')} and ${owned}
+        group by a.id order by count(*) desc, max(p.started_at) desc, a.id ${page}`)
     case 'recent':
       return ids(sql`
         select a.id from plays p join albums a on a.id = p.album_id
-        where p.user_id = ${userId} and ${owned}
-        group by a.id order by ${sql.raw(type === 'frequent' ? 'count(*) desc, max(p.started_at) desc' : 'max(p.started_at) desc')}, a.id ${page}`)
+        where p.user_id = ${userId} and ${listened('p')} and ${owned}
+        group by a.id order by max(p.started_at) desc, a.id ${page}`)
     default:
       throw invalidParameter('type')
   }
@@ -141,5 +147,8 @@ export const listEndpoints: Record<string, Handler> = {
   getSongsByGenre,
   getStarred2: async (context) => ({ starred2: await starred(context, true) }),
   getStarred: async (context) => ({ starred: await starred(context, false) }),
-  getNowPlaying: async ({ user }) => ({ nowPlaying: { entry: await nowPlaying(user.id) } }),
+  getNowPlaying: async ({ user, reply }) => {
+    reply.header('cache-control', 'private, no-store')
+    return { nowPlaying: { entry: await nowPlaying(user.id) } }
+  },
 }

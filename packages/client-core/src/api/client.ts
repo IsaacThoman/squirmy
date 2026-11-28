@@ -34,11 +34,26 @@ import {
   type CreatePlaylistRequest,
   CreateUserRequest,
   DeviceInfo,
+  DuplicatePage,
+  type DuplicateQuery,
+  HealthPage,
+  QualityPage,
+  type RemoveDuplicate,
+  type TagEdit,
+  TagEditor,
+  TagEditResult,
   DirectoryListing,
   type DirectoryQuery,
   GenrePage,
   HistoryPage,
+  HistoryImport,
+  HistoryImports,
+  type HistoryImportSource,
+  type ReplayQuery,
+  ReplayStats,
   HomeResponse,
+  type HomeQuery,
+  MixDetail,
   Import,
   ImportAlbumList,
   ImportFilesResponse,
@@ -88,7 +103,8 @@ import {
   type RematchAlbumRequest,
   type ResolveReviewRequest,
   ScanRootResponse,
-  type SearchKind,
+  type SearchFacets,
+  type SearchResultKind,
   SearchResults,
   ScrobblingStatus,
   ServerSettings,
@@ -100,6 +116,7 @@ import {
   type UpdateAcquisitionPolicy,
   type UpdateAcquisitionProviderRequest,
   TrackSummariesResponse,
+  TrackSonic,
   type TrackSummariesRequest,
   TrackPage,
   TrackSummary,
@@ -229,7 +246,7 @@ type Input<T extends z.ZodType> = z.input<T>
 const DeviceList = page(DeviceInfo)
 const JobList = z.array(JobQueueStats)
 const likedPages = { track: TrackPage, album: AlbumPage, artist: ArtistPage } as const
-type SearchParams = { q: string; limit?: number; type?: SearchKind; offset?: number }
+type SearchParams = SearchFacets & { q: string; limit?: number; type?: SearchResultKind; offset?: number; scope?: 'library' | 'server' }
 type LikedItems = { track: TrackSummary; album: AlbumSummary; artist: ArtistSummary }
 
 /**
@@ -339,6 +356,22 @@ export function createApiClient(options: ApiClientOptions) {
       deleteAppPassword: (passwordId: string) => send('DELETE', `/auth/app-passwords/${id(passwordId)}`, Ok),
     },
     admin: {
+      duplicates: (query: Partial<DuplicateQuery> = {}) =>
+        request('GET', '/admin/library/duplicates', { schema: DuplicatePage, query }),
+      removeDuplicate: (fileId: string, body: RemoveDuplicate) =>
+        request('DELETE', `/admin/library/duplicates/${id(fileId)}`, { schema: Ok, body }),
+      lowQuality: (query: { cursor?: string } = {}) =>
+        request('GET', '/admin/library/quality', { schema: QualityPage, query }),
+      fileHealth: (query: { cursor?: string; issues?: boolean } = {}) =>
+        request('GET', '/admin/library/file-health', { schema: HealthPage, query }),
+      recheckFile: (fileId: string) =>
+        request('POST', `/admin/library/file-health/${id(fileId)}`, { schema: Ok }),
+      albumTags: (albumId: string) =>
+        request('GET', `/admin/albums/${id(albumId)}/tags`, { schema: TagEditor }),
+      tagCovers: (albumId: string) =>
+        request('GET', `/admin/albums/${id(albumId)}/tag-covers`, { schema: TagEditor.shape.covers }),
+      editAlbumTags: (albumId: string, body: TagEdit) =>
+        request('PATCH', `/admin/albums/${id(albumId)}/tags`, { schema: TagEditResult, body }),
       users: () => get('/admin/users', UserList),
       createUser: (body: Input<typeof CreateUserRequest>) => send('POST', '/admin/users', User, body),
       updateUser: (userId: string, body: UpdateUserRequest) => send('PATCH', `/admin/users/${id(userId)}`, User, body),
@@ -403,13 +436,16 @@ export function createApiClient(options: ApiClientOptions) {
       collectionArtists: (query: Partial<LibraryQuery> = {}) => get('/collection/artists', ArtistPage, query),
       /** The server's songs. */
       collectionTracks: (query: Partial<LibraryQuery> = {}) => get('/collection/tracks', TrackPage, query),
-      home: () => get('/home', HomeResponse),
+      /** Home's rails; apps of this release ask for `layout: 'personal'` with the device's time zone. */
+      home: (query: HomeQuery = {}) => get('/home', HomeResponse, query),
       artist: (artistId: string) => get(`/artists/${id(artistId)}`, ArtistDetail),
       /** One section of an artist page, paged ("See all"). */
       artistReleases: (artistId: string, query: Partial<ArtistReleasesQuery> & Pick<ArtistReleasesQuery, 'section'>) => get(`/artists/${id(artistId)}/releases`, AlbumPage, query),
       album: (albumId: string) => get(`/albums/${id(albumId)}`, AlbumDetail),
       track: (trackId: string, query: TrackQuery = {}) => get(`/tracks/${id(trackId)}`, TrackSummary, query),
       lyrics: (trackId: string) => get(`/tracks/${id(trackId)}/lyrics`, Lyrics),
+      /** Tempo, key, energy and per-file timing (for transitions); see `TrackSonic`. */
+      sonic: (trackId: string) => get(`/tracks/${id(trackId)}/sonic`, TrackSonic),
       trackSummaries: (body: TrackSummariesRequest) => send('POST', '/tracks/summaries', TrackSummariesResponse, body),
     },
     streaming: {
@@ -447,6 +483,10 @@ export function createApiClient(options: ApiClientOptions) {
       removePlaylistItem: (playlistId: string, itemId: string) =>
         send('DELETE', `/playlists/${id(playlistId)}/items/${id(itemId)}`, PlaylistDetail),
       history: (query: Partial<PageQuery> = {}) => get('/me/history', HistoryPage, query),
+      replay: (query: Partial<ReplayQuery> = {}) => get('/me/replay', ReplayStats, query),
+      historyImports: () => get('/me/history/imports', HistoryImports),
+      importHistory: (source: HistoryImportSource, file: UploadFile, options: UploadOptions = {}) =>
+        upload(`/me/history/imports?source=${id(source)}`, [file], HistoryImport, options),
       wants: (query: Partial<PageQuery> = {}) => get('/me/wants', WantPage, query),
       want: (type: WantEntityType, entityId: string) => send('PUT', `/me/wants/${type}/${id(entityId)}`, Ok),
       unwant: (type: WantEntityType, entityId: string) => send('DELETE', `/me/wants/${type}/${id(entityId)}`, Ok),
@@ -473,6 +513,10 @@ export function createApiClient(options: ApiClientOptions) {
     radio: {
       track: (trackId: string) => send('POST', `/radio/track/${id(trackId)}`, RadioResponse),
       artist: (artistId: string) => send('POST', `/radio/artist/${id(artistId)}`, RadioResponse),
+      /** A mix made for the user, from Home's Made for you. */
+      mix: (mixId: string) => get(`/mixes/${id(mixId)}`, MixDetail),
+      /** A radio of tracks that sound like this one (falls back to the track radio's mix when it is not analysed). */
+      sonic: (trackId: string) => send('POST', `/radio/sonic/${id(trackId)}`, RadioResponse),
     },
     imports: {
       /** Your own imports, or every import for an admin, newest first. */

@@ -17,7 +17,7 @@ When a field opens the keyboard, Apple TV also offers it on your iPhone: accept 
 
 The tabs are in the sidebar at the left, as in Apple's own apps: **Search**, **Home**, **Library**, **Now Playing** and **Settings**. Once you browse into a page the sidebar folds away; press **Back** on a tab's first page to bring it back.
 
-- **Home** has what you played lately, your playlists and what is new on the server, as rows of covers.
+- **Home** has the same rows as the phone, as rows of covers: **Jump back in**, your mixes under **Made for you**, the artists you play and artists like them, your playlists and what is new on the server ([Home](./web.md#home)). Choose a mix for its songs, with **Play** and **Shuffle**.
 - **Library** has your albums, artists, playlists and songs.
 - **Search** searches your library and the catalog as you type, with the one-row tvOS keyboard or your iPhone.
 
@@ -34,7 +34,9 @@ Hold the click on a song or an album for its menu. A song's has **Play next**, *
 **Now Playing** shows the cover of the song playing among the songs around it, over a backdrop made from its colors. Left alone, the controls fade away and leave the covers; press any direction to bring them back.
 
 - Focus the progress bar and press left or right to skip back or ahead ten seconds a press, longer while held. Select plays and pauses.
-- The buttons above it turn on **Shuffle**, **Repeat** and **Autoplay**, heart the song and open its menu.
+- The buttons above it turn on **Shuffle**, **Repeat** and **Autoplay**, heart the song and open its menu. The menu's **Track info** shows the song's file, how it reaches the device playing, and the volume normalization applied; press Menu or **Done** to close it.
+- The song's menu ends with **Sleep timer**: stop playing after 5 to 60 minutes, at the end of the song, or at the end of the album, playlist or queue, or **Turn off timer**. While one is set, a moon and the time left show at the start of that row. The timer is your session's, so one set on your phone stops the Apple TV too. See [Sleep timer](../server/playback.md#sleep-timer).
+- Under the song, **Lossless** or **Hi-Res Lossless** shows while the device playing gets a lossless file as it is.
 - **Lyrics** shows the words beside the cover, the line being sung highlighted. **Up Next** shows the queue: select a song to play it, or hold the click to move it or remove it.
 
 ## Your phone and other devices
@@ -44,11 +46,12 @@ The Apple TV is one of your devices, like your phone and your browser, and they 
 - **Move the music to the TV.** In Now Playing, choose the playback device button at the bottom left and select this Apple TV in the list. It carries on from where it was. From your phone or the web app you can also choose the Apple TV under **Playback device** or **Devices**.
 - **Use your phone as a remote.** While the TV plays, Squirmy on your phone or in a browser controls it: play, pause, skip, change the queue or the volume.
 - **Use the TV as a remote.** While another device plays, the TV's Now Playing says where and controls it.
+- **AirPlay.** While the Apple TV plays, the playback device panel has **AirPlay**, which opens the system's picker to send the TV's sound to AirPlay speakers, as the system's music app does. Choosing which of your devices plays is the list above it.
 - **Play separately.** In the playback device panel, **Play separately on this Apple TV** gives the TV its own queue while your other devices keep theirs, and **Rejoin your other devices** brings it back. [Devices and transferring playback](../server/playback.md#devices-and-transferring-playback)
 
 ## Settings
 
-**Settings** shows who is signed in and to which server, with **Change Server** and **Sign Out**. Under **Playback** are **Volume Normalization** and **Streaming Quality**; the Apple TV streams at your Wi-Fi quality, over Ethernet too, and these settings are your account's, so they change on your phone as well. **Library** has the switch that shows all of this server's music in your library.
+**Settings** shows who is signed in and to which server, with **Sign Out**. Under **Profiles** are the household's other accounts on this Apple TV, on any server: select one to switch to it, still signed in (one that was signed out opens at its sign-in), or hold it and choose **Remove Profile**. **Add Profile** signs in to another server, or as someone else on this one, and keeps the profile in use signed in. Switching stops what the Apple TV was playing; each profile keeps its own streaming cache. Under **Playback** are **Volume Normalization** and **Streaming Quality**; the Apple TV streams at your Wi-Fi quality, over Ethernet too, and these settings are your account's, so they change on your phone as well. **Library** has the switch that shows all of this server's music in your library.
 
 **Scrobbling** shows whether ListenBrainz and Last.fm are connected, and turns a connected service on or off; hold the click on one to disconnect it. Connecting needs a sign-in page or a token, so connect them in Squirmy on your iPhone or in the web app ([scrobbling](../server/scrobbling.md)). **About** has the app's and the server's versions, for bug reports.
 

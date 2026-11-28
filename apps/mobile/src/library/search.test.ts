@@ -20,6 +20,14 @@ const requester = { role: 'member', canAcquire: true } as const;
 const listener = { role: 'member', canAcquire: false } as const;
 const keys = (items: readonly SearchItem[]) => items.map(searchItemKey);
 
+it('renders server playlist names and lyric-only tracks, with their excerpts', () => {
+  const shared = playlist('public', 'Harbor Songs');
+  const song = { ...track('lyric'), title: 'Low Tide' };
+  const shown = searchItems(results({ playlists: [shared], lyrics: [{ track: song, snippet: 'A lantern in the harbor' }] }), undefined, null, 'harbor');
+  expect(keys(shown)).toEqual(['playlist:public', 'track:lyric']);
+  expect(shown[1]).toMatchObject({ matchDetail: 'A lantern in the harbor' });
+});
+
 describe('searchItems', () => {
   it('mixes every kind in the order the servers ranked them, without repeats', () => {
     const items = searchItems(
@@ -80,6 +88,11 @@ describe('searchNotice', () => {
   it('puts being offline, then a failed search, first', () => {
     expect(searchNotice({ ...list, failed: true, items: null }, true)).toBe('offline');
     expect(searchNotice({ ...list, failed: true, items: null }, false)).toBe('failed');
+  });
+
+  it('shows what the phone found offline as it is, and says so only when it found nothing', () => {
+    expect(searchNotice({ ...list, items: [1] }, true)).toBeNull();
+    expect(searchNotice(list, true)).toBe('offline');
   });
 });
 

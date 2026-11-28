@@ -47,6 +47,9 @@ export function openListenBrainzSettings() {
 export const serverMusicLabel = 'Show all of this server’s music in your library';
 export const serverMusicNote = 'Your library is what you heart, with the music you upload. This adds every album on this server too. Everything on this server is on Home either way, and plays for everyone.';
 
+export const shareNowPlayingLabel = 'Share what I’m listening to with other users on this server';
+export const shareNowPlayingNote = 'Lets other users see your current song in Subsonic apps.';
+
 export const qualityNote = 'Original streams the file as it is when this device can play it. High is AAC at 256 kbps. Data Saver uses the least data.';
 
 /** What the settings screen says under a section's controls when the server or the service refused. */
@@ -61,8 +64,8 @@ export function saveFailure(error: unknown): string {
   return `Couldn’t save that change. ${loadFailure(error).description}`;
 }
 
-/** Where a section's refusal shows: Playback, Library, or a scrobbling service. */
-export type SettingsSection = 'playback' | 'library' | ScrobbleService['target'];
+/** Where a settings change's refusal appears. */
+export type SettingsSection = 'playback' | 'library' | 'privacy' | ScrobbleService['target'];
 
 /** The scrobbling switch in `UserSettings` for each service. */
 const switchFor = { listenbrainz: 'scrobbleListenBrainz', lastfm: 'scrobbleLastFm' } as const satisfies Record<ScrobbleService['target'], keyof UpdateUserSettings>;
@@ -147,6 +150,7 @@ export function useSettingsScreen() {
     update: (change: UpdateUserSettings) => save('playback', change),
     /** Whether the library holds all of the server's music, not only what the user saved. */
     setLibraryIncludesServerMusic: (libraryIncludesServerMusic: boolean) => save('library', { libraryIncludesServerMusic }),
+    setShareNowPlaying: (shareNowPlaying: boolean) => save('privacy', { shareNowPlaying }),
     listenBrainz: service('listenbrainz'),
     lastFm: service('lastfm'),
     /** The user's switch for a service; the settings change at once, the status when the server answers. */

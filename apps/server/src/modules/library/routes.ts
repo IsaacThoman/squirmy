@@ -1,4 +1,4 @@
-import { CreateLibraryRootRequest, Id, queryKeys, UpdateLibraryRootRequest, type LibraryRoot, type LibraryRootList, type LibraryStats, type Ok, type ScanRootResponse } from '@squirmy/contracts'
+import { CreateLibraryRootRequest, DuplicateQuery, HygienePageQuery, RemoveDuplicate, Id, queryKeys, UpdateLibraryRootRequest, type LibraryRoot, type LibraryRootList, type LibraryStats, type Ok, type ScanRootResponse } from '@squirmy/contracts'
 import { eq, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
@@ -7,7 +7,10 @@ import { libraryRoots } from '../../database/schema.js'
 import { requireAdmin } from '../../lib/auth.js'
 import { conflict, notFound } from '../../lib/errors.js'
 import { invalidate } from '../../realtime/index.js'
+import { sonicProgress } from '../sonic/index.js'
 import { lockCatalog, removeOrphans } from './cleanup.js'
+import { listDuplicates, listLowQuality, removeDuplicate } from './duplicates.js'
+import { listFileHealth, requestHealthCheck } from './health.js'
 import { invalidateSoon } from './progress.js'
 import { checkTemplate, insertRoot, listRoots, requestScan, resolveRootPath } from './roots.js'
 import { refreshWatchers } from './watch.js'
@@ -44,12 +47,35 @@ async function libraryStats(): Promise<LibraryStats> {
       union
       select ra.artist_id from recording_artists ra where ra.recording_id in (select recording_id from media_files where missing_since is null and not cached)
     ) owned`)
-  return { artists: credited?.artists ?? 0, ...files! }
+  return { artists: credited?.artists ?? 0, ...files!, sonic: await sonicProgress() }
 }
 
 export async function libraryRoutes(app: FastifyInstance) {
   app.addHook('onRequest', async (request) => {
     requireAdmin(request)
+  })
+
+  app.get('/admin/library/duplicates', async request => {
+    const { kind, cursor } = DuplicateQuery.parse(request.query)
+    return listDuplicates(kind, cursor)
+  })
+
+  app.delete('/admin/library/duplicates/:id', async (request): Promise<Ok> => {
+    await removeDuplicate(IdParams.parse(request.params).id, RemoveDuplicate.parse(request.body))
+    return { ok: true }
+  })
+
+  app.get('/admin/library/quality', async request => listLowQuality(HygienePageQuery.parse(request.query).cursor))
+
+  app.get('/admin/library/file-health', async request => {
+    const query = HygienePageQuery.extend({ issues: z.enum(['true', 'false']).optional() }).parse(request.query)
+    return listFileHealth(query.cursor, query.issues === 'true')
+  })
+
+  app.post('/admin/library/file-health/:id', async (request, reply): Promise<Ok> => {
+    await requestHealthCheck(IdParams.parse(request.params).id)
+    reply.code(202)
+    return { ok: true }
   })
 
   app.get('/admin/library/roots', async (): Promise<LibraryRootList> => ({ items: await listRoots(), nextCursor: null }))

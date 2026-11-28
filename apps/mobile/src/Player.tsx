@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { usePathname, useRouter } from 'expo-router';
 import { useEffect, useRef, useState, type PropsWithChildren } from 'react';
-import { BackHandler, Platform, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { BackHandler, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, useCompetingGestures, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
   Easing, Extrapolation, interpolate, interpolateColor, useAnimatedProps, useAnimatedReaction, useAnimatedStyle, useReducedMotion,
@@ -24,10 +24,13 @@ import { useLoading, usePlaybackState, usePosition } from './playback';
 import { DETACHED_LABEL, DETACHED_SYMBOL } from './player/detach';
 import { playPauseLabel, STILL_LOADING_LABEL } from './player/loading';
 import { artworkTransform, type ArtworkFrame } from './player/artwork';
+import { AmbientArtwork } from './player/AmbientArtwork';
 import { ArtworkPrefetch } from './player/ArtworkPrefetch';
+import { QualityBadge } from './player/QualityBadge';
 import { usePlaybackStatus } from './player/usePlaybackStatus';
 import { usePlayerShown } from './player/visibility';
 import { useVolumeSlider } from './player/volume';
+import { SleepTimerBadge } from './player/SleepTimerBadge';
 import { Icon } from './ui';
 import { SystemVolumeSlider } from '../modules/now-playing';
 import LyricsPage, { type LyricsHandle } from './player/LyricsPage';
@@ -53,7 +56,7 @@ const compactArtworkTop = 7;
 const miniCoverRadius = 8;
 const cardRadius = 38;
 const handover = 50;
-const sheetRoutes = ['/devices', '/track-actions', '/add-to-playlist'];
+const sheetRoutes = ['/devices', '/track-actions', '/track-info', '/add-to-playlist'];
 const modeMotion = { duration: 360, easing: Easing.inOut(Easing.cubic) };
 const panelMotion = { duration: 210 };
 // Instant under Reduce Motion, as Reanimated's timings are by default.
@@ -115,7 +118,6 @@ export default function Player() {
   const loading = useLoading();
   const artwork = track?.album?.artwork;
   const artworkImage = useArtworkImage(artwork, tablet ? tabletArtworkLimit : 440);
-  const backdropImage = useArtworkImage(artwork, 300);
   const detail = useSharedValue(0);
   const queueShown = useSharedValue(0);
   const nowPlayingShift = useSharedValue(0);
@@ -383,6 +385,11 @@ export default function Player() {
             : <Text numberOfLines={compact ? 1 : 2} maxFontSizeMultiplier={secondaryFontScale} style={compact ? styles.compactTrackArtist : styles.artist}>{subtitle}</Text>}
         </TrackLinksMenu>
       </View>
+      {/* A queue edit the status line tells can be taken back from here, beside what it says. */}
+      {status?.action && <Pressable accessibilityRole="button" accessibilityLabel={status.action.label} onPress={status.action.run} hitSlop={6}
+        style={({ pressed }) => [styles.statusAction, pressed && { opacity: 0.5 }]}>
+        <Text maxFontSizeMultiplier={secondaryFontScale} style={styles.statusActionLabel}>{status.action.label}</Text>
+      </Pressable>}
       {track && <PlayerButton
         icon={heart.icon}
         label={heart.label}
@@ -424,8 +431,8 @@ export default function Player() {
         <Glass tint="systemThinMaterial" animatedProps={glassProps} style={StyleSheet.absoluteFill} />
         <Animated.View style={[styles.page, { width, height }, pageStyle]}>
           <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: artwork?.color ?? fallbackTint }, backdropStyle]} pointerEvents="none">
-            {backdropImage && <Image source={backdropImage.source} placeholder={backdropImage.placeholder} blurRadius={70}
-              contentFit="cover" cachePolicy="memory-disk" transition={210} style={styles.backdropArt} />}
+            {/* The cover's colours, turning slowly; held back as the still blur was, under the same gradient. */}
+            <View style={styles.backdropArt}><AmbientArtwork artwork={artwork} /></View>
             <LinearGradient
               colors={colors.playerGradient}
               locations={[0, 0.39, 0.85, 1]}
@@ -440,6 +447,7 @@ export default function Player() {
                 <View style={styles.collapse} pointerEvents="box-none"><CollapseButton onPress={close} /></View>
                 {/* As on the pages under the player: only downloaded and cached songs play. */}
                 <OfflineBadge style={styles.offline} />
+                <SleepTimerBadge style={styles.sleepTimer} />
               </Animated.View>
             </GestureDetector>
             <View style={styles.playerStage}>
@@ -597,7 +605,8 @@ function Scrubber() {
   const styles = useStyles();
   const colors = useColors();
   const reduceMotion = useReducedMotion();
-  const { durationMs: duration, current, actions } = usePlaybackState();
+  const router = useRouter();
+  const { durationMs: duration, current, actions, signal } = usePlaybackState();
   // Collapsed, Now Playing stays mounted but unseen; its clock waits until it opens again.
   const position = usePosition(usePlayerShown());
   const [draft, setDraft] = useState<number | null>(null);
@@ -642,6 +651,9 @@ function Scrubber() {
       />
       <View style={styles.timeRow}>
         <Animated.Text maxFontSizeMultiplier={secondaryFontScale} style={[styles.time, styles.timeStart, timeStyle]}>{elapsed}</Animated.Text>
+        <View style={styles.timeCenter} pointerEvents="box-none">
+          <QualityBadge signal={signal} onPress={() => router.push('/track-info')} />
+        </View>
         <Animated.Text maxFontSizeMultiplier={secondaryFontScale} style={[styles.time, styles.timeEnd, timeStyle]}>
           {formatRemaining(shown, duration)}
         </Animated.Text>
@@ -724,10 +736,11 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   page: { position: 'absolute', top: 0, left: 0 },
   bubbleContent: { position: 'absolute', top: 0, left: 0 },
   safe: { flex: 1 },
-  backdropArt: { width: '110%', height: '86%', opacity: 0.62 },
+  backdropArt: { ...StyleSheet.absoluteFill, opacity: 0.62 },
   grabberTouch: { alignItems: 'center' },
   collapse: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center' },
   offline: { position: 'absolute', top: 2, left: artworkInset },
+  sleepTimer: { position: 'absolute', top: 2, right: artworkInset },
   playerStage: { flex: 1 },
   deckFrame: { flex: 1 },
   // The artwork at the top, the title's room under it; a tall screen's spare height goes below them.
@@ -754,6 +767,8 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   compactTitle: { fontSize: 25 },
   artist: { marginTop: 3, color: colors.muted, fontWeight: '500', fontSize: 16 },
   status: { color: colors.accent, fontWeight: '600' },
+  statusAction: { minWidth: 44, minHeight: 44, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' },
+  statusActionLabel: { color: colors.accent, fontSize: 15, fontWeight: '600' },
   statusDetail: { color: colors.muted, fontWeight: '500' },
   transport: { width: '100%', maxWidth: 500, alignSelf: 'center', paddingHorizontal: edgeInset, paddingTop: 8, paddingBottom: 6 },
   transportCompact: { paddingTop: 2, paddingBottom: 2 },
@@ -763,6 +778,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   // Each time grows from the end it sits at.
   timeStart: { transformOrigin: 'left top' },
   timeEnd: { transformOrigin: 'right top' },
+  timeCenter: { position: 'absolute', left: 0, right: 0, top: 1, alignItems: 'center' },
   transportButtons: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly' },
   primaryButton: { width: 66, height: 66 },
   primaryButtonCompact: { width: 56, height: 56 },

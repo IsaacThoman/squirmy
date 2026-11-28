@@ -25,7 +25,7 @@ export function rankInputs(found: Found): RankInput[] {
     })),
     ...found.tracks.map((track, position): RankInput => ({
       type: 'track', id: track.id, name: track.title, artistCredit: track.artistCredit,
-      artistNames: track.artists.map((artist) => artist.name), artistIds: track.artists.map((artist) => artist.id), albumId: track.album?.id ?? null, position,
+      albumTitle: track.album?.title, artistNames: track.artists.map((artist) => artist.name), artistIds: track.artists.map((artist) => artist.id), albumId: track.album?.id ?? null, position,
     })),
   ]
 }
@@ -52,7 +52,7 @@ export async function searchSignals(found: Found, options: SignalOptions = {}): 
       : [],
     userId && allIds.length > 0
       ? db.execute<{ id: string; plays: number }>(sql`
-          with recent as (select recording_id, album_id from plays where user_id = ${userId} order by started_at desc limit ${recentPlays})
+          with recent as (select recording_id, album_id from plays where user_id = ${userId} and not skipped order by started_at desc limit ${recentPlays})
           select recording_id as id, count(*)::int as plays from recent where recording_id = any(${uuidArray(trackIds)}) group by 1
           union all
           select album_id, count(*)::int from recent where album_id = any(${uuidArray(found.albums.map((album) => album.id))}) group by 1

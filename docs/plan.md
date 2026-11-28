@@ -92,10 +92,12 @@ discover → probe → group → match → enrich → measure loudness
 - **Probe.** Tags, technical details, and a hash of the audio stream computed without decoding. Retagging or moving a file does not change its identity.
 - **Group.** By folder, album tag and album artist.
 - **Match, album-first, in tiers:**
-  1. MusicBrainz IDs already in the tags.
-  2. Artist, album and track count, scored on titles and durations.
-  3. AcoustID fingerprint for untagged files.
-  4. Below the threshold, a review queue with "Fix match".
+  1. MusicBrainz release and release-group IDs already in the tags.
+  2. Barcode (UPC/EAN).
+  3. Artist, album and track count, scored on titles and durations.
+  4. ISRC (recordings on releases of the right track count).
+  5. AcoustID fingerprints when a key is set and no earlier candidate qualifies for automatic acceptance.
+  6. Below the threshold, a review queue with "Fix match" for plausible candidates.
 - **Manual matches are locked.** A rescan never overwrites them.
 - **Enrich.** Covers (the folder image or embedded art, whichever is larger; when that is under 500 px, the Cover Art Archive release, then release group, then Deezer, keeping the largest), artist images, bios, lyrics (`.lrc` sidecar or embedded, synced first, then LRCLIB). `sharp` resizes images and produces the album color and a blur placeholder.
 - **Every stage is a resumable job.** Heavy ones run at low priority.
@@ -143,7 +145,7 @@ A device is listed only while its socket is connected, so a paused phone that iO
 - **Artist pages:** image, bio, top tracks, and the full discography with owned albums lit.
 - **Album pages:** track list with per-track availability.
 - **Wantlist.** Gray items can be wanted; a matching import completes them. Off unless the admin turns it on (`wantlistEnabled`): with a provider that can fetch anything it is noise.
-- **Home:** what you played recently and most, your playlists, recently added, new releases from your own artists (no karaoke or tribute acts), and the wantlist when it is on.
+- **Home:** made of your own listening, never editorial picks: where you were listening (Jump back in), daily mixes of artists you play that belong together (Made for you), artists like one you play a lot, your top artists of the month, songs you have not played in a while (Rediscover), what you played most, your playlists, new releases from your own artists (no karaoke or tribute acts), what is new on the server, and the wantlist when it is on. What you usually play at this time of day comes first, unannounced.
 - **Library:** Your albums, artists, playlists and Liked Songs appear together, recently played first: what you last started playback from (its Play, Shuffle or a song on its page, on any device), then the rest by when it was added. On the web, Playlists, Albums, Artists and Songs narrow it to one kind.
 
 ## OpenSubsonic
@@ -222,5 +224,6 @@ Purchasing (priced offers, caps, budgets) is deferred. The protocol reserves an 
 5. **OpenSubsonic.** Router, app passwords, client test pass.
 6. **Search everything.** Library search, Deezer and MusicBrainz search providers, gray-out, artist and album pages, wantlist.
 7. **Add and take.** Web upload, inbox folder, fingerprinting, offline downloads.
-8. **Providers and extras.** Acquisition protocol and reference adapters, external scrobbling, radio from similar-artist data, local search index, docs site.
+8. **Providers and extras.** Acquisition protocol and reference adapters, external scrobbling, radio from similar-artist data and sonic analysis, local search index, docs site.
 9. **Apple TV.** A remote-first streaming client, backed by Squirmy Connect, with a tvOS TestFlight build.
+10. **Playback core.** A native iOS and tvOS audio engine (sample-exact gapless, crossfade, normalization with a limiter, EQ, speed, AirPlay 2), gapless and seekable transcodes, transcode priorities, a gapless web engine, and queue diffs for Connect ([audio-engine.md](./audio-engine.md)).
