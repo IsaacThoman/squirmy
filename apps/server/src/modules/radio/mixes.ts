@@ -25,6 +25,7 @@ import { db } from '../../database/client.js'
 import { mixes } from '../../database/schema.js'
 import { notFound } from '../../lib/errors.js'
 import { newId } from '../../lib/ids.js'
+import { explicitAllowed } from '../catalog/explicit.js'
 import { completedPlay, placeholderArtist, playArtist, uuidArray } from '../catalog/sql.js'
 import { servable, trackSummaries } from '../catalog/summaries.js'
 import { isRequester, suggest } from './ranking.js'
@@ -287,8 +288,10 @@ async function favourites(userId: string, artistIds: string[]): Promise<{ id: st
 }
 
 /** Whether the user can start the track now, by the queue's rule. */
-const playable = (track: TrackSummary, requester: boolean) =>
-  track.availability === 'server' || (track.availability === 'on_demand' && requester)
+// No explicit song for a user who has explicit content off, so their mixes neither start on
+// one nor list one they may not play.
+const playable = (track: TrackSummary, requester: boolean, allowsExplicit: boolean) =>
+  (track.availability === 'server' || (track.availability === 'on_demand' && requester)) && (allowsExplicit || track.explicit !== true)
 
 /**
  * Favourites and suggestions in one order: a favourite first, then two suggestions to each
@@ -315,11 +318,12 @@ export function interleave(loved: TrackSummary[], fresh: TrackSummary[], length:
 export async function makeMixes(userId: string, day: string): Promise<MadeMix[]> {
   const artists = await listenedArtists(userId)
   if (artists.length === 0) return []
-  const [similar, together, sound, requester] = await Promise.all([
+  const [similar, together, sound, requester, allowsExplicit] = await Promise.all([
     similarPairs(artists),
     playedTogether(userId, artists),
     artistSoundAffinity(artists.map((artist) => artist.id)).catch(() => null),
     isRequester(userId),
+    explicitAllowed(userId),
   ])
   const clusters = cluster(artists, { similar, together, sound })
   const used = new Set<string>()
@@ -328,7 +332,7 @@ export async function makeMixes(userId: string, day: string): Promise<MadeMix[]>
   for (const [index, members] of clusters.entries()) {
     const artistIds = members.map((member) => member.id)
     const loved = (await trackSummaries(userId, await favourites(userId, artistIds)))
-      .filter((track) => playable(track, requester) && !used.has(track.id)).slice(0, FAVOURITES)
+      .filter((track) => playable(track, requester, allowsExplicit) && !used.has(track.id)).slice(0, FAVOURITES)
     if (loved.length === 0) continue
     const seeds = loved.slice(0, SEEDS).map((track) => track.id).toReversed()
     const suggested = await suggest(
@@ -336,7 +340,7 @@ export async function makeMixes(userId: string, day: string): Promise<MadeMix[]>
       { random: seededRandom(`${userId}:${day}:${index}`) },
     )
     const suggestions = (await trackSummaries(userId, suggested.map((seed) => ({ id: seed.trackId, albumId: seed.albumId }))))
-      .filter((track) => playable(track, requester) && !used.has(track.id))
+      .filter((track) => playable(track, requester, allowsExplicit) && !used.has(track.id))
     const fresh = await onTopic(suggestions, members)
     const tracks = interleave(loved, fresh, MIX_LENGTH)
     if (tracks.length < MIN_MIX_TRACKS) continue
@@ -419,8 +423,8 @@ export async function mixSummaries(userId: string, ids: readonly string[]): Prom
 export async function mixDetail(userId: string, id: string): Promise<MixDetail> {
   const [row] = await db.select().from(mixes).where(and(eq(mixes.id, id), eq(mixes.userId, userId)))
   if (!row) throw notFound('No such mix')
-  const [[summary], requester, tracks] = await Promise.all([summaries([row]), isRequester(userId), trackSummaries(userId, row.tracks)])
-  const playing = tracks.filter((track) => playable(track, requester))
+  const [[summary], requester, allowsExplicit, tracks] = await Promise.all([summaries([row]), isRequester(userId), explicitAllowed(userId), trackSummaries(userId, row.tracks)])
+  const playing = tracks.filter((track) => playable(track, requester, allowsExplicit))
   return {
     ...summary!,
     trackCount: playing.length,

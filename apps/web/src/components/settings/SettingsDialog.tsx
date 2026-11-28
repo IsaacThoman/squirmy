@@ -205,18 +205,34 @@ export function SettingsDialog({
             {section === 'library' && (
               <Panel title="Library" description="Your library is what you heart, with the music you upload. Everything on this server is on Home, and plays for everyone.">
                 {settings ? (
-                  <Row
-                    htmlFor="library-server-music"
-                    label="Show all of this server’s music in your library"
-                    description="Adds every album on this server to your library, as well as what you heart. Turn it off to keep your library to your own picks."
-                  >
-                    <Switch
-                      id="library-server-music"
-                      checked={settings.libraryIncludesServerMusic}
-                      onCheckedChange={libraryIncludesServerMusic => onSettingsChange({ libraryIncludesServerMusic })}
-                    />
-                  </Row>
-                ) : failures?.settings ?? <LoadingRows rows={1} />}
+                  <>
+                    <Row
+                      htmlFor="library-server-music"
+                      label="Show all of this server’s music in your library"
+                      description="Adds every album on this server to your library, as well as what you heart. Turn it off to keep your library to your own picks."
+                    >
+                      <Switch
+                        id="library-server-music"
+                        checked={settings.libraryIncludesServerMusic}
+                        onCheckedChange={libraryIncludesServerMusic => onSettingsChange({ libraryIncludesServerMusic })}
+                      />
+                    </Row>
+                    <Row
+                      htmlFor="allow-explicit"
+                      label="Allow explicit content"
+                      description={user.explicitRestricted
+                        ? 'An admin turned explicit content off for your account. Ask them to turn it back on.'
+                        : 'Turn it off to gray out songs marked explicit and keep them out of search, radio and your queue. A clean version plays instead when there is one.'}
+                    >
+                      <Switch
+                        id="allow-explicit"
+                        checked={settings.allowExplicit && !user.explicitRestricted}
+                        disabled={user.explicitRestricted}
+                        onCheckedChange={allowExplicit => onSettingsChange({ allowExplicit })}
+                      />
+                    </Row>
+                  </>
+                ) : failures?.settings ?? <LoadingRows rows={2} />}
                 <FormError message={errors?.library} />
                 {onOpenUploads && (
                   <>

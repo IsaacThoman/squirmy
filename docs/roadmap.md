@@ -99,6 +99,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Local search index: importer, search and admin routes ([local-search-index.md](./local-search-index.md)), offered as the first search provider, and its admin screen
 - [x] Documentation site ([docs/](./index.md), built with VitePress)
 - [x] Docker health check on `/ready`, and the image reports its source version
+- [x] Explicit content controls: a per-user switch an admin can enforce, explicit songs gray and kept out of queues, radio, search, Home and Subsonic, and known clean versions in their place (server, web, iOS and Apple TV)
 
 ## 9. Apple TV
 

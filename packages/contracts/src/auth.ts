@@ -16,6 +16,17 @@ export const User = z.object({
   canAcquire: z.boolean(),
   createdAt: IsoDateTime,
   disabled: z.boolean(),
+  /**
+   * An admin turned explicit content off for this user (a child's account), who cannot turn
+   * it back on. Older servers leave it out.
+   */
+  explicitRestricted: z.boolean().default(false),
+  /**
+   * Whether explicit songs play for this user: their `allowExplicit` setting, unless an admin
+   * restricted it. Clients gray explicit songs when it is false (client-core's `isPlayable`).
+   * Older servers leave it out, and they play everything.
+   */
+  allowsExplicit: z.boolean().default(true),
 })
 export type User = z.infer<typeof User>
 
@@ -108,6 +119,7 @@ export const CreateUserRequest = z.object({
   role: UserRole.default('member'),
   canUpload: z.boolean().default(false),
   canAcquire: z.boolean().default(false),
+  explicitRestricted: z.boolean().default(false),
 })
 export type CreateUserRequest = z.infer<typeof CreateUserRequest>
 
@@ -118,6 +130,8 @@ export const UpdateUserRequest = z.object({
   canAcquire: z.boolean().optional(),
   disabled: z.boolean().optional(),
   password: Password.optional(),
+  /** Turns explicit content off for the user and keeps it off, or lifts that. */
+  explicitRestricted: z.boolean().optional(),
 })
 export type UpdateUserRequest = z.infer<typeof UpdateUserRequest>
 
