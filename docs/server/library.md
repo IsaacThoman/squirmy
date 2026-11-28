@@ -74,6 +74,12 @@ A folder the server cannot read at all (the mount is gone and the path does not 
 
 The **Missing from disk** count under **Identification** in **Admin → Library** shows how many files are missing right now.
 
+## Credits and classical works
+
+Squirmy reads composer, lyricist, conductor, arrangement, production, engineering, mixing, remixing, ensemble and performer credits, including instrument tags such as `PERFORMER:violin`. It also reads work and movement tags and distinguishes an explicit advisory from a clean advisory. The next scan picks up these fields on files already in the library. MusicBrainz matches can add recording credits and work relationships to the file's metadata.
+
+A POPM, FMPS_Rating or RATING value is kept with the file as an import hint. Ratings set by each listener remain in their own account.
+
 ## Identified, in review, from tags only
 
 **Admin → Library** counts the **Collection**: files that were scanned, uploaded or imported. Music a provider fetched for playing is cache, so it is not counted there; the page says how many such files there are, and **Admin → Providers → Cache** has their size ([The cache](./acquisition.md#the-cache)). A folder's own line counts every file in it, and splits them as "12 in the collection · 110 cached" when it holds the cache under `_Fetched/`.

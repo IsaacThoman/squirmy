@@ -75,6 +75,7 @@ export async function cleanupStubs(now = new Date()) {
       where ar.created_at < ${cutoff} and ar.detail_level = 0 and ar.merged_into_id is null
         and not exists (select 1 from album_artists aa where aa.artist_id = ar.id)
         and not exists (select 1 from recording_artists ra where ra.artist_id = ar.id)
+        and not exists (select 1 from recording_credits rc where rc.artist_id = ar.id)
         and not exists (select 1 from albums a where a.primary_artist_id = ar.id)
         and not exists (select 1 from recordings r where r.primary_artist_id = ar.id)
         and ${unreferenced('artist', 'artists', 'ar')}

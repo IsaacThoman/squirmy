@@ -315,7 +315,7 @@ export async function artistDetail(userId: string, id: string): Promise<ArtistDe
   const artistId = await resolveOrThrow('artists', id, 'artist')
   const [artist] = await db.execute<{ mbid: string | null }>(sql`select mbid::text as mbid from artists where id = ${artistId}`)
   const placeholder = Boolean(artist?.mbid && specialPurposeArtists.has(artist.mbid))
-  const [[summary], [profile], { rows, section }, top, similar, radio] = await Promise.all([
+  const [[summary], [profile], { rows, section }, top, similar, radio, composed] = await Promise.all([
     artistSummaries([artistId], userId),
     db.execute<{ sortName: string | null; disambiguation: string | null; bio: string | null; bioUrl: string | null; genres: string[]; liked: boolean }>(sql`
       select a.sort_name as "sortName", a.disambiguation, a.bio, a.bio_url as "bioUrl", a.genres,
@@ -325,6 +325,7 @@ export async function artistDetail(userId: string, id: string): Promise<ArtistDe
     placeholder ? [] : topTrackIds(artistId),
     placeholder ? [] : similarArtists(artistId, { limit: SIMILAR }).then((found) => artistSummaries(found.map((row) => row.artistId), userId)),
     placeholder ? false : canStartArtistRadio(userId, artistId),
+    placeholder ? [] : composedOrProducedIds(artistId),
   ])
   if (!summary || !profile) throw notFound('No such artist', 'artist_not_found')
   // Nor a bio, genres or disambiguation: MusicBrainz's is a note to its editors ("add
@@ -341,9 +342,10 @@ export async function artistDetail(userId: string, id: string): Promise<ArtistDe
   const keys = ARTIST_SECTION_KEYS.filter((key) => bySection.has(key))
   const previewed = new Set(keys.flatMap((key) => bySection.get(key)!.slice(0, ARTIST_SECTION_PREVIEW).map((row) => row.id)))
   const shown = rows.filter((row) => previewed.has(row.id))
-  const [summaries, topTracks] = await Promise.all([
+  const [summaries, topTracks, composedOrProduced] = await Promise.all([
     albumSummaries(shown.map((row) => row.id)),
     trackSummaries(userId, top.map((trackId) => ({ id: trackId }))),
+    trackSummaries(userId, composed.map((id) => ({ id }))),
   ])
   const byId = new Map(summaries.map((album) => [album.id, album]))
   const sections: ArtistSection[] = keys.map((key) => ({
@@ -360,6 +362,7 @@ export async function artistDetail(userId: string, id: string): Promise<ArtistDe
     ...summary,
     ...profile,
     topTracks,
+    ...(composedOrProduced.length ? { composedOrProduced } : {}),
     albums,
     appearsOn,
     sections,
@@ -369,6 +372,29 @@ export async function artistDetail(userId: string, id: string): Promise<ArtistDe
     radio,
     ...(settled ? {} : { detailPending: true as const }),
   }
+}
+
+async function composedOrProducedIds(artistId: string): Promise<string[]> {
+  const rows = await db.execute<{ id: string }>(sql`
+    with contributions as (
+      select rc.recording_id, rc.role from recording_credits rc
+      where rc.artist_id = ${artistId} and rc.recording_id is not null
+      union all
+      select f.recording_id, rc.role from recording_credits rc
+      join media_files f on f.id = rc.file_id
+      where rc.artist_id = ${artistId} and f.recording_id is not null and f.missing_since is null
+    )
+    select r.id from recordings r
+    join (
+      select recording_id from contributions group by recording_id
+      having bool_or(role in ('composer', 'producer')) and not bool_or(role in ('performer', 'ensemble'))
+    ) c on c.recording_id = r.id
+    where r.merged_into_id is null and r.primary_artist_id is distinct from ${artistId}
+      and not exists (select 1 from recording_artists ra where ra.recording_id = r.id and ra.artist_id = ${artistId})
+    order by exists (select 1 from media_files f where f.recording_id = r.id and f.missing_since is null) desc,
+      r.title_key, r.id
+    limit ${ARTIST_SECTION_PREVIEW}`)
+  return rows.map(({ id }) => id)
 }
 
 /**

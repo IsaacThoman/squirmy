@@ -1,6 +1,6 @@
 import type { AlbumDisc, TrackSummary } from '@squirmy/contracts'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { Clock3, Disc3, MoreHorizontal, Pause, Play } from 'lucide-react'
+import { Clock3, Disc3, MoreHorizontal, Music2, Pause, Play } from 'lucide-react'
 import { Fragment, memo, useContext, useId, useLayoutEffect, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent, type RefObject } from 'react'
 import { useNavigate } from 'react-router'
 import { useScrollContainer } from '@/components/layout/scroll-context'
@@ -18,7 +18,7 @@ import { Cover } from './Cover'
 import { Equalizer } from './Equalizer'
 import { SaveHeart } from './LibrarySave'
 import { PrefetchLink } from './PrefetchLink'
-import { trackMenuEntries } from './track-menu'
+import { trackCreditEntries, trackMenuEntries } from './track-menu'
 import { useEndReached } from './use-end-reached'
 
 /**
@@ -129,6 +129,7 @@ type TrackRowProps = Omit<SharedProps, 'onPlay' | 'isWanted' | 'onMove'> & {
   index: number
   /** The number in the first column; defaults to the row's position. */
   number?: number
+  movementName?: string
   addedAt?: string
   wanted?: boolean
   onPlay: () => void
@@ -142,7 +143,7 @@ type TrackRowProps = Omit<SharedProps, 'onPlay' | 'isWanted' | 'onMove'> & {
  * One song. A song that plays looks the same wherever its file is (on the server, or fetched
  * as it plays); one that does not is gray and says "Not available".
  */
-export function TrackRow({ track, index, number, addedAt, variant = 'album', wanted, onPlay, onAction, playlists, extraMenu, reorder, style, albumCredit }: TrackRowProps) {
+export function TrackRow({ track, index, number, movementName, addedAt, variant = 'album', wanted, onPlay, onAction, playlists, extraMenu, reorder, style, albumCredit }: TrackRowProps) {
   const navigate = useNavigate()
   const viewer = useViewer()
   const controls = useContext(PlayerControlsContext)
@@ -189,6 +190,7 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', wan
   const dropSide = reorder?.target?.index === index ? reorder.target.side : undefined
 
   const album = variant === 'album'
+  const credits = album ? trackCreditEntries(track, navigate) : []
   // Over artwork the button and the markers are white; in the number column they take the text's colors.
   const playButton = (overArt: boolean) => !unavailable && (
     <button
@@ -219,8 +221,14 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', wan
   const albumWhole = useWholeLinks(albumLine, track.album?.title ?? '') > 0
   const title = (
     <div className="flex min-w-0 items-center gap-1.5">
-      <span title={track.title} className={cn('truncate text-sm font-medium', unavailable && 'text-faded-foreground')}>{track.title}</span>
+      <span title={track.title} className={cn('truncate text-sm font-medium', unavailable && 'text-faded-foreground')}>{movementName ?? track.title}</span>
       {track.explicit && <ExplicitBadge />}
+      {credits.length > 0 && (
+        <DropdownMenu
+          entries={credits}
+          trigger={<button type="button" aria-label={`Credits for ${track.title}`} className="shrink-0 rounded-sm px-1.5 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring pointer-coarse:min-h-11">Credits</button>}
+        />
+      )}
       {unavailable && <span className="sr-only">({UNAVAILABLE_LABEL})</span>}
     </div>
   )
@@ -362,20 +370,42 @@ export function TrackList({ tracks, discs, addedAt, header = true, label, varian
   const reorder = useReorder(tracks.length, onMove)
   const showDiscs = discs && discs.length > 1
   const starts = discs?.map((_, index) => discs.slice(0, index).reduce((sum, disc) => sum + disc.tracks.length, 0)) ?? []
-  const rows = (items: TrackSummary[], start: number) => items.map((track, i) => (
-    <TrackRow
-      key={`${track.id}-${start + i}`}
-      track={track}
-      index={start + i}
-      number={variant === 'album' ? track.position ?? start + i + 1 : undefined}
-      addedAt={addedAt?.[start + i]}
-      variant={variant}
-      wanted={isWanted?.(track)}
-      onPlay={() => onPlay(start + i)}
-      reorder={reorder}
-      {...rest}
-    />
-  ))
+  const workCounts = new Map<string, number>()
+  if (variant === 'album') {
+    for (const track of tracks) {
+      if (track.works?.length !== 1) continue
+      const id = track.works[0]!.id
+      workCounts.set(id, (workCounts.get(id) ?? 0) + 1)
+    }
+  }
+  const rows = (items: TrackSummary[], start: number) => items.map((track, i) => {
+    const work = track.works?.length === 1 ? track.works[0] : undefined
+    const grouped = work && (workCounts.get(work.id) ?? 0) > 1 ? work : undefined
+    const previous = items[i - 1]?.works
+    const heading = grouped && !(previous?.length === 1 && previous[0]?.id === grouped.id)
+    return (
+      <Fragment key={`${track.id}-${start + i}`}>
+        {heading && (
+          <li className="flex items-center gap-3 px-2 pb-2 pt-4 text-sm font-medium text-muted-foreground">
+            <span className="flex w-8 shrink-0 justify-center"><Music2 aria-hidden className="size-3.5" /></span>
+            <h3>{grouped.title}</h3>
+          </li>
+        )}
+        <TrackRow
+          track={track}
+          index={start + i}
+          number={variant === 'album' ? grouped?.movementNumber ?? track.position ?? start + i + 1 : undefined}
+          movementName={grouped?.movementName}
+          addedAt={addedAt?.[start + i]}
+          variant={variant}
+          wanted={isWanted?.(track)}
+          onPlay={() => onPlay(start + i)}
+          reorder={reorder}
+          {...rest}
+        />
+      </Fragment>
+    )
+  })
   return (
     <div>
       {header && <ListHeader variant={variant} dated={addedAt !== undefined} />}

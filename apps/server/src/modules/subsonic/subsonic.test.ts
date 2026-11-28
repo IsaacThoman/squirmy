@@ -261,6 +261,7 @@ describe('subsonic', () => {
         musicBrainzId: '1a2b3c4d-0000-4000-8000-0000000000a1', isrc: ['USX9P2100001'],
         genres: [{ name: 'Dream Pop' }, { name: 'Ambient' }], artists: [{ id: `ar-${blueHour.artist.id}`, name: 'Mira Vale' }],
         displayArtist: 'Mira Vale', albumArtists: [{ id: `ar-${blueHour.artist.id}`, name: 'Mira Vale' }], displayAlbumArtist: 'Mira Vale',
+        contributors: [], displayComposer: '', works: [], movements: [], comment: '',
         replayGain: { trackGain: 3, albumGain: 2, trackPeak: 0.501187, albumPeak: 0.707946 }, explicitStatus: 'clean',
       })
       // replayGain is always present, empty when nothing is known.

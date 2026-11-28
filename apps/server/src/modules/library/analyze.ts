@@ -73,6 +73,7 @@ export async function analyzeFile({ fileId }: AnalyzeJob) {
       channels: current.channels,
       durationMs: current.durationMs,
       tags: current.tags,
+      tagVersion: current.tagVersion,
       embeddedArtAssetId: current.embeddedArtAssetId,
       tagTrackGainDb: current.tagTrackGainDb,
       tagTrackPeak: current.tagTrackPeak,
