@@ -9,6 +9,60 @@ enum OutputEvent {
   case configurationChanged
 }
 
+/// Already rendered stereo PCM on the output timeline.
+struct OutputChunk {
+  let start: Int64
+  let samples: ArraySlice<Float>
+  var end: Int64 { start + Int64(samples.count / 2) }
+
+  func slice(from: Int64, to: Int64) -> ArraySlice<Float> {
+    let lower = samples.startIndex + Int(max(from, start) - start) * 2
+    let upper = samples.startIndex + Int(min(to, end) - start) * 2
+    return samples[lower..<upper]
+  }
+}
+
+/// Retains the queued music so a transport command can reuse its actual output (including
+/// gain, ramps and DSP) without asking a decoder to render it again.
+struct QueuedAudio {
+  private var chunks: [OutputChunk] = []
+
+  mutating func append(_ samples: ArraySlice<Float>, at frame: Int64) {
+    chunks.append(OutputChunk(start: frame, samples: samples))
+  }
+
+  mutating func forget(before frame: Int64) {
+    chunks.removeAll { $0.end <= frame }
+  }
+
+  mutating func discard(from frame: Int64) {
+    chunks.removeAll { $0.start >= frame }
+    if let last = chunks.last, last.end > frame {
+      chunks[chunks.count - 1] = OutputChunk(start: last.start, samples: last.slice(from: last.start, to: frame))
+    }
+  }
+
+  mutating func reset() { chunks.removeAll(keepingCapacity: true) }
+
+  func fadeOut(from start: Int64, to end: Int64) -> OutputChunk? {
+    var samples: [Float] = []
+    var frame = start
+    for chunk in chunks where chunk.end > frame {
+      guard chunk.start <= frame, frame < end else { break }
+      samples += chunk.slice(from: frame, to: end)
+      frame = min(chunk.end, end)
+    }
+    let count = samples.count / 2
+    guard count > 0 else { return nil }
+    for index in 0..<count {
+      let gain = Float(count - 1 - index) / Float(max(1, count - 1))
+      samples[index * 2] *= gain
+      samples[index * 2 + 1] *= gain
+    }
+    return OutputChunk(start: start, samples: samples[...])
+  }
+}
+
 /**
  * Where the PCM goes, on one clock counted in frames at `sampleRate`. `RendererOutput` in the
  * app; tests use one with a clock they move. Used from the feed queue only.

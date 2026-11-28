@@ -57,6 +57,8 @@ struct EngineConfig {
   var silenceLead = 0.06
   /// A start that is not gapless (a load, a seek) fades in over this, so it does not click.
   var fadeIn = 0.005
+  /// A transport command fades the outgoing audio over this.
+  var fadeOut = 0.01
   /// Gain changes ramp over this.
   var gainRamp = 0.01
   var tick = 0.02
@@ -74,8 +76,8 @@ private final class Slot {
   var heardGain: Float
   /// The item frame that goes to the output next.
   var nextFrame: Int64 = 0
-  /// Frames of fade-in still to apply, of `fadeLength`.
-  var fadeLeft = 0
+  /// The item frame where the fade-in starts, so a renderer flush can replay it.
+  var fadeStart: Int64 = 0
   var fadeLength = 0
 
   init(pipeline: Pipeline, gain: Float) {
@@ -126,6 +128,9 @@ final class Engine {
   private var interruptedEntryId: String?
   private var systemInterrupted = false
   private var airPlay = false
+  private var queuedAudio = QueuedAudio()
+  /// A de-click tail belongs to the output clock, outside the new entry's position.
+  private var outgoing: OutputChunk?
 
   /// The next timeline frame to queue, and what is queued.
   private var enqueued: Int64 = 0
@@ -215,7 +220,7 @@ final class Engine {
     }
     slot.gain = item.gain
     slot.heardGain = item.gain
-    restart()
+    restart(fadingOut: true)
     if previous !== slot { previous?.pipeline.release() }
     current = slot
     interruptedEntryId = nil
@@ -272,6 +277,7 @@ final class Engine {
   private func doPause() {
     advance()
     guard current != nil else { return }
+    cancelOutgoing()
     wantsPlay = false
     interruptedEntryId = nil
     buffering = false
@@ -286,7 +292,7 @@ final class Engine {
     if let length = current.pipeline.lengthFrames.frames { target = min(target, length) }
     if state == .loading {
       // Still loading: start there instead. The status that ends loading reports it.
-      restart()
+      restart(fadingOut: true)
       startAt(target)
       tick()
       return
@@ -300,13 +306,14 @@ final class Engine {
       state = .playing
     }
     buffering = false
-    restart()
+    restart(fadingOut: true)
     startAt(target)
     seeking = true
     tick()
   }
 
   private func doStop() {
+    restart(fadingOut: true)
     current?.pipeline.release()
     next?.pipeline.release()
     current = nil
@@ -315,9 +322,8 @@ final class Engine {
     buffering = false
     seeking = false
     interruptedEntryId = nil
-    restart()
     setState(.idle, always: true)
-    if !holding { session?.deactivate() }
+    if !holding && outgoing == nil { session?.deactivate() }
     tick()
   }
 
@@ -325,7 +331,7 @@ final class Engine {
     guard hold != holding else { return }
     holding = hold
     log(hold ? "holding the audio session" : "audio session released")
-    if current == nil {
+    if current == nil && outgoing == nil {
       restart()
       if !hold { session?.deactivate() }
     }
@@ -337,6 +343,7 @@ final class Engine {
     advance()
     systemInterrupted = true
     log("interrupted")
+    cancelOutgoing()
     guard let current, wantsPlay else { return tick() }
     interruptedEntryId = current.entryId
     systemPause(current)
@@ -355,6 +362,7 @@ final class Engine {
     advance()
     interruptedEntryId = nil
     log("output lost")
+    cancelOutgoing()
     guard let current, wantsPlay else { return }
     systemPause(current)
   }
@@ -380,6 +388,7 @@ final class Engine {
       }
       return rebuildOutput()
     }
+    finishOutgoing()
     advance()
     checkFailures()
     checkUnderrun()
@@ -387,7 +396,7 @@ final class Engine {
     runClock()
     requestDecoding()
     forgetHistory()
-    if current == nil && next == nil && !holding { stopTicking() }
+    if current == nil && next == nil && !holding && outgoing == nil { stopTicking() }
   }
 
   /// Crosses into the preloaded entry once its first frame plays, and ends an entry with
@@ -427,6 +436,7 @@ final class Engine {
     guard let current, state != .error, let error = current.pipeline.error else { return }
     // What was decoded before the failure plays out first.
     let playhead = Int64(output.currentFrame())
+    if let outgoing, playhead < outgoing.end { return }
     guard current.nextFrame >= current.pipeline.decoded.end, state != .playing || playhead >= enqueued else { return }
     fail(current, error)
   }
@@ -445,6 +455,7 @@ final class Engine {
   private func checkUnderrun() {
     guard let current else { return }
     let playhead = Int64(output.currentFrame())
+    if let outgoing, playhead < outgoing.end { return }
     if buffering {
       let feeding = current.nextFrame >= current.pipeline.decoded.end && current.pipeline.decoded.ended ? next : current
       let ahead = feeding.map { $0.pipeline.decoded.end - $0.nextFrame } ?? 0
@@ -474,6 +485,14 @@ final class Engine {
     let playhead = Int64(output.currentFrame())
     let lead = frames(seconds: airPlay ? config.airPlayLead : config.lead)
     let silenceLead = frames(seconds: config.silenceLead)
+    if let outgoing, enqueued < outgoing.end {
+      guard output.isReadyForMoreMediaData else { return }
+      let start = max(enqueued, outgoing.start)
+      output.enqueue(outgoing.slice(from: start, to: outgoing.end), at: start)
+      enqueued = outgoing.end
+    }
+    // A paused replacement must not be queued while the clock is still playing the tail.
+    if outgoing != nil && !wantsPlay && current != nil { return }
     if seeking, let current, current.pipeline.decoded.ended, current.nextFrame >= current.pipeline.decoded.end {
       // Sought to the very end.
       seeking = false
@@ -527,6 +546,7 @@ final class Engine {
     } else {
       limiter.pass(samples[...])
     }
+    queuedAudio.append(samples[...], at: enqueued)
     output.enqueue(samples[...], at: enqueued)
     append(Segment(start: enqueued, end: enqueued + Int64(count), slot: slot, itemStart: itemStart))
     enqueued += Int64(count)
@@ -556,14 +576,14 @@ final class Engine {
     } else if slot.gain != 1 {
       for index in samples.indices { samples[index] *= slot.gain }
     }
-    if slot.fadeLeft > 0 {
-      let faded = min(count, slot.fadeLeft)
-      for frame in 0..<faded {
-        let level = Float(slot.fadeLength - slot.fadeLeft + frame) / Float(slot.fadeLength)
+    let offset = Int(slot.nextFrame - slot.fadeStart)
+    if offset >= 0, offset < slot.fadeLength {
+      let count = min(count, slot.fadeLength - offset)
+      for frame in 0..<count {
+        let level = Float(offset + frame) / Float(slot.fadeLength)
         samples[frame * 2] *= level
         samples[frame * 2 + 1] *= level
       }
-      slot.fadeLeft -= faded
     }
   }
 
@@ -602,7 +622,8 @@ final class Engine {
   private func runClock() {
     let playhead = Int64(output.currentFrame())
     let sounding = current != nil && wantsPlay && !buffering && (state == .playing || state == .loading)
-    let shouldRun = !systemInterrupted && (sounding || (current == nil && holding))
+    let fading = outgoing.map { playhead < $0.end } ?? false
+    let shouldRun = !systemInterrupted && (sounding || fading || (current == nil && holding))
     if shouldRun, output.rate == 0, enqueued > playhead {
       guard session?.activate() ?? true else { return }
       output.setRate(1, at: playhead)
@@ -618,23 +639,55 @@ final class Engine {
   }
 
   private func forgetHistory() {
+    let playhead = Int64(output.currentFrame())
+    queuedAudio.forget(before: playhead)
     guard let current else { return }
     let keep = frames(seconds: (airPlay ? config.airPlayHistory + config.airPlayLead : config.history + config.lead))
     current.pipeline.forget(before: current.nextFrame - keep)
-    let playhead = Int64(output.currentFrame())
     segments.removeAll { $0.end < playhead - keep }
     limiterMarks.removeAll { $0.frame < playhead - keep }
   }
 
+  private func finishOutgoing() {
+    guard let outgoing, Int64(output.currentFrame()) >= outgoing.end else { return }
+    self.outgoing = nil
+    if !wantsPlay && !(current == nil && holding) {
+      // The feed tick can land past the end of the tail. A paused load starts right there.
+      output.setRate(0, at: outgoing.end)
+    }
+    if current == nil && !holding { session?.deactivate() }
+  }
+
+  /// A pause or loss of the output must take effect even during the short tail.
+  private func cancelOutgoing() {
+    guard let outgoing, Int64(output.currentFrame()) < outgoing.end else { return }
+    restart()
+    startAt(anchor)
+    if current == nil && !holding { session?.deactivate() }
+  }
+
   // MARK: - Rendering again
 
-  /// Stops the clock where it is and throws away everything queued, for a new start.
-  private func restart() {
+  /// Flushes the whole lead, even on AirPlay. The only outgoing audio re-queued is the
+  /// de-click tail at the playhead, so a ready replacement can start right after it.
+  private func restart(fadingOut: Bool = false) {
     let playhead = Int64(output.currentFrame())
+    let wasRunning = output.rate > 0
     output.setRate(0, at: playhead)
+    if fadingOut && wasRunning {
+      // Rapid commands can replace the destination during a fade. Finish that same tail.
+      if outgoing.map({ playhead >= $0.end }) ?? true {
+        let fadeEnd = playhead + frames(seconds: config.fadeOut)
+        let segment = segments.first { $0.slot != nil && $0.start <= playhead && playhead < $0.end }
+        outgoing = segment.flatMap { queuedAudio.fadeOut(from: playhead, to: min(fadeEnd, $0.end)) }
+      }
+    } else {
+      outgoing = nil
+    }
     output.flush()
     enqueued = playhead
     segments.removeAll()
+    queuedAudio.reset()
     limiter.reset()
     limiterMarks.removeAll()
     next?.nextFrame = 0
@@ -645,8 +698,8 @@ final class Engine {
     guard let current else { return }
     anchor = frame
     current.nextFrame = frame
-    current.fadeLength = max(1, Int(frames(seconds: config.fadeIn)))
-    current.fadeLeft = Int(frames(seconds: config.fadeIn))
+    current.fadeStart = frame
+    current.fadeLength = Int(frames(seconds: config.fadeIn))
     if !current.pipeline.holds(frame) { current.pipeline.seek(to: frame) }
   }
 
@@ -668,6 +721,7 @@ final class Engine {
       output.setRate(0, at: frame)
       output.flush()
     }
+    queuedAudio.discard(from: frame)
     enqueued = frame
     segments.removeAll { $0.start >= frame }
     if let last = segments.last, last.end > frame { segments[segments.count - 1].end = frame }
@@ -711,14 +765,17 @@ final class Engine {
     output.setRate(0, at: 0)
     enqueued = 0
     segments.removeAll()
+    queuedAudio.reset()
+    if outgoing != nil && current == nil && !holding { session?.deactivate() }
+    outgoing = nil
     limiter = Limiter(sampleRate: rate)
     limiterMarks.removeAll()
     guard let current else { return }
     let frame = Int64((seconds * rate).rounded())
     anchor = frame
     current.nextFrame = frame
-    current.fadeLength = max(1, Int(frames(seconds: config.fadeIn)))
-    current.fadeLeft = current.fadeLength
+    current.fadeStart = frame
+    current.fadeLength = Int(frames(seconds: config.fadeIn))
     current.pipeline.seek(to: frame, rate: rate)
     next?.nextFrame = 0
     next?.pipeline.seek(to: 0, rate: rate)
