@@ -43,7 +43,7 @@ For working on the app itself, the [README](https://github.com/IsaacThoman/squir
 
 1. On first launch, **Connect to your server** asks for its address. Type it as you would in a browser: `music.example.com`, or `http://192.168.1.20:4747` on your home network. Without `http://` or `https://`, the app tries HTTPS first and then HTTP.
 2. Choose **Continue**. The first time it reaches a server on your local network, iOS asks to allow Local Network access; allow it.
-3. Sign in with your username and password, or create an account with an invite code from your admin.
+3. Sign in with your username and password, or create an account with an invite code from your admin. If your account has [two-factor authentication](../server/authentication.md#two-factor-authentication) on, the app then asks for the code from your authenticator app (or a recovery code).
 
 If the server has not been set up, the app says so, shows which version of Squirmy it runs, and offers **Open in Browser** to create the admin account. On a public address over plain HTTP, the sign-in screen warns that your password is sent unencrypted; see [Reverse proxies and HTTPS](../server/reverse-proxy.md). For connection errors, see [Troubleshooting](../server/troubleshooting.md#the-app-cannot-connect).
 

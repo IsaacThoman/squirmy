@@ -3,7 +3,7 @@ import { homedir } from 'node:os'
 import path from 'node:path'
 import {
   CreateInviteRequest, CreateUserRequest, DirectoryQuery, Id, queryKeys, UpdateServerSettings, UpdateUserRequest,
-  type DirectoryListing, type Invite, type InviteList, type JobQueueStats, type Ok, type ServerSettings, type User, type UserList,
+  type DirectoryListing, type Invite, type InviteList, type JobQueueStats, type Ok, type ServerSettings, type User, type UserList, type UserSecurity,
 } from '@squirmy/contracts'
 import { and, asc, desc, eq, isNull, ne, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
@@ -18,12 +18,20 @@ import { newId } from '../../lib/ids.js'
 import { getServerSettings, invalidateServerSettings, updateServerSettings } from '../../lib/settings.js'
 import { getQueueStats } from '../../jobs/index.js'
 import { disconnectSockets, invalidate } from '../../realtime/index.js'
-import { hashPassword, insertUser, revokeAppPasswords, revokeUserSessions, toUser } from '../auth/service.js'
+import { dropUserChallenges } from '../auth/challenges.js'
+import { hashPassword, insertUser, listSessions, revokeAppPasswords, revokeUserSession, revokeUserSessions, toUser } from '../auth/service.js'
+import { disableTwoFactor, twoFactorEnabled } from '../auth/two-factor.js'
 import { markEnrichmentStale } from '../enrichment/stale.js'
 import { queueNewlyPossibleMatching } from '../matching/retry.js'
 import { checkImportSettings } from '../imports/settings.js'
 
 const IdParams = z.object({ id: Id })
+const SessionParams = z.object({ id: Id, sessionId: Id })
+
+async function requireUserRow(id: string) {
+  const [row] = await db.select({ id: users.id }).from(users).where(eq(users.id, id))
+  if (!row) throw notFound('No such user')
+}
 
 /**
  * Fails unless another enabled admin would remain once `userId` stops being one. Holds a
@@ -120,6 +128,7 @@ export async function adminRoutes(app: FastifyInstance) {
       }).where(eq(users.id, id)).returning()
       if (body.password !== undefined || body.disabled) {
         await revokeUserSessions(tx, id)
+        await dropUserChallenges(tx, id)
         // An app password minted by whoever had the account would survive the reset.
         await revokeAppPasswords(tx, id)
       }
@@ -142,6 +151,40 @@ export async function adminRoutes(app: FastifyInstance) {
     })
     await disconnectSockets(id)
     await invalidate('admins', [queryKeys.adminUsers()])
+    return { ok: true }
+  })
+
+  app.get('/admin/users/:id/security', async (request): Promise<UserSecurity> => {
+    const { id } = IdParams.parse(request.params)
+    await requireUserRow(id)
+    return { twoFactorEnabled: await twoFactorEnabled(id), sessions: await listSessions(id, request.authSessionId) }
+  })
+
+  app.delete('/admin/users/:id/sessions/:sessionId', async (request): Promise<Ok> => {
+    const { id, sessionId } = SessionParams.parse(request.params)
+    if (!await revokeUserSession(id, sessionId)) throw notFound('No such session')
+    await disconnectSockets(id, { only: sessionId })
+    return { ok: true }
+  })
+
+  app.delete('/admin/users/:id/sessions', async (request): Promise<Ok> => {
+    const { id } = IdParams.parse(request.params)
+    await requireUserRow(id)
+    // An admin signing themselves out everywhere keeps the session they are using.
+    const keep = id === request.user!.id ? request.authSessionId ?? undefined : undefined
+    await revokeUserSessions(db, id, keep)
+    await disconnectSockets(id, keep ? { except: keep } : {})
+    return { ok: true }
+  })
+
+  /** For someone who lost their authenticator and their recovery codes. Their sessions stay. */
+  app.delete('/admin/users/:id/two-factor', async (request): Promise<Ok> => {
+    const { id } = IdParams.parse(request.params)
+    // An admin's own second factor is turned off from their settings, with their password and a
+    // code, so a borrowed admin session cannot remove it here.
+    if (id === request.user!.id) throw forbidden('Turn off your own two-factor authentication in Settings → Security', 'own_two_factor')
+    await requireUserRow(id)
+    await disableTwoFactor(db, id)
     return { ok: true }
   })
 

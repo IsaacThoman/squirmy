@@ -81,6 +81,8 @@ export function signInErrorMessage(error: unknown, serverName: string): string {
     case 'invalid_invite': return 'That invite code isn’t valid. It may have expired or been used.';
     case 'invite_required': return 'You need an invite code to create an account on this server.';
     case 'username_taken': return 'That username is taken. Try another one.';
+    case 'invalid_code': return 'That code isn’t right. Enter the newest code from your authenticator app, or a recovery code.';
+    case 'invalid_challenge': return 'That sign-in took too long. Enter your password again.';
     case 'invalid_request': return invalidFieldMessage(error.details);
   }
   return error.status >= 500 ? `${serverName} ran into a problem. Try again in a moment.` : error.message;

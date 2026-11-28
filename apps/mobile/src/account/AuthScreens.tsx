@@ -61,8 +61,11 @@ export function ConnectScreen() {
 type Mode = 'signIn' | 'register';
 
 export function SignInScreen() {
-  const { state, unsaved, signIn, register, switchServer } = useAccount();
+  const { state, unsaved, signIn, signInWithCode, register, switchServer } = useAccount();
   const [mode, setMode] = useState<Mode>('signIn');
+  // Set once the password was right and the account wants a code from an authenticator app too.
+  const [challenge, setChallenge] = useState<string | null>(null);
+  const [code, setCode] = useState('');
   const serverUrl = state.status === 'signIn' ? state.server.url : '';
   const [inviteCode, setInviteCode] = useState('');
   const [remembered] = useState(() => lastUsername(serverUrl));
@@ -83,13 +86,27 @@ export function SignInScreen() {
     return () => clearTimeout(timer);
   }, [wrongPassword]);
   const attempt = useMutation({
-    mutationFn: () => mode === 'signIn' ? signIn(username, password) : register(inviteCode, username, password),
-    onSuccess: () => {
+    mutationFn: async () => {
+      if (challenge) return signInWithCode(challenge, code);
+      return mode === 'signIn' ? signIn(username, password) : register(inviteCode, username, password);
+    },
+    onSuccess: result => {
+      if (result?.twoFactor) {
+        setChallenge(result.twoFactor);
+        return;
+      }
       rememberUsername(serverUrl, username.trim());
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     },
     onError: error => {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      if (error instanceof ApiError && error.code === 'invalid_code') setCode('');
+      // The step is gone (too slow, or too many wrong codes): back to the password.
+      if (error instanceof ApiError && error.code === 'invalid_challenge') {
+        setChallenge(null);
+        setCode('');
+        clearPassword();
+      }
       // Like any iOS sign-in: the wrong password goes, and the keyboard stays up to retype it.
       if (error instanceof ApiError && error.code === 'invalid_credentials') {
         clearPassword();
@@ -110,6 +127,27 @@ export function SignInScreen() {
   const submit = () => {
     if (ready && !attempt.isPending) attempt.mutate();
   };
+
+  if (challenge) {
+    const submitCode = () => {
+      if (code.trim() && !attempt.isPending) attempt.mutate();
+    };
+    return <AuthPage title="Enter your code" message={`Open your authenticator app and enter the code it shows for ${server.name}.`}>
+      <AuthServer server={server} onChange={switchServer} />
+      <AuthSection footer={error ?? 'Lost your phone? Enter one of your recovery codes instead.'} tone={error ? 'error' : 'note'}>
+        <AuthField kind="code" placeholder="Authentication code" value={code} onChange={setCode} onSubmit={submitCode} autoFocus />
+      </AuthSection>
+      <AuthSubmit title="Verify" busyTitle="Verifying…" busy={attempt.isPending} disabled={!code.trim()} onPress={submitCode} />
+      <AuthSection>
+        <AuthLink title="Back to sign in" icon="chevron.backward" onPress={() => {
+          attempt.reset();
+          setChallenge(null);
+          setCode('');
+          clearPassword();
+        }} />
+      </AuthSection>
+    </AuthPage>;
+  }
 
   return <AuthPage title={registering ? 'Create an account' : 'Sign in'}
     // A keychain that refused here won't keep this sign-in either, so the page says so before it is typed.

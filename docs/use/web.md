@@ -135,6 +135,7 @@ If the browser refuses to start audio on its own (after a transfer or a reload),
 - **Playback**: the settings listed under [Playing music](#playing-music).
 - **Appearance**: light or dark, and the color theme. See [Appearance and themes](#appearance-and-themes).
 - **Account**: **Edit name** (for admins), **Change password** and **Log out**. **Log out** works even when the server can't be reached: this browser signs out at once, sign-in says the server couldn't be reached, and the session ends on the server the next time the app reaches it. When your session ends some other way (your password was changed, or your account was turned off), sign-in says **Your session ended**.
+- **Security**: two-factor authentication (**Turn on**, **New recovery codes**, **Turn off**), and **Where you're signed in**: every browser and app signed in to your account, with **Sign out** for one and **Sign out everywhere else**. See [Signing in and security](../server/authentication.md).
 - **Scrobbling**: [ListenBrainz and Last.fm](../server/scrobbling.md).
 - **App passwords** for [Subsonic apps](../server/subsonic.md).
 - **About**: the server's name, version and address, and the main [keyboard shortcuts](./keyboard-shortcuts.md).

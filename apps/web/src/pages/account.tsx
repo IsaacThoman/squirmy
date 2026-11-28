@@ -1,5 +1,5 @@
 import { ApiError } from '@squirmy/client-core'
-import { DuplicateLibraryRootDetails, queryKeys, type CreateLibraryRootRequest, type UpdateLibraryRootRequest, type User } from '@squirmy/contracts'
+import { DuplicateLibraryRootDetails, queryKeys, TwoFactorChallenge, type CreateLibraryRootRequest, type UpdateLibraryRootRequest, type User } from '@squirmy/contracts'
 import { notifyManager, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router'
@@ -7,7 +7,7 @@ import { errorMessage } from '@/api/errors'
 import { useFolderListing } from '@/api/folders'
 import { useApi } from '@/api/services'
 import { setSetupDone, setSignedInUser, useMe, useSetupStatus, useSignInNotice } from '@/auth/session'
-import { LoginView, RegisterView, SetupAccountView, SetupDoneView, SetupLibraryView } from '@/components/auth/AuthViews'
+import { LoginView, RegisterView, SetupAccountView, SetupDoneView, SetupLibraryView, TwoFactorView } from '@/components/auth/AuthViews'
 import { webDevice } from '@/lib/device'
 
 /** Signing in only updates the session; the signed-out guard then moves on to `next`. */
@@ -21,14 +21,36 @@ export function LoginPage() {
   const { data: status } = useSetupStatus()
   const signedIn = useSignedIn()
   const notice = useSignInNotice()
+  // Set when the password was right and the account wants a code as well.
+  const [challenge, setChallenge] = useState<string | null>(null)
   const login = useMutation({ mutationFn: api.auth.login, onSuccess: response => signedIn(response.user), meta: { inline: true } })
+  const secondStep = useMutation({ mutationFn: api.auth.loginTwoFactor, onSuccess: response => signedIn(response.user), meta: { inline: true } })
+  const submitPassword = async (credentials: { username: string; password: string }) => {
+    try {
+      await login.mutateAsync({ ...credentials, device: webDevice() })
+    } catch (error) {
+      const details = error instanceof ApiError && error.code === 'two_factor_required' ? TwoFactorChallenge.safeParse(error.details).data : undefined
+      if (!details) throw error
+      setChallenge(details.challenge)
+    }
+  }
+  if (challenge) {
+    return (
+      <TwoFactorView
+        serverName={status!.serverName}
+        version={status!.version}
+        onSubmit={code => secondStep.mutateAsync({ challenge, code, device: webDevice() })}
+        onBack={() => setChallenge(null)}
+      />
+    )
+  }
   return (
     <LoginView
       serverName={status!.serverName}
       version={status!.version}
       inviteRequired={status!.registrationRequiresInvite}
       notice={notice}
-      onSubmit={credentials => login.mutateAsync({ ...credentials, device: webDevice() })}
+      onSubmit={submitPassword}
     />
   )
 }

@@ -106,18 +106,32 @@ export function TvConnectScreen() {
 type Mode = 'signIn' | 'register';
 
 export function TvSignInScreen() {
-  const { state, unsaved, signIn, register, switchServer } = useAccount();
+  const { state, unsaved, signIn, signInWithCode, register, switchServer } = useAccount();
   const [mode, setMode] = useState<Mode>('signIn');
+  // Set once the password was right and the account wants a code from an authenticator app too.
+  const [challenge, setChallenge] = useState<string | null>(null);
+  const [code, setCode] = useState('');
   const serverUrl = state.status === 'signIn' ? state.server.url : '';
   const [remembered] = useState(() => lastUsername(serverUrl));
   const [inviteCode, setInviteCode] = useState('');
   const [username, setUsername] = useState(remembered);
   const [password, setPassword] = useState('');
   const attempt = useMutation({
-    mutationFn: () => mode === 'signIn' ? signIn(username, password) : register(inviteCode, username, password),
-    onSuccess: () => rememberUsername(serverUrl, username.trim()),
+    mutationFn: async () => {
+      if (challenge) return signInWithCode(challenge, code);
+      return mode === 'signIn' ? signIn(username, password) : register(inviteCode, username, password);
+    },
+    onSuccess: result => {
+      if (result?.twoFactor) setChallenge(result.twoFactor);
+      else rememberUsername(serverUrl, username.trim());
+    },
     onError: error => {
-      if (error instanceof ApiError && error.code === 'invalid_credentials') setPassword('');
+      if (error instanceof ApiError && (error.code === 'invalid_credentials' || error.code === 'invalid_challenge')) setPassword('');
+      if (error instanceof ApiError && error.code === 'invalid_code') setCode('');
+      if (error instanceof ApiError && error.code === 'invalid_challenge') {
+        setChallenge(null);
+        setCode('');
+      }
     },
   });
   if (state.status !== 'signIn') return null;
@@ -130,6 +144,28 @@ export function TvSignInScreen() {
   const submit = () => {
     if (ready && !attempt.isPending) attempt.mutate();
   };
+  if (challenge) {
+    const submitCode = () => {
+      if (code.trim() && !attempt.isPending) attempt.mutate();
+    };
+    return <AuthCard title="Enter your code" message={`Open your authenticator app and enter the code it shows for ${server.name}. Lost your phone? Enter a recovery code.`}>
+      <Field label="Code" value={code} onChange={setCode} kind="oneTimeCode" hasTVPreferredFocus onSubmit={submitCode} />
+      <Note text={error} error />
+      <View style={styles.actions}>
+        {attempt.isPending
+          ? <ActivityIndicator color={colors.secondary} />
+          : <Button label="Verify" prominent disabled={!code.trim()} onPress={submitCode} style={styles.primary} />}
+      </View>
+      <View style={styles.secondary}>
+        <Button label="Back" onPress={() => {
+          attempt.reset();
+          setChallenge(null);
+          setCode('');
+          setPassword('');
+        }} />
+      </View>
+    </AuthCard>;
+  }
   return <AuthCard title={registering ? 'Create an account' : 'Sign in'}
     message={notice ?? (unsaved ? unsavedSignIn : registering
       ? inviteRequired ? `Use the invite code you were given to join ${server.name}.` : `Create an account on ${server.name}.`

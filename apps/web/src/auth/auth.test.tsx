@@ -49,6 +49,39 @@ describe('route guards', () => {
     expect((api.auth.login.mock.lastCall as unknown[] | undefined)?.[0]).toEqual(expect.objectContaining({ username: 'alex', device: expect.objectContaining({ kind: 'web' }) }))
   })
 
+  it('asks for the authenticator code after a right password, and takes a recovery code there too', async () => {
+    const { services, api } = fakeServices({ user: null })
+    renderWithApp(app, '/login', services)
+    api.auth.login.mockRejectedValueOnce(new ApiError(401, 'two_factor_required', 'Enter the code', { challenge: 'challenge-1', expiresAt: '2026-11-28T12:05:00.000Z' }))
+    await userEvent.type(await screen.findByLabelText('Username'), 'alex')
+    await userEvent.type(screen.getByLabelText('Password'), 'right password')
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(await screen.findByRole('heading', { name: 'Enter your code' })).toBeInTheDocument()
+
+    api.auth.loginTwoFactor.mockRejectedValueOnce(new ApiError(401, 'invalid_code', 'That code is not right.'))
+    await userEvent.type(screen.getByLabelText('Authentication code'), '123456')
+    await userEvent.click(screen.getByRole('button', { name: 'Verify' }))
+    expect(await screen.findByText('That code is not right.')).toBeInTheDocument()
+    expect(where()).toBe('/login')
+
+    await userEvent.clear(screen.getByLabelText('Authentication code'))
+    await userEvent.type(screen.getByLabelText('Authentication code'), 'abcde-fghjk')
+    await userEvent.click(screen.getByRole('button', { name: 'Verify' }))
+    await waitFor(() => expect(where()).toBe('/'))
+    expect((api.auth.loginTwoFactor.mock.lastCall as unknown[] | undefined)?.[0]).toEqual(expect.objectContaining({ challenge: 'challenge-1', code: 'abcde-fghjk', device: expect.objectContaining({ kind: 'web' }) }))
+  })
+
+  it('goes back from the code to the password', async () => {
+    const { services, api } = fakeServices({ user: null })
+    renderWithApp(app, '/login', services)
+    api.auth.login.mockRejectedValueOnce(new ApiError(401, 'two_factor_required', 'Enter the code', { challenge: 'challenge-1', expiresAt: '2026-11-28T12:05:00.000Z' }))
+    await userEvent.type(await screen.findByLabelText('Username'), 'alex')
+    await userEvent.type(screen.getByLabelText('Password'), 'right password')
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Back to sign in' }))
+    expect(screen.getByRole('heading', { name: 'Sign in to Squirmy' })).toBeInTheDocument()
+  })
+
   it('validates with the contract schema before calling the server', async () => {
     const { services, api } = fakeServices({ user: null })
     renderWithApp(app, '/register?invite=CODE', services)

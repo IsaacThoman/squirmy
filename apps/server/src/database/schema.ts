@@ -35,6 +35,8 @@ const updatedAt = () => at('updated_at').notNull().defaultNow()
 const textArray = (name: string) => text(name).array().notNull().default(sql`'{}'::text[]`)
 
 export type UserRole = 'admin' | 'member'
+export type SignInMethod = 'password' | 'two_factor' | 'recovery_code' | 'passkey' | 'sso'
+export type AuthChallengeKind = 'two_factor'
 export type CatalogEntityType = 'artist' | 'album' | 'release' | 'recording'
 export type LikeEntityType = 'recording' | 'album' | 'artist'
 export type LibraryRootMode = 'read_only' | 'managed'
@@ -105,12 +107,60 @@ export const authSessions = pgTable('auth_sessions', {
   deviceId: text('device_id'),
   clientKind: text('client_kind').notNull().default('other'),
   userAgent: text('user_agent'),
+  /** How the session was signed in. Null for sessions from before it was recorded. */
+  method: text('method').$type<SignInMethod>(),
   createdAt: createdAt(),
   lastSeenAt: at('last_seen_at').notNull().defaultNow(),
   expiresAt: at('expires_at').notNull(),
 }, (t) => [
   uniqueIndex('auth_sessions_token_hash').on(t.tokenHash),
   index('auth_sessions_user').on(t.userId),
+])
+
+/**
+ * A user's authenticator app secret (RFC 6238). `confirmedAt` is null while it is being set up:
+ * two-factor is on only once a code from the app has been checked against it.
+ */
+export const totpCredentials = pgTable('totp_credentials', {
+  userId: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  /** AES-GCM ciphertext of the base32 secret: checking a code needs the secret itself. */
+  secretEncrypted: text('secret_encrypted').notNull(),
+  /** The last time step a code was accepted for, so a code cannot be used twice. */
+  lastStep: bigint('last_step', { mode: 'number' }).notNull().default(0),
+  confirmedAt: at('confirmed_at'),
+  createdAt: createdAt(),
+})
+
+/** One-time codes that stand in for an authenticator code. Only a keyed hash is kept. */
+export const recoveryCodes = pgTable('recovery_codes', {
+  id: id(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  codeHash: text('code_hash').notNull(),
+  usedAt: at('used_at'),
+  createdAt: createdAt(),
+}, (t) => [
+  uniqueIndex('recovery_codes_code_hash').on(t.codeHash),
+  index('recovery_codes_user').on(t.userId),
+])
+
+/**
+ * Short-lived, single-use steps of a sign-in: the second step after a right password, a passkey
+ * ceremony, a single sign-on round trip. Kept in the database rather than in memory so any API
+ * process can finish what another started. Only the token's hash is stored.
+ */
+export const authChallenges = pgTable('auth_challenges', {
+  id: id(),
+  tokenHash: text('token_hash').notNull(),
+  kind: text('kind').$type<AuthChallengeKind>().notNull(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  data: jsonb('data').$type<Record<string, unknown>>().notNull().default({}),
+  /** Wrong answers so far; the challenge is dropped after a few. */
+  attempts: integer('attempts').notNull().default(0),
+  createdAt: createdAt(),
+  expiresAt: at('expires_at').notNull(),
+}, (t) => [
+  uniqueIndex('auth_challenges_token_hash').on(t.tokenHash),
+  index('auth_challenges_expires').on(t.expiresAt),
 ])
 
 export const invites = pgTable('invites', {

@@ -8,6 +8,7 @@ import { useApi } from '@/api/services'
 import { useLogout } from '@/auth/actions'
 import { useCurrentUser, useSetupStatus } from '@/auth/session'
 import type { SettingsDialogState } from '@/components/layout/AppShell'
+import type { SecuritySettingsProps } from '@/components/settings/SecuritySettings'
 import { SettingsDialog } from '@/components/settings/SettingsDialog'
 import { loadFailure } from '@/components/ui/load-failure'
 import { canUploadMusic } from '@/lib/catalog'
@@ -15,6 +16,40 @@ import { browserName, deviceName } from '@/lib/device'
 import { usePlayerControls } from '@/player/player-context'
 
 const appPasswordsKey = ['app-passwords'] as const
+const securityKey = ['account-security'] as const
+const sessionsKey = ['auth-sessions'] as const
+
+/** Settings → Security: the second factor and the signed-in devices, read while the dialog is open. */
+function useSecuritySettings(open: boolean): SecuritySettingsProps {
+  const api = useApi()
+  const queryClient = useQueryClient()
+  const security = useQuery({ queryKey: securityKey, queryFn: () => api.auth.security(), enabled: open })
+  const sessions = useQuery({ queryKey: sessionsKey, queryFn: () => api.auth.sessions(), enabled: open })
+  const refreshSecurity = () => queryClient.invalidateQueries({ queryKey: securityKey })
+  const refreshSessions = () => queryClient.invalidateQueries({ queryKey: sessionsKey })
+  return {
+    security: security.data,
+    sessions: sessions.data?.items,
+    failures: {
+      security: loadFailure(security, 'Your sign-in settings did not load'),
+      sessions: loadFailure(sessions, 'Your signed-in devices did not load'),
+    },
+    onStartTwoFactor: request => api.auth.startTwoFactor(request),
+    onEnableTwoFactor: async request => {
+      const codes = await api.auth.enableTwoFactor(request)
+      await refreshSecurity()
+      return codes
+    },
+    onDisableTwoFactor: request => api.auth.disableTwoFactor(request).then(refreshSecurity),
+    onRegenerateRecoveryCodes: async request => {
+      const codes = await api.auth.regenerateRecoveryCodes(request)
+      await refreshSecurity()
+      return codes
+    },
+    onRevokeSession: id => api.auth.revokeSession(id).then(refreshSessions),
+    onRevokeOtherSessions: () => api.auth.revokeOtherSessions().then(refreshSessions),
+  }
+}
 
 /** What Last.fm's return to `/settings?lastfm=` says, in the Scrobbling section it opens. */
 const lastFmReturns: Record<string, { message: string; ok: boolean }> = {
@@ -82,12 +117,13 @@ export function SettingsDialogHost({ open, section, lastFm, onOpenChange, onSect
   const connections = useScrobbleConnections()
   const [name, setName] = useState(browserName)
   const passwords = useQuery({ queryKey: appPasswordsKey, queryFn: () => api.auth.appPasswords(), enabled: open })
+  const security = useSecuritySettings(open)
   const refreshPasswords = () => queryClient.invalidateQueries({ queryKey: appPasswordsKey })
   const createPassword = useMutation({ mutationFn: api.auth.createAppPassword, onSuccess: refreshPasswords })
   // The revoked password leaves the list; the confirmation says a failure.
   const revokePassword = useMutation({ mutationFn: api.auth.deleteAppPassword, onSuccess: refreshPasswords })
   // Said in the Account section once the dialog that changed it closes.
-  const changePassword = useMutation({ mutationFn: api.auth.changePassword })
+  const changePassword = useMutation({ mutationFn: api.auth.changePassword, onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionsKey }) })
   // Only the admin route can rename a user, so only admins can rename themselves.
   const rename = useMutation({
     mutationFn: (displayName: string | null) => api.admin.updateUser(user.id, { displayName }),
@@ -132,6 +168,7 @@ export function SettingsDialogHost({ open, section, lastFm, onOpenChange, onSect
       onCreateAppPassword={request => createPassword.mutateAsync(request)}
       onRevokeAppPassword={id => revokePassword.mutateAsync(id)}
       onChangePassword={request => changePassword.mutateAsync(request)}
+      security={security}
       onRename={user.role === 'admin' ? displayName => rename.mutateAsync(displayName) : undefined}
       onLogout={logout}
       onOpenAdmin={user.role === 'admin' ? () => { onOpenChange(false); void navigate('/admin') } : undefined}

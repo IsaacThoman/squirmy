@@ -144,3 +144,110 @@ export const APP_PASSWORD_LIMIT = 50
  */
 export const CreateAppPasswordRequest = z.object({ name: z.string().trim().min(1).max(60), currentPassword: z.string().min(1).max(200) })
 export type CreateAppPasswordRequest = z.infer<typeof CreateAppPasswordRequest>
+
+// ---------------------------------------------------------------------------
+// Sessions and two-factor authentication
+// ---------------------------------------------------------------------------
+
+/**
+ * How a session was signed in. Null for sessions from before the server recorded it. Values a
+ * newer server adds read as null, so an older client still lists the session.
+ */
+export const SignInMethod = z.enum(['password', 'two_factor', 'recovery_code', 'passkey', 'sso'])
+export type SignInMethod = z.infer<typeof SignInMethod>
+
+/** One signed-in browser or app. `current` is the session making the request. */
+export const AuthSession = z.object({
+  id: Id,
+  current: z.boolean(),
+  /** `web`, `ios`, `tv` and so on, as the client said when it signed in. */
+  clientKind: z.string(),
+  /** The device's own name, when the client named one. */
+  deviceName: z.string().nullable(),
+  userAgent: z.string().nullable(),
+  method: SignInMethod.nullable().catch(null),
+  createdAt: IsoDateTime,
+  /** Written at most once a minute. */
+  lastSeenAt: IsoDateTime,
+  expiresAt: IsoDateTime,
+})
+export type AuthSession = z.infer<typeof AuthSession>
+
+export const AuthSessionList = page(AuthSession)
+export type AuthSessionList = z.infer<typeof AuthSessionList>
+
+/** Recovery codes a new set holds. Each works once, in place of an authenticator code. */
+export const RECOVERY_CODE_COUNT = 10
+
+export const TwoFactorStatus = z.object({
+  enabled: z.boolean(),
+  enabledAt: IsoDateTime.nullable(),
+  recoveryCodesRemaining: z.number().int().min(0),
+})
+export type TwoFactorStatus = z.infer<typeof TwoFactorStatus>
+
+/** `GET /auth/security`: the ways this account can sign in. */
+export const AccountSecurity = z.object({
+  /** False for an account made by single sign-on that never had a password set. */
+  hasPassword: z.boolean(),
+  twoFactor: TwoFactorStatus,
+})
+export type AccountSecurity = z.infer<typeof AccountSecurity>
+
+/** Six digits from an authenticator app. Spaces are allowed, as apps show them. */
+export const TotpCode = z.string().transform((value) => value.replace(/\s+/g, '')).pipe(z.string().regex(/^\d{6}$/, 'Enter the 6-digit code'))
+
+/** An authenticator code or a recovery code. The server tells them apart. */
+export const SecondFactorCode = z.string().trim().min(6, 'Enter the code').max(40)
+
+/** `POST /auth/two-factor/setup`. Starts enrolment; nothing changes until the code is confirmed. */
+export const StartTwoFactorRequest = z.object({ currentPassword: z.string().min(1).max(200) })
+export type StartTwoFactorRequest = z.infer<typeof StartTwoFactorRequest>
+
+/**
+ * The secret to add to an authenticator app: scanned from `qrCode` (an SVG data URL, drawn by
+ * the server) or typed in as `secret` (base32). `otpauthUrl` is what the QR code holds.
+ */
+export const TwoFactorSetup = z.object({
+  secret: z.string(),
+  otpauthUrl: z.string(),
+  qrCode: z.string(),
+})
+export type TwoFactorSetup = z.infer<typeof TwoFactorSetup>
+
+/** `POST /auth/two-factor/enable`: the first code from the app proves it was set up right. */
+export const EnableTwoFactorRequest = z.object({ code: TotpCode })
+export type EnableTwoFactorRequest = z.infer<typeof EnableTwoFactorRequest>
+
+/** Shown once. Only their hashes are kept. */
+export const RecoveryCodes = z.object({ recoveryCodes: z.array(z.string()) })
+export type RecoveryCodes = z.infer<typeof RecoveryCodes>
+
+/**
+ * Turning two-factor off or making new recovery codes needs the password and a current code
+ * (or an unused recovery code), so neither a borrowed session nor a known password alone can.
+ */
+export const ConfirmTwoFactorRequest = z.object({ currentPassword: z.string().min(1).max(200), code: SecondFactorCode })
+export type ConfirmTwoFactorRequest = z.infer<typeof ConfirmTwoFactorRequest>
+
+/**
+ * `details` of the 401 `two_factor_required` that `POST /auth/login` answers when the password
+ * is right and the account has two-factor on. `challenge` goes back with the code to
+ * `POST /auth/login/two-factor`; it lasts until `expiresAt` and a few wrong codes.
+ */
+export const TwoFactorChallenge = z.object({ challenge: z.string(), expiresAt: IsoDateTime })
+export type TwoFactorChallenge = z.infer<typeof TwoFactorChallenge>
+
+export const TwoFactorLoginRequest = z.object({
+  challenge: z.string().min(1).max(200),
+  code: SecondFactorCode,
+  device: ClientDevice.optional(),
+})
+export type TwoFactorLoginRequest = z.infer<typeof TwoFactorLoginRequest>
+
+/** `GET /admin/users/:id/security`: what an admin may see of someone's sign-ins. */
+export const UserSecurity = z.object({
+  twoFactorEnabled: z.boolean(),
+  sessions: z.array(AuthSession),
+})
+export type UserSecurity = z.infer<typeof UserSecurity>

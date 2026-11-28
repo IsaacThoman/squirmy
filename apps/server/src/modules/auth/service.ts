@@ -1,5 +1,5 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
-import { APP_PASSWORD_LIMIT, type AppPassword, type ClientDevice, type User } from '@squirmy/contracts'
+import { APP_PASSWORD_LIMIT, type AppPassword, type AuthSession, type ClientDevice, type SignInMethod, type User } from '@squirmy/contracts'
 import argon2 from 'argon2'
 import { and, count, desc, eq, getTableColumns, gt, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import { db, type Executor } from '../../database/client.js'
@@ -89,6 +89,7 @@ export async function createSession(executor: Executor, input: {
   device?: ClientDevice
   clientKind: string
   userAgent?: string
+  method?: SignInMethod
 }): Promise<NewSession> {
   const token = randomToken()
   const sessionId = newId()
@@ -99,6 +100,7 @@ export async function createSession(executor: Executor, input: {
     deviceId: input.device?.id,
     clientKind: input.clientKind,
     userAgent: input.userAgent?.slice(0, 500),
+    method: input.method,
     expiresAt: new Date(Date.now() + sessionLifetimeMs),
   })
   if (input.device) await rememberDevice(executor, input.userId, input.device)
@@ -153,6 +155,34 @@ export async function authenticateToken(token: string): Promise<{ user: AuthUser
 
 export async function revokeSession(sessionId: string) {
   await db.delete(authSessions).where(eq(authSessions.id, sessionId))
+}
+
+/** A user's live sessions, most recently used first, with the name of the device each came from. */
+export async function listSessions(userId: string, currentSessionId: string | null): Promise<AuthSession[]> {
+  const rows = await db.select({ session: authSessions, deviceName: devices.name })
+    .from(authSessions)
+    .leftJoin(devices, and(eq(devices.userId, authSessions.userId), eq(devices.id, authSessions.deviceId)))
+    .where(and(eq(authSessions.userId, userId), gt(authSessions.expiresAt, new Date())))
+    .orderBy(desc(authSessions.lastSeenAt))
+  return rows.map(({ session, deviceName }) => ({
+    id: session.id,
+    current: session.id === currentSessionId,
+    clientKind: session.clientKind,
+    deviceName: deviceName ?? null,
+    userAgent: session.userAgent,
+    method: session.method,
+    createdAt: session.createdAt.toISOString(),
+    lastSeenAt: session.lastSeenAt.toISOString(),
+    expiresAt: session.expiresAt.toISOString(),
+  }))
+}
+
+/** Ends one of a user's sessions. Resolves to whether it was theirs and still open. */
+export async function revokeUserSession(userId: string, sessionId: string): Promise<boolean> {
+  const deleted = await db.delete(authSessions)
+    .where(and(eq(authSessions.id, sessionId), eq(authSessions.userId, userId)))
+    .returning({ id: authSessions.id })
+  return deleted.length > 0
 }
 
 /** Ends every session of a user, or every one but `except`. */

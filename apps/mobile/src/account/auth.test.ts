@@ -84,6 +84,8 @@ describe('signInErrorMessage', () => {
     expect(signInErrorMessage(new ApiError(400, 'invalid_invite', 'That invite code is not valid'), 'Home')).toMatch(/invite code/);
     expect(signInErrorMessage(new ApiError(409, 'username_taken', 'That username is taken'), 'Home')).toMatch(/taken/);
     expect(signInErrorMessage(new ApiError(500, 'internal_error', 'Something went wrong'), 'Home')).toMatch(/Home ran into a problem/);
+    expect(signInErrorMessage(new ApiError(401, 'invalid_code', 'That code is not right.'), 'Home')).toMatch(/recovery code/);
+    expect(signInErrorMessage(new ApiError(401, 'invalid_challenge', 'That sign-in has expired.'), 'Home')).toMatch(/password again/);
   });
 
   it('names the field a validation error is about', () => {

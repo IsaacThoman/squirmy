@@ -1,5 +1,5 @@
 import { ApiError, createApiClient } from '@squirmy/client-core';
-import { queryKeys } from '@squirmy/contracts';
+import { queryKeys, TwoFactorChallenge } from '@squirmy/contracts';
 import { focusManager, QueryClient, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createContext, useContext, useEffect, useMemo, useReducer, useRef, useState, type PropsWithChildren,
@@ -79,7 +79,12 @@ type AccountContextValue = {
   /** The keychain refused to keep the session: the next launch will need a sign-in. */
   unsaved: boolean;
   connect: (server: Server) => void;
-  signIn: (username: string, password: string) => Promise<void>;
+  /**
+   * Resolves with `twoFactor` (the challenge) when the password was right but the account also
+   * wants a code from an authenticator app: `signInWithCode` finishes then.
+   */
+  signIn: (username: string, password: string) => Promise<{ twoFactor: string } | void>;
+  signInWithCode: (challenge: string, code: string) => Promise<void>;
   register: (inviteCode: string, username: string, password: string) => Promise<void>;
   signOut: () => void;
   switchServer: () => void;
@@ -172,8 +177,20 @@ export function AccountProvider({ children }: PropsWithChildren) {
       unsaved,
       connect: next => dispatch({ type: 'connected', server: next }),
       signIn: async (username, password) => {
-        const response = await api!.auth.login({ username: username.trim(), password, device: await clientDevice(server?.supportsTvDevices) });
+        let response;
+        try {
+          response = await api!.auth.login({ username: username.trim(), password, device: await clientDevice(server?.supportsTvDevices) });
+        } catch (error) {
+          const challenge = error instanceof ApiError && error.code === 'two_factor_required' ? TwoFactorChallenge.safeParse(error.details).data : undefined;
+          if (challenge) return { twoFactor: challenge.challenge };
+          throw error;
+        }
         // Whatever is cached may belong to whoever signed in before.
+        queryClient.clear();
+        dispatch({ type: 'signedIn', token: response.token, user: response.user });
+      },
+      signInWithCode: async (challenge, code) => {
+        const response = await api!.auth.loginTwoFactor({ challenge, code, device: await clientDevice(server?.supportsTvDevices) });
         queryClient.clear();
         dispatch({ type: 'signedIn', token: response.token, user: response.user });
       },
