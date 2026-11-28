@@ -35,6 +35,7 @@ Hold the click on a song or an album for its menu. A song's has **Play next**, *
 
 - Focus the progress bar and press left or right to skip back or ahead ten seconds a press, longer while held. Select plays and pauses.
 - The buttons above it turn on **Shuffle**, **Repeat** and **Autoplay**, heart the song and open its menu.
+- The song's menu ends with **Sleep timer**: stop playing after 5 to 60 minutes, at the end of the song, or at the end of the album, playlist or queue, or **Turn off timer**. While one is set, a moon and the time left show at the start of that row. The timer is your session's, so one set on your phone stops the Apple TV too. See [Sleep timer](../server/playback.md#sleep-timer).
 - **Lyrics** shows the words beside the cover, the line being sung highlighted. **Up Next** shows the queue: select a song to play it, or hold the click to move it or remove it.
 
 ## Your phone and other devices

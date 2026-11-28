@@ -51,6 +51,18 @@ The queue works as in other streaming apps:
 - **Shuffle** shuffles what is still to come of the list, including songs before the one you started from. Turning it off goes back to the list's order after the song that is playing.
 - **Clicking a song further down Up next** jumps there: the songs above it are skipped, and Previous goes back through them. Songs you added with **Play next** or **Add to queue** stay queued, keep their place when you shuffle, and are not repeated.
 
+## Sleep timer
+
+The sleep timer stops playback after a length of time (5, 10, 15, 30 or 45 minutes, or an hour), at the end of the song that is playing, or at the end of the album, playlist or queue (before Repeat starts it over or Autoplay suggestions begin).
+
+- **It belongs to the session, not to a device.** Set it on your phone while the Apple TV plays, and the Apple TV stops. It stays through a transfer to another device, and every device shows it.
+- **The server keeps it.** The timer runs on the server, so it stops playback on time even if the phone that set it is locked, asleep or gone.
+- **The music fades out** over the last ten seconds on the device that plays, then pauses. Its volume is back where it was for when you play again. A device on an older version of the app does not fade: it just pauses.
+- **"End of song" stops at the end of whatever song plays**, even after you skip. Playback moves on to the next song and pauses there, so play continues from it. It also stops a song on **Repeat one**.
+- **Playing separately.** When the device that plays [steps out of the session](#devices-and-transferring-playback), the timer goes with it; a device that was not playing starts its own session without one.
+
+Set it from Now Playing: the moon button on the web, the **⋯** menu on iOS ([web](../use/web.md#playing-music), [iOS](../use/ios.md#using-it), [Apple TV](../use/apple-tv.md#now-playing)). Servers older than this feature do not offer it.
+
 ## Devices and transferring playback
 
 Each user has **one** playback session, held by the server: the queue, the current track and position, shuffle and repeat, and which device is playing. Every signed-in browser tab and phone is a device in that session.
