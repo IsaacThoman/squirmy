@@ -1,3 +1,4 @@
+import { playlistVisibleTo } from '../userdata/playlist-access.js'
 import type { CreditSearchResult, LyricSearchResult, PlaylistSummary, SearchFacets, TrackCredit } from '@squirmy/contracts'
 import { sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
@@ -18,7 +19,7 @@ export async function searchPlaylists(userId: string, key: string, limit: number
   const rows = await db.execute<{ id: string }>(sql`
     with visible as materialized (
       select id, search_name_key(name) as name_key
-      from playlists where owner_id = ${userId} or is_public
+      from playlists p where ${playlistVisibleTo(userId)}
     )
     select id from visible
     where starts_with(name_key, ${key}) or strpos(' ' || name_key, ${` ${key}`}) > 0

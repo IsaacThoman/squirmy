@@ -1,4 +1,4 @@
-import type { ArtistRef } from '@squirmy/contracts'
+import type { ArtistRef, CreditRole, TrackCredit } from '@squirmy/contracts'
 
 /** A run of a credit's text, and the artist it names when it is one. */
 export type CreditPart = { text: string; artist: ArtistRef | null }
@@ -58,4 +58,32 @@ function findName(text: string, name: string, from: number): number {
     if (!startsWord && !endsWord) return at
   }
   return -1
+}
+
+/** What each credit role is called, as a heading over the artists who had it. */
+export const creditRoleLabels: Record<CreditRole, string> = {
+  composer: 'Composer',
+  lyricist: 'Lyricist',
+  conductor: 'Conductor',
+  arranger: 'Arranger',
+  producer: 'Producer',
+  engineer: 'Engineer',
+  mixer: 'Mixer',
+  remixer: 'Remixer',
+  performer: 'Performer',
+  ensemble: 'Ensemble',
+}
+
+/** One role of a track's credits and who had it, each named with their instrument when there is one. */
+export type CreditGroup = { role: CreditRole; label: string; credits: { artist: ArtistRef; name: string }[] }
+
+/** A track's credits grouped by role, in the order the roles first appear. */
+export function creditGroups(credits: readonly TrackCredit[] | undefined): CreditGroup[] {
+  const groups = new Map<CreditRole, CreditGroup>()
+  for (const { artist, role, instrument } of credits ?? []) {
+    const group = groups.get(role) ?? { role, label: creditRoleLabels[role], credits: [] }
+    group.credits.push({ artist, name: instrument ? `${artist.name} · ${instrument}` : artist.name })
+    groups.set(role, group)
+  }
+  return [...groups.values()]
 }

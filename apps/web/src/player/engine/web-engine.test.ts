@@ -104,14 +104,16 @@ class FakeContext {
           node.gain.ramps.push({ target, timeConstant })
           node.gain.value = target
         },
+        linearRampToValueAtTime(value: number) { node.gain.value = value },
         cancelScheduledValues() {},
       },
       connect: (next: unknown) => next,
+      disconnect: () => {},
     }
     this.gains.push(node)
     return node
   }
-  createMediaElementSource() { return { connect: (next: unknown) => next } }
+  createMediaElementSource() { return { connect: (next: unknown) => next, disconnect: () => {} } }
 }
 
 let audios: FakeAudio[]
@@ -142,6 +144,8 @@ beforeEach(() => {
       return audio as unknown as HTMLAudioElement
     },
     createContext: () => context as unknown as AudioContext,
+    limiter: true,
+    createLimiter: async () => ({ connect: (next: unknown) => next, disconnect: () => {} }) as unknown as AudioNode,
   })
   engine.subscribe(event => events.push(event))
 })
@@ -366,13 +370,36 @@ describe('WebPlayerEngine', () => {
     expect(audio.paused).toBe(true)
   })
 
-  it('applies gain to the loaded entry, above unity too', () => {
+  it('applies gain to the loaded entry, above unity once the limiter is in', async () => {
     engine.load({ entryId: 'e1', url: '/a', startMs: 0, autoplay: false, gain: 0.8 })
     ready('/a')
     engine.play()
     engine.setGain(1.6)
+    // The limiter's module loads after the output opens: until then nothing is turned up.
+    expect(context.gains.map(node => node.gain.value)).not.toContain(1.6)
+    await flush()
     expect(context.gains.map(node => node.gain.value)).toContain(1.6)
     expect(engine.canBoost).toBe(true)
+  })
+
+  it('never boosts without the limiter', async () => {
+    engine.dispose()
+    audios = []
+    const createAudio = () => {
+      const audio = new FakeAudio()
+      audios.push(audio)
+      return audio as unknown as HTMLAudioElement
+    }
+    engine = new WebPlayerEngine({ createAudio, createContext: () => context as unknown as AudioContext, limiter: false })
+    expect(engine.limiter).toBe(false)
+    expect(engine.canBoost).toBe(false)
+    engine.load({ entryId: 'e1', url: '/a', startMs: 0, autoplay: false, gain: 1.6 })
+    ready('/a')
+    engine.play()
+    await flush()
+    expect(context.gains.length).toBeGreaterThan(0)
+    expect(context.gains.map(node => node.gain.value)).toContain(1)
+    expect(context.gains.map(node => node.gain.value)).not.toContain(1.6)
   })
 
   it('applies the first entry\'s gain when the audio output opens', () => {

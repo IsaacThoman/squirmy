@@ -1,12 +1,14 @@
 import type {
   SmartCondition, SmartDateUnit, SmartField, SmartGroup, SmartMatch, SmartPlaylistRules, SmartRule, SmartSort, SmartSource,
 } from '@squirmy/contracts'
-import type { SelectOption } from '@/components/ui/select'
+
+/** One choice of a rule editor's menus: the value it stands for and what it says. */
+export type RuleOption<T extends string> = { value: T; label: string }
 
 /**
- * The rule editor's model. A rule being edited keeps what was typed as text, so a field can be
- * empty or half-typed while it is edited; `toRules` turns the draft into the contract's rules,
- * or says which rows are not finished.
+ * The smart playlist rule editor's model, shared by the web and the phone. A rule being edited
+ * keeps what was typed as text, so a field can be empty or half-typed while it is edited;
+ * `toRules` turns the draft into the contract's rules, or says which rows are not finished.
  */
 type Kind = 'text' | 'number' | 'decade' | 'date' | 'boolean'
 
@@ -34,41 +36,41 @@ export const fieldInfo: Record<SmartField, FieldInfo> = {
 }
 
 /** The fields offered, in menu order. Rating only for people who show stars, or a rule that has one. */
-export function fieldOptions(showRatings: boolean, current?: SmartField): SelectOption<SmartField>[] {
+export function fieldOptions(showRatings: boolean, current?: SmartField): RuleOption<SmartField>[] {
   return (Object.keys(fieldInfo) as SmartField[])
     .filter(field => !fieldInfo[field].ratings || showRatings || field === current)
     .map(field => ({ value: field, label: fieldInfo[field].label }))
 }
 
-const textOps: SelectOption<string>[] = [
+const textOps: RuleOption<string>[] = [
   { value: 'contains', label: 'contains' },
   { value: 'notContains', label: 'doesn’t contain' },
   { value: 'is', label: 'is' },
   { value: 'isNot', label: 'is not' },
 ]
-const numberOps: SelectOption<string>[] = [
+const numberOps: RuleOption<string>[] = [
   { value: 'eq', label: 'is' },
   { value: 'ne', label: 'is not' },
   { value: 'gt', label: 'is more than' },
   { value: 'lt', label: 'is less than' },
   { value: 'between', label: 'is between' },
 ]
-const yearOps: SelectOption<string>[] = [
+const yearOps: RuleOption<string>[] = [
   { value: 'eq', label: 'is' },
   { value: 'ne', label: 'is not' },
   { value: 'gt', label: 'is after' },
   { value: 'lt', label: 'is before' },
   { value: 'between', label: 'is between' },
 ]
-const decadeOps: SelectOption<string>[] = [{ value: 'is', label: 'is' }, { value: 'isNot', label: 'is not' }]
-const dateOps: SelectOption<string>[] = [
+const decadeOps: RuleOption<string>[] = [{ value: 'is', label: 'is' }, { value: 'isNot', label: 'is not' }]
+const dateOps: RuleOption<string>[] = [
   { value: 'inLast', label: 'is in the last' },
   { value: 'notInLast', label: 'is not in the last' },
   { value: 'before', label: 'is before' },
   { value: 'after', label: 'is on or after' },
 ]
 
-export function operatorOptions(field: SmartField): SelectOption<string>[] {
+export function operatorOptions(field: SmartField): RuleOption<string>[] {
   switch (fieldInfo[field].kind) {
     case 'text': return textOps
     case 'number': return field === 'year' ? yearOps : numberOps
@@ -78,28 +80,28 @@ export function operatorOptions(field: SmartField): SelectOption<string>[] {
   }
 }
 
-export const unitOptions: SelectOption<SmartDateUnit>[] = [
+export const unitOptions: RuleOption<SmartDateUnit>[] = [
   { value: 'days', label: 'days' },
   { value: 'weeks', label: 'weeks' },
   { value: 'months', label: 'months' },
   { value: 'years', label: 'years' },
 ]
 
-export const booleanOptions: SelectOption<'true' | 'false'>[] = [{ value: 'true', label: 'yes' }, { value: 'false', label: 'no' }]
+export const booleanOptions: RuleOption<'true' | 'false'>[] = [{ value: 'true', label: 'yes' }, { value: 'false', label: 'no' }]
 
-export const decadeOptions: SelectOption<string>[] = Array.from({ length: 13 }, (_, index) => {
+export const decadeOptions: RuleOption<string>[] = Array.from({ length: 13 }, (_, index) => {
   const decade = 1900 + index * 10
   return { value: String(decade), label: `${decade}s` }
 }).reverse()
 
-export const sourceOptions: SelectOption<SmartSource>[] = [
+export const sourceOptions: RuleOption<SmartSource>[] = [
   { value: 'library', label: 'Your library' },
   { value: 'server', label: 'All music on this server' },
 ]
 
-export const matchOptions: SelectOption<SmartMatch>[] = [{ value: 'all', label: 'all' }, { value: 'any', label: 'any' }]
+export const matchOptions: RuleOption<SmartMatch>[] = [{ value: 'all', label: 'all' }, { value: 'any', label: 'any' }]
 
-export const sortOptions: SelectOption<SmartSort>[] = [
+export const sortOptions: RuleOption<SmartSort>[] = [
   { value: 'random', label: 'Random' },
   { value: 'mostPlayed', label: 'Most played' },
   { value: 'leastPlayed', label: 'Least played' },

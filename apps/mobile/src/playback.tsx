@@ -18,10 +18,9 @@ import { useLibraryActions, useLikeChanges, useTrack, useTrackStore } from './da
 import { useUserSettings } from './data/queries';
 import { useRealtime } from './data/realtime';
 import { useAvailability, useDownloadManager } from './downloads/DownloadsProvider';
-import { connectAudioSession, connectNowPlaying, createPlayerEngine } from './player/engine';
+import { connectAudioSession, connectNowPlaying, createPlayerEngine, runningEngine } from './player/engine';
 import { favoriteState } from './player/engine/favorite';
 import { followOutputSettings } from './player/engine/output';
-import { storedEngine } from './player/engine/setting';
 import { wordsStarted } from './player/lyrics';
 import { loadSession, sessionSaver } from './player/savedSession';
 import {
@@ -124,7 +123,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
           const { session, isActiveDevice } = client.getSnapshot();
           if (isActiveDevice && !session.playing && session.current?.id === entryId) send({ type: 'play' });
         },
-      }, storedEngine());
+      }, runningEngine());
       const stopAudioSession = connectAudioSession(engine);
       const stopOutput = followOutputSettings(engine);
       const saved = loadSession(account);
@@ -173,7 +172,9 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
               server: (item, quality) => {
                 const { api } = live.current;
                 if (!api) return Promise.reject(new Error('Signed out'));
-                return api.streaming.playback(item.trackId, { albumId: item.albumId ?? undefined, quality, codecs: codecsFor(Platform.OS) });
+                return api.streaming.playback(item.trackId, { albumId: item.albumId ?? undefined, quality, codecs: codecsFor(Platform.OS) })
+                  // The native engine keeps what it streams, under the key the cache gives the stream.
+                  .then(descriptor => ({ ...descriptor, cacheKey: live.current.cache?.streamKey(item, quality, descriptor) ?? null }));
               },
             }, live.current.offline);
           },
@@ -528,6 +529,11 @@ function createActions(runtime: Runtime | null, canPlay: (track: TrackSummary) =
       send({ type: 'enqueue', tracks: [track ? seedOf(track) : { trackId: entry.trackId, albumId: entry.albumId, durationMs: entry.durationMs }], placement: 'next' });
       send({ type: 'removeFromQueue', entryId: entry.id });
     },
+    /**
+     * Loads songs again from the server the next time they start (every song, or one track's),
+     * for when the copy they play from changed: the user picked another version. What plays now goes on.
+     */
+    forgetPlayback: (trackId?: string) => runtime?.client.forgetPlayback(trackId),
     clearHistory: () => send({ type: 'clearHistory' }),
     clearQueue: () => {
       if ((runtime?.client.getSnapshot() ?? idle).queue.queue.length) undoable({ type: 'clearQueue' }, { message: 'Queue cleared' });

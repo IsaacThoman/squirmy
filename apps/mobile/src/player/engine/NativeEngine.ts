@@ -146,7 +146,7 @@ function item(request: Omit<EngineLoad, 'autoplay'> & { albumRun?: boolean }): N
     url: request.url,
     startMs: request.startMs,
     gain: Number.isFinite(request.gain) ? Math.max(0, request.gain) : 1,
-    cacheKey: null,
+    cacheKey: request.media?.cacheKey ?? null,
     gapless: request.media?.gapless ?? null,
     // Every server transcode goes through the stream decoder and every original through the
     // file reader, so a format never alternates between two decoders.

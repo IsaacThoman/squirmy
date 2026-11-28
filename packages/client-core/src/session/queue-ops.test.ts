@@ -99,7 +99,8 @@ describe('diffQueue and applyQueueOps', () => {
         session = next
       }
     }
-  })
+    // 30,000 commands from a seeded generator: about a second here, but several on a busy CI runner.
+  }, 30_000)
 
   it('sends a track end on a full queue in a few hundred bytes', () => {
     let session = run(createInitialSession(), { type: 'playTracks', tracks: seeds(5000), seed: 1 }, 0)

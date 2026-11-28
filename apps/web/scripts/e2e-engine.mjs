@@ -1,6 +1,8 @@
 // Checks the browser engines against the client-core PlayerEngine contract in a real browser,
 // on the /dev/engine page with the tones from scripts/dev-audio.mjs: `WebPlayerEngine` (two
-// elements) and `MseEngine` (one timeline through Media Source Extensions). With a fixture
+// elements) and `MseEngine` (one timeline through Media Source Extensions). It runs the output
+// chain's true-peak limiter (the AudioWorklet) and equalizer on the iOS engine's test values,
+// rendered offline, so silently and sample for sample. With a fixture
 // library it also measures MseEngine through the server's own streams, recorded sample by
 // sample through an AudioWorklet: the boundary between the two halves of a split tone,
 // seeks inside and outside the buffer, and a background tab through three track changes.
@@ -150,12 +152,15 @@ function installHelpers(page) {
   })
 }
 
-const launchArgs = browserName === 'chromium' ? ['--autoplay-policy=no-user-gesture-required'] : []
+// Muted: the recordings are taken from the audio graph, and nothing needs to come out of the speakers.
+const launchArgs = browserName === 'chromium' ? ['--autoplay-policy=no-user-gesture-required', '--mute-audio'] : []
 const browser = await browserType.launch({ args: launchArgs })
 const kinds = []
 try {
   const probe = await openEngine(browser, 'engine=web')
   const mseSupported = await probe.page.evaluate(() => typeof MediaSource !== 'undefined' && MediaSource.isTypeSupported('audio/mp4; codecs="mp4a.40.2"'))
+  console.log(`\nThe output chain in ${browserName}`)
+  await outputChain(probe.page)
   await probe.context.close()
   for (const kind of ['web', 'mse']) {
     if (onlyEngine && onlyEngine !== kind) continue
@@ -340,6 +345,111 @@ async function contract(page, kind) {
     return { events: since(mark), status: engine.getStatus() }
   })
   check(name('stop goes idle and emits status'), result.status.entryId === null && result.status.state === 'idle' && result.events.length === 1)
+}
+
+/** Base64 channels from the page as Float32Arrays. */
+function floats(channels) {
+  return channels.map(text => {
+    const bytes = Buffer.from(text, 'base64')
+    return new Float32Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 4)
+  })
+}
+
+function besselI0(x) {
+  let sum = 1, term = 1
+  for (let k = 1; k < 40; k += 1) {
+    term *= (x / 2) * (x / 2) / (k * k)
+    sum += term
+  }
+  return sum
+}
+
+/** The true peak in dBTP, 4x oversampled as BS.1770 measures it, with an interpolator four times as long as the limiter's. */
+function truePeakDb(signal) {
+  const reach = 32
+  const kernels = [0.25, 0.5, 0.75].map(offset => {
+    const taps = Array.from({ length: reach * 2 }, (_, index) => {
+      const distance = index - (reach - 1) - offset
+      const edge = distance / reach
+      return Math.sin(Math.PI * distance) / (Math.PI * distance) * besselI0(9 * Math.sqrt(1 - edge * edge))
+    })
+    const total = taps.reduce((sum, tap) => sum + tap, 0)
+    return taps.map(tap => tap / total)
+  })
+  let peak = 0
+  for (const channel of signal) {
+    for (let frame = 0; frame < channel.length; frame += 1) {
+      peak = Math.max(peak, Math.abs(channel[frame]))
+      for (const taps of kernels) {
+        let point = 0
+        for (let tap = 0; tap < taps.length; tap += 1) point += (channel[frame - reach + tap] ?? 0) * taps[tap]
+        peak = Math.max(peak, Math.abs(point))
+      }
+    }
+  }
+  return 20 * Math.log10(peak)
+}
+
+function channelRms(channel, from, to) {
+  let sum = 0
+  for (let frame = from; frame < to; frame += 1) sum += channel[frame] * channel[frame]
+  return Math.sqrt(sum / (to - from))
+}
+
+/**
+ * The limiter in the browser's AudioWorklet, on the test values of the iOS engine's (M4): a
+ * full-scale tone boosted 12 dB comes out under -1 dBTP, and a signal under the ceiling comes
+ * out bit-identical, only later by the limiter's lookahead. Then each equalizer band, at its
+ * centre frequency, is within 0.5 dB of its setting.
+ */
+async function outputChain(page) {
+  const render = request => page.evaluate(async request => {
+    const { input, output } = await window.squirmyEngine.offline(request)
+    return { input, output }
+  }, request).then(({ input, output }) => ({ input: floats(input), output: floats(output) }))
+  // The limiter's lag: its 1.5 ms lookahead and its interpolator's reach (limiter-worklet.js).
+  const delayOf = rate => Math.round(0.0015 * rate) + 7
+  for (const rate of [44_100, 48_000]) {
+    for (const frequency of [60, 1000, 9000]) {
+      const { output } = await render({ signal: { kind: 'tone', frequency }, rate, seconds: 1.5, levelDb: 0, gain: 10 ** (12 / 20) })
+      const peak = truePeakDb(output)
+      check(`limiter: a full-scale ${frequency} Hz tone boosted 12 dB stays under -1 dBTP (${rate} Hz)`, peak < -1 && peak > -1.5, `${peak.toFixed(2)} dBTP`)
+    }
+  }
+  // A quarter of the sample rate, 45° off the samples: each sample is 3 dB under the wave's own peak.
+  const between = await render({ signal: { kind: 'tone', frequency: 11_025, phase: Math.PI / 4 }, rate: 44_100, seconds: 1, levelDb: 0, gain: 10 ** (1 / 20) })
+  const caught = truePeakDb(between.output)
+  check('limiter: catches the peaks between the samples', caught < -1, `${caught.toFixed(2)} dBTP`)
+  for (const [levelDb, gain] of [[-40, 1], [-40, 2], [-1.6, 1]]) {
+    const rate = 48_000
+    const { input, output } = await render({ signal: { kind: 'sweep' }, rate, seconds: 2, levelDb, gain })
+    const delay = delayOf(rate)
+    let wrong = 0
+    for (let channel = 0; channel < 2; channel += 1) {
+      for (let frame = 0; frame < input[channel].length; frame += 1) {
+        if (output[channel][delay + frame] !== Math.fround(input[channel][frame] * gain)) wrong += 1
+      }
+    }
+    const silentBefore = output.every(channel => channel.subarray(0, delay).every(sample => sample === 0))
+    check(`limiter: a sweep at ${levelDb} dB${gain === 1 ? '' : `, turned up ${(20 * Math.log10(gain)).toFixed(0)} dB,`} passes bit-identical`, wrong === 0 && silentBefore,
+      `${wrong} samples differ, ${delay} frames later (${(delay / rate * 1000).toFixed(2)} ms)`)
+  }
+  const bands = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16_000]
+  const responses = []
+  for (const [index, frequency] of bands.entries()) {
+    const rate = 48_000
+    const equalizer = bands.map((_, band) => (band === index ? -6 : 0))
+    const plain = await render({ signal: { kind: 'tone', frequency }, rate, seconds: 1, levelDb: -20, gain: 1 })
+    const shaped = await render({ signal: { kind: 'tone', frequency }, rate, seconds: 1, levelDb: -20, gain: 1, equalizer })
+    // After the filters settle and the 10 ms crossfade into them.
+    const from = rate / 2, to = rate - 1024
+    responses.push(20 * Math.log10(channelRms(shaped.output[0], from, to) / channelRms(plain.output[0], from, to)))
+  }
+  const worst = Math.max(...responses.map(response => Math.abs(response + 6)))
+  check('equalizer: each band at -6 dB measures within 0.5 dB of it at its centre', worst <= 0.5, responses.map((response, index) => `${bands[index]} Hz ${response.toFixed(2)}`).join(', '))
+  const boosted = await render({ signal: { kind: 'tone', frequency: 1000 }, rate: 48_000, seconds: 1, levelDb: -20, gain: 1, equalizer: bands.map(frequency => (frequency === 1000 ? 6 : 0)) })
+  const level = 20 * Math.log10(channelRms(boosted.output[0], 24_000, 46_976) / (0.1 / Math.SQRT2))
+  check('equalizer: a boost comes with a preamp of minus it', Math.abs(level) <= 0.5, `1 kHz at +6 dB plays at ${level.toFixed(2)} dB`)
 }
 
 /**
