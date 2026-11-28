@@ -1,8 +1,9 @@
-import { ApiError, createInitialSession, queueChanged, reduceSession, splitSession, type AnySessionCommand, type ApiClient, type Session } from '@squirmy/client-core'
+import { ApiError, createInitialSession, diffQueue, queueChanged, queueLengths, reduceSession, splitSession, type AnySessionCommand, type ApiClient, type Session } from '@squirmy/client-core'
 import type { SquirmySocket } from '@squirmy/client-core/socket'
 import {
   DEFAULT_ORGANIZE_TEMPLATE, ORGANIZE_TEMPLATE_TOKENS,
   type AcquisitionPolicy, type AlbumPage, type CommandEnvelope, type DeviceInfo, type Import, type LibraryItemPage, type LibraryRoot, type LibraryStats, type OrganizeTemplateInfo, type PlaylistSummary,
+  type DuplicatePage, type HealthPage, type QualityPage, type RemoveDuplicate, type TagEdit, type TagEditResult, type TagEditor,
   type ScrobblingStatus, type SearchKind, type SessionHello, type SetupStatus, type TrackSummariesRequest, type UploadAlbum, type UploadFile, type User, type WantItem,
 } from '@squirmy/contracts'
 import { vi } from 'vitest'
@@ -47,6 +48,11 @@ export class FakeSocket {
   active = false
   session = createInitialSession()
   version = 1
+  queueVersion = 1
+  /** The app's hello accepted `queueOps`: queue changes go to it as operations, as the server sends them. */
+  private acceptsOps = false
+  /** The queue before each queue edit, by command id, for `undo`: the real server puts back by id; going back whole is enough here. */
+  private readonly undoable = new Map<string, Session>()
   private devices: DeviceInfo[] = []
   private deviceId: string | undefined
   private readonly listeners = new Map<string, Set<Listener>>()
@@ -67,16 +73,25 @@ export class FakeSocket {
 
   private answer(event: string, payload: unknown, ack: Ack) {
     if (event === 'session:hello') {
-      const { device, canPlay } = payload as SessionHello
+      const { device, canPlay, accepts } = payload as SessionHello
       this.deviceId = device.id
       this.devices = [{ ...device, canPlay, isActive: false }]
-      const { state, queue } = splitSession(this.session)
-      return ack(null, { serverTime: Date.now(), snapshot: { version: this.version, queueVersion: this.version, state, queue }, devices: this.devices })
+      this.acceptsOps = accepts?.includes('queueOps') ?? false
+      return ack(null, { serverTime: Date.now(), snapshot: this.snapshot(), devices: this.devices, capabilities: ['queueOps', 'undo'] })
     }
     if (event === 'time:sync') return ack(null, { clientTime: payload, serverTime: Date.now() })
+    if (event === 'session:sync') return ack(null, { ok: true, snapshot: this.snapshot() })
     const { command, commandId } = payload as CommandEnvelope
     this.commands.push(command)
+    if (command.type === 'undo') {
+      const before = this.undoable.get(command.commandId)
+      this.undoable.delete(command.commandId)
+      if (!before) return ack(null, { ok: false, error: 'nothing_to_undo' })
+      ack(null, { ok: true, version: this.version + 1 })
+      return this.commit({ ...this.session, queue: before.queue, autoplayQueue: before.autoplayQueue, playOrder: before.playOrder })
+    }
     const next = reduceSession(this.session, { command, now: Date.now(), commandId, deviceId: this.deviceId })
+    if (next !== this.session && ['removeFromQueue', 'enqueue', 'moveInQueue', 'clearQueue'].includes(command.type)) this.undoable.set(commandId, this.session)
     ack(null, { ok: true, version: this.version + (next === this.session ? 0 : 1) })
     this.commit(next)
   }
@@ -91,13 +106,27 @@ export class FakeSocket {
     this.commit(edit(this.session))
   }
 
+  private snapshot() {
+    const { state, queue } = splitSession(this.session)
+    return { version: this.version, queueVersion: this.queueVersion, state, queue, scope: { type: 'shared' as const } }
+  }
+
   private commit(next: Session) {
     const previous = this.session
     if (next === previous) return
     this.session = next
     this.version += 1
     const { state, queue } = splitSession(next)
-    if (queueChanged(previous, next)) this.serverEmit('session:queue', { version: this.version, queueVersion: this.version, queue })
+    if (queueChanged(previous, next)) {
+      this.queueVersion += 1
+      const ops = this.acceptsOps ? diffQueue(splitSession(previous).queue, queue) : null
+      if (ops) {
+        const baseQueueVersion = this.queueVersion - 1
+        this.serverEmit('session:queueOps', { version: this.version, queueVersion: this.queueVersion, baseQueueVersion, scope: { type: 'shared' }, lengths: queueLengths(queue), ops })
+      } else {
+        this.serverEmit('session:queue', { version: this.version, queueVersion: this.queueVersion, queue })
+      }
+    }
     this.serverEmit('session:state', { version: this.version, state })
   }
 
@@ -211,6 +240,14 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
       deleteAppPassword: vi.fn(async () => ({ ok: true as const })),
     },
     admin: {
+      duplicates: vi.fn(async (): Promise<DuplicatePage> => list([])),
+      removeDuplicate: vi.fn(async (_id: string, _body: RemoveDuplicate) => ({ ok: true as const })),
+      lowQuality: vi.fn(async (): Promise<QualityPage> => list([])),
+      fileHealth: vi.fn(async (): Promise<HealthPage> => list([])),
+      recheckFile: vi.fn(async (_id: string) => ({ ok: true as const })),
+      albumTags: vi.fn(async (_id: string): Promise<TagEditor> => ({ tracks: [], covers: [] })),
+      tagCovers: vi.fn(async (): Promise<TagEditor['covers']> => []),
+      editAlbumTags: vi.fn(async (_id: string, _edit: TagEdit): Promise<TagEditResult> => ({ written: [], errors: [] })),
       users: vi.fn(async () => list(users)),
       createUser: vi.fn(async () => users[1]),
       updateUser: vi.fn(async (id: string, patch: Partial<User>) => ({ ...users.find(candidate => candidate.id === id)!, ...patch })),

@@ -4,7 +4,10 @@ import type { PlaybackNotice } from '@squirmy/client-core';
 export const eventShownMs = 5000;
 
 /** A line the player shows in place of the artist: client-core's notice wording, `detail` a quieter second line. */
-export type PlaybackStatus = PlaybackNotice & { id: number; lasting: boolean };
+export type PlaybackStatus = PlaybackNotice & { id: number; lasting: boolean; action?: StatusAction };
+
+/** A button beside the line that takes back what it says happened ("Removed … · Undo"). */
+export type StatusAction = { label: string; run: () => void };
 
 /** What VoiceOver hears for a status: both lines. */
 export function spokenStatus({ message, detail }: PlaybackNotice): string {
@@ -31,8 +34,10 @@ export class PlaybackStatusStore {
   constructor(private readonly announce: (text: string) => void = () => undefined) {}
 
   /** Shows `notice`. Returns its id, for `withdraw`. */
-  report(notice: PlaybackNotice, { lasting = false }: { lasting?: boolean } = {}): number {
-    const status: PlaybackStatus = { message: notice.message, ...notice.detail && { detail: notice.detail }, id: this.nextId++, lasting };
+  report(notice: PlaybackNotice & { action?: StatusAction }, { lasting = false }: { lasting?: boolean } = {}): number {
+    const status: PlaybackStatus = {
+      message: notice.message, ...notice.detail && { detail: notice.detail }, ...notice.action && { action: notice.action }, id: this.nextId++, lasting,
+    };
     if (lasting) {
       this.lasting = status;
       this.dropEvent();

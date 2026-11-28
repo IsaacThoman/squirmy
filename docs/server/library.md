@@ -1,6 +1,6 @@
 # Your library
 
-This page covers adding music folders, how Squirmy finds changes in them, how files become albums, and what to do with albums it could not identify. Everything here is in **Admin → Library** and **Admin → Review queue**.
+This page covers adding music folders, how Squirmy finds changes in them, how files become albums, and what to do with albums it could not identify. Manage folders and identification in **Admin → Library** and **Admin → Review queue**, and use the album menu and admin pages to maintain your files.
 
 ## Music folders
 
@@ -12,7 +12,7 @@ Each folder is one of two kinds:
 |---|---|---|
 | Squirmy reads tags and plays the files | yes | yes |
 | Squirmy renames and moves files | never | only when you apply an organize batch |
-| Squirmy writes tags into files | never | only when you ask for it in an organize batch |
+| Squirmy writes tags into files | never | when you ask in an organize batch or Edit tags |
 | Uploads and acquired music can be filed into it | no | yes |
 
 Folders added from `SQUIRMY_LIBRARY_PATHS` (in Docker, `/music`) start read-only; folders added from `SQUIRMY_MANAGED_LIBRARY_PATHS` start managed ([configuration](./configuration.md#environment-variables)). [Organizing files](./organizing.md) explains managed folders.
@@ -131,3 +131,27 @@ Whatever you choose with **Use this release** or **Keep as it is** is locked: la
 - **Use the tags**, to keep it as its tags describe it.
 
 Searching uses the public MusicBrainz server, which answers one request a second, so results can take a few seconds.
+
+## Edit album tags
+
+An admin can open an album’s **⋯** menu and choose **Edit tags**. Edit the album title, album artist, release date, genre, compilation flag and disc total for all editable files. The track grid edits each file’s title, artist, disc and track numbers, and composer, lyricist, arranger and producer credits. **Capitalize titles** updates the titles in the grid. **Renumber by disc** starts at one for each disc of each copy. Enter multiple genres or credits separated by semicolons.
+
+Squirmy updates audio files in enabled managed folders. The editor explains when a file is read-only or its format cannot be written. Each changed file is verified before replacement, then read back into the library for grouping and identification. Locked matches keep their catalog links. MusicBrainz catalog titles can differ from file tags. Organize undo covers moves, so keep a backup if you need to restore earlier tags.
+
+Under **Cover art**, upload an image or choose a candidate. **Find covers** looks for artwork using enabled enrichment sources. Write it to the album folder as `cover.jpg`, embed it in the selected album’s editable files, or do both. To protect other albums in the same folder, Squirmy requires embedding when a folder is shared. The chosen cover also appears on the album page.
+
+## Duplicates and quality
+
+Open **Admin → Duplicates & quality** to compare audio files by codec, bitrate, bit depth, sample rate and path.
+
+- **Recordings** shows copies with the same MusicBrainz recording ID, an identical audio stream hash, or the same artist and title with durations within two seconds. A recording can appear in more than one group. Check the album and path before deleting anything, since different editions may share a recording.
+- **Albums** shows likely copies with the same album title and artist in separate library groups. Use **Recordings** to remove individual files.
+- **Low quality** lists lossy files with a known bitrate below 192 kbps.
+
+Squirmy suggests keeping lossless audio first, then compares bit depth and bitrate. Choose the copy to keep and confirm each deletion. Deleting a copy permanently removes that file for everyone. Deletion is available for enabled managed folders.
+
+## File health
+
+**Admin → File health** shows the last integrity check for each collection file. Squirmy decodes the audio with ffmpeg and compares the original audio packets with the hash recorded by the scanner. A decode failure and a hash change are reported separately. Choose **Issues** to filter the list, **Re-check** to queue another check, or **Show folder path** to get the server-side path for investigation.
+
+The server checks each file about once a week by default. In **Admin → Server settings → Library**, change **Check file health every** to set the interval in days or enter **0** to turn off automatic checks. Manual checks are available at any interval. The worker checks one file at a time, resumes from the oldest results after a restart, and runs the decoder at reduced priority and a capped read rate. The scrubber reports problems for review.
