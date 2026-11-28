@@ -11,26 +11,31 @@ export const EQ_MAX_DB = 12
 /** About an octave wide, so neighbouring bands meet near their half-gain points. */
 export const EQ_Q = 1.41
 
-export type EqPreset = 'flat' | 'bass' | 'treble' | 'vocal' | 'loudness' | 'custom'
+export type EqPreset = 'off' | 'bassBoost' | 'bassReducer' | 'trebleBoost' | 'vocal' | 'lateNight' | 'custom'
 
 /** One gain per band, in dB. */
 export type EqGains = readonly number[]
 
 export const EQ_PRESETS: readonly { id: Exclude<EqPreset, 'custom'>; label: string; gains: EqGains }[] = [
-  { id: 'flat', label: 'Flat', gains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
-  { id: 'bass', label: 'Bass boost', gains: [6, 5, 4, 2, 0.5, 0, 0, 0, 0, 0] },
-  { id: 'treble', label: 'Treble boost', gains: [0, 0, 0, 0, 0, 0.5, 2, 4, 5, 6] },
-  { id: 'vocal', label: 'Vocal', gains: [-2, -2, -1, 0, 1.5, 3, 3.5, 2, 0, -1] },
-  // A loudness contour: ears hear less of the lows and highs at a low volume.
-  { id: 'loudness', label: 'Loudness', gains: [5, 4, 2.5, 0.5, 0, -0.5, 0, 1.5, 3, 3.5] },
+  // The iOS engine's presets, with the same curves (apps/mobile/src/player/engine/equalizer.ts).
+  { id: 'off', label: 'Off', gains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { id: 'bassBoost', label: 'Bass boost', gains: [6, 5.5, 4.5, 3, 1.5, 0, 0, 0, 0, 0] },
+  { id: 'bassReducer', label: 'Bass reducer', gains: [-6, -5.5, -4.5, -3, -1.5, 0, 0, 0, 0, 0] },
+  { id: 'trebleBoost', label: 'Treble boost', gains: [0, 0, 0, 0, 0, 0.5, 1.5, 3, 4.5, 6] },
+  { id: 'vocal', label: 'Vocal', gains: [-2, -2, -1, 0, 1.5, 3, 3.5, 2.5, 1, 0] },
+  // Fuller bass and treble, which the ear hears less of at a low volume.
+  { id: 'lateNight', label: 'Late night', gains: [5, 4, 2.5, 1, 0, 0, 0, 1, 2.5, 4] },
 ]
+
+/** Preset ids this setting had before it took the iOS names, so a stored choice survives. */
+const RENAMED: Record<string, EqPreset> = { flat: 'off', bass: 'bassBoost', treble: 'trebleBoost', loudness: 'lateNight' }
 
 export const FLAT: EqGains = EQ_PRESETS[0]!.gains
 
 /** What this browser's equalizer is set to: a preset, or the user's own bands, which are kept while a preset plays. */
 export type Equalizer = { preset: EqPreset; custom: EqGains }
 
-export const DEFAULT_EQUALIZER: Equalizer = { preset: 'flat', custom: FLAT }
+export const DEFAULT_EQUALIZER: Equalizer = { preset: 'off', custom: FLAT }
 
 /** The bands `equalizer` plays. */
 export function eqGains(equalizer: Equalizer): EqGains {
@@ -50,10 +55,11 @@ export function preampDb(gains: EqGains): number {
 /** A stored value made safe: ten finite gains within range, a known preset. */
 export function parseEqualizer(value: unknown): Equalizer {
   if (!value || typeof value !== 'object') return DEFAULT_EQUALIZER
-  const { preset, custom } = value as { preset?: unknown; custom?: unknown }
+  const { preset: stored, custom } = value as { preset?: unknown; custom?: unknown }
+  const preset = typeof stored === 'string' ? RENAMED[stored] ?? stored : stored
   const known = preset === 'custom' || EQ_PRESETS.some(candidate => candidate.id === preset)
   const bands = Array.isArray(custom) && custom.length === EQ_BANDS.length && custom.every(gain => typeof gain === 'number' && Number.isFinite(gain))
     ? custom.map(gain => Math.max(-EQ_MAX_DB, Math.min(EQ_MAX_DB, gain as number)))
     : FLAT
-  return { preset: known ? preset as EqPreset : 'flat', custom: bands }
+  return { preset: known ? preset as EqPreset : 'off', custom: bands }
 }

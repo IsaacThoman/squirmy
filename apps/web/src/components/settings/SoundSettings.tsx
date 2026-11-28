@@ -34,7 +34,7 @@ export function SoundSettings({ choosesOutput }: { choosesOutput: boolean }) {
       <Row htmlFor="equalizer" label="Equalizer" description="Shapes the sound for the speakers or headphones this browser plays through. Kept in this browser.">
         <Select id="equalizer" label="Equalizer" value={equalizer.preset} options={presetOptions} onValueChange={preset => setAudioSettings({ equalizer: { ...equalizer, preset } })} className="w-40" />
       </Row>
-      {equalizer.preset !== 'flat' && (
+      {equalizer.preset !== 'off' && (
         <div role="group" aria-labelledby={bandsLabel} className="rounded-lg border p-3">
           <div id={bandsLabel} className="sr-only">Equalizer bands</div>
           <div className="grid grid-cols-10 gap-0.5 @sm:gap-1">
