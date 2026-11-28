@@ -4,7 +4,7 @@ import {
   DEFAULT_ORGANIZE_TEMPLATE, ORGANIZE_TEMPLATE_TOKENS,
   type AcquisitionPolicy, type AlbumPage, type CommandEnvelope, type DeviceInfo, type Import, type LibraryItemPage, type LibraryRoot, type LibraryStats, type OrganizeTemplateInfo, type PlaylistSummary,
   type DuplicatePage, type HealthPage, type QualityPage, type RemoveDuplicate, type TagEdit, type TagEditResult, type TagEditor,
-  type ScrobblingStatus, type SearchKind, type SessionHello, type SetupStatus, type TrackSummariesRequest, type UploadAlbum, type UploadFile, type User, type WantItem,
+  type ScrobblingStatus, type SearchKind, type SessionHello, type SetupStatus, type TrackSummariesRequest, type TrackVersions, type UploadAlbum, type UploadFile, type User, type WantItem,
 } from '@squirmy/contracts'
 import { vi } from 'vitest'
 import type { Services } from '@/api/services'
@@ -308,6 +308,10 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
       track: vi.fn(async (id: string) => found(allTracks.find(track => track.id === id))),
       lyrics: vi.fn(async (id: string) => found(lyricsFor(id))),
       trackSummaries: vi.fn(async ({ tracks }: TrackSummariesRequest) => ({ tracks: tracks.flatMap(({ id }) => allTracks.filter(track => track.id === id).slice(0, 1)) })),
+      // One copy of every song: Track info shows no versions unless a test gives some.
+      trackVersions: vi.fn(async (id: string): Promise<TrackVersions> => ({ trackId: id, versions: [], versionId: null, albumVersionId: null })),
+      pickVersion: vi.fn(async () => ok),
+      clearVersion: vi.fn(async () => ok),
     },
     streaming: {
       // No audio in tests: a failure that may pass, which the session client retries. A test of a
