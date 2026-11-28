@@ -89,6 +89,7 @@ import {
   MatchReviewList,
   type MatchReviewQuery,
   type MovePlaylistItemRequest,
+  type RatingRequest,
   Ok,
   OrganizeBatch,
   OrganizeBatchAccepted,
@@ -114,6 +115,8 @@ import {
   SearchResults,
   ScrobblingStatus,
   ServerSettings,
+  SmartPlaylistPreview,
+  type SmartPlaylistRules,
   SessionSnapshot,
   SetupStatus,
   type SetupRequest,
@@ -472,6 +475,8 @@ export function createApiClient(options: ApiClientOptions) {
        * passes it back to `like` so the item returns to its place.
        */
       unlike: (type: LikeEntityType, entityId: string) => send('DELETE', `/me/likes/${type}/${id(entityId)}`, UnlikeResponse),
+      /** The user's 1 to 5 stars for a track, album or artist; 0 removes them. */
+      rate: (type: LikeEntityType, entityId: string, rating: number) => send('PUT', `/me/ratings/${type}/${id(entityId)}`, Ok, { rating } satisfies RatingRequest),
       likes: <T extends LikeEntityType>(type: T, query: Partial<PageQuery> = {}) =>
         get(`/me/likes/${type}`, likedPages[type] as unknown as z.ZodType<Page<LikedItems[T]>>, query),
       /** Pins an item to the top of the Library's All, on every device; Liked Songs by `LIKED_SONGS_ID`. */
@@ -479,6 +484,8 @@ export function createApiClient(options: ApiClientOptions) {
       unpin: (kind: LibraryPinKind, entityId: string) => send('DELETE', `/me/pins/${kind}/${id(entityId)}`, Ok),
       playlists: (query: Partial<PageQuery> = {}) => get('/playlists', PlaylistPage, query),
       createPlaylist: (body: CreatePlaylistRequest) => send('POST', '/playlists', PlaylistSummary, body),
+      /** How many songs smart playlist rules find right now, for the rule editor. */
+      previewSmartPlaylist: (body: SmartPlaylistRules) => send('POST', '/playlists/smart/preview', SmartPlaylistPreview, body),
       playlist: (playlistId: string) => get(`/playlists/${id(playlistId)}`, PlaylistDetail),
       updatePlaylist: (playlistId: string, body: UpdatePlaylistRequest) => send('PATCH', `/playlists/${id(playlistId)}`, PlaylistSummary, body),
       deletePlaylist: (playlistId: string) => send('DELETE', `/playlists/${id(playlistId)}`, Ok),

@@ -7,6 +7,7 @@ import { getSql } from '../database/client.js'
 import { SESSION_COOKIE } from '../lib/auth.js'
 import { dropCachedReads } from '../lib/read-cache.js'
 import { authenticateToken } from '../modules/auth/service.js'
+import { smartPlaylistInvalidations } from '../modules/userdata/smart-refresh.js'
 import type { Realtime, RealtimeServer, RealtimeSocket, RealtimeTarget } from './types.js'
 
 export type { Realtime, RealtimeServer, RealtimeSocket, RealtimeTarget, SocketData } from './types.js'
@@ -40,8 +41,22 @@ export async function publish(target: Targets, event: ServerEvent) {
   await notify({ kind: 'event', target, event })
 }
 
-/** Tells the target's clients to refetch these query keys. Works from any process. */
+/**
+ * Tells the target's clients to refetch these query keys. Works from any process. Keys that
+ * stale smart playlists (the library, hearts, plays) also refetch those playlists' pages
+ * (`smartPlaylistInvalidations`).
+ */
 export async function invalidate(target: Targets, keys: readonly QueryKey[]) {
+  await send(target, keys)
+  const smart = await smartPlaylistInvalidations(Array.isArray(target) ? target : [target as RealtimeTarget], keys).catch((error: unknown) => {
+    // The change itself went out; a smart playlist then refreshes on its next read.
+    if (getConfig().LOG_LEVEL !== 'silent') console.warn('[realtime] Could not find the smart playlists an invalidation stales', error)
+    return []
+  })
+  for (const [smartTarget, smartKeys] of smart) await send(smartTarget, smartKeys)
+}
+
+async function send(target: Targets, keys: readonly QueryKey[]) {
   // At once in this process, so a client that refetches right after its own change never
   // gets the cached answer; other processes drop theirs when the NOTIFY arrives.
   dropCachedReads(target, keys)

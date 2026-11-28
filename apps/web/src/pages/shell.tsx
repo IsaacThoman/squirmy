@@ -110,7 +110,7 @@ function SearchDialogHost({ onOpenChange }: SearchDialogState) {
   const typed = query.trim()
   const library = useLibrary()
   const recents = useRecentSearches(user.id)
-  const search = useMergedSearch(query, { playlists: library.playlists })
+  const search = useMergedSearch(query, { playlists: library.ownPlaylists })
   const close = () => onOpenChange(false)
   const destinations = useMemo<SearchDestination[]>(() => [
     { label: 'Home', to: '/', icon: House },

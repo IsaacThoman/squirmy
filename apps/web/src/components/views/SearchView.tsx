@@ -270,6 +270,7 @@ function Results({ term, filter, list, onChoose }: ResultsProps) {
         unavailable: !isPlayable(track, viewer),
         wanted: actions.isWanted?.(track),
         playlists: actions.playlists,
+        ratings: actions.ratings,
         act: action => actions.onAction(action, track, tracks.indexOf(track)),
         navigate: to => void navigate(to),
       }) : undefined}

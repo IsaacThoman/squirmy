@@ -4,7 +4,7 @@
  * puts something in a user's library, beside the server's collection.
  */
 import {
-  LIKED_SONGS_ID, type AlbumPage, type AlbumSummary, type ArtistPage, type ArtistSummary, type LikeEntityType, type Page, type PageQuery, type TrackPage, type TrackSummary,
+  LIKED_SONGS_ID, queryKeys, type AlbumPage, type AlbumSummary, type ArtistPage, type ArtistSummary, type LikeEntityType, type Page, type PageQuery, type TrackPage, type TrackSummary,
 } from '@squirmy/contracts'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
@@ -17,6 +17,8 @@ import { recordCollectionAdd } from '../sessions/collection-plays.js'
 import { announceUserChange } from './changes.js'
 import { entityTable, resolveEntity, storedType } from './entities.js'
 import { fetchMissingOf } from './library.js'
+import { smartPlaylistInvalidations } from './smart-refresh.js'
+import { invalidate, publishChanges } from '../../realtime/index.js'
 
 /**
  * Saves an entity with the heart (idempotent): the one way into a user's library. Follows
@@ -88,16 +90,18 @@ export async function listLikes(userId: string, type: LikeEntityType, query: Pag
 
 /**
  * Sets a 1–5 star rating; 0 removes it. Follows merge redirects; 404 when the entity
- * does not exist. Ratings have no native screen, so nothing is invalidated.
+ * does not exist. The user's devices get a track's new `rating` as a `patch`, and their smart
+ * playlists (which may sort or filter by rating) are refreshed.
  */
 export async function setRating(userId: string, type: LikeEntityType, id: string, rating: number): Promise<void> {
   if (!Number.isInteger(rating) || rating < 0 || rating > 5) throw badRequest('A rating is 0 to 5 stars', 'invalid_rating')
   const entityId = await resolveEntity(type, id)
   const where = and(eq(ratings.userId, userId), eq(ratings.entityType, storedType[type]), eq(ratings.entityId, entityId))
-  if (rating === 0) {
-    await db.delete(ratings).where(where)
-    return
+  if (rating === 0) await db.delete(ratings).where(where)
+  else {
+    await db.insert(ratings).values({ userId, entityType: storedType[type], entityId, rating })
+      .onConflictDoUpdate({ target: [ratings.userId, ratings.entityType, ratings.entityId], set: { rating, updatedAt: new Date() } })
   }
-  await db.insert(ratings).values({ userId, entityType: storedType[type], entityId, rating })
-    .onConflictDoUpdate({ target: [ratings.userId, ratings.entityType, ratings.entityId], set: { rating, updatedAt: new Date() } })
+  if (type === 'track') await publishChanges({ user: userId }, [{ kind: 'patch', entity: 'track', id: entityId, fields: { rating: rating || null } }])
+  for (const [target, keys] of await smartPlaylistInvalidations([{ user: userId }], [queryKeys.likes()])) await invalidate(target, keys)
 }
