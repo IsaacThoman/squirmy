@@ -154,7 +154,7 @@ export function signalSections(signal: SignalReport): TrackInfoSection[] {
         label: 'Applied',
         value: applied && normalization.gainDb !== null
           ? `${applied === 'album' ? 'Album' : 'Song'} level, ${formatGain(normalization.gainDb)}`
-          : 'None yet: the song hasn’t been measured',
+          : 'None: no loudness data for this song',
       },
       applied ? { label: 'Target', value: '−18 LUFS' } : null,
     ]),
