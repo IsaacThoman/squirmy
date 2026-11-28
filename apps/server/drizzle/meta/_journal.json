@@ -239,13 +239,6 @@
       "when": 1795851299155,
       "tag": "0033_auth_passkeys",
       "breakpoints": true
-    },
-    {
-      "idx": 34,
-      "version": "7",
-      "when": 1795852090727,
-      "tag": "0034_auth_sso",
-      "breakpoints": true
     }
   ]
 }
