@@ -27,12 +27,19 @@ export type NativeEngineOptions = {
 export class NativeEngine implements PlayerEngine {
   readonly canBoost = true;
   readonly limiter = true;
+  /**
+   * The sleep timer's fade, over both entries of a crossfade: where the build has it, the
+   * client hands it here and leaves it out of the gains.
+   */
+  readonly setFade?: (level: number) => void;
   private readonly native: SquirmyAudio;
   private readonly listeners = new Set<(event: EngineEvent) => void>();
   private readonly subscriptions: { remove(): void }[];
 
   constructor(private readonly options: NativeEngineOptions) {
     this.native = options.native;
+    const native = this.native;
+    if (native.setFade) this.setFade = level => native.setFade!(Number.isFinite(level) ? Math.min(1, Math.max(0, level)) : 1);
     this.subscriptions = [
       // Each one as it happened, so the client sees every state, but none for an entry that is
       // no longer loaded: it crossed a newer `load` on its way here.
@@ -112,6 +119,16 @@ export class NativeEngine implements PlayerEngine {
     this.native.setEqualizer?.(curve);
   }
 
+  /** The build's engine crossfades (`setCrossfade`). */
+  get crossfade(): boolean {
+    return typeof this.native.setCrossfade === 'function';
+  }
+
+  /** How long the next entry overlaps the loaded one's end, in seconds; 0 for none. */
+  setCrossfade(seconds: number): void {
+    this.native.setCrossfade?.(seconds);
+  }
+
   /** Stops listening to the native engine, which carries on as the process's one engine. */
   dispose(): void {
     for (const subscription of this.subscriptions) subscription.remove();
@@ -123,7 +140,7 @@ export class NativeEngine implements PlayerEngine {
   }
 }
 
-function item(request: Omit<EngineLoad, 'autoplay'>): NativeItem {
+function item(request: Omit<EngineLoad, 'autoplay'> & { continuesAlbum?: boolean }): NativeItem {
   return {
     entryId: request.entryId,
     url: request.url,
@@ -134,6 +151,6 @@ function item(request: Omit<EngineLoad, 'autoplay'>): NativeItem {
     // Every server transcode goes through the stream decoder and every original through the
     // file reader, so a format never alternates between two decoders.
     decoder: request.media?.transcoded ? 'stream' : 'file',
-    albumRun: false,
+    albumRun: request.continuesAlbum ?? false,
   };
 }

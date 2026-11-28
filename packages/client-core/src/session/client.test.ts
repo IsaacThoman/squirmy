@@ -342,12 +342,21 @@ function descriptor(entry: QueueEntry): PlaybackDescriptor {
   }
 }
 
-function setup({ canPlay = true, connect = true, restore, server = new FakeServer(), id = PHONE, onLoadError, systemVolume, canBoost, limiter }: {
+/** An engine that fades everything it plays itself (`setFade`), as the native one does across a crossfade. */
+class FadingEngine extends FakeEngine {
+  readonly fades: number[] = []
+  setFade(level: number): void {
+    this.calls.push(['setFade', level])
+    this.fades.push(level)
+  }
+}
+
+function setup({ canPlay = true, connect = true, restore, server = new FakeServer(), id = PHONE, onLoadError, systemVolume, canBoost, limiter, fading }: {
   canPlay?: boolean; connect?: boolean; restore?: SavedSession; server?: FakeServer; id?: string
-  onLoadError?: SessionPlayer['onLoadError']; systemVolume?: boolean; canBoost?: boolean; limiter?: boolean
+  onLoadError?: SessionPlayer['onLoadError']; systemVolume?: boolean; canBoost?: boolean; limiter?: boolean; fading?: boolean
 } = {}) {
   const transport = new FakeTransport(server)
-  const engine = new FakeEngine()
+  const engine = fading ? new FadingEngine() : new FakeEngine()
   engine.durationMs = 200_000
   const resolvePlayback = vi.fn(async (entry: QueueEntry): Promise<ResolvedPlayback> => descriptor(entry))
   const ended = vi.fn()
@@ -2010,6 +2019,45 @@ describe('SessionClient sleep timer', () => {
     expect(server.session.sleepTimer).toBeUndefined()
   })
 
+  it('hands an engine that fades everything the fade on its own, leaving it out of the gains', async () => {
+    const context = setup({ fading: true })
+    await context.settle()
+    context.client.dispatch({ type: 'playTracks', tracks: seeds(1, 2, 3), seed: 1 })
+    await context.settle()
+    const { client, server, transport, settle } = context
+    const engine = context.engine as FadingEngine
+    expect(engine.fades).toEqual([1])
+    client.dispatch({ type: 'setSleepTimer', timer: { kind: 'time', durationMs: 60_000 } })
+    await settle()
+    await vi.advanceTimersByTimeAsync(55_000)
+    expect(engine.fades.at(-1)).toBeCloseTo(0.5, 1)
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(engine.fades.at(-1)).toBe(0)
+    // The gains never had it: in a crossfade both entries keep theirs, under the engine's fade.
+    expect(context.calls('setGain')).toEqual([])
+    expect(engine.loaded!.gain).toBe(1)
+    server.apply({ type: 'endSleepTimer' })
+    transport.flush()
+    expect(engine.getStatus().state).toBe('paused')
+    expect(engine.fades.at(-1)).toBe(1)
+  })
+
+  it('keeps fading through a skip, loading the next song at its own gain', async () => {
+    const context = setup({ fading: true })
+    await context.settle()
+    context.client.dispatch({ type: 'playTracks', tracks: seeds(1, 2, 3), seed: 1 })
+    await context.settle()
+    const engine = context.engine as FadingEngine
+    context.client.dispatch({ type: 'setSleepTimer', timer: { kind: 'time', durationMs: 60_000 } })
+    await context.settle()
+    await vi.advanceTimersByTimeAsync(57_500)
+    context.client.dispatch({ type: 'next' })
+    await context.settle()
+    expect(trackOf(context.client.getSnapshot().session.current)).toBe(2)
+    expect(context.calls('load').at(-1)).toMatchObject(['load', { gain: 1 }])
+    expect(engine.fades.at(-1)).toBeCloseTo(0.25, 1)
+  })
+
   it('pauses itself past the end while offline, where the server’s pause cannot reach it', async () => {
     const { client, transport, engine, settle } = await playingHere()
     client.dispatch({ type: 'setSleepTimer', timer: { kind: 'time', durationMs: 60_000 } })
@@ -2021,5 +2069,35 @@ describe('SessionClient sleep timer', () => {
     await vi.advanceTimersByTimeAsync(1500)
     expect(client.getSnapshot().session.playing).toBe(false)
     expect(engine.getStatus().state).toBe('paused')
+  })
+})
+
+describe('SessionClient crossfade', () => {
+  const album = track(700)
+  const fromAlbum = (...ns: number[]): QueueSeed[] => ns.map(n => ({ trackId: track(n), albumId: album, durationMs: 200_000 }))
+  const albumContext = { type: 'album' as const, id: album, title: 'An album' }
+
+  async function preloaded(command: SessionCommand, then: SessionCommand[] = []) {
+    const context = setup()
+    await context.settle()
+    context.client.dispatch(command)
+    for (const next of then) context.client.dispatch(next)
+    await context.settle()
+    return context.engine.preloaded as (FakeEngine['preloaded'] & { continuesAlbum?: boolean }) | null
+  }
+
+  it('marks the next song of the album it plays in order, which is never crossfaded into', async () => {
+    const preload = await preloaded({ type: 'playTracks', tracks: fromAlbum(1, 2, 3), seed: 1, context: albumContext })
+    expect(preload).toMatchObject({ continuesAlbum: true })
+  })
+
+  it('crossfades anything else: another context, shuffle, a song slotted in with Play next', async () => {
+    expect(await preloaded({ type: 'playTracks', tracks: fromAlbum(1, 2, 3), seed: 1, context: { type: 'playlist', id: 'p', title: 'P' } }))
+      .toMatchObject({ continuesAlbum: false })
+    expect(await preloaded({ type: 'playTracks', tracks: fromAlbum(1, 2, 3), seed: 1, shuffle: true, context: albumContext }))
+      .toMatchObject({ continuesAlbum: false })
+    expect(await preloaded({ type: 'playTracks', tracks: fromAlbum(1, 2, 3), seed: 1, context: albumContext }, [
+      { type: 'enqueue', tracks: fromAlbum(3), placement: 'next' },
+    ])).toMatchObject({ continuesAlbum: false })
   })
 })

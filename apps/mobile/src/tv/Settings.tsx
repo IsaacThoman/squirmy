@@ -14,9 +14,10 @@ import {
 import { loadFailure } from '../data/errors';
 import { useUpdateSettings, useUserSettings } from '../data/queries';
 import { useAccountStorage } from '../account/storageUsage';
-import { useEqualizerAvailable, useNormalizationBoosts } from '../playback';
+import { useCrossfadeAvailable, useEqualizerAvailable, useNormalizationBoosts } from '../playback';
+import { crossfadeNote, crossfadeOptions } from '../player/engine/crossfade';
 import { equalizerNote, equalizerOptions, tvEqualizerOptions } from '../player/engine/equalizer';
-import { useEqualizerSetting } from '../player/engine/output';
+import { useCrossfadeSetting, useEqualizerSetting } from '../player/engine/output';
 import { engineNote, engineOptions, showsEngineSetting, useEngineSetting } from '../player/engine/setting';
 import { Icon } from '../ui';
 import { Focusable } from './Focusable';
@@ -118,6 +119,8 @@ export function TvSettingsScreen() {
   const boosts = useNormalizationBoosts();
   const equalizerAvailable = useEqualizerAvailable();
   const [equalizer] = useEqualizerSetting();
+  const crossfadeAvailable = useCrossfadeAvailable();
+  const [crossfade] = useCrossfadeSetting();
   if (state.status !== 'signedIn') return null;
   const { server, user } = state;
   const { settings } = screen;
@@ -165,6 +168,8 @@ export function TvSettingsScreen() {
           note={tvQualityNote} onNote={setNote} onPress={() => open('quality')} />
         {equalizerAvailable && <Row title="Equalizer" value={optionLabel(equalizerOptions, equalizer.preset)} chevron
           note={equalizerNote} onNote={setNote} onPress={() => open('equalizer')} />}
+        {crossfadeAvailable && <Row title="Crossfade" value={optionLabel(crossfadeOptions, crossfade)} chevron
+          note={crossfadeNote} onNote={setNote} onPress={() => open('crossfade')} />}
         {/* Two values, so selecting the row switches between them, as a switch's row does. */}
         {showsEngineSetting() && <Row title="Engine" value={optionLabel(engineOptions, engine)} note={engineNote} onNote={setNote}
           onPress={() => setEngine(engine === 'native' ? 'classic' : 'native')} />}
@@ -264,21 +269,29 @@ export function TvSettingsChoiceScreen() {
 
 /**
  * A list of choices for a setting of this Apple TV's own: the equalizer's presets (the TV has
- * no band editor). Choosing one applies it at once and goes back.
+ * no band editor) or the crossfade's length. Choosing one applies it at once and goes back.
  */
 function TvDeviceChoiceScreen({ choice }: { choice: DeviceChoice }) {
   const router = useRouter();
   const [equalizer, setEqualizer] = useEqualizerSetting();
-  // A custom curve set before (on a build that had the editor) still shows as chosen.
-  const options = equalizer.preset === 'custom' ? equalizerOptions : tvEqualizerOptions;
-  const choose = (preset: typeof equalizer.preset) => {
-    setEqualizer({ ...equalizer, preset });
-    router.back();
-  };
-  return <SettingsLayout title={choice === 'equalizer' ? 'Equalizer' : ''} note={equalizerNote}>
+  const [crossfade, setCrossfade] = useCrossfadeSetting();
+  const spec = choice === 'equalizer'
+    ? {
+      title: 'Equalizer', note: equalizerNote, current: equalizer.preset as string,
+      // A custom curve set before (on a build that had the editor) still shows as chosen.
+      options: (equalizer.preset === 'custom' ? equalizerOptions : tvEqualizerOptions) as readonly { value: string; label: string }[],
+      choose: (value: string) => setEqualizer({ ...equalizer, preset: value as typeof equalizer.preset }),
+    }
+    : {
+      title: 'Crossfade', note: crossfadeNote, current: String(crossfade),
+      options: crossfadeOptions.map(option => ({ value: String(option.value), label: option.label })),
+      choose: (value: string) => setCrossfade(Number(value)),
+    };
+  return <SettingsLayout title={spec.title} note={spec.note}>
     <Section>
-      {options.map(option => <Row key={option.value} title={option.label} checked={option.value === equalizer.preset}
-        hasTVPreferredFocus={option.value === equalizer.preset} onNote={() => undefined} onPress={() => choose(option.value)} />)}
+      {spec.options.map(option => <Row key={option.value} title={option.label} checked={option.value === spec.current}
+        hasTVPreferredFocus={option.value === spec.current} onNote={() => undefined}
+        onPress={() => { spec.choose(option.value); router.back(); }} />)}
     </Section>
   </SettingsLayout>;
 }

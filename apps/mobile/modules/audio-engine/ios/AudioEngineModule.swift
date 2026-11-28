@@ -21,7 +21,7 @@ struct ItemRecord: Record {
   func item() throws -> EngineItem {
     guard let url = URL(string: url) else { throw Exception(name: "BadURL", description: "Not a URL: \(self.url)") }
     return EngineItem(
-      entryId: entryId, url: url, startMs: startMs, gain: Float(gain), decoder: DecoderKind(rawValue: decoder) ?? .file,
+      entryId: entryId, url: url, startMs: startMs, gain: Float(gain), albumRun: albumRun, decoder: DecoderKind(rawValue: decoder) ?? .file,
       gapless: gapless.map { Gapless(sampleRate: $0.sampleRate, primingFrames: Int64($0.primingFrames), frames: Int64($0.frames)) },
       cacheKey: cacheKey)
   }
@@ -78,6 +78,8 @@ public class AudioEngineModule: Module {
     Function("stop") { SharedEngine.shared.engine.stop() }
     Function("holdAudioSession") { (hold: Bool) in SharedEngine.shared.engine.holdAudioSession(hold) }
     Function("setEqualizer") { (curve: EqualizerRecord?) in SharedEngine.shared.engine.setEqualizer(curve?.curve()) }
+    Function("setCrossfade") { (seconds: Double) in SharedEngine.shared.engine.setCrossfade(seconds: seconds) }
+    Function("setFade") { (level: Double) in SharedEngine.shared.engine.setFade(Float(level)) }
     Function("getStatus") { () -> [String: Any] in
       Self.payload(SharedEngine.shared.engine.status())
     }

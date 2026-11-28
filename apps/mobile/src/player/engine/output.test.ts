@@ -32,6 +32,21 @@ describe('followOutputSettings', () => {
     expect(setEqualizer).toHaveBeenCalledTimes(2);
   });
 
+  it('hands the engine the crossfade, and each change, once', async () => {
+    stored.set('crossfade', 6);
+    const { followOutputSettings, setStoredCrossfade } = await import('./output');
+    const setCrossfade = vi.fn();
+    const setEqualizer = vi.fn();
+    const stop = followOutputSettings({ equalizer: true, setEqualizer, crossfade: true, setCrossfade } as never);
+    expect(setCrossfade).toHaveBeenCalledWith(6);
+    setStoredCrossfade(0);
+    expect(setCrossfade).toHaveBeenLastCalledWith(0);
+    expect(stored.get('crossfade')).toBe(0);
+    // Only what changed goes to the engine.
+    expect(setEqualizer).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
   it('leaves an engine without an equalizer alone', async () => {
     const { followOutputSettings } = await import('./output');
     const setEqualizer = vi.fn();

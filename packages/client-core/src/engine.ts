@@ -62,6 +62,12 @@ export interface PlayerEngine {
   getStatus(): EngineStatus
   /** Adds an event listener; returns a function that removes it. */
   subscribe(listener: (event: EngineEvent) => void): () => void
+  /**
+   * Optional. A level from 0 to 1 over everything the engine plays, whichever entries those
+   * are: the sleep timer's fade. An engine with it can fade both entries of a crossfade;
+   * `SessionClient` then leaves the fade out of the gains it sets. Others get it in the gain.
+   */
+  setFade?(level: number): void
 }
 
 export type EngineLoad = {
@@ -81,9 +87,9 @@ export type EnginePreload = {
   gain: number
   media?: EngineMedia
   /**
-   * The preloaded entry is the next song of the album the loaded one plays from (the
-   * session's context is that album and shuffle is off: the test album gain uses), so it
-   * follows gaplessly, never crossfaded.
+   * The preloaded entry is the next song of the loaded one's album in album order (the
+   * session's context is that album and shuffle is off), so it follows gaplessly, never
+   * crossfaded.
    */
   continuesAlbum?: boolean
 }

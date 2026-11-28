@@ -3,12 +3,13 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { closeSheet } from '../closeSheet';
-import { useEqualizerAvailable, useNormalizationBoosts } from '../playback';
+import { useCrossfadeAvailable, useEqualizerAvailable, useNormalizationBoosts } from '../playback';
+import { crossfadeNote, crossfadeOptions } from '../player/engine/crossfade';
 import {
   automaticPreamp, clampGain, customEqualizerNote, equalizerBands, equalizerNote, equalizerOptions, equalizerRangeDb, formatGain,
   maxPreampDb, type EqualizerSetting,
 } from '../player/engine/equalizer';
-import { useEqualizerSetting } from '../player/engine/output';
+import { useCrossfadeSetting, useEqualizerSetting } from '../player/engine/output';
 import { SheetFrame, SheetRow, SheetRows } from '../SheetUI';
 import { StorageSection } from '../streamingCache/StorageSection';
 import { createThemedStyles, useColors } from '../theme';
@@ -26,6 +27,8 @@ export function SettingsScreen() {
   const boosts = useNormalizationBoosts();
   const equalizerAvailable = useEqualizerAvailable();
   const [equalizer, setEqualizer] = useEqualizerSetting();
+  const crossfadeAvailable = useCrossfadeAvailable();
+  const [crossfade, setCrossfade] = useCrossfadeSetting();
   return <ScrollView keyboardShouldPersistTaps="handled">
     <SheetFrame title="Settings" onClose={() => closeSheet(router)}>
       {settings ? <>
@@ -50,6 +53,14 @@ export function SettingsScreen() {
           </SheetRows>
           {equalizer.preset === 'custom' && <CustomEqualizer setting={equalizer} onChange={setEqualizer} />}
           <Text style={styles.note}>{equalizer.preset === 'custom' ? `${equalizerNote} ${customEqualizerNote}` : equalizerNote}</Text>
+        </>}
+        {crossfadeAvailable && <>
+          <Text style={styles.heading}>Crossfade</Text>
+          <SheetRows>
+            {crossfadeOptions.map(option => <SheetRow key={option.value} title={option.label} icon="arrow.triangle.merge"
+              selected={crossfade === option.value} onPress={() => setCrossfade(option.value)} />)}
+          </SheetRows>
+          <Text style={styles.note}>{crossfadeNote}</Text>
         </>}
         <Text style={styles.heading}>Wi-Fi quality</Text>
         <SheetRows>
