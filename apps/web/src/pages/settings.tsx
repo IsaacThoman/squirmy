@@ -24,7 +24,7 @@ const lastFmReturns: Record<string, { message: string; ok: boolean }> = {
   error: { message: 'Last.fm did not answer. Try again in a moment.', ok: false },
 }
 
-const scrobbleSettings: (keyof UpdateUserSettings)[] = ['scrobbleListenBrainz', 'scrobbleLastFm', 'shareNowPlaying']
+const scrobbleSettings: (keyof UpdateUserSettings)[] = ['scrobbleListenBrainz', 'scrobbleLastFm', 'syncListenBrainzHearts', 'syncLastFmHearts', 'shareNowPlaying']
 
 /** The section whose controls made a change: a scrobbling switch is in Scrobbling, the library's in Library, the rest in Playback. */
 function refusedIn(patch: UpdateUserSettings): 'scrobbling' | 'library' | 'playback' {
@@ -58,7 +58,7 @@ function useScrobbleConnections() {
   const api = useApi()
   const queryClient = useQueryClient()
   const save = (status: ScrobblingStatus) => queryClient.setQueryData(queryKeys.scrobbling(), status)
-  const listenBrainz = useMutation({ mutationFn: (token: string) => api.scrobble.connectListenBrainz({ token }), onSuccess: save })
+  const listenBrainz = useMutation({ mutationFn: (body: { token: string; apiUrl?: string }) => api.scrobble.connectListenBrainz(body), onSuccess: save })
   const lastFm = useMutation({ mutationFn: () => api.scrobble.startLastFm(), onSuccess: ({ url }) => window.location.assign(url) })
   const disconnect = useMutation({
     mutationFn: (target: ScrobbleTarget) => (target === 'listenbrainz' ? api.scrobble.disconnectListenBrainz() : api.scrobble.disconnectLastFm()),
@@ -125,7 +125,7 @@ export function SettingsDialogHost({ open, section, lastFm, onOpenChange, onSect
         setName(browserName())
       }}
       scrobbling={scrobbling.data}
-      onConnectListenBrainz={token => connections.listenBrainz.mutateAsync(token)}
+      onConnectListenBrainz={(token, apiUrl) => connections.listenBrainz.mutateAsync({ token, apiUrl })}
       onConnectLastFm={() => connections.lastFm.mutate()}
       onDisconnect={target => connections.disconnect.mutateAsync(target)}
       appPasswords={passwords.data?.items}

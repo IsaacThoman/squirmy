@@ -221,7 +221,8 @@ If the browser refuses to start audio on its own (after a transfer or a reload),
 - **Appearance**: light or dark, and the color theme. See [Appearance and themes](#appearance-and-themes).
 - **Account**: **Edit name** (for admins), **Change password** and **Log out**. **Log out** works even when the server can't be reached: this browser signs out at once, sign-in says the server couldn't be reached, and the session ends on the server the next time the app reaches it. When your session ends some other way (your password was changed, or your account was turned off), sign-in says **Your session ended**.
 - **Scrobbling** has [ListenBrainz and Last.fm](../server/scrobbling.md) and **Share what I’m listening to with other users on this server** for [Subsonic now playing](../server/subsonic.md#how-it-maps-onto-squirmy). Sharing starts off.
-- **App passwords** for [Subsonic apps](../server/subsonic.md).
+- **App passwords** for [Subsonic apps](../server/subsonic.md) and [scoped API tokens](../server/integrations.md#scoped-api-tokens).
+- **Webhooks** sends personal playback and library events to [configured destinations](../server/integrations.md#webhooks).
 - **About**: the server's name, version and address, and the main [keyboard shortcuts](./keyboard-shortcuts.md).
 
 Each section has an address that opens the dialog on it, such as `/settings/appearance`.

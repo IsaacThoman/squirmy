@@ -1,0 +1,17 @@
+{
+  "note": "Hand-written from the API schema with synthetic credentials and feedback.",
+  "request": {
+    "method": "GET",
+    "url": "https://scrobbles.example/lb/1/validate-token",
+    "headers": {
+      "authorization": "Token custom-token"
+    }
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "valid": true,
+      "user_name": "feedback-user"
+    }
+  }
+}

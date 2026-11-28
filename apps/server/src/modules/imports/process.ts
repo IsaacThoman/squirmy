@@ -1,3 +1,4 @@
+import { emitWebhook } from '../integrations/webhooks.js'
 /**
  * `imports.process`: takes a committed import from staging into the library.
  *
@@ -134,6 +135,7 @@ async function advance(row: ImportRow, stats: Stats, work: ImportWork): Promise<
     await invalidate('all', [queryKeys.library(), queryKeys.home()])
     await announceUploads(updated)
   }
+  if (!step) await emitWebhook('import.finished', { importId: updated.id, status: updated.status, kind: updated.kind }, updated.userId, updated.id)
   return updated
 }
 
@@ -144,6 +146,7 @@ export async function markFailed(importId: string, reason: string) {
   if (!row) return
   await releaseStaging(row)
   await announceImport(row)
+  await emitWebhook('import.finished', { importId: row.id, status: row.status, kind: row.kind }, row.userId, row.id)
   // What already reached the root is listed among the uploads, to be deleted.
   if (row.kind !== 'acquisition') await announceUploads(row)
 }

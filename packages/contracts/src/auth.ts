@@ -121,13 +121,18 @@ export const UpdateUserRequest = z.object({
 })
 export type UpdateUserRequest = z.infer<typeof UpdateUserRequest>
 
-/** Credential for Subsonic clients. `secret` is only present in the create response. */
+export const ApiTokenScope = z.enum(['library:read', 'playback:control', 'playlists:manage', 'admin'])
+export type ApiTokenScope = z.infer<typeof ApiTokenScope>
+
+/** Credential for Subsonic clients or the native API. `secret` is only present in the create response. */
 export const AppPassword = z.object({
   id: Id,
   name: z.string(),
   createdAt: IsoDateTime,
   lastUsedAt: IsoDateTime.nullable(),
   secret: z.string().optional(),
+  scopes: z.array(ApiTokenScope).nullable().optional(),
+  expiresAt: IsoDateTime.nullable().optional(),
 })
 export type AppPassword = z.infer<typeof AppPassword>
 
@@ -142,5 +147,10 @@ export const APP_PASSWORD_LIMIT = 50
  * mint a credential that outlives it. Servers answer `current_password_required` to
  * clients that do not send it yet.
  */
-export const CreateAppPasswordRequest = z.object({ name: z.string().trim().min(1).max(60), currentPassword: z.string().min(1).max(200) })
+export const CreateAppPasswordRequest = z.object({
+  name: z.string().trim().min(1).max(60),
+  currentPassword: z.string().min(1).max(200),
+  scopes: z.array(ApiTokenScope).min(1).max(4).optional(),
+  expiresAt: IsoDateTime.optional(),
+})
 export type CreateAppPasswordRequest = z.infer<typeof CreateAppPasswordRequest>
