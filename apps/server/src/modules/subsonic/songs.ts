@@ -215,7 +215,7 @@ export async function songs(userId: string, refs: readonly SongRef[]): Promise<P
       displayComposer: [...new Set(credits.filter((credit) => credit.role === 'composer').map((credit) => credit.artist.name))].join(', '),
       works: compositions.map((work) => ({ name: work.title, musicBrainzId: work.mbid ?? undefined })),
       movements: compositions.flatMap((work) => work.movementName || work.movementNumber || work.movementTotal
-        ? [{ name: work.movementName, number: work.movementNumber, count: work.movementTotal }] : []),
+        ? [{ name: work.movementName ?? row.title, number: work.movementNumber, count: work.movementTotal }] : []),
       comment: row.comment ?? '',
       replayGain: replayGain(row),
       explicitStatus: row.explicit === true ? 'explicit' : row.explicit === false ? 'clean' : '',
