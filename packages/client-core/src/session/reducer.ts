@@ -542,7 +542,8 @@ function capPosition(entry: QueueEntry, positionMs: number): number {
 }
 
 function toEntry(seed: QueueSeed, id: string): QueueEntry {
-  return { id, trackId: seed.trackId, albumId: seed.albumId ?? null, durationMs: seed.durationMs, state: seed.state ?? 'ready' }
+  const entry: QueueEntry = { id, trackId: seed.trackId, albumId: seed.albumId ?? null, durationMs: seed.durationMs, state: seed.state ?? 'ready' }
+  return seed.addedBy === undefined ? entry : { ...entry, addedBy: seed.addedBy }
 }
 
 function isPlayable(entry: QueueEntry): boolean {

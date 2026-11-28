@@ -34,6 +34,8 @@ import {
   type CreatePlaylistRequest,
   CreateUserRequest,
   DeviceInfo,
+  JamPerson,
+  JamPreview,
   DirectoryListing,
   type DirectoryQuery,
   GenrePage,
@@ -232,6 +234,7 @@ export type CallOptions = { signal?: AbortSignalLike }
 type Input<T extends z.ZodType> = z.input<T>
 
 const DeviceList = page(DeviceInfo)
+const JamPeople = page(JamPerson)
 const JobList = z.array(JobQueueStats)
 const likedPages = { track: TrackPage, album: AlbumPage, artist: ArtistPage } as const
 type SearchParams = { q: string; limit?: number; type?: SearchKind; offset?: number; scope?: 'library' | 'server' }
@@ -463,6 +466,8 @@ export function createApiClient(options: ApiClientOptions) {
     sessions: {
       session: () => get('/me/session', SessionSnapshot),
       devices: () => get('/me/devices', DeviceList),
+      jam: (jamId: string) => get(`/jams/${id(jamId)}`, JamPreview),
+      jamPeople: () => get('/jams/people', JamPeople),
     },
     search: {
       library: (query: SearchParams & { genre?: string }, options?: CallOptions) => get('/search/library', SearchResults, query, options),
