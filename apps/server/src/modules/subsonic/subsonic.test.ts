@@ -11,6 +11,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
 import { albums, appPasswords, mediaFiles, plays, recordings, releaseLoudness, users } from '../../database/schema.js'
+import { newId } from '../../lib/ids.js'
 import { startJobs } from '../../jobs/index.js'
 import { createAsset } from '../../test/catalog.js'
 import { useTestDatabase } from '../../test/database.js'
@@ -374,10 +375,16 @@ describe('subsonic', () => {
       const playedAt = Date.now() - 60_000
       // Plays are not idempotent, so this is one JSON call rather than the JSON and XML pair.
       await mira.client.json('scrobble', { id: [song(many[7]!, 0), song(many[8]!, 0), song(many[8]!, 0)], time: [playedAt, playedAt + 1000, playedAt + 2000] })
+      await db.insert(plays).values([many[8]!, many[9]!].map((album) => ({
+        id: newId(), userId: mira.id, recordingId: album.tracks[0]!.recordingId, albumId: album.albumId,
+        startedAt: new Date(playedAt + 3000), skipped: true, msPlayed: 2000,
+      })))
       expect(names(await mira.client.call('getAlbumList2', { type: 'frequent' }))).toEqual(['Page 08', 'Page 07'])
       expect(names(await mira.client.call('getAlbumList2', { type: 'recent' }))).toEqual(['Page 08', 'Page 07'])
       const [page8] = (await mira.client.call('getAlbumList2', { type: 'recent', size: 1 })).albumList2.album
       expect(page8).toMatchObject({ playCount: 2, played: new Date(playedAt + 2000).toISOString() })
+      const { song: played } = await mira.client.call('getSong', { id: song(many[8]!, 0) })
+      expect(played).toMatchObject({ playCount: 2, played: new Date(playedAt + 2000).toISOString() })
     })
 
     it('picks random songs and songs by genre', async () => {

@@ -4,7 +4,7 @@ import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { albumArtists, albums, artistTopTracks, artists, assets, likes, lyrics, mediaFiles, playlistItems, playlists, recordingArtists, recordings, releaseTracks, wants } from '../../database/schema.js'
+import { albumArtists, albums, artistTopTracks, artists, assets, likes, lyrics, mediaFiles, playlistItems, playlists, plays, recordingArtists, recordings, releaseTracks, wants } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { updateServerSettings } from '../../lib/settings.js'
 import { body, errorCode, signIn } from '../../test/api.js'
@@ -322,10 +322,17 @@ describe('catalog pages', () => {
     const played = await createAlbum({ owned: true, title: 'Played' })
     const liked = await createAlbum({ title: 'Liked' })
     const wanted = await createAlbum({ title: 'Wanted' })
+    const skipped = await createAlbum({ title: 'Skipped' })
     await createPlay({ userId: fresh.id, recordingId: played.tracks[0]!.recordingId, albumId: played.albumId, minutesAgo: 10 })
     await createPlay({ userId: fresh.id, recordingId: played.tracks[1]!.recordingId, albumId: played.albumId, minutesAgo: 5 })
     await createPlay({ userId: fresh.id, recordingId: played.tracks[1]!.recordingId, albumId: played.albumId, minutesAgo: 1 })
     await createPlay({ userId: fresh.id, recordingId: played.tracks[2]!.recordingId, minutesAgo: 60 * 24 * 100 })
+    for (let index = 0; index < 3; index++) {
+      await createPlay({ userId: fresh.id, recordingId: played.tracks[2]!.recordingId, albumId: played.albumId, completed: false })
+    }
+    await db.insert(plays).values({
+      id: newId(), userId: fresh.id, recordingId: skipped.tracks[0]!.recordingId, albumId: skipped.albumId, msPlayed: 2000, skipped: true,
+    })
     await db.insert(likes).values({ userId: fresh.id, entityType: 'album', entityId: liked.albumId })
     await db.insert(wants).values({ userId: fresh.id, entityType: 'album', entityId: wanted.albumId })
     // A want for something already owned is fulfilled and leaves the rail.
@@ -352,7 +359,7 @@ describe('catalog pages', () => {
     expect(added).toContain(played.albumId)
     expect(added).not.toContain(liked.albumId)
     expect(byId['recently-played']).toMatchObject({ kind: 'albums', albums: [{ id: played.albumId }] })
-    // The play from 100 days ago is outside the window.
+    // The third track has only incomplete plays in the 90-day window.
     expect(byId['most-played']).toMatchObject({ kind: 'tracks', tracks: [{ id: played.tracks[1]!.recordingId }, { id: played.tracks[0]!.recordingId }] })
     expect(byId.playlists).toMatchObject({ kind: 'playlists', title: 'Your playlists', playlists: [{ name: 'Mine', trackCount: 1 }] })
     expect(byId.wantlist).toMatchObject({ kind: 'albums', albums: [{ id: wanted.albumId }] })

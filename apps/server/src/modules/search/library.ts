@@ -116,7 +116,7 @@ function inGenre(kind: LibraryKind, alias: string, genre: string | undefined): S
  */
 export function libraryQuery(kind: LibraryKind, userId: string, key: string, limit: number, offset = 0, genre?: string, scope: 'library' | 'server' = 'library'): SQL {
   const end = prefixEnd(key)
-  const recent = sql`select recording_id, album_id from plays where user_id = ${userId} order by started_at desc limit ${recentPlays}`
+  const recent = sql`select recording_id, album_id from plays where user_id = ${userId} and not skipped order by started_at desc limit ${recentPlays}`
 
   // Also walk saves directly so numerous similar catalog rows cannot crowd them out.
   const similar = (column: string) => key.length >= 3 ? sql`${key} <% ${sql.raw(column)}` : sql`false`
