@@ -71,7 +71,7 @@ function Note({ text, error }: { text: string | null | undefined; error?: boolea
 }
 
 export function TvConnectScreen() {
-  const { state, connect } = useAccount();
+  const { state, accounts, connect, switchTo } = useAccount();
   const previous = state.status === 'connect' ? state.previous : null;
   const [address, setAddress] = useState(previous ? displayAddress(previous.url) : '');
   const search = useRef<AbortController | null>(null);
@@ -100,13 +100,18 @@ export function TvConnectScreen() {
         ? <><ActivityIndicator color={colors.secondary} /><Button label="Cancel" onPress={() => { search.current?.abort(); lookup.reset(); }} /></>
         : <Button label="Continue" prominent disabled={!address.trim()} onPress={() => submit()} />}
     </View>
+    {/* The household's profiles on this Apple TV, to go back to one instead. */}
+    {accounts.length > 0 && !lookup.isPending && <View style={styles.secondary}>
+      {accounts.map(account => <Button key={account.key} label={account.user.displayName ?? account.user.username}
+        onPress={() => void switchTo(account.key)} />)}
+    </View>}
   </AuthCard>;
 }
 
 type Mode = 'signIn' | 'register';
 
 export function TvSignInScreen() {
-  const { state, unsaved, signIn, register, switchServer } = useAccount();
+  const { state, unsaved, signIn, register, addAccount } = useAccount();
   const [mode, setMode] = useState<Mode>('signIn');
   const serverUrl = state.status === 'signIn' ? state.server.url : '';
   const [remembered] = useState(() => lastUsername(serverUrl));
@@ -151,7 +156,7 @@ export function TvSignInScreen() {
         setPassword('');
         setMode(registering ? 'signIn' : 'register');
       }} />
-      <Button label="Change Server" onPress={switchServer} />
+      <Button label="Change Server" onPress={addAccount} />
     </View>
   </AuthCard>;
 }

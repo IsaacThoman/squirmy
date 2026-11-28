@@ -1,5 +1,5 @@
 import { defaultRangeExtractor, observeElementRect, useVirtualizer } from '@tanstack/react-virtual'
-import { useLayoutEffect, useState, type RefObject } from 'react'
+import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
 
 /** Fixed-height rows in a scroller shared with headings and other content. */
 export function useVirtualRows({
@@ -29,7 +29,7 @@ export function useVirtualRows({
   }, [count, list, scroller])
 
   // oxlint-disable-next-line react/incompatible-library -- the virtualizer re-renders on scroll by design
-  return useVirtualizer({
+  const virtualizer = useVirtualizer({
     count,
     getScrollElement: () => scroller,
     estimateSize: () => rowHeight,
@@ -55,4 +55,12 @@ export function useVirtualRows({
       return [...indexes].sort((a, b) => a - b)
     },
   })
+  // The virtualizer keeps the sizes it estimated; a new row height (the display density changed) places every row again.
+  const placedBy = useRef(rowHeight)
+  useLayoutEffect(() => {
+    if (placedBy.current === rowHeight) return
+    placedBy.current = rowHeight
+    virtualizer.measure()
+  }, [rowHeight, virtualizer])
+  return virtualizer
 }

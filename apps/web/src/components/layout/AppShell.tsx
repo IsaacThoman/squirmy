@@ -6,6 +6,7 @@ import { NowPlaying, type NowPlayingPane } from '@/components/player/NowPlaying'
 import { ListenTogetherProvider } from '@/components/player/ListenTogether'
 import { MiniPlayer, PlayerBar } from '@/components/player/PlayerBar'
 import { QueuePanel } from '@/components/player/Queue'
+import { usePreloadNextArtwork } from '@/components/player/use-next-artwork'
 import { SettingsDialogContext, type SettingsOpenOptions, type SettingsSection } from '@/components/settings/settings-dialog'
 import { cn } from '@/lib/utils'
 import { useLibrary } from '@/player/library-context'
@@ -403,6 +404,7 @@ function ShellPlayer({ mobile, queueOpen, setQueueOpen, nowPlaying, setNowPlayin
   const player = usePlayer()
   const { liked, toggleLike } = useCurrentLike()
   const openNowPlaying = () => setNowPlaying(now => ({ ...now, open: true }))
+  usePreloadNextArtwork(player.state, nowPlaying.open)
   if (mobile) return <MiniPlayer player={player} onOpenNowPlaying={openNowPlaying} />
   return (
     <PlayerBar

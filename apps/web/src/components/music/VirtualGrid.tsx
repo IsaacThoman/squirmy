@@ -1,12 +1,12 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { memo, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { useScrollContainer } from '@/components/layout/scroll-context'
+import { CARD_MIN_WIDTH, useDensity } from '@/lib/density'
 import { useEndReached } from './use-end-reached'
 
-// The same measures as `CardGrid`: 16px between columns, 24px between rows, cards at least 160px wide.
+// The same measures as `CardGrid`: 16px between columns, 24px between rows, cards at least 160px wide (128px compact).
 const gap = 16
 const rowGap = 24
-const minWidth = 160
 /** A card's two lines of text under its artwork. */
 const captionHeight = 44
 /** A `CollectionRow`, for the list layout. */
@@ -42,6 +42,8 @@ export function VirtualGrid<T>({ items, getKey, renderItem, label, onEndReached,
     return () => observer.disconnect()
   }, [scroller])
 
+  // Rows are measured as they draw, so cards of another size (the display density changed) place themselves again.
+  const minWidth = CARD_MIN_WIDTH[useDensity()]
   const columns = list ? 1 : Math.max(2, Math.floor((layout.width + gap) / (minWidth + gap)))
   const cardWidth = (layout.width - gap * (columns - 1)) / columns
   const rows = Math.ceil(items.length / columns)

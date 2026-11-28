@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { AMBIENT_WASH, ambientBehind } from './ambient'
 import { contrastRatio, flattenHex, lightness, mixHex, normalizeHex } from './color'
 import {
   COLOR_THEMES, colorThemeStylesheet, CONTROL_SURFACES, DEFAULT_COLOR_THEME_ID, findColorTheme, headerTints, NON_TEXT_CONTRAST, paletteVariables,
@@ -235,6 +236,15 @@ describe('contrast of text drawn in derived colors', () => {
     const words = mixHex(palette.text, palette.background, 0.2)
     const worst = Math.min(...covers.map(cover => contrastRatio(words, mixSrgb(headerTints(cover)[appearance], palette.background, strength[appearance]))))
     expect(worst).toBeGreaterThanOrEqual(READABLE)
+  })
+
+  it.each(palettes)('%s: Now Playing\'s text and muted text read at 4.5:1 over any cover\'s ambient backdrop', (_name, palette, appearance) => {
+    // The top of the backdrop, where its wash is thinnest, behind the context label and the lyrics.
+    // Over it, muted text is `--color-tint-muted-foreground`'s mix, as over a collection header's tint.
+    for (const [role, color] of [['text', palette.text], ['muted text', mixHex(palette.text, palette.background, 0.2)]] as const) {
+      const worst = Math.min(...covers.map(cover => contrastRatio(color, ambientBehind(cover, palette.background, appearance, AMBIENT_WASH.top))))
+      expect(worst, role).toBeGreaterThanOrEqual(READABLE)
+    }
   })
 
   it.each(palettes)('%s: the explicit badge, the page color on muted text, reads at 4.5:1', (_name, palette) => {

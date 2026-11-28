@@ -34,8 +34,16 @@ import {
   type CreatePlaylistRequest,
   CreateUserRequest,
   DeviceInfo,
+  DuplicatePage,
+  type DuplicateQuery,
+  HealthPage,
   JamPerson,
   JamPreview,
+  QualityPage,
+  type RemoveDuplicate,
+  type TagEdit,
+  TagEditor,
+  TagEditResult,
   DirectoryListing,
   type DirectoryQuery,
   GenrePage,
@@ -351,6 +359,22 @@ export function createApiClient(options: ApiClientOptions) {
       deleteAppPassword: (passwordId: string) => send('DELETE', `/auth/app-passwords/${id(passwordId)}`, Ok),
     },
     admin: {
+      duplicates: (query: Partial<DuplicateQuery> = {}) =>
+        request('GET', '/admin/library/duplicates', { schema: DuplicatePage, query }),
+      removeDuplicate: (fileId: string, body: RemoveDuplicate) =>
+        request('DELETE', `/admin/library/duplicates/${id(fileId)}`, { schema: Ok, body }),
+      lowQuality: (query: { cursor?: string } = {}) =>
+        request('GET', '/admin/library/quality', { schema: QualityPage, query }),
+      fileHealth: (query: { cursor?: string; issues?: boolean } = {}) =>
+        request('GET', '/admin/library/file-health', { schema: HealthPage, query }),
+      recheckFile: (fileId: string) =>
+        request('POST', `/admin/library/file-health/${id(fileId)}`, { schema: Ok }),
+      albumTags: (albumId: string) =>
+        request('GET', `/admin/albums/${id(albumId)}/tags`, { schema: TagEditor }),
+      tagCovers: (albumId: string) =>
+        request('GET', `/admin/albums/${id(albumId)}/tag-covers`, { schema: TagEditor.shape.covers }),
+      editAlbumTags: (albumId: string, body: TagEdit) =>
+        request('PATCH', `/admin/albums/${id(albumId)}/tags`, { schema: TagEditResult, body }),
       users: () => get('/admin/users', UserList),
       createUser: (body: Input<typeof CreateUserRequest>) => send('POST', '/admin/users', User, body),
       updateUser: (userId: string, body: UpdateUserRequest) => send('PATCH', `/admin/users/${id(userId)}`, User, body),

@@ -1,14 +1,19 @@
 import { copyFile, chmod, chown, rename, stat } from 'node:fs/promises'
 import { constants } from 'node:fs'
 import path from 'node:path'
+import { editableCreditRoles, type AlbumTagPatch, type TrackTagPatch } from '@squirmy/contracts'
 import { and, asc, count, eq, max } from 'drizzle-orm'
 import { parseFile } from 'music-metadata'
-import { File as TagFile, TagTypes } from 'node-taglib-sharp'
+import {
+  ByteVector, File as TagFile, Id3v2FrameClassType, Id3v2FrameIdentifiers, Id3v2Tag,
+  Id3v2UserTextInformationFrame, Mpeg4AppleTag, Mpeg4BoxType, Picture, PictureType, StringType, TagTypes, XiphComment,
+} from 'node-taglib-sharp'
 import { db } from '../../database/client.js'
 import {
   albumArtists, albums, artists, mediaFiles, recordingArtists, recordings, releaseLoudness, releases, releaseTracks, type FileTags,
 } from '../../database/schema.js'
 import { audioHash } from '../../lib/ffmpeg.js'
+import { normalizeTags, rawTags, splitGenres } from '../library/tags.js'
 import { fsyncPath, removeIfExists } from './files.js'
 
 /**
@@ -149,18 +154,34 @@ export type TagWriteResult =
  * one the library knows is never rewritten. Problems with the file are reported as a
  * reason, never thrown.
  */
-export async function writeTags(file: string, values: TagValues, options: { temp: string; expectedAudioHash?: string | null }): Promise<TagWriteResult> {
+type WriteOptions = { temp: string; expectedAudioHash?: string | null }
+type EditValues = AlbumTagPatch & TrackTagPatch
+
+export function writeTags(file: string, values: TagValues, options: WriteOptions): Promise<TagWriteResult> {
+  return verifiedTagWrite(file, options, temp => applyTags(temp, values), temp => mismatchedFields(temp, values))
+}
+
+export function writeTagEdit(file: string, values: EditValues, cover: Buffer | undefined, options: WriteOptions) {
+  return verifiedTagWrite(file, options, temp => applyEdit(temp, values, cover), temp => mismatchedEdits(temp, values, cover))
+}
+
+async function verifiedTagWrite(
+  file: string, options: WriteOptions,
+  apply: (temp: string) => void, verify: (temp: string) => Promise<string[]>,
+): Promise<TagWriteResult> {
   const extension = path.extname(file).slice(1).toLowerCase()
   if (!TAG_WRITABLE.has(extension)) return { written: false, reason: `Writing tags into .${extension} files is not supported` }
   try {
-    return await writeVerified(file, values, options)
+    return await writeVerified(file, options, apply, verify)
   } catch (error) {
     await removeIfExists(options.temp)
     return { written: false, reason: error instanceof TagCheckError ? error.message : `Tags could not be written (${(error as Error).message})` }
   }
 }
 
-async function writeVerified(file: string, values: TagValues, options: { temp: string; expectedAudioHash?: string | null }): Promise<TagWriteResult> {
+async function writeVerified(
+  file: string, options: WriteOptions, apply: (temp: string) => void, verify: (temp: string) => Promise<string[]>,
+): Promise<TagWriteResult> {
   const before = await stat(file)
   const originalHash = await audioHash(file).catch(() => {
     throw new TagCheckError('The audio stream could not be read')
@@ -172,11 +193,11 @@ async function writeVerified(file: string, values: TagValues, options: { temp: s
   await removeIfExists(options.temp)
   await copyFile(file, options.temp, constants.COPYFILE_EXCL)
   try {
-    applyTags(options.temp, values)
+    apply(options.temp)
   } catch (error) {
     throw new TagCheckError(`The tag library could not write this file (${(error as Error).message})`)
   }
-  const mismatched = await mismatchedFields(options.temp, values)
+  const mismatched = await verify(options.temp)
   if (mismatched.length > 0) throw new TagCheckError(`Tags did not read back correctly: ${mismatched.join(', ')}`)
   if (await audioHash(options.temp) !== originalHash) throw new TagCheckError('Writing tags would have changed the audio')
 
@@ -184,7 +205,7 @@ async function writeVerified(file: string, values: TagValues, options: { temp: s
   await chown(options.temp, before.uid, before.gid).catch(() => {})
   await fsyncPath(options.temp)
   const now = await stat(file)
-  if (now.size !== before.size || now.mtimeMs !== before.mtimeMs) throw new TagCheckError('The file changed while its tags were being written')
+  if (now.ino !== before.ino || now.dev !== before.dev || now.size !== before.size || now.mtimeMs !== before.mtimeMs) throw new TagCheckError('The file changed while its tags were being written')
   await rename(options.temp, file)
   await fsyncPath(path.dirname(file))
   const after = await stat(file)
@@ -257,4 +278,89 @@ async function mismatchedFields(file: string, values: TagValues): Promise<string
     ['ReplayGain album peak', gain?.albumPeak == null || close(common.replaygain_album_peak?.ratio, gain.albumPeak, 1e-5)],
   ]
   return checks.filter(([, ok]) => !ok).map(([name]) => name)
+}
+
+/** Writes an explicit patch so mixed and unrelated tags survive an album-wide edit. */
+function applyEdit(file: string, values: EditValues, cover: Buffer | undefined) {
+  const f = TagFile.createFromPath(file)
+  try {
+    const hadId3v1 = (f.tagTypesOnDisk & TagTypes.Id3v1) !== 0
+    const tag = f.tag
+    if (values.title !== undefined) tag.title = values.title
+    if (values.artist !== undefined) tag.performers = values.artist ? [values.artist] : []
+    if (values.album !== undefined) tag.album = values.album
+    if (values.albumArtist !== undefined) tag.albumArtists = values.albumArtist ? [values.albumArtist] : []
+    if (values.track !== undefined) tag.track = values.track ?? 0
+    if (values.disc !== undefined) tag.disc = values.disc ?? 0
+    if (values.discTotal !== undefined) tag.discCount = values.discTotal ?? 0
+    if (values.genres !== undefined) tag.genres = splitGenres(values.genres)
+    if (values.compilation !== undefined) tag.isCompilation = values.compilation
+    if (values.composer !== undefined) tag.composers = values.composer
+    if (values.date !== undefined) tag.year = values.date ? Number(values.date.slice(0, 4)) : 0
+
+    // Dates more precise than a year and some credits are only exposed by the native tags.
+    const extension = path.extname(file).toLowerCase()
+    const native = f.getTag(extension === '.mp3' ? TagTypes.Id3v2 : extension === '.m4a' ? TagTypes.Apple : TagTypes.Xiph, true)
+    if (values.date !== undefined) {
+      if (native instanceof XiphComment) native.setFieldAsStrings('DATE', ...(values.date ? [values.date] : []))
+      if (native instanceof Mpeg4AppleTag) native.setQuickTimeString(Mpeg4BoxType.DAY, values.date ?? '')
+      if (native instanceof Id3v2Tag) {
+        native.version = 4
+        native.setTextFrame(Id3v2FrameIdentifiers.TDRC!, ...(values.date ? [values.date] : []))
+      }
+    }
+    for (const role of ['lyricist', 'arranger', 'producer'] as const) {
+      const names = values[role]
+      if (!names) continue
+      if (native instanceof XiphComment) native.setFieldAsStrings(role.toUpperCase(), ...names)
+      if (native instanceof Mpeg4AppleTag) {
+        for (const key of [role, role.toUpperCase()]) native.setItunesStrings('com.apple.iTunes', key)
+        native.setItunesStrings('com.apple.iTunes', role.toUpperCase(), ...names)
+      }
+      if (native instanceof Id3v2Tag) {
+        const frames = native.getFramesByClassType<Id3v2UserTextInformationFrame>(Id3v2FrameClassType.UserTextInformationFrame)
+        for (const frame of frames) if (frame.description.toLowerCase() === role) native.removeFrame(frame)
+        if (role === 'lyricist') native.setTextFrame(Id3v2FrameIdentifiers.TEXT!, ...names)
+        else if (names.length) {
+          const frame = Id3v2UserTextInformationFrame.fromDescription(role.toUpperCase(), StringType.UTF8)
+          frame.text = [names.join('; ')]
+          native.addFrame(frame)
+        }
+      }
+    }
+    if (values.artist !== undefined && native instanceof XiphComment) native.setFieldAsStrings('ARTISTS')
+    if (cover) {
+      const front = Picture.fromFullData(ByteVector.fromByteArray(cover), PictureType.FrontCover, 'image/jpeg', '')
+      // MP4 cover atoms have no picture type. Replace the first cover and keep the rest.
+      const others = native instanceof Mpeg4AppleTag ? tag.pictures.slice(1) : tag.pictures.filter(picture => picture.type !== PictureType.FrontCover)
+      tag.pictures = [front, ...others]
+    }
+    if (!hadId3v1) f.removeTags(TagTypes.Id3v1)
+    f.save()
+  } finally {
+    f.dispose()
+  }
+}
+
+async function mismatchedEdits(file: string, values: EditValues, cover: Buffer | undefined) {
+  const { common, native } = await parseFile(file, { skipCovers: !cover })
+  const tags = normalizeTags(common, rawTags(Object.values(native)))
+  const checks: string[] = []
+  const compare = (field: keyof EditValues, actual: unknown, expected: unknown) => {
+    if (JSON.stringify(actual) !== JSON.stringify(expected)) checks.push(field)
+  }
+  for (const field of ['title', 'artist', 'album', 'albumArtist'] as const) {
+    if (values[field] !== undefined) compare(field, tags[field] ?? '', values[field])
+  }
+  for (const field of ['track', 'disc', 'discTotal', 'date'] as const) {
+    const actual = field === 'discTotal' ? tags.discTotal ?? common.disk.of : tags[field]
+    if (values[field] !== undefined) compare(field, actual || null, values[field])
+  }
+  if (values.genres !== undefined) compare('genres', tags.genres ?? [], splitGenres(values.genres))
+  if (values.compilation !== undefined) compare('compilation', tags.compilation ?? false, values.compilation)
+  for (const role of editableCreditRoles) {
+    if (values[role] !== undefined) compare(role, tags.credits?.filter(credit => credit.role === role).map(credit => credit.name) ?? [], values[role])
+  }
+  if (cover && !common.picture?.some(picture => cover.equals(Buffer.from(picture.data)))) checks.push('cover')
+  return checks
 }
