@@ -5,6 +5,7 @@ import { db, type Transaction } from '../../database/client.js'
 import { albums, libraryRoots, mediaFiles, recordings } from '../../database/schema.js'
 import { conflict } from '../../lib/errors.js'
 import { invalidate } from '../../realtime/index.js'
+import { announceAvailability } from '../acquisition/resolve.js'
 import { deleteLibraryFile } from './delete.js'
 import { collectionFile, describeFile, fileJoins, hygieneColumns, revision, unchangedFile, type FileRow } from './hygiene-files.js'
 
@@ -117,5 +118,6 @@ export async function removeDuplicate(fileId: string, request: RemoveDuplicate) 
     },
   })
   if (!removed) throw conflict('Only present copies in enabled managed folders can be deleted', 'duplicate_changed')
+  if (removed.recordingId) await announceAvailability([removed.recordingId])
   await invalidate('all', [queryKeys.library(), queryKeys.home(), ...(removed.albumId ? [queryKeys.album(removed.albumId)] : [])])
 }
