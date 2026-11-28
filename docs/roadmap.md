@@ -6,6 +6,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 
 - [x] Monorepo: `apps/mobile`, `apps/server`, `packages/contracts`, `packages/client-core`
 - [x] Contracts for auth, catalog, playback, sessions, search, user data, settings, library
+- Search supports composite catalog queries, fuzzy non-Latin names, visible playlist names, stored lyric excerpts and composer or producer credits. The web results can filter by file quality, release decade and likes.
 - [x] Database schema for every milestone, initial migration, test harness
 - [x] CI: lint, typecheck, build, tests against Postgres
 - [x] semantic-release on `main`
@@ -109,7 +110,7 @@ Designed in [audio-engine.md](./audio-engine.md); each item is a pull request fr
 
 - [x] Design, with measurements of today's gaps and spikes of the new engine and formats
 - [x] S1. Transcode priorities and cancelling abandoned encodes
-- [ ] S2. Exact lengths and priming per file, estimated gains for unmeasured files
+- [x] S2. Exact lengths and priming per file, estimated gains for unmeasured files
 - [ ] S3. Fragmented MP4 profiles (FLAC, Opus, AAC) with exact gapless numbers, and seeking live transcodes
 - [ ] C1. Queue diffs with checkpoints on the session socket
 - [ ] C2. Undoing queue edits

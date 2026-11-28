@@ -316,7 +316,7 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, onBa
 }
 
 type SearchRow =
-  | { kind: 'song'; key: string; song: SongRowItem }
+  | { kind: 'song'; key: string; snippet?: string; song: SongRowItem }
   | { kind: 'row'; key: string; item: Exclude<SearchItem, { type: 'track' }> }
   | { kind: 'heading'; key: string };
 
@@ -462,7 +462,7 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
   const rows = useMemo((): SearchRow[] => {
     const songs = new Map(songItems.data.map(song => [song.track.id, song]));
     const results = shown.map((item): SearchRow => (item.type === 'track'
-      ? { kind: 'song', key: searchItemKey(item), song: songs.get(item.track.id)! }
+      ? { kind: 'song', key: searchItemKey(item), song: songs.get(item.track.id)!, snippet: item.matchDetail }
       : { kind: 'row', key: searchItemKey(item), item }));
     if (active || !results.length) return results;
     return [{ kind: 'heading', key: 'h:viewed' }, ...results];
@@ -477,7 +477,10 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
     : renderResult(info);
   const renderResult = ({ item: row }: { item: SearchRow }) => {
     switch (row.kind) {
-      case 'song': return <View style={styles.songs}>{renderSong({ item: row.song })}</View>;
+      case 'song': return <View style={styles.songs}>
+        {renderSong({ item: row.song })}
+        {row.snippet ? <Text numberOfLines={2} style={styles.searchMatchDetail}>{row.snippet}</Text> : null}
+      </View>;
       case 'row': {
         const item = collectionDim(resultCollection(row.item, link));
         // The size of a song row's cover, so titles line up down the mixed list.
@@ -570,6 +573,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   libraryBody: { paddingHorizontal: gutter },
   sortRow: { flexDirection: 'row', alignItems: 'center', minHeight: 43, marginBottom: 4 },
   libraryActions: { flexDirection: 'row', marginLeft: 'auto' },
+  searchMatchDetail: { color: colors.muted, fontSize: 13, marginStart: resultCover + 12, marginBottom: 8 },
   songs: { marginHorizontal: -4 },
   songsHeading: { marginHorizontal: -gutter, marginTop: 18 },
   more: { marginVertical: 20 },

@@ -6,6 +6,7 @@ import { db } from '../../database/client.js'
 import { mediaFiles } from '../../database/schema.js'
 import { requireUser } from '../../lib/auth.js'
 import { forbidden, notFound, unauthorized } from '../../lib/errors.js'
+import { measureOnPlay } from '../loudness/index.js'
 import { streamSignal } from './files.js'
 import { buildPlaybackDescriptor, verifyStreamSignature } from './playback.js'
 import { openStream } from './stream.js'
@@ -45,6 +46,9 @@ async function stream(request: FastifyRequest, reply: FastifyReply) {
     userId,
     signal: profile === 'original' ? undefined : streamSignal(reply.raw),
   })
+  if (response.body && !query.download) {
+    void measureOnPlay(file).catch((error: unknown) => request.log.warn({ err: error, fileId }, 'Could not queue loudness measurement'))
+  }
   reply.code(response.status).headers(response.headers)
   return reply.send(response.body ?? undefined)
 }

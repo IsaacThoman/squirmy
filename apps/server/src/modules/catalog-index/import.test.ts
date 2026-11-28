@@ -277,7 +277,7 @@ describe('resuming after a shutdown', () => {
     expect((await importRow(id)).checkpoint).toMatchObject({ built: 4 })
     const seen: Checkpoint[] = []
     await resumeImport(id, { onCheckpoint: (checkpoint) => seen.push(checkpoint) })
-    expect(seen.map((checkpoint) => checkpoint.built)).toEqual([5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17])
+    expect(seen.map((checkpoint) => checkpoint.built)).toEqual([5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20])
     expect(await snapshot()).toEqual(expected)
     expect(await stagingTables()).toEqual([])
   })

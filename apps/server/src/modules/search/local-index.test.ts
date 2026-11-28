@@ -68,6 +68,12 @@ describe('catalog search from the local index', () => {
     expect(row).toMatchObject({ mbid: yesterday.mbid, albumHintId: album!.id })
   })
 
+  it.each(['beatles yesterday', 'yesterday beatles', 'yesterday help'])('ranks a composite match for %s', async (query) => {
+    const answer = await search(query)
+    expect(answer.tracks[0]).toMatchObject({ title: 'Yesterday', mbid: catalog.ids['recording:beatles-yesterday'] })
+    expect(answer.top).toMatchObject({ type: 'track', id: answer.tracks[0]!.id })
+  })
+
   it("matches the user's own copy and leaves it to the library answer", async () => {
     const queen = await createArtist({ name: 'Queen' })
     const opera = await createAlbum({ title: 'A Night at the Opera', artist: queen, owned: true, tracks: [{ title: 'Bohemian Rhapsody' }] })
