@@ -6,6 +6,7 @@ import { AppError } from '../../../lib/errors.js'
 import { matchKey } from '../../../lib/text.js'
 import { readOriginal } from '../../artwork/recover.js'
 import { rendition } from '../../artwork/renditions.js'
+import { assertFileAllowed } from '../../catalog/explicit.js'
 import { trackLyrics } from '../../catalog/pages.js'
 import { openStream, selectFile } from '../../streaming/index.js'
 import { streamSignal } from '../../streaming/files.js'
@@ -27,6 +28,8 @@ async function stream(context: Context): Promise<typeof sent> {
   const selection = await selectFile(recordingId, { quality: 'original' })
   if (!selection) throw notFound('Song')
   const { file } = selection
+  // A 403, error 50: a client that saved the id before explicit content was turned off.
+  await assertFileAllowed(context.user.id, file)
   const plan = planStream(file, {
     format: params.string('format'),
     maxBitRateKbps: params.int('maxBitRate', 0, { min: 0 }),
@@ -69,6 +72,7 @@ async function download(context: Context): Promise<typeof sent> {
   const recordingId = await resolve('track', expectId(params.required('id'), 'track').id)
   const selection = await selectFile(recordingId, { quality: 'original' })
   if (!selection) throw notFound('Song')
+  await assertFileAllowed(context.user.id, selection.file)
   const response = await openStream(selection.file, 'original', { ...rangeHeaders(context), download: true })
   reply.code(response.status).headers(response.headers)
   await reply.send(response.body ?? undefined)

@@ -218,6 +218,13 @@
       "when": 1795848240704,
       "tag": "0030_credits_and_works",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1795849909354,
+      "tag": "0031_explicit_restriction",
+      "breakpoints": true
     }
   ]
 }

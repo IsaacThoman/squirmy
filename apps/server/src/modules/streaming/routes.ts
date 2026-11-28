@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { db } from '../../database/client.js'
 import { mediaFiles } from '../../database/schema.js'
 import { requireUser } from '../../lib/auth.js'
+import { assertFileAllowed } from '../catalog/explicit.js'
 import { forbidden, notFound, unauthorized } from '../../lib/errors.js'
 import { streamSignal } from './files.js'
 import { buildPlaybackDescriptor, verifyStreamSignature } from './playback.js'
@@ -36,6 +37,7 @@ async function stream(request: FastifyRequest, reply: FastifyReply) {
   const userId = await authorizeStream(request, fileId, profile, query)
   const [file] = await db.select().from(mediaFiles).where(eq(mediaFiles.id, fileId))
   if (!file) throw notFound('No such file', 'not_available')
+  await assertFileAllowed(userId, file)
   const response = await openStream(file, profile, {
     range: request.headers.range,
     ifRange: [request.headers['if-range']].flat()[0],

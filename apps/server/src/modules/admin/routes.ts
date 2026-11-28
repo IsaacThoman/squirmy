@@ -20,6 +20,7 @@ import { getQueueStats } from '../../jobs/index.js'
 import { disconnectSockets, invalidate } from '../../realtime/index.js'
 import { hashPassword, insertUser, revokeAppPasswords, revokeUserSessions, toUser } from '../auth/service.js'
 import { markEnrichmentStale } from '../enrichment/stale.js'
+import { explicitRoots } from '../userdata/settings.js'
 import { queueNewlyPossibleMatching } from '../matching/retry.js'
 import { checkImportSettings } from '../imports/settings.js'
 
@@ -114,6 +115,7 @@ export async function adminRoutes(app: FastifyInstance) {
         role: body.role,
         canUpload: body.canUpload,
         canAcquire: body.canAcquire,
+        explicitRestricted: body.explicitRestricted,
         ...(body.disabled !== undefined && { disabledAt: body.disabled ? current.disabledAt ?? new Date() : null }),
         ...(body.password !== undefined && { passwordHash: await hashPassword(body.password) }),
         updatedAt: new Date(),
@@ -128,7 +130,7 @@ export async function adminRoutes(app: FastifyInstance) {
     // Sockets carry the role and session they connected with; make them reconnect.
     if (body.role !== undefined || body.disabled || body.password !== undefined) await disconnectSockets(id)
     await invalidate('admins', [queryKeys.adminUsers()])
-    await invalidate({ user: id }, [queryKeys.me()])
+    await invalidate({ user: id }, body.explicitRestricted !== undefined ? explicitRoots : [queryKeys.me()])
     return toUser(updated)
   })
 

@@ -10,6 +10,7 @@ import path from 'node:path'
 import { sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { trackCredits, trackExplicit, trackWorks } from '../catalog/credits.js'
+import { explicitAllowed } from '../catalog/explicit.js'
 import { isoTime, uuidArray } from '../catalog/sql.js'
 import { resolveMerged } from '../catalog/redirects.js'
 import { normalizationValues } from '../loudness/normalization.js'
@@ -100,13 +101,16 @@ function replayGain(row: SongRow): Payload {
 
 /**
  * Songs for `refs`, in their order and with duplicates kept. Ids follow merge
- * redirects; ids that do not exist or have no present file are left out.
+ * redirects; ids that do not exist or have no present file are left out, and so are
+ * explicit songs (by the file's advisory, else the catalog's) for a user who has explicit
+ * content off.
  */
 export async function songs(userId: string, refs: readonly SongRef[]): Promise<Payload[]> {
   if (refs.length === 0) return []
-  const [recordingIds, albumIds] = await Promise.all([
+  const [recordingIds, albumIds, allowsExplicit] = await Promise.all([
     resolveMerged('recordings', refs.map((ref) => ref.id)),
     resolveMerged('albums', refs.flatMap((ref) => ref.albumId ? [ref.albumId] : [])),
+    explicitAllowed(userId),
   ])
   const resolved = refs.flatMap((ref) => {
     const id = recordingIds.get(ref.id)
@@ -161,7 +165,8 @@ export async function songs(userId: string, refs: readonly SongRef[]): Promise<P
   const byPair = new Map(rows.map((row) => [`${row.requestId}|${row.requestAlbumId ?? ''}`, row]))
   return resolved.flatMap((ref) => {
     const row = byPair.get(`${ref.id}|${ref.albumId ?? ''}`)
-    if (!row) return []
+    // Subsonic clients have no way to gray a song, so explicit ones are left out for a user who has them off.
+    if (!row || (row.explicit === true && !allowsExplicit)) return []
     const artists = trackArtists.get(row.id) ?? (row.primaryArtistId ? [{ id: row.primaryArtistId, name: row.artistCredit }] : [])
     const albumCredits = row.albumId
       ? albumArtists.get(row.albumId) ?? (row.albumArtistId ? [{ id: row.albumArtistId, name: row.albumCredit! }] : [])

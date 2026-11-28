@@ -1,9 +1,10 @@
 import { canFetch } from '@squirmy/client-core'
 import type { QueueSeed } from '@squirmy/contracts'
-import { and, eq, inArray, isNull, max } from 'drizzle-orm'
+import { and, eq, inArray, isNull, max, sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { albums, mediaFiles, recordings, users } from '../../database/schema.js'
 import { onDemandRecordings } from '../acquisition/coverage.js'
+import { cleanVersions, explicitAllowed, recordingExplicit } from '../catalog/explicit.js'
 
 /**
  * Queue entries the server can trust. Clients send track ids with durations and states;
@@ -12,7 +13,7 @@ import { onDemandRecordings } from '../acquisition/coverage.js'
 
 export type TrackAvailability = 'server' | 'on_demand' | 'none'
 
-type TrackInfo = { id: string; durationMs: number; availability: TrackAvailability }
+type TrackInfo = { id: string; durationMs: number; availability: TrackAvailability; explicit: boolean }
 
 /** Merge chains longer than this are treated as broken. */
 const MAX_MERGE_DEPTH = 8
@@ -48,7 +49,8 @@ export async function lookupTracks(ids: readonly string[]): Promise<Map<string, 
   const targets = [...new Set(resolved.values())]
   if (!targets.length) return new Map()
   const [rows, files] = await Promise.all([
-    db.select({ id: recordings.id, durationMs: recordings.durationMs }).from(recordings).where(inArray(recordings.id, targets)),
+    db.select({ id: recordings.id, durationMs: recordings.durationMs, explicit: recordingExplicit(sql`${recordings.id}`, sql`${recordings.explicit}`).mapWith(Boolean) })
+      .from(recordings).where(inArray(recordings.id, targets)),
     db.select({ recordingId: mediaFiles.recordingId, durationMs: max(mediaFiles.durationMs) }).from(mediaFiles)
       .where(and(inArray(mediaFiles.recordingId, targets), isNull(mediaFiles.missingSince)))
       .groupBy(mediaFiles.recordingId),
@@ -59,6 +61,7 @@ export async function lookupTracks(ids: readonly string[]): Promise<Map<string, 
     id: row.id,
     durationMs: row.durationMs ?? owned.get(row.id) ?? 0,
     availability: owned.has(row.id) ? 'server' as const : onDemand.has(row.id) ? 'on_demand' as const : 'none' as const,
+    explicit: row.explicit,
   }]))
   const result = new Map<string, TrackInfo>()
   for (const [requested, target] of resolved) {
@@ -82,30 +85,47 @@ export async function isRequester(userId: string): Promise<boolean> {
  * album ids, the recording's duration, and `ready` or `preparing` by availability. Tracks
  * the user cannot play are dropped: `none` for everyone, and `on_demand` for a user who
  * may not have tracks fetched, whose entry would otherwise sit preparing and then fail.
+ * For a user who does not allow explicit content, an explicit track gives way to a known
+ * clean version that plays for them (`cleanVersions`), with no album context, and is
+ * dropped when there is none.
  * `indexes[i]` is the position in `seeds` of the i-th kept seed.
  */
 export async function trustSeeds(userId: string, seeds: readonly QueueSeed[]): Promise<{ seeds: QueueSeed[]; indexes: number[] }> {
   const albumIds = seeds.flatMap(seed => (seed.albumId ? [seed.albumId] : []))
-  const [tracks, albumMap] = await Promise.all([
+  const [tracks, albumMap, allowsExplicit] = await Promise.all([
     lookupTracks(seeds.map(seed => seed.trackId)),
     albumIds.length ? followMerges(albums, albumIds) : new Map<string, string>(),
+    explicitAllowed(userId),
   ])
+  const blocked = (track: TrackInfo) => track.explicit && !allowsExplicit
+  const clean = await cleanTracks([...tracks.values()].filter(blocked).map(track => track.id))
   // Asked only when it matters, so a queue of owned tracks costs no extra query.
-  const fetchable = [...tracks.values()].some(track => track.availability === 'on_demand') && await isRequester(userId)
+  const fetchable = [...tracks.values(), ...[...clean.values()].flat()].some(track => track.availability === 'on_demand') && await isRequester(userId)
+  const plays = (track: TrackInfo) => !blocked(track) && (track.availability === 'server' || (track.availability === 'on_demand' && fetchable))
   const trusted: QueueSeed[] = []
   const indexes: number[] = []
   for (const [index, seed] of seeds.entries()) {
-    const track = tracks.get(seed.trackId)
-    if (!track || track.availability === 'none' || (track.availability === 'on_demand' && !fetchable)) continue
+    const original = tracks.get(seed.trackId)
+    const track = original && blocked(original) ? clean.get(original.id)?.find(plays) : original
+    if (!track || !plays(track)) continue
     trusted.push({
       trackId: track.id,
-      albumId: seed.albumId ? albumMap.get(seed.albumId) ?? null : null,
+      // A clean version is on another release, so the explicit one's album is not its.
+      albumId: track === original && seed.albumId ? albumMap.get(seed.albumId) ?? null : null,
       durationMs: track.durationMs,
       state: track.availability === 'server' ? 'ready' : 'preparing',
     })
     indexes.push(index)
   }
   return { seeds: trusted, indexes }
+}
+
+/** The known clean versions of explicit recordings, best first, with their availability. */
+async function cleanTracks(explicitIds: readonly string[]): Promise<Map<string, TrackInfo[]>> {
+  if (!explicitIds.length) return new Map()
+  const versions = await cleanVersions(explicitIds)
+  const info = await lookupTracks([...new Set([...versions.values()].flat())])
+  return new Map([...versions].map(([id, cleanIds]) => [id, cleanIds.flatMap(cleanId => info.get(cleanId) ?? [])]))
 }
 
 type HeldEntry = { trackId: string; albumId: string | null; durationMs: number }

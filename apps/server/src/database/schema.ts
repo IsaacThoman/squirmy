@@ -101,6 +101,8 @@ export const users = pgTable('users', {
   role: text('role').$type<UserRole>().notNull().default('member'),
   canUpload: boolean('can_upload').notNull().default(false),
   canAcquire: boolean('can_acquire').notNull().default(false),
+  /** An admin turned explicit content off for the user, who cannot turn it back on (`User.explicitRestricted`). */
+  explicitRestricted: boolean('explicit_restricted').notNull().default(false),
   /** UserSettings from @squirmy/contracts, plus encrypted per-user secrets under `secrets`. */
   settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}),
   disabledAt: at('disabled_at'),

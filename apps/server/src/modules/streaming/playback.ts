@@ -4,6 +4,7 @@ import { db } from '../../database/client.js'
 import { users } from '../../database/schema.js'
 import { sign, verify } from '../../lib/crypto.js'
 import { notFound } from '../../lib/errors.js'
+import { assertFileAllowed } from '../catalog/explicit.js'
 import { resolveOne } from '../catalog/redirects.js'
 import { normalizationFor } from '../loudness/normalization.js'
 import { codecFamily, mimeFor, outputSampleRate, parseCodecs, profiles } from './profiles.js'
@@ -47,7 +48,8 @@ export async function verifyStreamSignature(fileId: string, profile: StreamProfi
 /**
  * `GET /tracks/:id/playback`: picks the file and profile for the recording (after following
  * merges of the recording and of `albumId`), signs a URL for `userId`, and describes what that URL will deliver. Throws 404
- * `not_available` when the recording has no present file.
+ * `not_available` when the recording has no present file, and 403 `explicit_not_allowed` for
+ * an explicit file the user does not allow.
  */
 export async function buildPlaybackDescriptor(userId: string, recordingId: string, query: PlaybackQuery): Promise<PlaybackDescriptor> {
   // Queue entries and playlists keep ids that later lost a merge, for the album as well.
@@ -58,6 +60,7 @@ export async function buildPlaybackDescriptor(userId: string, recordingId: strin
   const selection = await selectFile(target, { albumId, codecs: query.codecs, quality: query.quality })
   if (!selection) throw notFound('No file of this track is available', 'not_available')
   const { file, profile } = selection
+  await assertFileAllowed(userId, file)
   const { url, expiresAt } = signStreamUrl(file.id, profile, userId, query)
   const base = {
     trackId: recordingId,
