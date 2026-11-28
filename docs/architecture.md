@@ -127,6 +127,7 @@ Operator settings that change at runtime (provider toggles, API keys, thresholds
 <data>/secret.key                     generated root secret (0600)
 <data>/assets/ab/cd/<sha256>.<ext>    original images, content addressed; rebuilt from their source when lost
 <data>/art/<assetId>/<size>.webp      derived renditions, safe to delete
+<data>/art/<assetId>/<size>.jpeg      derived Subsonic renditions, generated on request, safe to delete
 <data>/transcodes/<fileId>/<profile>.<source>.<ext>  transcodes; <source> is the file's size and mtime
 <data>/staging/<importId>/            files being imported
 ```
@@ -372,6 +373,8 @@ The server holds one shared session per user in memory, loaded on first use and 
 - Lists show the user's library restricted to tracks with a present file (`sql.ts`): a library file is a present collection file when the collection counts for the user (`collectionCounts`), or a present file whose recording or album the user saved (for a recording, that is the catalog's `inLibraryRecording` plus a present file); a library album is `inLibraryAlbum` with a library file, and its songs are its library files; artists are credited on a library album or track. Library albums are found from the library files, so search stubs cost nothing. Lookups by id (`getSong`, `stream`), starred songs and playlist entries need only a present file. `songs.ts`, `albums.ts` and `artists.ts` build response objects in batches with a fixed number of queries (`albums` and `artistRows` return only library rows); a song is shown through the present file `selectFile` would stream.
 - `search3` and `search2` rank a query with the search module's library search (`searchLibrary`), so typos are tolerated as in the apps, and keep what is in the user's library or the server's collection (the `server` reach of `sql.ts`), so a search finds all of the server's music as Squirmy's own does. `getAlbum`, `getArtist` and `getMusicDirectory` reach the collection too: lookups by id. An empty `search3` (sync) and the other lists keep to the library. Sync clients page through everything with an empty `search3`. The page that starts where the user's previous one ended continues from its last key, so deep pages cost what the first does.
 - `stream` serves originals and the streaming profiles through `openStream`; a bitrate below every profile, or a `timeOffset`, is a live ffmpeg encode that is not cached. A live encode takes a streaming encoder slot without waiting (`tryAcquireSlot`) and at most `LIVE_ENCODES_PER_USER` (3) run per user; a refusal is `transcoder_busy` (503) or `too_many_live_encodes` (429), sent as a Subsonic error before any header.
+- Sized `getCoverArt` requests use cached JPEG renditions by default and WebP when explicitly accepted. Responses vary by `Accept`. Playlist IDs require the same visibility as the playlist itself.
+- `getNowPlaying` shows the caller their own live playback and includes other accounts only when they have enabled `shareNowPlaying`. The setting defaults to off for existing and new users.
 - The play queue is the session queue (`getSnapshot`, `replaceQueue`). The songs a client saved before its current one are remembered in memory while the session's current entry and queue are unchanged.
 
 ### Library pipeline
