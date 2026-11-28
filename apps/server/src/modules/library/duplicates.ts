@@ -1,11 +1,10 @@
 import path from 'node:path'
-import type { DuplicateGroup, DuplicatePage, QualityPage, RemoveDuplicate } from '@squirmy/contracts'
+import { queryKeys, type DuplicateGroup, type DuplicatePage, type QualityPage, type RemoveDuplicate } from '@squirmy/contracts'
 import { and, eq, gt, inArray, lt, sql } from 'drizzle-orm'
 import { db, type Transaction } from '../../database/client.js'
 import { albums, libraryRoots, mediaFiles, recordings } from '../../database/schema.js'
 import { conflict } from '../../lib/errors.js'
 import { invalidate } from '../../realtime/index.js'
-import { queryKeys } from '@squirmy/contracts'
 import { deleteLibraryFile } from './delete.js'
 import { collectionFile, describeFile, fileJoins, hygieneColumns, revision, unchangedFile, type FileRow } from './hygiene-files.js'
 
