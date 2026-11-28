@@ -324,9 +324,33 @@ export function normalizeTags(common: Partial<ICommonTagsResult>, raw: RawTags):
     mbArtistIds: mbids(common.musicbrainz_artistid ?? raw.get('musicbrainzartistid')),
     mbAlbumArtistIds: mbids(common.musicbrainz_albumartistid ?? raw.get('musicbrainzalbumartistid')),
     hasLyrics: common.lyrics?.some((lyrics) => Boolean(lyrics.text?.trim() || lyrics.syncText?.length)) || undefined,
+    ...sonicTags(common, raw),
   }
   // Keep the stored JSON small: drop empty values.
   return Object.fromEntries(Object.entries(tags).filter(([, value]) => value !== undefined && !(Array.isArray(value) && value.length === 0))) as FileTags
+}
+
+/** Tempos outside this range are a tagger's mistake (or a zero meaning "unknown"). */
+const BPM_RANGE = [20, 400] as const
+
+/**
+ * Tempo, key and mood as taggers and DJ software write them: `TBPM`/`BPM`/MP4 `tmpo`,
+ * `TKEY`/`INITIALKEY`/`KEY`, and `TMOO`/`MOOD`. The key is kept as written ("Am", "8A");
+ * `sonic/keys.ts` reads the notations. Moods split like genres.
+ */
+export function sonicTags(common: Partial<ICommonTagsResult>, raw: RawTags): Pick<FileTags, 'bpm' | 'key' | 'moods'> {
+  const text = (...keys: string[]) => {
+    for (const key of keys) {
+      const value = raw.get(key)?.map(clean).find(Boolean)
+      if (value) return value
+    }
+    return undefined
+  }
+  const written = common.bpm ?? Number.parseFloat(text('bpm', 'tbpm', 'tmpo', 'beatsperminute', 'fbpm') ?? '')
+  const bpm = Number.isFinite(written) && written >= BPM_RANGE[0] && written <= BPM_RANGE[1] ? Math.round(written * 100) / 100 : undefined
+  const key = clean(common.key) ?? text('initialkey', 'tkey', 'key')
+  const moods = splitGenres(common.mood ? [common.mood] : raw.get('mood') ?? raw.get('tmoo'))
+  return { bpm, key: key && key.length <= 16 ? key : undefined, moods }
 }
 
 /**
