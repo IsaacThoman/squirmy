@@ -28,7 +28,7 @@ import { albumPresentation, canFetch, genreColor, isPlayable, UNAVAILABLE_LABEL,
 import { formatDuration } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useViewer } from '@/player/on-demand-context'
-import { usePlayerControls, useTrackPlayback } from '@/player/player-context'
+import { useJamRights, usePlayerControls, useTrackPlayback } from '@/player/player-context'
 import { useTrackActions } from '@/player/use-track-actions'
 
 /** The results for what is typed and the filter chosen, however they were found. */
@@ -245,6 +245,7 @@ function Results({ term, filter, list, onChoose }: ResultsProps) {
   }, [items, lyricItems, creditItems])
   const songIndexes = useMemo(() => new Map(tracks.map((track, index) => [track.id, index])), [tracks])
   const actions = useTrackActions(tracks)
+  const rights = useJamRights()
   const resultMenu = useResultMenus()
   const viewer = useViewer()
   const navigate = useNavigate()
@@ -295,6 +296,7 @@ function Results({ term, filter, list, onChoose }: ResultsProps) {
           ratings: actions.ratings,
           act: action => actions.onAction(action, track, songIndex!),
           navigate: to => void navigate(to),
+          rights,
         }) : undefined}
         resultMenu={resultMenu}
         onLike={item.type === 'track' ? () => actions.onAction('like', item.track, songIndex!) : undefined}

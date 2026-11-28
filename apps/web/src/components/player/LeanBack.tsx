@@ -3,7 +3,7 @@ import { useEffect, useRef, type KeyboardEvent } from 'react'
 import { Cover } from '@/components/music/Cover'
 import { IconButton } from '@/components/ui/icon-button'
 import { cn } from '@/lib/utils'
-import type { Player } from '@/player/player-context'
+import { hostControls, type Player } from '@/player/player-context'
 import { LyricsPane } from './Lyrics'
 import { PlayerStatusLine } from './PlayerStatus'
 import { SongContextMenu } from './SongMenu'
@@ -43,7 +43,7 @@ export function LeanBack({ player, onExit, onNavigate }: LeanBackProps) {
     }
   }
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'Enter' || event.target !== root.current || !item) return
+    if (event.key !== 'Enter' || event.target !== root.current || !item || hostControls(player.state)) return
     event.preventDefault()
     controls.togglePlay()
   }
@@ -93,9 +93,9 @@ export function LeanBack({ player, onExit, onNavigate }: LeanBackProps) {
           idle && 'pointer-events-none translate-y-3 opacity-0',
         )}
       >
-        <SeekBar stacked durationMs={item?.entry.durationMs ?? 0} onSeek={controls.seek} disabled={!item} className="mx-auto max-w-5xl" />
+        <SeekBar stacked durationMs={item?.entry.durationMs ?? 0} onSeek={controls.seek} disabled={!item || hostControls(player.state)} className="mx-auto max-w-5xl" />
         <div ref={row} data-own-keys="" onKeyDown={onRowKeyDown} className="relative mx-auto mt-2 flex max-w-5xl items-center justify-center">
-          <TransportButtons player={player} large disabled={!item} />
+          <TransportButtons player={player} large disabled={!item || hostControls(player.state)} />
           <div className="absolute inset-y-0 right-0 flex items-center">
             <IconButton label="Exit full screen" size="lg" onClick={onExit} className="size-11 text-foreground"><Minimize2 /></IconButton>
           </div>

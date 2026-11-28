@@ -52,6 +52,16 @@ export async function explicitRecordings(ids: readonly string[]): Promise<Set<st
   return new Set(rows.map((row) => row.id))
 }
 
+/**
+ * The user may not hear the recording: it is explicit and they have explicit content off. Its
+ * stream is refused them, so a session that ran it for them (one following a jam, whose host
+ * queued it) was silent on their device, and it is not a play of theirs.
+ */
+export async function explicitBlockedFor(userId: string, recordingId: string): Promise<boolean> {
+  if (await explicitAllowed(userId)) return false
+  return (await explicitRecordings([recordingId])).has(recordingId)
+}
+
 /** A clean version may be this much shorter or longer than the explicit one: an edit mutes words, it does not cut verses. */
 const CLEAN_LENGTH_TOLERANCE_MS = 15_000
 

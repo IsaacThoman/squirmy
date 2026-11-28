@@ -7,6 +7,7 @@ import { LoginPage, RegisterPage, SetupPage } from '@/pages/account'
 import {
   AlbumPage, ArtistPage, ArtistReleasesPage, CollectionPage, HomePage, LibraryPage, LibraryRedirect, LikedPage, MixPage, NotFoundPage, PlaylistPage, SearchPage, WantlistPage,
 } from '@/pages/music'
+import { JoinJamPage } from '@/pages/jam'
 import { SettingsRoute, ShellPage } from '@/pages/shell'
 
 // Admin, import and developer pages are separate downloads; most visits never open them.
@@ -77,6 +78,7 @@ export function AppRoutes() {
               <Route path="artist/:id" element={<ArtistPage />} />
               <Route path="artist/:id/releases/:section" element={<ArtistReleasesPage />} />
               <Route path="playlist/:id" element={<PlaylistPage />} />
+              <Route path="jam/:id" element={<JoinJamPage />} />
               <Route path="mix/:id" element={<MixPage />} />
               <Route path="settings" element={<SettingsRoute />} />
               <Route path="settings/:section" element={<SettingsRoute />} />

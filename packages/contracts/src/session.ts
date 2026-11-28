@@ -62,6 +62,12 @@ export const QueueEntry = z.object({
    * a repeat-all cycle leaves it out. Absent on every other entry, and from older servers.
    */
   queued: z.boolean().optional(),
+  /**
+   * In a listening session ("Listen together"), the user who added the entry. The server
+   * sets it on the entries it makes while a jam is on; clients never send it. Absent
+   * otherwise, and from older servers.
+   */
+  addedBy: Id.optional(),
 })
 export type QueueEntry = z.infer<typeof QueueEntry>
 
@@ -74,6 +80,8 @@ export const QueueSeed = z.object({
   albumId: Id.nullable().optional(),
   durationMs: z.number().int().nonnegative(),
   state: z.enum(['ready', 'preparing']).optional(),
+  /** Set by the server only (see `QueueEntry.addedBy`); the server drops it from what clients send. */
+  addedBy: Id.optional(),
 })
 export type QueueSeed = z.infer<typeof QueueSeed>
 
@@ -136,6 +144,83 @@ export const SleepTimerRequest = z.discriminatedUnion('kind', [
 ])
 export type SleepTimerRequest = z.infer<typeof SleepTimerRequest>
 
+/**
+ * Listen together (a "jam").
+ *
+ * A user (the host) opens their shared session to other users of the same server. Each
+ * member listens on their own device, in step: the jam is the host's shared session, and
+ * every member's shared session follows it. The server copies the host's session into each
+ * member's (current entry, position anchor, queue, shuffle, repeat, autoplay, context),
+ * keeping what is the member's own: their active device and volumes. Every
+ * device plays locally from the same position anchor on the server clock, so they stay
+ * together the way a device follows a seek; a member's device also corrects its own drift
+ * against the anchor (`JAM_DRIFT_MS`). Plays are recorded for each listener from their own
+ * session, with the usual skip and completion rules.
+ *
+ * - **Who controls what.** The host controls playback: play, pause, seek, skip, what plays
+ *   (`playTracks`), shuffle, repeat, autoplay and the queue's order. With `queuePolicy`
+ *   `everyone`, members may add to the queue (`enqueue`) and remove what they added; with
+ *   `host`, only the host may. Members' other playback commands are refused `jam_host_only`;
+ *   `transfer` and `setVolume` stay theirs, within their own devices.
+ * - **Sleep timer.** The host's session holds it; when it ends the jam pauses, and with it
+ *   every member's session. Members' copies carry none (so their devices do not fade out;
+ *   they pause with the jam), a timer a member had set goes when they join, and their
+ *   `setSleepTimer` is refused `jam_unsupported`.
+ * - **Undo.** The host's undo stack holds the host's own queue edits, and undoing one changes
+ *   the jam for everyone. Members' edits are not kept on it, and a member's `undo` is refused
+ *   `jam_host_only`. Joining empties the member's own stack, whose edits were to the queue the
+ *   jam replaces.
+ * - **Queue diffs and signal path.** Each member's session counts its own versions, so
+ *   `session:queueOps` and `session:sync` work on it as on any session; a member's device that
+ *   does not accept queue operations gets the whole queue. Each listener's active device
+ *   reports its own signal path, kept on and shown in that listener's session alone.
+ * - **A song a member cannot play.** The playback descriptor of an entry may be refused for a
+ *   member (explicit content off for them, `explicit_not_allowed`): their device sits it out,
+ *   silent, and plays along again when the jam moves on. It does not skip or pause, which
+ *   are the host's, and the server records no play of it for them.
+ * - **Track ends.** Any listener's `trackEnded` near the end of the jam's current entry
+ *   advances the jam, so the first device to finish moves everyone on.
+ * - **Joining.** By the jam's `id`, which the invite link carries: any signed-in user of the
+ *   server with the link may join, up to `JAM_MEMBER_LIMIT`. Joining replaces what the
+ *   member's shared session held, and makes the joining device active when it can play.
+ *   A detached device cannot join (`jam_detached`), and a host cannot join another jam
+ *   (`jam_hosting`); a member of another jam leaves it first.
+ * - **Leaving.** A member who leaves (or is removed) keeps a paused copy of what was
+ *   playing. When the host ends the jam every member's copy pauses the same way.
+ * - **Older clients.** Without the `jam` capability a client sees an ordinary session that
+ *   other people change; its refused commands are undone as any refused command is.
+ */
+export const JamQueuePolicy = z.enum(['everyone', 'host'])
+export type JamQueuePolicy = z.infer<typeof JamQueuePolicy>
+
+export const JamMember = z.object({
+  userId: Id,
+  /** The user's display name, else their username. */
+  name: z.string(),
+  /** Server epoch milliseconds. */
+  joinedAt: z.number(),
+})
+export type JamMember = z.infer<typeof JamMember>
+
+export const JamInfo = z.object({
+  /** Random and unguessable: the invite link carries it. */
+  id: z.string().min(16).max(64),
+  hostUserId: Id,
+  /** The host first, then members in the order they joined. */
+  members: z.array(JamMember),
+  queuePolicy: JamQueuePolicy,
+  /** Server epoch milliseconds. */
+  startedAt: z.number(),
+  /** Whose session this is: the host's, which is the jam, or a member's, which follows it. */
+  role: z.enum(['host', 'member']),
+})
+export type JamInfo = z.infer<typeof JamInfo>
+
+/** Most people in one jam, the host included. */
+export const JAM_MEMBER_LIMIT = 16
+/** A member's device further than this from the jam's position seeks back to it. */
+export const JAM_DRIFT_MS = 300
+
 /** The small, frequently changing half of the session. */
 export const SessionState = z.object({
   current: QueueEntry.nullable(),
@@ -155,6 +240,8 @@ export const SessionState = z.object({
   volumes: z.record(z.string(), z.number().min(0).max(1)),
   /** Absent while no sleep timer is set, and from servers without the `sleepTimer` capability. See "Sleep timer". */
   sleepTimer: SleepTimer.optional(),
+  /** Present while the session hosts or follows a jam, on servers with the `jam` capability. See "Listen together". */
+  jam: JamInfo.optional(),
 })
 export type SessionState = z.infer<typeof SessionState>
 
@@ -405,8 +492,8 @@ export type SessionCommand = z.infer<typeof SessionCommand>
  *
  * Undo works by ids, so later edits from any device do not break it. An undo is applied as
  * an ordinary change (versions move on, the queue goes out as usual) and removes its edit
- * from the stack. `playTracks`, Subsonic's `savePlayQueue` and attaching with `bringQueue`
- * empty the stack. Errors: `nothing_to_undo` (the edit is not kept, or nothing of it is
+ * from the stack. `playTracks`, Subsonic's `savePlayQueue`, attaching with `bringQueue` and
+ * joining a jam empty the stack. In a jam only the host undoes (see "Listen together"). Errors: `nothing_to_undo` (the edit is not kept, or nothing of it is
  * left to undo), `queue_full`.
  */
 export const UNDO_LIMIT = 20
@@ -644,9 +731,9 @@ export type SessionHello = z.infer<typeof SessionHello>
  * and all they imply. `signal`: `session:signal` (see "Signal path"). `sleepTimer`:
  * `setSleepTimer` and `SessionState.sleepTimer`. `queueOps`: `session:queueOps` to sockets
  * that accept it, and `session:sync` (see "Queue diffs"). `undo`: the `undo` command
- * (see "Undo").
+ * (see "Undo"). `jam`: `session:jam`, `SessionState.jam` and the rest of "Listen together".
  */
-export const SessionCapability = z.enum(['detach', 'signal', 'sleepTimer', 'queueOps', 'undo'])
+export const SessionCapability = z.enum(['detach', 'signal', 'sleepTimer', 'queueOps', 'undo', 'jam'])
 export type SessionCapability = z.infer<typeof SessionCapability>
 
 export const SessionHelloAck = z.object({
@@ -690,6 +777,50 @@ export const SessionMoveAck = z.union([
   z.object({ ok: z.literal(false), error: z.string() }),
 ])
 export type SessionMoveAck = z.infer<typeof SessionMoveAck>
+
+/**
+ * `session:jam`, on servers with the `jam` capability. `start`: host a jam (idempotent for
+ * a host). `join`: join one by id. `leave`: a member leaves. `end`: the host ends it.
+ * `settings`: the host changes who may add to the queue. `remove`: the host removes a
+ * member. `invite`: the host asks other users of the server to join; each of them gets a
+ * `jam.invite` event.
+ */
+export const JamRequest = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('start'), queuePolicy: JamQueuePolicy.optional() }),
+  z.object({ action: z.literal('join'), jamId: z.string().min(1).max(64) }),
+  z.object({ action: z.literal('leave') }),
+  z.object({ action: z.literal('end') }),
+  z.object({ action: z.literal('settings'), queuePolicy: JamQueuePolicy }),
+  z.object({ action: z.literal('remove'), userId: Id }),
+  z.object({ action: z.literal('invite'), userIds: z.array(Id).min(1).max(JAM_MEMBER_LIMIT) }),
+])
+export type JamRequest = z.infer<typeof JamRequest>
+
+/**
+ * Answer to `session:jam`. On success, the jam as it is now (absent after `leave` and
+ * `end`); the session's own update follows as `session:state`. Errors: `hello_required`,
+ * `invalid_request`, `rate_limited`, `jam_not_found`, `jam_full`, `jam_hosting`,
+ * `jam_detached`, `not_in_jam`, `jam_host_only`, `internal_error`.
+ */
+export const JamAck = z.union([
+  z.object({ ok: z.literal(true), jam: JamInfo.nullable() }),
+  z.object({ ok: z.literal(false), error: z.string() }),
+])
+export type JamAck = z.infer<typeof JamAck>
+
+/** `GET /jams/:id`: what an invite link shows before joining. */
+export const JamPreview = z.object({
+  id: z.string(),
+  hostName: z.string(),
+  members: z.array(JamMember.pick({ userId: true, name: true })),
+  /** The track the jam is on, if any. */
+  trackId: Id.nullable(),
+})
+export type JamPreview = z.infer<typeof JamPreview>
+
+/** `GET /jams/people`: the other active users of the server, whom a host may invite. */
+export const JamPerson = z.object({ userId: Id, name: z.string() })
+export type JamPerson = z.infer<typeof JamPerson>
 
 /**
  * `commandId` is unique per user. Clients re-send unacknowledged commands after a
@@ -752,6 +883,13 @@ export const ServerEvent = z.discriminatedUnion('type', [
     reason: z.string().nullable().optional(),
     kind: z.enum(['outage', 'failures', 'exhausted', 'unavailable']).optional(),
   }),
+  /** To every socket of an invited user: `hostName` asks them to join jam `jamId`. */
+  z.object({ type: z.literal('jam.invite'), jamId: z.string(), hostName: z.string() }),
+  /**
+   * To the sockets of a member's shared session, just before the state that drops `jam`:
+   * `ended` when the host ended it, `removed` when the host removed this member.
+   */
+  z.object({ type: z.literal('jam.left'), jamId: z.string(), reason: z.enum(['ended', 'removed']) }),
 ])
 export type ServerEvent = z.infer<typeof ServerEvent>
 
@@ -768,6 +906,8 @@ export interface ClientToServerEvents {
   'session:attach': (request: SessionAttach, ack: (reply: SessionMoveAck) => void) => void
   /** Only on servers with the `queueOps` capability: the session now, with the whole queue. See "Queue diffs". */
   'session:sync': (request: Record<string, never>, ack: (reply: SessionSyncAck) => void) => void
+  /** Only on servers with the `jam` capability. See "Listen together". */
+  'session:jam': (request: JamRequest, ack: (reply: JamAck) => void) => void
 }
 
 /**
@@ -843,6 +983,10 @@ export const queryKeys = {
   search: () => ['search'] as const,
   settings: () => ['settings'] as const,
   scrobbling: () => ['scrobbling'] as const,
+  /** An invite link's preview (`GET /jams/:id`). */
+  jam: (id: string) => ['jams', id] as const,
+  /** Whom a host may invite (`GET /jams/people`). */
+  jamPeople: () => ['jams', 'people'] as const,
   admin: () => ['admin'] as const,
   adminRoots: () => ['admin', 'roots'] as const,
   adminJobs: () => ['admin', 'jobs'] as const,
