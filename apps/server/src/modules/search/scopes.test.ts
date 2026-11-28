@@ -8,7 +8,7 @@ import { likes, lyrics, mediaFiles } from '../../database/schema.js'
 import { body, signIn } from '../../test/api.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createArtist } from '../../test/factories.js'
-import { createPlaylist } from '../userdata/playlists.js'
+import { createPlaylist, updatePlaylist } from '../userdata/playlists.js'
 
 describe('universal search scopes', () => {
   useTestDatabase()
@@ -39,6 +39,8 @@ describe('universal search scopes', () => {
     expect(two.playlists?.map(({ id }) => id)).toEqual([shared.id])
     expect(one.tracks).toEqual([])
     expect((await search('cafe selections')).playlists).toHaveLength(2)
+    await updatePlaylist(other.id, shared.id, { isPublic: false })
+    expect((await search('cafe selections')).playlists?.map(({ id }) => id)).toEqual([own.id])
   })
 
   it('searches stored lyrics, falls back to synced text and returns plain snippets', async () => {

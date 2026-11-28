@@ -227,10 +227,11 @@ describe('GET /search/library', () => {
     expect(titles(found.tracks)).toContain(name)
   })
 
-  it('understands "artist title" and "title artist" queries', async () => {
+  it('understands artist and album context for titles', async () => {
     expect(titles((await search('radiohead karma')).tracks)[0]).toBe('Karma Police')
     expect(titles((await search('karma police radiohead')).tracks)[0]).toBe('Karma Police')
     expect(titles((await search('radiohead kid a')).albums)[0]).toBe('Kid A')
+    expect(titles((await search('karma police ok computer')).tracks)[0]).toBe('Karma Police')
     // The credit carries a featured artist; the primary artist still counts.
     expect(titles((await search('daft punk get lucky')).tracks)[0]).toBe('Get Lucky')
   })

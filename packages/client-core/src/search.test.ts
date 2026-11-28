@@ -23,7 +23,7 @@ const top = (type: SearchTopResult['type'], n: number, score?: number): SearchTo
 
 describe('mergeSearch', () => {
   it('is empty while both answers load, and shows the library alone first', () => {
-    expect(mergeSearch(null, undefined, fetcher)).toEqual({ items: [], top: null, artists: [], albums: [], tracks: [] })
+    expect(mergeSearch(null, undefined, fetcher)).toEqual({ items: [], lyricItems: [], top: null, artists: [], albums: [], tracks: [] })
     const library = results({ tracks: [track(2), track(1)], top: top('track', 1, 3) })
     const merged = mergeSearch(library, null, fetcher)
     expect(ids(merged.tracks)).toEqual([2, 1])

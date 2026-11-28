@@ -32,10 +32,10 @@ const recentPlays = 1000
 
 const readingsTable = (list: ReturnType<typeof readings>) => sql`
   select * from unnest(${textArray(list.map((one) => one.title))}, ${textArray(list.map((one) => prefixEnd(one.title)))},
-                       ${textArray(list.map((one) => one.context))}) as k(title, title_end, artist)`
+                       ${textArray(list.map((one) => one.context))}) as k(title, title_end, context)`
 
 /** The artist half of `match_key` is the reading's artist, maybe after "the" and before "feat. …". */
-const creditMatches = (alias: string) => sql.raw(`(k.artist is null or (split_part(${alias}.match_key, '|', 1) || ' ') like any (array[k.artist || ' %', 'the ' || k.artist || ' %']))`)
+const creditMatches = (alias: string) => sql.raw(`(k.context is null or (split_part(${alias}.match_key, '|', 1) || ' ') like any (array[k.context || ' %', 'the ' || k.context || ' %']))`)
 
 /**
  * Fuzzy candidates are looked up by the query's first words, up to this many characters:
@@ -151,8 +151,27 @@ export function libraryQuery(kind: LibraryKind, userId: string, key: string, lim
   const eligible = sql`t.merged_into_id is null and ${scope === 'library' ? member : present} ${facet}`
   const playedBy = sql.raw(kind === 'album' ? 'album_id' : 'recording_id')
   const list = readings(key)
+  const withAlbum = kind === 'track' && list.length > 1
+  const albumContext = withAlbum ? sql`
+    by_album as (
+      select id, max(strength) as strength
+      from k cross join lateral (
+        select t.id, case when t.title_key = k.title then 2 else 1 end as strength
+        from albums al cross join lateral (
+          select rt.recording_id from releases re join release_tracks rt on rt.release_id = re.id where re.album_id = al.id
+          union
+          select f.recording_id from media_files f where f.album_id = al.id and f.missing_since is null and f.recording_id is not null
+          union
+          select h.id from recordings h where h.album_hint_id = al.id
+        ) credited join recordings t on t.id = credited.recording_id
+        where al.title_key collate "C" in (k.context, 'the ' || k.context) and al.merged_into_id is null
+          and t.title_key collate "C" >= k.title and t.title_key collate "C" < k.title_end and ${eligible}
+        limit ${prefixCandidates}
+      ) matched group by id
+    ),` : sql``
   return sql`
     with k as (${readingsTable(list)}),
+    ${albumContext}
     candidates as (
       (select t.id from ${table} t
         where t.title_key collate "C" >= ${key} and t.title_key collate "C" < ${end} and ${eligible} limit ${prefixCandidates})
@@ -160,9 +179,10 @@ export function libraryQuery(kind: LibraryKind, userId: string, key: string, lim
       -- An "artist title" reading starts from the artist, which is far more selective than a title word.
       (select x.id from k cross join lateral (
         select t.id from artists ar join ${table} t on t.primary_artist_id = ar.id
-        where k.artist is not null and ar.name_key in (k.artist, 'the ' || k.artist) and ar.merged_into_id is null
+        where k.context is not null and ar.name_key in (k.context, 'the ' || k.context) and ar.merged_into_id is null
           and starts_with(t.title_key, k.title) and ${eligible}
         limit ${prefixCandidates}) x)
+      ${withAlbum ? sql`union select id from by_album` : sql``}
       union
       (select t.id from artists ar join ${table} t on t.primary_artist_id = ar.id
         where ar.name_key collate "C" >= ${key} and ar.name_key collate "C" < ${end} and ${eligible} limit ${fuzzyCandidates})
@@ -177,8 +197,10 @@ export function libraryQuery(kind: LibraryKind, userId: string, key: string, lim
     ),
     played as (select ${playedBy} as id, count(*)::int as plays from (${recent}) p group by 1)
     select t.id from candidates c join ${table} t on t.id = c.id left join played on played.id = t.id
+    ${withAlbum ? sql`left join by_album on by_album.id = t.id` : sql``}
     where ${inGenre(kind, 't', genre)}
     order by greatest(
+        ${withAlbum ? sql`by_album.strength,` : sql``}
         (select max(case
           when t.title_key in (k.title, 'the ' || k.title) and ${creditMatches('t')} then 2
           when starts_with(t.title_key, k.title) and ${creditMatches('t')} then 1
