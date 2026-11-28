@@ -21,6 +21,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FakeEngine } from '../engine.js'
 import { ApiError } from '../api/client.js'
 import { type SavedSession, SessionClient, type SessionPlayer } from './client.js'
+import { diffQueue, queueLengths } from './queue-ops.js'
 import { createInitialSession, positionAt, queueChanged, reduceSession, splitSession } from './reducer.js'
 import { bringSession, forkSession } from './scope.js'
 import type { AckCallback, AckEvent, AckPayload, AckReply, SessionTransport } from './transport.js'
@@ -60,6 +61,12 @@ class FakeServer implements Held {
   silentMoves = false
   /** What a hello claiming a detached session the server does not hold is told. */
   ended: 'expired' | 'missing' = 'missing'
+  /** Sends queue changes as operations to sockets that accept them (unless `old`). */
+  queueOps = true
+  /** Queue operations not delivered, as if lost: each one sent is dropped while this is above 0. */
+  loseOps = 0
+  /** `session:sync` requests received. */
+  syncs = 0
   private serial = 0
 
   now(): number {
@@ -85,9 +92,20 @@ class FakeServer implements Held {
     const queue = queueChanged(previous, next)
     if (queue) held.queueVersion += 1
     const halves = splitSession(next)
+    const ops = queue ? diffQueue(splitSession(previous).queue, halves.queue) : null
+    const scope = held === this ? { type: 'shared' as const } : { type: 'device' as const, deviceId: [...this.own].find(([, own]) => own === held)![0] }
     for (const transport of this.transports) {
       if (this.held(transport.deviceId) !== held) continue
-      if (queue) transport.push('session:queue', { version: held.version, queueVersion: held.queueVersion, queue: halves.queue })
+      if (queue && ops && transport.acceptsOps) {
+        if (this.loseOps > 0) this.loseOps -= 1
+        else {
+          transport.push('session:queueOps', {
+            version: held.version, queueVersion: held.queueVersion, baseQueueVersion: held.queueVersion - 1, scope, lengths: queueLengths(halves.queue), ops,
+          })
+        }
+      } else if (queue) {
+        transport.push('session:queue', { version: held.version, queueVersion: held.queueVersion, queue: halves.queue })
+      }
       transport.push('session:state', { version: held.version, state: halves.state })
     }
   }
@@ -126,7 +144,7 @@ class FakeServer implements Held {
     if (this.old) return { serverTime: this.now(), snapshot, devices: this.devices() }
     const scope = held === this ? { type: 'shared' as const } : { type: 'device' as const, deviceId }
     const signal = this.signal && this.signal.entryId === held.session.current?.id && this.signal.deviceId === held.session.activeDeviceId ? this.signal : null
-    return { serverTime: this.now(), snapshot: { ...snapshot, scope }, devices: this.devices(), capabilities: ['detach', 'signal', 'sleepTimer'], ...(signal ? { signal } : {}) }
+    return { serverTime: this.now(), snapshot: { ...snapshot, scope }, devices: this.devices(), capabilities: this.queueOps ? ['detach', 'signal', 'sleepTimer', 'queueOps', 'undo'] : ['detach', 'signal', 'sleepTimer'], ...(signal ? { signal } : {}) }
   }
 
   /** As the server: keeps the active device's report about the current entry and passes it on. */
@@ -152,10 +170,15 @@ class FakeServer implements Held {
       const hello = payload as SessionHello
       this.hellos.push(hello)
       transport.deviceId = hello.device.id
+      transport.acceptsOps = !this.old && this.queueOps && (hello.accepts ?? []).includes('queueOps')
       const lost = !this.old && hello.detached === true && !this.own.has(hello.device.id)
       send({ ...this.greeting(hello.device.id), ...(lost ? { detachedEnded: this.ended } : {}) })
     } else if (event === 'time:sync') {
       send({ clientTime: payload, serverTime: this.now() })
+    } else if (event === 'session:sync') {
+      if (this.old || !this.queueOps) return
+      this.syncs += 1
+      send({ ok: true, snapshot: this.greeting(transport.deviceId!).snapshot })
     } else if (event === 'session:detach' || event === 'session:attach') {
       // An older server has no such listener, so the request times out.
       if (this.old) return
@@ -199,6 +222,8 @@ class FakeServer implements Held {
 class FakeTransport implements SessionTransport {
   connected = false
   deviceId: string | undefined
+  /** Its hello accepted `queueOps` from a server that sends them. */
+  acceptsOps = false
   private epoch = 0
   private toServer: (() => void)[] = []
   private toClient: (() => void)[] = []
@@ -251,8 +276,12 @@ class FakeTransport implements SessionTransport {
     return () => set.delete(listener as (update: never) => void)
   }
 
+  /** Names of the server events pushed to this socket, in order. */
+  readonly pushed: string[] = []
+
   push<E extends keyof ServerToClientEvents>(event: E, update: Parameters<ServerToClientEvents[E]>[0]): void {
     if (!this.connected) return
+    this.pushed.push(event)
     this.toClient.push(() => {
       for (const listener of this.listeners.get(event) ?? []) (listener as (value: typeof update) => void)(update)
     })
@@ -488,6 +517,115 @@ describe('SessionClient sync', () => {
     transport.connect()
     await settle()
     expect(names).toEqual(['Phone', 'Kitchen', 'Kitchen'])
+  })
+})
+
+describe('SessionClient queue diffs', () => {
+  const sameQueue = (client: SessionClient, server: FakeServer) => expect(client.getSnapshot().queue).toEqual(splitSession(server.session).queue)
+
+  it('asks for operations and follows the queue with them', async () => {
+    const { server, client, transport, settle } = setup({ canPlay: false })
+    await settle()
+    expect(server.hellos[0]!.accepts).toEqual(['queueOps'])
+    server.apply({ type: 'playTracks', tracks: seeds(1, 2, 3, 4, 5, 6), seed: 1 }, WEB)
+    server.apply({ type: 'next' }, WEB)
+    server.apply({ type: 'enqueue', tracks: seeds(9), placement: 'next' }, WEB)
+    server.apply({ type: 'moveInQueue', entryId: server.session.queue.at(-1)!.id, toIndex: 0 }, WEB)
+    server.apply({ type: 'setEntryState', trackId: track(4), state: 'failed' })
+    client.dispatch({ type: 'removeFromQueue', entryId: server.session.queue[1]!.id })
+    await settle()
+    expect(transport.pushed).toContain('session:queueOps')
+    expect(transport.pushed).not.toContain('session:queue')
+    sameQueue(client, server)
+    expect(server.syncs).toBe(0)
+  })
+
+  it('asks for the whole session after a gap, applying states meanwhile', async () => {
+    const { server, client, transport, settle } = setup({ canPlay: false })
+    server.apply({ type: 'playTracks', tracks: seeds(1, 2, 3, 4), seed: 1 }, WEB)
+    await settle()
+    server.loseOps = 1
+    server.apply({ type: 'next' }, WEB)
+    server.apply({ type: 'enqueue', tracks: seeds(8), placement: 'last' }, WEB)
+    transport.deliverOne() // the state of the lost operations
+    transport.deliverOne() // operations on a version this client does not hold
+    expect(transport.pushed.filter(event => event === 'session:queueOps')).toHaveLength(1)
+    expect(trackOf(client.getSnapshot().session.current)).toBe(2)
+    expect(client.getSnapshot().queue.queue.map(trackOf)).toEqual([2, 3, 4])
+    transport.deliverOne() // its state: still applied
+    server.apply({ type: 'setRepeat', value: 'all' }, WEB)
+    transport.deliverOne()
+    expect(client.getSnapshot().session.repeat).toBe('all')
+    await settle()
+    expect(server.syncs).toBe(1)
+    sameQueue(client, server)
+    // In step again: the next operations apply.
+    server.apply({ type: 'next' }, WEB)
+    await settle()
+    sameQueue(client, server)
+    expect(server.syncs).toBe(1)
+  })
+
+  it('asks again for operations of another session, or that do not apply', async () => {
+    const { server, client, transport, settle } = setup({ canPlay: false })
+    server.apply({ type: 'playTracks', tracks: seeds(1, 2, 3), seed: 1 }, WEB)
+    await settle()
+    const lengths = queueLengths(splitSession(server.session).queue)
+    const base = { version: server.version + 1, queueVersion: server.queueVersion + 1, baseQueueVersion: server.queueVersion, lengths }
+    transport.push('session:queueOps', { ...base, scope: { type: 'device', deviceId: 'tv' }, ops: [] })
+    await settle()
+    expect(server.syncs).toBe(1)
+    transport.push('session:queueOps', { ...base, scope: { type: 'shared' }, ops: [{ op: 'splice', list: 'queue', at: 0, remove: 0, insert: [{ ref: 'nowhere' }] }] })
+    await settle()
+    expect(server.syncs).toBe(2)
+    sameQueue(client, server)
+  })
+
+  it('tries the sync again when it is refused', async () => {
+    const { server, client, transport, settle } = setup({ canPlay: false })
+    server.apply({ type: 'playTracks', tracks: seeds(1, 2, 3), seed: 1 }, WEB)
+    await settle()
+    const receive = server.receive.bind(server)
+    let refuse = true
+    server.receive = (from, event, payload, reply) => {
+      if (event === 'session:sync' && refuse) {
+        refuse = false
+        return (reply as (value: unknown) => void)({ ok: false, error: 'rate_limited' })
+      }
+      receive(from, event, payload, reply)
+    }
+    server.loseOps = 1
+    server.apply({ type: 'next' }, WEB)
+    server.apply({ type: 'next' }, WEB)
+    transport.flush()
+    expect(server.syncs).toBe(0)
+    await vi.advanceTimersByTimeAsync(3000)
+    await settle()
+    expect(server.syncs).toBe(1)
+    sameQueue(client, server)
+  })
+
+  it('names each command it sends, and says when the server can undo', async () => {
+    const { client, settle } = setup({ canPlay: false })
+    expect(client.getSnapshot().canUndo).toBe(false)
+    await settle()
+    expect(client.getSnapshot().canUndo).toBe(true)
+    const first = client.dispatch({ type: 'clearQueue' })
+    const second = client.dispatch({ type: 'undo', commandId: first! })
+    expect(first).toEqual(expect.any(String))
+    expect(second).not.toBe(first)
+  })
+
+  it('takes whole queues from a server that does not send operations', async () => {
+    const server = new FakeServer()
+    server.queueOps = false
+    const { client, transport, settle } = setup({ canPlay: false, server })
+    await settle()
+    server.apply({ type: 'playTracks', tracks: seeds(1, 2, 3), seed: 1 }, WEB)
+    server.apply({ type: 'next' }, WEB)
+    await settle()
+    expect(transport.pushed).not.toContain('session:queueOps')
+    sameQueue(client, server)
   })
 })
 
@@ -1407,7 +1545,7 @@ describe('SessionClient detaching', () => {
     expect(await player.client.detach()).toEqual({ ok: false, error: 'offline' })
     await player.settle()
     expect(player.client.getSnapshot()).toMatchObject({ detached: false, canDetach: true })
-    expect(player.server.hellos).toEqual([{ device: { id: PHONE, name: 'Phone', kind: 'ios' }, canPlay: true, detached: false }])
+    expect(player.server.hellos).toEqual([{ device: { id: PHONE, name: 'Phone', kind: 'ios' }, canPlay: true, detached: false, accepts: ['queueOps'] }])
     expect(await player.client.attach()).toEqual({ ok: true })
 
     const remote = setup({ canPlay: false })
