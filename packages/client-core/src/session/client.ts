@@ -1427,7 +1427,8 @@ function isRefusal(error: unknown): boolean {
 }
 
 function mediaOf(descriptor: ResolvedPlayback): EngineMedia {
-  return { transcoded: descriptor.transcoded, gapless: descriptor.gapless ?? null, cacheKey: descriptor.cacheKey ?? null }
+  const { transcoded, profile, mime, codec, sampleRate, durationMs } = descriptor
+  return { transcoded, gapless: descriptor.gapless ?? null, cacheKey: descriptor.cacheKey ?? null, profile, mime, codec, sampleRate, durationMs }
 }
 
 function descriptorKey(entry: QueueEntry): string {

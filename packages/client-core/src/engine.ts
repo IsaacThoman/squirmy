@@ -79,7 +79,8 @@ export type EnginePreload = {
 
 /**
  * What the playback descriptor says about the stream, for engines that decode it themselves
- * (the iOS native engine). Engines that hand the URL to a player ignore it.
+ * (the iOS native engine) or demux and trim it (Media Source Extensions on the web). Engines
+ * that hand the URL to a player ignore it.
  */
 export type EngineMedia = {
   /** A server transcode rather than the original file. */
@@ -91,7 +92,7 @@ export type EngineMedia = {
    * (see `ResolvedPlayback`). Engines that do not ignore it.
    */
   cacheKey?: string | null
-}
+} & Partial<Pick<PlaybackDescriptor, 'profile' | 'mime' | 'codec' | 'sampleRate' | 'durationMs'>>
 
 /**
  * What `SessionPlayer.resolvePlayback` gives: the descriptor, and the key under which the

@@ -1,5 +1,5 @@
 import {
-  addedByName, ApiError, artworkUrl, createInitialSession, followsJam, randomSeed, refreshFetchedTracks, SessionClient, sleepTimerAccessibilityLabel, sleepTimerChoiceId,
+  addedByName, ApiError, artworkUrl, createInitialSession, followsJam, randomSeed, refreshFetchedTracks, SessionClient, sitOutNotice, sleepTimerAccessibilityLabel, sleepTimerChoiceId,
   sleepTimerChoices, sleepTimerLabel, splitSession,
   type JamResult, type PlaybackNotice, type SessionClientSnapshot, type SessionMoveResult, type SessionPlayer, type SleepTimerChoice,
 } from '@squirmy/client-core';
@@ -298,10 +298,14 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         if (live.current.offline && session.playing && session.current?.state === 'preparing') skipToDownload(true);
       });
 
-      const failed = (entryId: string, message: string) => {
+      const failed = (entryId: string, message: string, error?: unknown) => {
         const { session, connection } = client.getSnapshot();
         if (session.current?.id !== entryId || (live.current.offline && skipToDownload(true))) return;
         const title = tracks.get(session.current.trackId, session.current.albumId)?.title;
+        // In someone else's jam skipping and pausing are the host's: the phone sits the song
+        // out silently and plays along again from the next one (explicit songs, for a
+        // listener who has them off, end up here).
+        if (followsJam(session)) return report(sitOutNotice(title, error));
         const notice = title ? { message: `Couldn’t play “${title}”`, detail: message } : { message };
         if (connection === 'online' && Date.now() - lastSkip > errorSkipWindowMs) {
           lastSkip = Date.now();
@@ -316,7 +320,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         if (event.type === 'error') failed(event.entryId, event.message);
       });
       const loadFailed: NonNullable<SessionPlayer['onLoadError']> = (entry, error, willRetry) => {
-        if (!willRetry) return failed(entry.id, refusalMessage(error));
+        if (!willRetry) return failed(entry.id, refusalMessage(error), error);
         // A stream the phone can't reach: offline, a download plays instead. Otherwise
         // the client keeps trying, so a short drop resumes where it was.
         if (error instanceof ApiError && error.status === 0 && client.getSnapshot().session.current?.id === entry.id) {

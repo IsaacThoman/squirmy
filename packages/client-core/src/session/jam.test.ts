@@ -1,6 +1,7 @@
 import type { JamInfo } from '@squirmy/contracts'
 import { describe, expect, it } from 'vitest'
-import { addedByName, followJam, leaveJam, memberCommandRoute, memberJam, withoutJam } from './jam.js'
+import { ApiError } from '../api/client.js'
+import { addedByName, followJam, leaveJam, memberCommandRoute, memberJam, sitOutNotice, withoutJam } from './jam.js'
 import { createInitialSession, reduceSession, type Session } from './reducer.js'
 
 const HOST = '01900000-0000-7000-8000-000000000001'
@@ -62,5 +63,16 @@ describe('listening together', () => {
     expect(memberCommandRoute({ type: 'enqueue', placement: 'next', tracks: [{ trackId: TRACK, durationMs: 0 }] })).toBe('jam')
     expect(memberCommandRoute({ type: 'transfer', deviceId: 'x' })).toBe('own')
     expect(memberCommandRoute({ type: 'setSleepTimer', timer: null })).toBe('jam_unsupported')
+  })
+
+  it('says why a member\'s device sits a song out, and that it joins in again', () => {
+    expect(sitOutNotice('Curse', new ApiError(403, 'explicit_not_allowed', 'Explicit content is off for this account'))).toEqual({
+      message: '“Curse” isn’t playing for you',
+      detail: 'Explicit content is off for you. You’ll hear the next song with everyone.',
+    })
+    expect(sitOutNotice(undefined, new ApiError(404, 'not_found', 'Not found'))).toEqual({
+      message: 'This song isn’t playing for you',
+      detail: 'It can’t play here. You’ll hear the next song with everyone.',
+    })
   })
 })

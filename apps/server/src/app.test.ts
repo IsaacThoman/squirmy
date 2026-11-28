@@ -155,6 +155,8 @@ describe('server kernel', () => {
         expect(page.headers['cache-control']).toBe('no-cache')
         // Scripts from this server only: the page has none inline.
         expect(page.headers['content-security-policy']).toContain("script-src 'self';")
+        // The audio engine gives its element a MediaSource through a blob: URL.
+        expect(page.headers['content-security-policy']).toContain("media-src 'self' blob:;")
         expect(page.headers['content-security-policy']).toContain("frame-ancestors 'none'")
         expect(page.headers['content-security-policy']).not.toContain('upgrade-insecure-requests')
       }

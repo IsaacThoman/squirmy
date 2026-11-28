@@ -1,4 +1,5 @@
 import { db } from '../../database/client.js'
+import { explicitBlockedFor } from '../catalog/explicit.js'
 import { loadScrobbling, markConnection, usable } from './connections.js'
 import { rejectsCredential, targetAvailable } from './delivery.js'
 import { describeTracks, submitNowPlaying, type TrackRef } from './listens.js'
@@ -12,6 +13,8 @@ export async function announceNowPlaying(userId: string, play: TrackRef): Promis
   const scrobbling = await loadScrobbling(userId)
   const connections = Object.values(scrobbling.connections).filter((connection) => usable(scrobbling, connection.target))
   if (connections.length === 0) return
+  // Not heard: a jam's explicit song plays silent on the device of a member who has them off.
+  if (await explicitBlockedFor(userId, play.recordingId)) return
   const [track] = await describeTracks(db, [play])
   if (!track) return
   await Promise.all(connections.map(async (connection) => {

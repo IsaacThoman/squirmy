@@ -16,7 +16,7 @@ import { newId } from '../../lib/ids.js'
 import { libraryPath, serveFile, withLibraryFile, type StreamRequest, type StreamResponse } from './files.js'
 import { fragmentedSourceFrames } from './gapless.js'
 import { rewritePacketDurations } from './mp4.js'
-import { codecFamily, fragmentedEncoder, isFragmented, mp4Options, outputBitDepth, outputSampleRate, profiles, sourceSampleRate, type MediaFile, type TranscodeProfile } from './profiles.js'
+import { codecFamily, fragmentedEncoder, mp4Options, outputBitDepth, outputSampleRate, profiles, sourceSampleRate, type MediaFile, type TranscodeProfile } from './profiles.js'
 
 type TranscodeRow = typeof transcodes.$inferSelect
 
@@ -384,6 +384,7 @@ function ffmpegArgs(input: string, file: MediaFile, profile: TranscodeProfile, s
     '-map', '0:a:0', '-vn', '-sn', '-dn', '-map_metadata', '-1', '-map_chapters', '-1',
     ...metadata.flatMap(([key, value]) => value === undefined || value === '' ? [] : ['-metadata', `${key}=${value}`]),
     ...(sampleRate && !copy ? ['-ar', String(sampleRate)] : []),
+    ...(!copy && profiles[profile].codec === 'mp3' && (file.channels ?? 0) > 2 ? ['-ac', '2'] : []),
     ...(filters.length ? ['-af', filters.join(',')] : []),
     ...(profile === 'flac_mp4' ? ['-sample_fmt', outputBitDepth(file, profile) === 16 ? 's16' : 's32'] : []),
     ...(copy && codecFamily(file) === 'aac' ? ['-bsf:a', 'aac_adtstoasc'] : []),
@@ -599,7 +600,7 @@ export async function openTranscode(file: MediaFile, profile: TranscodeProfile, 
   if (profile === 'copy_mp4' && !['aac', 'flac', 'mp3'].includes(codecFamily(file))) {
     throw badRequest('This codec cannot be remuxed for playback', 'unsupported_remux')
   }
-  const startMs = isFragmented(profile) ? request.startMs : undefined
+  const startMs = request.startMs
   const seek = startMs && !request.range ? planSeek(file, profile, startMs) : undefined
   const responseHeaders = startMs !== undefined && !request.range
     ? { ...headers, 'x-squirmy-start-frame': String(seek?.frame ?? 0), 'access-control-expose-headers': 'X-Squirmy-Start-Frame' }
