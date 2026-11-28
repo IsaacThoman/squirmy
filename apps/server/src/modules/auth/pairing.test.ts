@@ -55,7 +55,7 @@ describe('Apple TV pairing', () => {
     const lookup = { code: issued.userCode.toLowerCase() }
     expect(errorCode(await pair('lookup', lookup), 401)).toBe('unauthorized')
     const preview = body(await pair('lookup', lookup, auth), TvPairingPreview)
-    expect(preview).toMatchObject({ deviceName: device.name, ipAddress: ip })
+    expect(preview).toMatchObject({ deviceName: device.name, ipAddress: ip, deviceKind: 'tv' })
     const approval = { ...lookup, id: preview.id }
     expect(errorCode(await pair('approve', approval), 401)).toBe('unauthorized')
     const cookie = { cookie: `squirmy_session=${body(await login('ada'), AuthResponse).token}` }
@@ -75,6 +75,22 @@ describe('Apple TV pairing', () => {
     expect(sessions.items.filter(session => session.method === 'tv_pairing')).toMatchObject([
       { current: true, deviceName: device.name, clientKind: 'tv' },
     ])
+  })
+
+  it('signs a speaker in as a speaker, so it is listed and paired as one', async () => {
+    await addUser('kai')
+    const auth = bearer(body(await login('kai'), AuthResponse).token)
+    const speaker = { id: 'living-room-speaker', name: 'Living room', kind: 'speaker' }
+    const issued = body(await pair('start', { device: speaker }, { host: 'squirmy.local:4747' }), TvPairing)
+    const preview = body(await pair('lookup', { code: issued.userCode }, auth), TvPairingPreview)
+    expect(preview).toMatchObject({ deviceName: 'Living room', deviceKind: 'speaker' })
+    body(await pair('approve', { code: issued.userCode, id: preview.id }, auth), Ok)
+    advance(5)
+    const result = body(await pair('poll', { deviceCode: issued.deviceCode }), TvPairingPoll)
+    if (result.status !== 'approved') throw new Error('The speaker did not receive a session')
+    const sessions = body(await app.inject({ url: '/api/v1/auth/sessions', headers: bearer(result.session.token) }), AuthSessionList)
+    expect(sessions.items.find(session => session.current)).toMatchObject({ clientKind: 'speaker', deviceName: 'Living room', method: 'speaker_pairing' })
+    expect((await pair('start', { device: { ...speaker, kind: 'ios' } })).statusCode).toBe(400)
   })
 
   it('expires an approved code and rejects a pairing if the approving session is revoked', async () => {

@@ -189,6 +189,11 @@ Purchasing (priced offers, caps, budgets) is deferred. The protocol reserves an 
 - Settings for the account, playback and the library; scrobbling services are connected from the phone or the web.
 - Shares the iOS app record in TestFlight. Streams from the same Squirmy server and joins the same playback session.
 
+**Speaker**
+
+- A headless Connect device for a Raspberry Pi or any Linux computer with a sound card ([server/speaker.md](./server/speaker.md)): paired from a phone or the web like a TV, listed in every device picker, playing what is transferred to it gaplessly and, with normalization and software volume off, bit-perfect.
+- One small Node service with no native modules: ffmpeg decodes, `aplay` or `pacat` plays. A Docker image and a systemd unit.
+
 **Web**
 
 - Layout: a sidebar that folds to icons and is a drawer on phones, the main view, a player bar along the bottom, a queue panel beside the page.

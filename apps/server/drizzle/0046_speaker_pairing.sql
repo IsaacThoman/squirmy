@@ -1,0 +1,1 @@
+ALTER TABLE "tv_pairings" ADD COLUMN "device_kind" text DEFAULT 'tv' NOT NULL;

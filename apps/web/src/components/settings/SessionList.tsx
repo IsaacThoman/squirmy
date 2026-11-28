@@ -1,5 +1,5 @@
 import type { AuthSession, SignInMethod } from '@squirmy/contracts'
-import { Globe, KeyRound, Laptop, Smartphone, Tv, type LucideIcon } from 'lucide-react'
+import { Globe, KeyRound, Laptop, Smartphone, Speaker, Tv, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/dialog'
@@ -8,8 +8,8 @@ import { Row } from '@/components/ui/section'
 import { deviceName } from '@/lib/device'
 import { formatDate, formatRelative } from '@/lib/format'
 
-const kindIcons: Record<string, LucideIcon> = { web: Globe, ios: Smartphone, android: Smartphone, tv: Tv, desktop: Laptop }
-const kindNames: Record<string, string> = { web: 'Web browser', ios: 'iPhone or iPad', android: 'Android', tv: 'Apple TV', desktop: 'Desktop app' }
+const kindIcons: Record<string, LucideIcon> = { web: Globe, ios: Smartphone, android: Smartphone, tv: Tv, desktop: Laptop, speaker: Speaker }
+const kindNames: Record<string, string> = { web: 'Web browser', ios: 'iPhone or iPad', android: 'Android', tv: 'Apple TV', desktop: 'Desktop app', speaker: 'Squirmy speaker' }
 
 const methodNames: Record<SignInMethod, string> = {
   password: 'with a password',
@@ -17,6 +17,7 @@ const methodNames: Record<SignInMethod, string> = {
   recovery_code: 'with a recovery code',
   passkey: 'with a passkey',
   tv_pairing: 'by pairing an Apple TV',
+  speaker_pairing: 'by pairing a speaker',
   sso: 'with single sign-on',
 }
 

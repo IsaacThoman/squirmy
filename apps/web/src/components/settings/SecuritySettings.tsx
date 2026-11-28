@@ -2,7 +2,7 @@ import {
   ConfirmTwoFactorRequest, EnableTwoFactorRequest, LinkSsoRequest, PasskeyName, StartPasskeyRequest, StartTwoFactorRequest,
   type AccountSecurity, type AuthSession, type Passkey, type RecoveryCodes, type SsoIdentity, type TwoFactorSetup,
 } from '@squirmy/contracts'
-import { AlertTriangle, Check, CircleCheck, Copy, KeyRound, Link2, Plus, ShieldCheck, ShieldOff } from 'lucide-react'
+import { AlertTriangle, Check, CircleCheck, Copy, KeyRound, Link2, Plus, ShieldCheck, ShieldOff, Speaker } from 'lucide-react'
 import { z } from 'zod'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { errorMessage, useFormSubmit } from '@/api/errors'
@@ -15,6 +15,7 @@ import { Row } from '@/components/ui/section'
 import { formatDate, formatRelative, plural } from '@/lib/format'
 import { ssoMessage } from '@/lib/sso'
 import { cn } from '@/lib/utils'
+import { AddSpeakerDialog } from './AddSpeakerDialog'
 import { SessionList } from './SessionList'
 
 export type SecuritySettingsProps = {
@@ -53,7 +54,7 @@ export function SecuritySettings({
   security, sessions, failures, onStartTwoFactor, onEnableTwoFactor, onDisableTwoFactor, onRegenerateRecoveryCodes, onRevokeSession, onRevokeOtherSessions,
   passkeys, defaultPasskeyName, onAddPasskey, onRenamePasskey, onDeletePasskey, sso, onLinkSso, onUnlinkSso, ssoNotice,
 }: SecuritySettingsProps) {
-  const [dialog, setDialog] = useState<'enable' | 'disable' | 'codes' | 'passkey' | 'sso' | null>(null)
+  const [dialog, setDialog] = useState<'enable' | 'disable' | 'codes' | 'passkey' | 'sso' | 'speaker' | null>(null)
   const [unlinking, setUnlinking] = useState<SsoIdentity | null>(null)
   const hasPassword = security?.hasPassword ?? true
   const [renaming, setRenaming] = useState<Passkey | null>(null)
@@ -171,7 +172,9 @@ export function SecuritySettings({
       {sessions
         ? <SessionList sessions={sessions} onRevoke={session => onRevokeSession(session.id)} />
         : failures?.sessions ?? <Row label={<Skeleton className="h-5 w-40" />} description={<Skeleton className="mt-1 h-4 w-64 max-w-full" />} />}
+      <div><Button size="sm" variant="outline" onClick={() => setDialog('speaker')}><Speaker />Add a speaker</Button></div>
 
+      <AddSpeakerDialog open={dialog === 'speaker'} onOpenChange={close} />
       <AddPasskeyDialog open={dialog === 'passkey'} onOpenChange={close} defaultName={defaultPasskeyName} hasPassword={hasPassword} onAdd={onAddPasskey} />
       {sso && <LinkSsoDialog open={dialog === 'sso'} onOpenChange={close} name={sso.name} hasPassword={hasPassword} onLink={onLinkSso} />}
       <ConfirmDialog

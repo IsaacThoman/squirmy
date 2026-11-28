@@ -49,6 +49,14 @@ describe('deviceRows', () => {
     ]);
   });
 
+  it('shows a Squirmy speaker with a speaker icon', () => {
+    const speaker: DeviceInfo = { id: 'speaker', name: 'Living room', kind: 'speaker', canPlay: true, isActive: false };
+    expect(deviceRows([phone, speaker], phone, idle).map(row => [row.name, row.subtitle, row.icon])).toEqual([
+      ['This iPhone', 'This device', 'iphone'],
+      ['Living room', 'Squirmy speaker', 'hifispeaker.fill'],
+    ]);
+  });
+
   it('lists this device even before the server has', () => {
     expect(deviceRows([], phone, idle).map(row => row.id)).toEqual(['phone']);
   });
