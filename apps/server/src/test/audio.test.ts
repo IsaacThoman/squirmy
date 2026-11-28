@@ -43,6 +43,19 @@ describe('test fixtures', () => {
     }
   })
 
+  it('writes hi-res lossless tones at the requested rate and depth', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'squirmy-audio-'))
+    directories.push(root)
+    for (const format of ['flac', 'wav'] as const) {
+      const file = await makeTone(root, { path: `hires.${format}`, durationSec: 1, sampleRate: 96_000, bitDepth: 24 })
+      const { format: probed } = await parseFile(file)
+      expect([probed.sampleRate, probed.bitsPerSample], format).toEqual([96_000, 24])
+    }
+    const cd = await parseFile(await makeTone(root, { path: 'cd.flac', durationSec: 1, bitDepth: 16 }))
+    expect([cd.format.sampleRate, cd.format.bitsPerSample]).toEqual([44_100, 16])
+    await expect(makeTone(root, { path: 'deep.mp3', bitDepth: 24 })).rejects.toThrow('no bit depth')
+  })
+
   it('creates catalog rows and files', async () => {
     const album = await createAlbum({ owned: [0, 2] })
     expect(await db.select().from(releaseTracks)).toHaveLength(3)
