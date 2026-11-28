@@ -35,9 +35,12 @@ const execOptions = { encoding: 'buffer', maxBuffer: 10 * 1024 * 1024 } as const
 /** How many packets of each duration the file's audio has. */
 async function packetDurations(file: string) {
   const { stdout } = await exec(process.env.FFPROBE_PATH ?? 'ffprobe', [
-    '-v', 'error', '-select_streams', 'a', '-show_entries', 'packet=duration', '-of', 'csv=p=0', file,
+    '-v', 'error', '-select_streams', 'a', '-show_entries', 'packet=pts,duration', '-of', 'csv=p=0', file,
   ], { encoding: 'utf8' })
-  return stdout.trim().split('\n').map(Number)
+  const packets = stdout.trim().split('\n').map((line) => line.split(',').map(Number) as [number, number])
+  // Some ffprobe builds report no packet duration (N/A) for a fragment written as it streams;
+  // the step to the next packet's timestamp is the same number.
+  return packets.map(([pts, duration], index) => (Number.isFinite(duration) ? duration : (packets[index + 1]?.[0] ?? NaN) - pts))
 }
 
 async function decode(file: string, rate: number) {
