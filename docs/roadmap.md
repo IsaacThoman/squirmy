@@ -103,6 +103,9 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [ ] Edit smart playlist rules in the iOS app
 - [x] Documentation site ([docs/](./index.md), built with VitePress)
 - [x] Docker health check on `/ready`, and the image reports its source version
+- [x] Sessions list and sign-out, TOTP two-factor with recovery codes (server, web, iOS and Apple TV sign-in) ([authentication.md](./server/authentication.md))
+- [x] Passkeys on the web: add, rename, remove, and username-less sign-in
+- [x] OpenID Connect single sign-on (server, web, admin settings, iOS sign-in), linking accounts, and turning password sign-in off
 - [x] Explicit content controls: a per-user switch an admin can enforce, explicit songs gray and kept out of queues, radio, search, Home and Subsonic, and known clean versions in their place (server, web, iOS and Apple TV)
 - [x] Public share links to albums, playlists and songs: expiring and revocable, a public page with previews or whole songs as the admin allows, managed in Settings and Admin → Sharing (server, web, and Share on iOS)
 
@@ -135,8 +138,8 @@ Designed in [audio-engine.md](./audio-engine.md); each item is a pull request fr
 - [ ] M7. Playback speed, with the rate in the session
 - [ ] M8. AirPlay 2 buffering
 - [ ] M9. The native engine by default, and `expo-audio` removed
-- [ ] W1. Ramped gain changes on the web
-- [ ] W2. Gapless web playback through Media Source Extensions
+- [x] W1. Ramped gain changes on the web
+- [x] W2. Gapless web playback through Media Source Extensions (Chromium; Firefox and Safari keep today's engine)
 - [ ] W3. Limiter, equalizer and output device on the web
 - [ ] W4. Crossfade on the web
 

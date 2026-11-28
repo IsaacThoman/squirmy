@@ -25,3 +25,27 @@ export function playableCodecs(): string[] {
   probed ??= codecsFor(document.createElement('audio'))
   return probed
 }
+
+/**
+ * `SourceBuffer` types for the codecs of the server's Media Source Extensions vocabulary,
+ * the first type the browser accepts winning: `mp3` is an MPEG byte stream and `mp3_mp4`
+ * MP3 inside MP4 (Firefox's). WebKit takes FLAC in MP4 only as `fLaC`. Opus is left out:
+ * one decoder runs across every track appended, and one encode's state spoils the start of
+ * the next (docs/audio-engine.md, "Web measurements").
+ */
+const mseProbes: [codec: string, types: string[]][] = [
+  ['flac', ['audio/mp4; codecs="flac"', 'audio/mp4; codecs="fLaC"']],
+  ['aac', ['audio/mp4; codecs="mp4a.40.2"']],
+  ['mp3_mp4', ['audio/mp4; codecs="mp3"']],
+  ['mp3', ['audio/mpeg']],
+]
+
+/** The `SourceBuffer` type of each codec `isTypeSupported` accepts, keyed by codec. */
+export function mseTypesFor(isTypeSupported: (type: string) => boolean): Map<string, string> {
+  const types = new Map<string, string>()
+  for (const [codec, candidates] of mseProbes) {
+    const type = candidates.find(candidate => isTypeSupported(candidate))
+    if (type) types.set(codec, type)
+  }
+  return types
+}
