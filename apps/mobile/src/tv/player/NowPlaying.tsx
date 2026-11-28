@@ -15,6 +15,7 @@ import { Modes, Panels } from './Controls';
 import { Lyrics } from './Lyrics';
 import { canIdle, carouselSlots, containerTitle, inkFrom, statusLine, togglePanel, type Panel, type Slot } from './model';
 import { Scrubber } from './Scrubber';
+import { QualityBadge } from './TrackInfo';
 import { UpNext } from './UpNext';
 import { useChrome } from './useChrome';
 import { useMenuKey } from './useMenuKey';
@@ -33,7 +34,7 @@ export function NowPlayingScreen() {
 
 function Playing() {
   const focused = useIsFocused();
-  const { session, queue, track, actions, output, remote, detached } = usePlaybackState();
+  const { session, queue, track, actions, output, remote, detached, signal } = usePlaybackState();
   const { heart, toggle: toggleHeart } = useCurrentTrackHeart();
   const [panel, setPanel] = useState<Panel>('none');
   const failed = session.current?.state === 'failed';
@@ -79,6 +80,7 @@ function Playing() {
     <Carousel slots={slots} aside={aside} settled={settled} inks={inks} panelOpen={panel !== 'none'} awake={awake} onSelect={onSelect} />
     <Animated.View style={[styles.status, { transform: [{ translateX: toSide }, { translateY: settled.interpolate({ inputRange: [0, 1], outputRange: [0, 40] }) }] }]}>
       <Status remote={elsewhere} where={where} detached={detached} />
+      <QualityBadge signal={signal} />
     </Animated.View>
     {panel !== 'none' && <PanelView key={panel}>
       {panel === 'lyrics' ? <Lyrics track={track} live={focused} /> : <UpNext />}

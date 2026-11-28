@@ -32,6 +32,8 @@ export type SheetFieldProps = {
   maxLength?: number;
 };
 export type SheetActionProps = { title: string; disabled?: boolean; onPress: () => void };
+/** A heading over label and value pairs, such as a song's file and how it plays. */
+export type SheetFactsProps = { title: string; rows: readonly { label: string; value: string }[] };
 export type SheetScrollProps = { height: number; children: ReactNode };
 export type SheetPickerRowProps<T extends string | number> = {
   label: string; value: T; options: readonly { value: T; label: string }[]; onChange: (value: T) => void;
@@ -142,6 +144,21 @@ export function SheetInfo({ icon, title, subtitle }: SheetInfoProps) {
   );
 }
 
+export function SheetFacts({ title, rows }: SheetFactsProps) {
+  const styles = useStyles();
+  return (
+    <View style={styles.facts} accessibilityRole="summary">
+      <Text accessibilityRole="header" style={styles.factsTitle}>{title}</Text>
+      {rows.map(row => (
+        <View key={row.label} style={styles.fact}>
+          <Text style={styles.rowSubtitle}>{row.label}</Text>
+          <Text style={styles.factValue}>{row.value}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 /** This phone's system volume; only iOS has one the app can show. */
 export function SheetSystemVolume(_props: { label: string }) {
   return null;
@@ -203,4 +220,8 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   action: { minHeight: 48, borderRadius: 24, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
   actionTitle: { color: colors.onAccent, fontSize: 15, fontWeight: '700' },
   disabled: { opacity: 0.45 },
+  facts: { gap: 4, paddingHorizontal: 4 },
+  factsTitle: { color: colors.muted, fontSize: 13, fontWeight: '700' },
+  fact: { flexDirection: 'row', justifyContent: 'space-between', gap: 16, minHeight: 26, alignItems: 'center' },
+  factValue: { color: colors.text, fontSize: 15, fontWeight: '500', flexShrink: 1, textAlign: 'right' },
 }));

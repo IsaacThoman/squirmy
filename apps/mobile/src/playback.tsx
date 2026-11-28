@@ -48,7 +48,7 @@ const saveDelayMs = 5000;
 
 const idle: SessionClientSnapshot = (() => {
   const { state, queue } = splitSession(createInitialSession());
-  return { session: state, queue, devices: [], connection: 'offline', isActiveDevice: false, detached: false, canDetach: false, outage: null, away: null };
+  return { session: state, queue, devices: [], connection: 'offline', isActiveDevice: false, detached: false, canDetach: false, outage: null, away: null, signal: null };
 })();
 const idleSnapshot = () => idle;
 const noSubscription = () => () => undefined;
@@ -511,6 +511,8 @@ export function usePlaybackState() {
     /** Every device the user has connected, the detached ones included, for the "Playing separately" group. */
     allDevices: devices,
     thisDeviceId: device?.id ?? '',
+    /** What the device playing says it plays: the file, the stream and normalization (see `SessionClientSnapshot.signal`). */
+    signal: snapshot.signal,
     actions,
   };
 }
