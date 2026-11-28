@@ -34,6 +34,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Device presence: only devices that are open and answering the heartbeat are listed
 - [x] Live invalidations on web and mobile
 - [x] Sleep timer held by the session: set anywhere, enforced by the server, faded out on the device that plays
+- [x] Listen together: a host's session that other users' sessions follow, each playing on their own device in step, with invites, a shared queue and per-listener plays (web and iOS)
 
 ## 4. Identify and reorganize
 

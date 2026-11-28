@@ -139,6 +139,12 @@ For members who may not fetch, and on servers without a provider, music that is 
 
 Every open tab can play in your one playback session, one at a time. When playback is on another tab or device, the **Devices** button is highlighted and the controls drive that output. **Devices** lists where you can play, under "Listening on …" (or "Paused on …"): **This browser** with **Play in this tab**, which moves the music here and keeps it paused if it was, one **Another tab** row for the browser's other open tabs, and each of your other devices once. Only devices that are open and responding are listed: a closed tab, or a laptop that went to sleep, drops off within seconds. Two devices of the same name are told apart by a short id; renaming one in **Settings → Playback → This browser's name** is clearer. If the device that plays drops off, the **Devices** menu shows **Reconnecting to …** for up to 20 seconds, then playback pauses. Choose **Play in this tab** in the menu to take over. See [Devices and transferring playback](../server/playback.md#devices-and-transferring-playback).
 
+### Listening together
+
+To listen with someone else on your server, open **Devices** and choose **Listen together**, then **Start listening together**. The dialog has the invite link to copy and send, and a list of the server's other people with **Invite** beside each; they get an invite wherever they are signed in and choose **Join**. A link opens a page that says whose session it is, with **Join**. While a session is on, the player bar shows the listeners' initials; click them for the dialog, which lists who is listening (the host can remove people), **Who can add songs** (the host chooses **Everyone** or **Only me**), and **End for everyone** or **Leave**.
+
+As a member, the host controls playback, so the play, skip and seek controls are dimmed. Playing a song adds it to the queue for everyone, when the host lets everyone add. The queue shows who added each song. See [Listening together](../server/playback.md#listening-together).
+
 ### Playing separately on one device
 
 To have one tab play its own music while your other devices play something else (two people on one account, or two rooms), open **Devices** and choose **Play separately on this tab**. It happens at once: if this tab was playing it carries on and your other devices pause where they were; otherwise it starts from a paused copy of the queue. While it plays separately, the **Devices** button stays highlighted. Open it again to see:
