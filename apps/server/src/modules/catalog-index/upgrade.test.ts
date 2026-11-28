@@ -59,7 +59,7 @@ it('keeps search available across an upgrade and repairs a cancelled concurrent 
   const sql = getSql()
   await sql`
     insert into catalog_index (kind, mbid, name, artist_name, album_name, name_key, score, head) values
-    ('recording', gen_random_uuid(), 'Yesterday', 'The Beatles', 'Help!', 'yesterday', 1, true),
+    ('recording', gen_random_uuid(), 'Yesterday', 'The Beatles', 'Help!', 'yesterday', 1, false),
     ('recording', gen_random_uuid(), '宇多田ヒカル', null, null, '宇多田ヒカル', 1, true)`
   await sql`insert into catalog_index_imports (id, state, recordings) values (gen_random_uuid(), 'active', 2)`
   await runMigrations()
