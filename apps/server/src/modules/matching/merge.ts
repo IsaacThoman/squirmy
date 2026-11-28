@@ -41,7 +41,7 @@ export async function resolveMerged(tx: Executor, table: Mergeable, id: string):
 async function moveUserRows(tx: Transaction, table: 'likes' | 'ratings' | 'wants', type: EntityType, from: string, into: string) {
   const age = table === 'ratings' ? sql.raw('updated_at') : sql.raw('created_at')
   const copy: SQL = table === 'likes'
-    ? sql`created_at = f.created_at`
+    ? sql`created_at = f.created_at, imported_heart = f.imported_heart`
     : table === 'ratings'
       ? sql`rating = f.rating, updated_at = f.updated_at`
       : sql`created_at = f.created_at, fulfilled_at = f.fulfilled_at`
@@ -139,6 +139,15 @@ export async function mergeRecording(fromId: string, intoId: string, executor: E
     await tx.delete(recordingWorks).where(eq(recordingWorks.recordingId, fromId))
     await moveExternalIds(tx, 'recording', fromId, into)
     for (const table of ['likes', 'ratings', 'wants'] as const) await moveUserRows(tx, table, 'recording', fromId, into)
+    await tx.execute(sql`
+      insert into scrobble_hearts (user_id, connection, recording_id, remote_at, exported_heart_at, exported_at)
+      select user_id, connection, ${into}, remote_at, exported_heart_at, exported_at
+      from scrobble_hearts where recording_id = ${fromId}
+      on conflict (user_id, connection, recording_id) do update
+      set remote_at = greatest(scrobble_hearts.remote_at, excluded.remote_at),
+        exported_heart_at = greatest(scrobble_hearts.exported_heart_at, excluded.exported_heart_at),
+        exported_at = greatest(scrobble_hearts.exported_at, excluded.exported_at)`)
+    await tx.execute(sql`delete from scrobble_hearts where recording_id = ${fromId}`)
     // ISRCs and the explicit flag are facts about the sound, so the winner learns the
     // loser's (MusicBrainz rows have no explicit flag; the Deezer rows they absorb do).
     await tx.execute(sql`
@@ -176,7 +185,9 @@ export async function mergeAlbum(fromId: string, intoId: string, executor: Execu
     await moveLibraryPins(tx, 'album', fromId, into)
     await tx.execute(sql`
       update ${albums} a set
-        artwork_asset_id = coalesce(a.artwork_asset_id, f.artwork_asset_id),
+        artwork_asset_id = case when f.artwork_locked and not a.artwork_locked then f.artwork_asset_id
+          else coalesce(a.artwork_asset_id, f.artwork_asset_id) end,
+        artwork_locked = a.artwork_locked or f.artwork_locked,
         canonical_release_id = coalesce(a.canonical_release_id, f.canonical_release_id),
         year = coalesce(a.year, f.year),
         release_date = coalesce(a.release_date, f.release_date)

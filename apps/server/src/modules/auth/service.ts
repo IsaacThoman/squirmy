@@ -20,6 +20,14 @@ export function usernameKey(username: string) {
   return username.trim().toLowerCase()
 }
 
+/**
+ * Whether explicit songs play for the user: their own `allowExplicit` setting, unless an admin
+ * restricted it. `catalog/explicit.ts` applies the same rule in SQL (`explicitAllowed`).
+ */
+function allowsExplicit(row: Pick<AuthUser, 'explicitRestricted' | 'settings'>): boolean {
+  return !row.explicitRestricted && row.settings.allowExplicit !== false
+}
+
 export function toUser(row: AuthUser): User {
   return {
     id: row.id,
@@ -30,6 +38,8 @@ export function toUser(row: AuthUser): User {
     canAcquire: row.canAcquire,
     createdAt: row.createdAt.toISOString(),
     disabled: row.disabledAt !== null,
+    explicitRestricted: row.explicitRestricted,
+    allowsExplicit: allowsExplicit(row),
   }
 }
 
@@ -167,6 +177,8 @@ export async function revokeUserSessions(executor: Executor, userId: string, exc
 
 const appPasswordPurpose = 'app-password'
 
+type TokenOptions = { scopes?: import('@squirmy/contracts').ApiTokenScope[]; expiresAt?: Date }
+
 function toAppPassword(row: typeof appPasswords.$inferSelect, secret?: string): AppPassword {
   return {
     id: row.id,
@@ -174,6 +186,8 @@ function toAppPassword(row: typeof appPasswords.$inferSelect, secret?: string): 
     createdAt: row.createdAt.toISOString(),
     lastUsedAt: row.lastUsedAt?.toISOString() ?? null,
     ...(secret !== undefined && { secret }),
+    ...(row.scopes && { scopes: row.scopes }),
+    ...(row.expiresAt && { expiresAt: row.expiresAt.toISOString() }),
   }
 }
 
@@ -183,8 +197,8 @@ export async function listAppPasswords(userId: string): Promise<AppPassword[]> {
 }
 
 /** Creates an app password. The response is the only time the secret is shown. */
-export async function createAppPassword(userId: string, name: string): Promise<AppPassword> {
-  const secret = randomToken(18)
+export async function createAppPassword(userId: string, name: string, options: TokenOptions = {}): Promise<AppPassword> {
+  const secret = options.scopes ? `sq_${randomToken(32)}` : randomToken(18)
   return db.transaction(async (tx) => {
     // Subsonic auth decrypts every app password of the user on each request; bound them.
     await tx.select({ id: users.id }).from(users).where(eq(users.id, userId)).for('update')
@@ -196,7 +210,9 @@ export async function createAppPassword(userId: string, name: string): Promise<A
       id: newId(),
       userId,
       name,
-      secretEncrypted: encrypt(appPasswordPurpose, secret),
+      scopes: options.scopes ? [...new Set(options.scopes)] : null,
+      expiresAt: options.expiresAt,
+      secretEncrypted: options.scopes ? '' : encrypt(appPasswordPurpose, secret),
       keyHash: hashToken(secret),
     }).returning()
     return toAppPassword(row!, secret)
@@ -229,10 +245,25 @@ export async function findAppPasswordByKey(apiKey: string): Promise<AuthUser | n
   const [row] = await db.select({ user: userColumns, id: appPasswords.id })
     .from(appPasswords)
     .innerJoin(users, eq(users.id, appPasswords.userId))
-    .where(eq(appPasswords.keyHash, hashToken(apiKey)))
+    .where(and(eq(appPasswords.keyHash, hashToken(apiKey)), isNull(appPasswords.scopes), validExpiry()))
   if (!row || row.user.disabledAt) return null
   await touchAppPassword(row.id)
   return row.user
+}
+
+function validExpiry() {
+  return or(isNull(appPasswords.expiresAt), gt(appPasswords.expiresAt, new Date()))
+}
+
+export async function authenticateApiToken(token: string) {
+  if (!/^sq_[A-Za-z0-9_-]{43}$/.test(token)) return null
+  const [row] = await db.select({ user: userColumns, id: appPasswords.id, scopes: appPasswords.scopes })
+    .from(appPasswords)
+    .innerJoin(users, eq(users.id, appPasswords.userId))
+    .where(and(eq(appPasswords.keyHash, hashToken(token)), validExpiry()))
+  if (!row?.scopes || row.user.disabledAt) return null
+  await touchAppPassword(row.id)
+  return { user: row.user, scopes: row.scopes }
 }
 
 const md5 = (value: string) => createHash('md5').update(value).digest('hex')
@@ -254,7 +285,7 @@ export async function verifyAppPassword(
   const rows = await db.select({ user: userColumns, id: appPasswords.id, secretEncrypted: appPasswords.secretEncrypted })
     .from(appPasswords)
     .innerJoin(users, eq(users.id, appPasswords.userId))
-    .where(eq(users.usernameKey, usernameKey(username)))
+    .where(and(eq(users.usernameKey, usernameKey(username)), isNull(appPasswords.scopes), validExpiry()))
   for (const row of rows) {
     if (row.user.disabledAt) return null
     const secret = decrypt(appPasswordPurpose, row.secretEncrypted)

@@ -112,6 +112,8 @@ export const users = pgTable('users', {
   role: text('role').$type<UserRole>().notNull().default('member'),
   canUpload: boolean('can_upload').notNull().default(false),
   canAcquire: boolean('can_acquire').notNull().default(false),
+  /** An admin turned explicit content off for the user, who cannot turn it back on (`User.explicitRestricted`). */
+  explicitRestricted: boolean('explicit_restricted').notNull().default(false),
   /** UserSettings from @squirmy/contracts, plus encrypted per-user secrets under `secrets`. */
   settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}),
   disabledAt: at('disabled_at'),
@@ -150,6 +152,8 @@ export const invites = pgTable('invites', {
 
 /** Credentials for Subsonic clients: one generated secret per client. */
 export const appPasswords = pgTable('app_passwords', {
+  scopes: text('scopes').array().$type<import('@squirmy/contracts').ApiTokenScope[]>(),
+  expiresAt: at('expires_at'),
   id: id(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
@@ -275,6 +279,7 @@ export const albums = pgTable('albums', {
   description: text('description'),
   descriptionSource: text('description_source'),
   artworkAssetId: uuid('artwork_asset_id'),
+  artworkLocked: boolean('artwork_locked').notNull().default(false),
   /** The edition whose track list the album page shows. */
   canonicalReleaseId: uuid('canonical_release_id'),
   /**
@@ -571,6 +576,10 @@ export const mediaFiles = pgTable('media_files', {
    * clears it when the file's size or mtime changes.
    */
   probeError: text('probe_error'),
+  healthCheckedAt: at('health_checked_at'),
+  healthStatus: text('health_status').$type<import('@squirmy/contracts').HealthStatus>(),
+  healthDetail: text('health_detail'),
+  healthRequestedAt: at('health_requested_at'),
   /** Set when a scan no longer finds the file. Cleared if it returns. */
   missingSince: at('missing_since'),
   addedAt: at('added_at').notNull().defaultNow(),
@@ -579,6 +588,9 @@ export const mediaFiles = pgTable('media_files', {
   uniqueIndex('media_files_path').on(t.rootId, t.relPath),
   // Byte order, so a scan can merge a sorted directory walk with the rows page by page.
   index('media_files_scan_order').on(t.rootId, sql`${t.relPath} collate "C"`),
+  index('media_files_health_due').on(sql`coalesce(${t.healthCheckedAt}, '-infinity'::timestamptz)`, t.id)
+    .where(sql`${t.missingSince} is null and not ${t.cached}`),
+  index('media_files_health_requested').on(t.healthRequestedAt).where(sql`${t.healthRequestedAt} is not null`),
   index('media_files_audio_hash').on(t.audioHash),
   index('media_files_release_track').on(t.releaseTrackId),
   index('media_files_recording').on(t.recordingId),
@@ -836,6 +848,7 @@ export const likes = pgTable('likes', {
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   entityType: text('entity_type').$type<LikeEntityType>().notNull(),
   entityId: uuid('entity_id').notNull(),
+  importedHeart: boolean('imported_heart').notNull().default(false),
   createdAt: createdAt(),
 }, (t) => [
   primaryKey({ columns: [t.userId, t.entityType, t.entityId] }),
@@ -1232,3 +1245,38 @@ export const catalogIndexImports = pgTable('catalog_index_imports', {
   startedAt: at('started_at').notNull().defaultNow(),
   finishedAt: at('finished_at'),
 }, (t) => [index('catalog_index_imports_state').on(t.state)])
+
+/** Last observed remote feedback and acknowledged local love, per account and track. */
+export const scrobbleHearts = pgTable('scrobble_hearts', {
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  connection: text('connection').notNull(),
+  recordingId: uuid('recording_id').notNull().references(() => recordings.id, { onDelete: 'cascade' }),
+  remoteAt: at('remote_at'),
+  exportedHeartAt: at('exported_heart_at'),
+  exportedAt: at('exported_at'),
+}, (t) => [primaryKey({ columns: [t.userId, t.connection, t.recordingId] })])
+
+export const webhooks = pgTable('webhooks', {
+  id: id(),
+  /** Null denotes an installation-wide subscription. */
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  url: text('url').notNull(),
+  events: text('events').array().$type<import('@squirmy/contracts').WebhookEventType[]>().notNull(),
+  secretEncrypted: text('secret_encrypted').notNull(),
+}, (t) => [index('webhooks_user').on(t.userId)])
+
+export const webhookDeliveries = pgTable('webhook_deliveries', {
+  id: id(),
+  webhookId: uuid('webhook_id').notNull().references(() => webhooks.id, { onDelete: 'cascade' }),
+  eventId: uuid('event_id').notNull(),
+  event: text('event').$type<import('@squirmy/contracts').WebhookEvent['type']>().notNull(),
+  attempts: integer('attempts').notNull().default(0),
+  status: text('status').$type<import('@squirmy/contracts').WebhookDelivery['status']>().notNull().default('queued'),
+  httpStatus: integer('http_status'),
+  error: text('error'),
+  updatedAt: updatedAt(),
+}, (t) => [
+  uniqueIndex('webhook_deliveries_event').on(t.webhookId, t.eventId),
+  index('webhook_deliveries_recent').on(t.updatedAt),
+])

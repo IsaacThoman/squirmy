@@ -291,6 +291,18 @@ describe('TrackRow', () => {
     expect(items).toEqual(expect.arrayContaining(['Go to Mira Vale', 'Go to Lune Park']))
   })
 
+  it('grays an explicit song for a viewer who has explicit content off, and says why', () => {
+    const { row } = renderRow('after-the-rain', { viewer: { ...requester, allowsExplicit: false } })
+    expect(screen.queryByRole('button', { name: 'Play After the Rain' })).toBeNull()
+    expect(row).toHaveTextContent('(Explicit content is off)')
+    expect(screen.getByTitle('Explicit')).toBeInTheDocument()
+  })
+
+  it('plays a clean song for that viewer', () => {
+    renderRow('soft-signal', { viewer: { ...requester, allowsExplicit: false } })
+    expect(screen.getByRole('button', { name: 'Play Soft Signal' })).toBeInTheDocument()
+  })
+
   it('shows the explicit badge and saves from the heart', async () => {
     const { onAction } = renderRow('after-the-rain')
     expect(screen.getByTitle('Explicit')).toHaveTextContent('Explicit')

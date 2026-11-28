@@ -13,6 +13,7 @@ export const ScrobbleService = z.object({
   connected: z.boolean(),
   /** The user's name on the service, while connected. */
   account: z.string().nullable(),
+  apiUrl: z.string().optional(),
   /** The user's switch for the service: `scrobbleListenBrainz` or `scrobbleLastFm` in `UserSettings`. */
   enabled: z.boolean(),
   /** The service rejected the stored credentials. Deliveries wait until the user connects again. */
@@ -32,7 +33,10 @@ export const ScrobblingStatus = z.object({ services: z.array(ScrobbleService) })
 export type ScrobblingStatus = z.infer<typeof ScrobblingStatus>
 
 /** `PUT /api/v1/me/scrobbling/listenbrainz`: the user token from the user's ListenBrainz settings page. */
-export const ConnectListenBrainzRequest = z.object({ token: z.string().trim().min(1).max(200) })
+export const ConnectListenBrainzRequest = z.object({
+  token: z.string().trim().min(1).max(200),
+  apiUrl: z.string().trim().max(500).pipe(z.url({ protocol: /^https?$/ })).optional(),
+})
 export type ConnectListenBrainzRequest = z.infer<typeof ConnectListenBrainzRequest>
 
 /**

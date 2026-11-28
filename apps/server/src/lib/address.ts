@@ -22,6 +22,9 @@ for (const [network, prefix] of [
 for (const [network, prefix] of [
   ['::', 128], // unspecified
   ['::1', 128], // loopback
+  ['2001::', 32], // Teredo
+  ['2002::', 16], // 6to4
+  ['64:ff9b:1::', 48], // local-use IPv4 translation
   ['fc00::', 7], // unique local
   ['fe80::', 10], // link-local
   ['fec0::', 10], // site-local, deprecated but still routed by some networks

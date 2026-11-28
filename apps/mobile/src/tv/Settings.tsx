@@ -9,11 +9,11 @@ import { unsavedSignIn, useAccount } from '../account/AccountProvider';
 import { serviceNames } from '../account/scrobbling';
 import {
   lastFmAdminNote, normalizationNote, normalizationOptions, qualityOptions, saveFailure, scrobbleDetail, scrobbleFooter,
-  serverMusicLabel, serverMusicNote, useSettingsScreen,
+  explicitLabel, explicitNote, explicitRestrictedNote, serverMusicLabel, serverMusicNote, useSettingsScreen,
 } from '../account/settings';
 import { loadFailure } from '../data/errors';
 import { useUpdateSettings, useUserSettings } from '../data/queries';
-import { useDownloadActions } from '../downloads/DownloadsProvider';
+import { useAccountStorage } from '../account/storageUsage';
 import { Icon } from '../ui';
 import { Focusable } from './Focusable';
 import { Menu, type MenuAction } from './Menu';
@@ -105,8 +105,8 @@ function Section({ title, footer, error, children }: { title?: string; footer?: 
 /** Settings: the account, playback, the library's switch, scrobbling and the app's version. */
 export function TvSettingsScreen() {
   const router = useRouter();
-  const { state, unsaved, signOut, switchServer } = useAccount();
-  const { removeAll } = useDownloadActions();
+  const { state, unsaved, signOut, addAccount, switchTo } = useAccount();
+  const profiles = useAccountStorage().filter(profile => !profile.account.current);
   const screen = useSettingsScreen();
   const [note, setNote] = useState<string | null>(null);
   if (state.status !== 'signedIn') return null;
@@ -118,8 +118,7 @@ export function TvSettingsScreen() {
   const confirm = (title: string, message: string, action: string, perform: () => void) => {
     Alert.alert(title, message, [
       { text: 'Cancel', style: 'cancel' },
-      // Downloads belong to this account on this server, so leaving removes any, as on the phone.
-      { text: action, style: 'destructive', onPress: () => { removeAll(); perform(); } },
+      { text: action, style: 'destructive', onPress: perform },
     ]);
   };
   const open = (choice: Choice) => router.push(`/settings/${choice}`);
@@ -129,11 +128,22 @@ export function TvSettingsScreen() {
       <Row title={name} value={role} onNote={setNote} hasTVPreferredFocus
         note={user.displayName ? `Signed in as ${user.username}.` : `Signed in to ${server.name}.`} />
       <Row title="Server" value={server.name} onNote={setNote} note={displayAddress(server.url)} />
-      {/* Worded as on the TV's sign-in screen. */}
-      <Row title="Change Server" onNote={setNote} note="Sign out and connect to another Squirmy server."
-        onPress={() => confirm('Change server?', `You’ll be signed out of ${server.name}.`, 'Change Server', switchServer)} />
-      <Row title="Sign Out" onNote={setNote} note={`Sign out of ${server.name} on this Apple TV.`}
+      <Row title="Sign Out" onNote={setNote} note={`Sign out of ${server.name} on this Apple TV. The other profiles stay.`}
         onPress={() => confirm(`Sign out of ${server.name}?`, 'You can sign back in at any time.', 'Sign Out', signOut)} />
+    </Section>
+
+    {/* The household's other accounts on this Apple TV: one press opens one, signed in still. */}
+    <Section title="Profiles" footer={profiles.length ? 'Hold a profile to remove it from this Apple TV.' : null}>
+      {profiles.map(({ account, title, cacheLine, removeAccount }) => <Row key={account.key} title={title}
+        value={account.signedIn ? account.server.name : 'Signed Out'} onNote={setNote}
+        note={`${account.signedIn ? 'Switch to' : 'Sign in as'} ${title} on ${account.server.name}, at ${displayAddress(account.server.url)}. Streaming cache: ${cacheLine}.`}
+        onPress={() => void switchTo(account.key)}
+        menu={removeAccount ? {
+          actions: [{ id: 'remove', title: 'Remove Profile', image: 'person.crop.circle.badge.minus', destructive: true }],
+          onAction: () => removeAccount(),
+        } : undefined} />)}
+      <Row title="Add Profile" onNote={setNote} note="Sign in to another Squirmy server, or as someone else on this one. This profile stays signed in."
+        onPress={addAccount} />
     </Section>
 
     {settings ? <>
@@ -146,6 +156,9 @@ export function TvSettingsScreen() {
       <Section title="Library" error={screen.errors.library}>
         <Row title={serverMusicLabel} value={onOff(settings.libraryIncludesServerMusic)} note={serverMusicNote} onNote={setNote}
           onPress={() => screen.setLibraryIncludesServerMusic(!settings.libraryIncludesServerMusic)} />
+        {/* No press while an admin keeps explicit content off for the account: the note says why. */}
+        <Row title={explicitLabel} value={onOff(screen.allowExplicit)} note={screen.explicitRestricted ? explicitRestrictedNote : explicitNote} onNote={setNote}
+          onPress={screen.explicitRestricted ? undefined : () => screen.setAllowExplicit(!screen.allowExplicit)} />
       </Section>
     </> : <Section title="Playback">
       {screen.settingsFailure

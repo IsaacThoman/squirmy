@@ -33,6 +33,7 @@ const sidebar = [
       { text: 'Users and access', link: '/server/users' },
       { text: 'Subsonic clients', link: '/server/subsonic' },
       { text: 'Scrobbling', link: '/server/scrobbling' },
+      { text: 'Integrations', link: '/server/integrations' },
       { text: 'Acquisition providers', link: '/server/acquisition' },
     ],
   },

@@ -106,7 +106,7 @@ function deliverBatch(userId: string, connection: Connection): Promise<boolean> 
     const plays = rows.map((row, index) => ({ track: tracks[index]!, startedAt: new Date(row.startedAt) }))
 
     try {
-      if (!(await submitPlays(target, connection.credential, plays))) return false
+      if (!(await submitPlays(target, connection.credential, plays, connection.apiUrl))) return false
     } catch (error) {
       if (!(error instanceof ProviderError)) throw error
       if (rejectsCredential(target, error)) {

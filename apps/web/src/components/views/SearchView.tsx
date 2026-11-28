@@ -21,7 +21,7 @@ import { LoadError } from '@/components/ui/query-state'
 import { Select } from '@/components/ui/select'
 import { SearchField } from '@/components/ui/search-field'
 import { pillClass } from '@/components/ui/tabs'
-import { albumPresentation, canFetch, genreColor, isPlayable, UNAVAILABLE_LABEL } from '@/lib/catalog'
+import { albumPresentation, canFetch, genreColor, isPlayable, UNAVAILABLE_LABEL, unavailableLabel } from '@/lib/catalog'
 import { formatDuration } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useViewer } from '@/player/on-demand-context'
@@ -338,6 +338,7 @@ function ResultRow({ item, stale, onChoose, trackMenu, resultMenu, onLike }: Res
   const snippet = item.type === 'track' ? item.matchDetail : undefined
   const track = item.type === 'track' ? item.track : null
   const unavailable = track ? !isPlayable(track, viewer) : false
+  const unavailableText = track ? unavailableLabel(track, viewer) : UNAVAILABLE_LABEL
   const dimmed = item.type === 'album' ? albumPresentation(item.album, viewer) === 'dimmed'
     : item.type === 'artist' ? !item.artist.inLibrary && !canFetch(viewer) : unavailable
   // Only this result's part of the session, so a volume or position change renders no rows.
@@ -361,7 +362,7 @@ function ResultRow({ item, stale, onChoose, trackMenu, resultMenu, onLike }: Res
         type="button"
         data-search-row=""
         // A song's name is what pressing it does; the row's "Song · Artist" says which one.
-        aria-label={unavailable ? `${title}, ${UNAVAILABLE_LABEL}` : playing ? `Pause ${title}` : `Play ${title}`}
+        aria-label={unavailable ? `${title}, ${unavailableText}` : playing ? `Pause ${title}` : `Play ${title}`}
         aria-describedby={detailId}
         onClick={current && !unavailable ? controls.togglePlay : onChoose}
         className={overlay}
@@ -385,7 +386,7 @@ function ResultRow({ item, stale, onChoose, trackMenu, resultMenu, onLike }: Res
     <ContextMenu entries={menu}>
       <li
         // A song that does not play still opens its album, and its heart and menu work. Its control's name says "Not available".
-        title={unavailable ? UNAVAILABLE_LABEL : undefined}
+        title={unavailable ? unavailableText : undefined}
         // Its own size container: the duration shows when the row, not the window, has room for it.
         className={cn('group/row @container relative', snippet ? 'min-h-16 py-2' : 'h-14', searchRowClass(false, stale), focusedRow)}
       >
@@ -401,7 +402,7 @@ function ResultRow({ item, stale, onChoose, trackMenu, resultMenu, onLike }: Res
             </div>
           )}
         </div>
-        <SearchRowBody art={null} title={title} detail={detail} snippet={snippet} detailId={detailId} dimmed={dimmed} current={current} explicit={track?.explicit ?? false} note={unavailable ? UNAVAILABLE_LABEL : undefined} />
+        <SearchRowBody art={null} title={title} detail={detail} snippet={snippet} detailId={detailId} dimmed={dimmed} current={current} explicit={track?.explicit ?? false} note={unavailable ? unavailableText : undefined} />
         {primary}
         {/* A finger gets 44 px for the heart and the menu, with no gap between them. */}
         <div className="relative z-10 flex shrink-0 items-center gap-1 pointer-coarse:gap-0">

@@ -271,7 +271,7 @@ export function dominantColor(rgba: Uint8Array): string {
 export async function assignAlbumArtwork(albumId: string, assetId: string, { onlyIfEmpty }: { onlyIfEmpty: boolean }): Promise<boolean> {
   const updated = await db.update(albums)
     .set({ artworkAssetId: assetId, updatedAt: new Date() })
-    .where(and(eq(albums.id, albumId), onlyIfEmpty ? isNull(albums.artworkAssetId) : undefined))
+    .where(and(eq(albums.id, albumId), eq(albums.artworkLocked, false), onlyIfEmpty ? isNull(albums.artworkAssetId) : undefined))
     .returning({ id: albums.id })
   return updated.length > 0
 }

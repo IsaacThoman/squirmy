@@ -32,6 +32,11 @@ export type LyricButtonProps = {
   onPress?: () => void;
   opacity?: number;
   blur?: number;
+  /** The line's words, when the lyrics time them: the first `sung` are lit and the rest dim, while the line is active. */
+  words?: readonly { text: string }[];
+  sung?: number;
+  /** A translation or romanization, smaller under the line. */
+  translation?: string;
 };
 
 export function PlayerButton({ icon, label, size = 20, color, onPress, style, selected, busy, filled }: PlayerButtonProps) {
@@ -73,12 +78,18 @@ export function DeviceButton({ icon, name, highlighted, onPress }: DeviceButtonP
   </Pressable>;
 }
 
-export function LyricButton({ line, active, onPress }: LyricButtonProps) {
+export function LyricButton({ line, active, onPress, words, sung = 0, translation }: LyricButtonProps) {
   const styles = useStyles();
-  if (!onPress) return <Text style={[styles.lyric, styles.lyricButton, active && styles.lyricActive]}>{line}</Text>;
+  const text = <>
+    {active && words?.length
+      ? words.map((word, index) => <Text key={index} style={index < sung ? styles.lyricActive : styles.lyricComing}>{word.text}</Text>)
+      : line}
+    {translation ? <Text style={styles.translation}>{`\n${translation}`}</Text> : null}
+  </>;
+  if (!onPress) return <Text style={[styles.lyric, styles.lyricButton, active && styles.lyricActive]}>{text}</Text>;
   return <Pressable accessibilityRole="button" accessibilityHint="Seek to this line"
     accessibilityState={{ selected: active }} onPress={onPress} style={({ pressed }) => [styles.lyricButton, pressed && styles.pressed]}>
-    <Text style={[styles.lyric, active && styles.lyricActive]}>{line}</Text>
+    <Text style={[styles.lyric, active && styles.lyricActive]}>{text}</Text>
   </Pressable>;
 }
 
@@ -101,5 +112,8 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   lyricButton: { paddingBottom: 21, maxWidth: 530 },
   lyric: { color: colors.quiet, fontWeight: '700', fontSize: 32, letterSpacing: -0.7 },
   lyricActive: { color: colors.text },
+  // The words of the sung line still to come: lighter than the lines around it, dimmer than the words sung.
+  lyricComing: { color: colors.muted },
+  translation: { fontSize: 20, fontWeight: '600', letterSpacing: -0.2, color: colors.muted },
   credits: { color: colors.text, fontSize: 15, fontWeight: '600', paddingTop: 8, paddingBottom: 21, maxWidth: 530 },
 }));

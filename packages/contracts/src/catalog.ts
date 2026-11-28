@@ -294,13 +294,41 @@ export const ArtistDetail = ArtistSummary.extend({
 })
 export type ArtistDetail = z.infer<typeof ArtistDetail>
 
+/** A word of a synced line and when it is sung, in milliseconds into the song. */
+export const LyricWord = z.object({
+  startMs: z.number().int().nonnegative(),
+  endMs: z.number().int().nonnegative(),
+  /** The word as written, with the space after it: a line's words joined spell its text. */
+  text: z.string(),
+})
+export type LyricWord = z.infer<typeof LyricWord>
+
+export const LyricLine = z.object({
+  startMs: z.number().int().nonnegative(),
+  /** Empty for an instrumental gap. */
+  text: z.string(),
+  /** Each word's time, when the lyrics have them (Enhanced LRC or TTML word timing). */
+  words: z.array(LyricWord).optional(),
+  /** A translation or romanization the lyrics give for the line. */
+  translation: z.string().optional(),
+})
+export type LyricLine = z.infer<typeof LyricLine>
+
 export const Lyrics = z.object({
   trackId: Id,
-  /** LRC text with [mm:ss.xx] timestamps, when synced lyrics exist. */
+  /**
+   * LRC text with [mm:ss.xx] timestamps, when synced lyrics exist. Only line stamps: word
+   * timing, where there is some, is in `lines`.
+   */
   synced: z.string().nullable(),
   plain: z.string().nullable(),
   instrumental: z.boolean(),
   source: z.string(),
+  /**
+   * `synced` read into lines, with each word's time and a line's translation when the lyrics
+   * have them. Optional: older servers send only `synced`, which clients then read themselves.
+   */
+  lines: z.array(LyricLine).optional(),
 })
 export type Lyrics = z.infer<typeof Lyrics>
 

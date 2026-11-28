@@ -16,17 +16,17 @@ import { notFound } from '../../lib/errors.js'
 import { audioInput } from '../../lib/ffmpeg.js'
 import { libraryPath } from '../streaming/files.js'
 import { transcoderBusy, tryAcquireSlot } from '../streaming/transcode.js'
-import { codecFamily, outputSampleRate, profiles, type MediaFile, type TranscodeProfile } from '../streaming/profiles.js'
+import { codecFamily, outputSampleRate, profiles, type LegacyProfile, type MediaFile } from '../streaming/profiles.js'
 
 export type Codec = 'mp3' | 'opus' | 'aac'
 
 export type StreamPlan =
   | { kind: 'original' }
-  | { kind: 'profile'; profile: TranscodeProfile }
+  | { kind: 'profile'; profile: LegacyProfile }
   | { kind: 'live'; codec: Codec; bitrate: number; offsetSeconds: number }
 
 /** Profiles per codec, best first. */
-const codecProfiles: Record<Codec, TranscodeProfile[]> = { mp3: ['mp3_320', 'mp3_192'], opus: ['opus_128'], aac: ['aac_256'] }
+const codecProfiles: Record<Codec, LegacyProfile[]> = { mp3: ['mp3_320', 'mp3_192'], opus: ['opus_128'], aac: ['aac_256'] }
 
 const formatCodecs: Record<string, Codec> = { mp3: 'mp3', opus: 'opus', ogg: 'opus', oga: 'opus', aac: 'aac', m4a: 'aac', adts: 'aac' }
 

@@ -100,7 +100,14 @@ describe('acquired tracks and their album', () => {
 
   const jobsFor = (recordingId: string) => db.select().from(acquisitionJobs).where(sql`${acquisitionJobs.recordingIds} @> array[${recordingId}]::uuid[]`).orderBy(acquisitionJobs.id)
   const settle = async (recordingId: string) => {
-    await eventually(async () => expect((await jobsFor(recordingId)).every((job) => job.completedAt !== null)).toBe(true))
+    await eventually(async () => {
+      // Wake ready workers while waiting for the provider callbacks. Waiting for the
+      // terminal acquisition row first could leave a ready start job idle at the poll backstop.
+      await drainJobs()
+      const started = await jobsFor(recordingId)
+      expect(started.length).toBeGreaterThan(0)
+      expect(started.every((job) => job.completedAt !== null)).toBe(true)
+    })
     await drainJobs()
   }
   /** Requests one track as playback does, and waits for its job and everything it queued. */
@@ -371,7 +378,7 @@ describe('acquired tracks and their album', () => {
     expect(await savedAlbums()).not.toContain(album.albumId)
   })
 
-  // Longer than the default: a retry woken while its worker is busy waits for pg-boss's 30 second poll.
+  // This case sends three real deliveries and exercises the provider's deferred backoff.
   it('waits for a busy provider instead of graying the track out, and never sends it more jobs than it takes', async () => {
     const album = await identified({ title: 'Busy Night', year: 2008, tracks: Array.from({ length: 3 }, (_, index) => ({ title: `Rush ${index + 1}`, durationMs: 1000 })) })
     configureAcquisition({ slotWaitSeconds: 1 })
@@ -396,9 +403,12 @@ describe('acquired tracks and their album', () => {
           .where(and(eq(acquisitionJobs.providerId, providerId), sql`${acquisitionJobs.status} in ('queued', 'downloading')`))
           .then(([row]) => { peak = Math.max(peak, row!.count) }).catch(() => {})
       }, 20)
-      await Promise.all(rest.map(async (id) => body(await app.inject({ method: 'POST', url: `/api/v1/tracks/${id}/acquire?albumId=${album.albumId}`, headers: fan.headers }), AcquireResponse, 202)))
-      for (const id of rest) await settle(id)
-      clearInterval(watch)
+      try {
+        await Promise.all(rest.map(async (id) => body(await app.inject({ method: 'POST', url: `/api/v1/tracks/${id}/acquire?albumId=${album.albumId}`, headers: fan.headers }), AcquireResponse, 202)))
+        for (const id of rest) await settle(id)
+      } finally {
+        clearInterval(watch)
+      }
       for (const id of rest) expect((await jobsFor(id)).at(-1)).toMatchObject({ status: 'completed', error: null })
       expect(peak).toBeGreaterThan(0)
       expect(peak).toBe(1)

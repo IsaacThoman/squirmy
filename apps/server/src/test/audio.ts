@@ -97,6 +97,43 @@ export async function makeTone(directory: string, spec: ToneSpec): Promise<strin
   return output
 }
 
+/** A quiet stereo chirp split between codec packet boundaries, with an uncut FLAC reference. */
+export async function makeSplitTone(directory: string, {
+  rate = 44_100, format = 'flac',
+}: { rate?: number; format?: 'flac' | 'm4a' | 'mp3' | 'alac' } = {}) {
+  const frames = [133_077, 88_533] as const
+  const total = frames[0] + frames[1]
+  const pcm = new Float32Array(total * 2)
+  for (let index = 0; index < total; index++) {
+    const t = index / rate
+    pcm[2 * index] = 0.023 * Math.sin(2 * Math.PI * (251 * t + 159 * t * t))
+    pcm[2 * index + 1] = 0.019 * Math.sin(2 * Math.PI * (113 * t + 221 * t * t))
+  }
+  await mkdir(directory, { recursive: true })
+  const raw = path.join(directory, '.chirp.f32')
+  const write = async (name: string, from: number, to: number, codec: typeof format) => {
+    const output = path.join(directory, `${name}.${codec === 'alac' ? 'm4a' : codec}`)
+    await run(ffmpeg(), [
+      '-v', 'error', '-f', 'f32le', '-ar', String(rate), '-ac', '2', '-i', raw,
+      '-af', `atrim=start_sample=${from}:end_sample=${to},asetpts=PTS-STARTPTS`,
+      ...(codec === 'alac' ? ['-c:a', 'alac'] : codecs[codec]),
+      // The movie clock must represent every sample in the AAC edit list.
+      ...(codec === 'm4a' ? ['-movie_timescale', String(rate)] : []),
+      '-metadata', `title=${name}`, '-metadata', 'artist=Fixture', output,
+    ])
+    return output
+  }
+  await writeFile(raw, new Uint8Array(pcm.buffer))
+  try {
+    const whole = await write('Whole', 0, total, 'flac')
+    const first = await write('First', 0, frames[0], format)
+    const second = await write('Second', frames[0], total, format)
+    return { whole, halves: [first, second] as const, frames, rate }
+  } finally {
+    await rm(raw, { force: true })
+  }
+}
+
 export type AlbumSpec = {
   artist: string
   album: string

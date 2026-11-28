@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { cachedFetch, type HttpResult, ProviderError } from '../../lib/http.js'
 import { getServerSecret, getServerSettings } from '../../lib/settings.js'
+import type { RemoteFeedback } from './feedback.js'
 
 /** One play. `startedAt` is when playback began, as Last.fm's timestamp requires. */
 export type LastFmPlay = {
@@ -131,5 +132,41 @@ export async function updateNowPlaying(sessionKey: string, play: Omit<LastFmPlay
   const auth = await credentials()
   if (!auth) return false
   await call('track.updateNowPlaying', { sk: sessionKey, ...playParams(play) }, auth)
+  return true
+}
+
+type RawLovedTrack = { mbid?: string; name?: string; artist?: { name?: string }; date?: { uts?: string } }
+
+export async function lovedPage(account: string, page: number): Promise<{ items: RemoteFeedback[]; more: boolean }> {
+  const auth = await credentials()
+  if (!auth) return { items: [], more: false }
+  const query = new URLSearchParams({ method: 'user.getLovedTracks', user: account, api_key: auth.key, format: 'json', limit: '100', page: String(page) })
+  const result = await cachedFetch(provider, `${api}?${query}`, {
+    ttlSeconds: 0,
+    cache: 'no-store',
+    rateLimitKey: provider,
+    rateLimitMs: 250,
+    classify: response => retryCodes.has((response.json as RawError | undefined)?.error ?? -1) ? 'retry' : undefined,
+  })
+  const raw = result.json as RawError & { lovedtracks?: { track?: RawLovedTrack[]; '@attr'?: { totalPages?: string } } } | undefined
+  if (result.status !== 200 || !Array.isArray(raw?.lovedtracks?.track)) {
+    throw new ProviderError(provider, raw?.message ?? `Loved tracks read failed (HTTP ${result.status})`, result.status, raw?.error)
+  }
+  return {
+    items: raw.lovedtracks.track.map(track => ({
+      mbid: track.mbid,
+      title: track.name,
+      artist: track.artist?.name,
+      at: Number(track.date?.uts),
+      loved: true,
+    })),
+    more: Number(raw.lovedtracks['@attr']?.totalPages) > page,
+  }
+}
+
+export async function love(sessionKey: string, artist: string, title: string): Promise<boolean> {
+  const auth = await credentials()
+  if (!auth) return false
+  await call('track.love', { sk: sessionKey, artist, track: title }, auth)
   return true
 }
