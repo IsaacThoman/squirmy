@@ -6,6 +6,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 
 - [x] Monorepo: `apps/mobile`, `apps/server`, `packages/contracts`, `packages/client-core`
 - [x] Contracts for auth, catalog, playback, sessions, search, user data, settings, library
+- Search supports composite catalog queries, fuzzy non-Latin names, visible playlist names, stored lyric excerpts and composer or producer credits. The web results can filter by file quality, release decade and likes.
 - [x] Database schema for every milestone, initial migration, test harness
 - [x] CI: lint, typecheck, build, tests against Postgres
 - [x] semantic-release on `main`
@@ -35,6 +36,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Live invalidations on web and mobile
 - [x] Signal path: each device reports what it plays; Lossless badge and Track info on web, iOS and Apple TV
 - [x] Sleep timer held by the session: set anywhere, enforced by the server, faded out on the device that plays
+- [x] Queue changes as small diffs against a queue version, with the whole queue as a checkpoint
 
 ## 4. Identify and reorganize
 
@@ -84,9 +86,10 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Replay listening statistics, Year in Review and listening history import and export (web)
 - [x] Scrobbling to ListenBrainz and Last.fm (server, API, mobile and web settings)
 - [x] Radio and autoplay (server, API, web and iOS, and Subsonic similar songs)
+- [x] A personal Home: Jump back in, daily mixes (Made for you) with their own page, Because you listened to, Your top artists, Rediscover, ordered by the time of day (server, web, iOS and Apple TV; iOS and tvOS not yet checked on a device)
 - [x] Sonic analysis: tempo, key, energy, danceability, intro and outro, and timbre vectors from Squirmy's own DSP; tempo, key and mood tags; Deezer's tempo as a fallback. Radio ranks with it, and the web app has **Songs that sound like this** ([sonic-analysis.md](./server/sonic-analysis.md))
 - [ ] Sonic radio on iOS and Apple TV, tempo and key in the song info, and BPM in Subsonic songs
-- [ ] Daily Mixes and DJ-style transitions from the sonic analysis (the hooks are in place: see [Sonic analysis](./architecture.md#sonic-analysis))
+- [ ] Mixes and DJ-style transitions from the sonic analysis (the `artistSoundAffinity` seam and the hooks in [Sonic analysis](./architecture.md#sonic-analysis))
 - [x] Detached playback: web and iOS devices can play their own queue and rejoin the shared session later ([detached-playback-ui.md](./detached-playback-ui.md))
 - [x] Local search index: importer, search and admin routes ([local-search-index.md](./local-search-index.md)), offered as the first search provider, and its admin screen
 - [x] Documentation site ([docs/](./index.md), built with VitePress)
@@ -110,7 +113,7 @@ Designed in [audio-engine.md](./audio-engine.md); each item is a pull request fr
 
 - [x] Design, with measurements of today's gaps and spikes of the new engine and formats
 - [x] S1. Transcode priorities and cancelling abandoned encodes
-- [ ] S2. Exact lengths and priming per file, estimated gains for unmeasured files
+- [x] S2. Exact lengths and priming per file, estimated gains for unmeasured files
 - [ ] S3. Fragmented MP4 profiles (FLAC, Opus, AAC) with exact gapless numbers, and seeking live transcodes
 - [ ] C1. Queue diffs with checkpoints on the session socket
 - [ ] C2. Undoing queue edits

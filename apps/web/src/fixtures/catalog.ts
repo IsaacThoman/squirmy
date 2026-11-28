@@ -4,7 +4,7 @@
  */
 import { ARTIST_SECTION_KEYS } from '@squirmy/contracts'
 import type {
-  AlbumDetail, AlbumSummary, AlbumType, ArtistDetail, ArtistSection, ArtistSummary, Artwork, ArtSize, HomeResponse, Lyrics,
+  AlbumDetail, AlbumSummary, AlbumType, ArtistDetail, ArtistSection, ArtistSummary, Artwork, ArtSize, HomeResponse, Lyrics, MixDetail,
   PlaylistDetail, PlaylistSummary, SearchKind, SearchRanked, SearchResults, TrackAvailability, TrackSummary,
 } from '@squirmy/contracts'
 import { artistSectionTitle } from '@/lib/catalog'
@@ -392,6 +392,47 @@ export const home: HomeResponse = {
       albums: ['low-tide', 'afterimage', 'northbound'].map(slug => summary(album(slug))) },
     { kind: 'tracks', id: 'on-repeat', title: 'On repeat',
       tracks: ['night-swimming', 'amber', 'passing-glass', 'drawn-in', 'static-bloom', 'blue-in-the-dark'].map(track) },
+  ],
+}
+
+function mix(n: number, label: string, slugs: string[]): MixDetail {
+  const tracks = slugs.map(track)
+  const artistNames = [...new Set(tracks.map(item => item.artistCredit))]
+  const artworks = [...new Map(tracks.flatMap(item => (item.album?.artwork ? [[item.album.id, item.album.artwork] as const] : []))).values()].slice(0, 4)
+  return {
+    id: uuid(6, n), name: `Mix ${n} · ${label}`,
+    description: artistNames.length > 3 ? `${artistNames.slice(0, 3).join(', ')} and more` : artistNames.join(', '),
+    artworks, trackCount: tracks.length, durationMs: tracks.reduce((sum, item) => sum + item.durationMs, 0), generatedAt: '2026-11-28T05:00:00.000Z', tracks,
+  }
+}
+
+/** Mixes made for the fixture user (Home's Made for you). */
+export const mixes: MixDetail[] = [
+  mix(1, 'Dream Pop, Electronic', ['night-swimming', 'static-bloom', 'amber', 'violet-noise-song', 'endless-room-song', 'tail-lights', 'blue-in-the-dark', 'after-the-rain']),
+  mix(2, 'Folk', ['strange-seasons', 'air-between-song', 'paper-flowers', 'drawn-in', 'fern-line', 'little-world']),
+]
+export const mixSummaries = mixes.map(({ tracks: _tracks, ...rest }) => rest)
+
+export function mixDetail(id: string) {
+  return mixes.find(item => item.id === id) ?? null
+}
+
+/** The personal Home of this release (`layout: 'personal'`). */
+export const personalHome: HomeResponse = {
+  sections: [
+    { kind: 'items', id: 'jump-back-in', title: 'Jump back in', items: [
+      { kind: 'album', album: summary(album('blue-hour')) },
+      { kind: 'mix', mix: mixSummaries[1]! },
+      { kind: 'playlist', playlist: playlistSummaries[0]! },
+      { kind: 'radio', radio: { seed: 'artist', id: artists[0]!.id, title: artists[0]!.name, subtitle: null, albumId: null, artwork: artists[0]!.image } },
+      { kind: 'liked' },
+    ] },
+    { kind: 'items', id: 'made-for-you', title: 'Made for you', items: mixSummaries.map(item => ({ kind: 'mix' as const, mix: item })) },
+    { kind: 'artists', id: 'because-you-listened', title: `Because you listened to ${artists[0]!.name}`, artists: libraryArtists.slice(1, 6) },
+    { kind: 'artists', id: 'top-artists', title: 'Your top artists', artists: libraryArtists.slice(0, 6) },
+    { kind: 'tracks', id: 'rediscover', title: 'Rediscover', tracks: ['passing-glass', 'mile-marker', 'fifth-platform'].map(track) },
+    { kind: 'albums', id: 'recently-added', title: 'New on this server',
+      albums: ['bloom-tape', 'endless-room', 'air-between', 'long-way-home'].map(slug => summary(album(slug))) },
   ],
 }
 

@@ -444,6 +444,22 @@ export async function searchRecordingsByText(text: string, options: SearchPage =
   return (data?.recordings ?? []).map(recording)
 }
 
+/** Several composite readings in one request, within the public API's rate limit. */
+export async function searchByTitleAndContext(
+  kind: 'release-group' | 'recording',
+  pairs: readonly { title: string; context: string }[],
+  options: SearchPage,
+): Promise<{ groups: MbReleaseGroupSummary[]; recordings: MbRecording[] }> {
+  const field = kind === 'recording' ? 'recording' : 'releasegroup'
+  const query = pairs.map(({ title, context }) => {
+    const credit = `artist:${phrase(context)}`
+    const related = kind === 'recording' ? `(${credit} OR release:${phrase(context)})` : credit
+    return `(${field}:${phrase(title)} AND ${related})`
+  }).join(' OR ')
+  const data = await get<{ 'release-groups'?: RawReleaseGroup[]; recordings?: RawRecording[] }>(kind, { query, ...page(options) }, searchTtl)
+  return { groups: (data?.['release-groups'] ?? []).map(releaseGroupSummary), recordings: (data?.recordings ?? []).map(recording) }
+}
+
 /** Release groups by title, optionally narrowed to an artist, best first. */
 export async function searchReleaseGroups(query: { title: string; artist?: string }, options: { limit?: number } = {}): Promise<MbReleaseGroupSummary[]> {
   const terms = [`releasegroup:${phrase(query.title)}`]

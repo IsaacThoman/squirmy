@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ProviderError } from '../../lib/http.js'
-import { searchCatalog, type ProviderResults, type SearchProvider } from './providers.js'
+import { searchCatalog, type ProviderResults, type ProviderTrack, type SearchProvider } from './providers.js'
 
 const empty: ProviderResults = { artists: [], albums: [], tracks: [] }
 
@@ -48,6 +48,35 @@ describe('searchCatalog', () => {
     expect(deezer.search).toHaveBeenCalledTimes(2)
     await searchCatalog('radiohead', 5, [deezer])
     expect(deezer.search).toHaveBeenCalledTimes(3)
+  })
+
+  it.each(['radiohead karma police', 'karma police radiohead', 'karma police ok computer'])(
+    'merges and deduplicates verified composite matches for %s', async (query) => {
+      const track: ProviderTrack = {
+        id: '1', mbid: null, title: 'Karma Police', artistCredit: 'Radiohead', artists: [],
+        durationMs: null, explicit: null, popularity: null, isrcs: [],
+        album: { id: '2', mbid: null, title: 'OK Computer', artistCredit: 'Radiohead', artists: [],
+          type: 'album', year: 1997, releaseDate: null, artworkUrl: null },
+      }
+      const wrong = { ...track, id: '3', artistCredit: 'Other Artist', album: null }
+      const whole = { ...wrong, id: '4' }
+      const provider = {
+        ...fake('deezer'),
+        search: vi.fn(async () => ({ ...empty, tracks: [whole] })),
+        composite: vi.fn(async () => ({ ...empty, tracks: [wrong, track, track] })),
+      }
+      const { results } = await searchCatalog(query, 5, [provider])
+      expect(results.tracks).toEqual([track, whole])
+      expect(provider.composite).toHaveBeenCalledWith(
+        expect.arrayContaining([expect.objectContaining({ title: 'karma police' })]),
+        expect.objectContaining({ types: ['album', 'track'] }),
+      )
+    },
+  )
+
+  it('keeps the original answer when a supplementary provider lookup fails', async () => {
+    const provider = { ...fake('deezer'), composite: vi.fn(async () => { throw new Error('unavailable') }) }
+    expect((await searchCatalog('missing song', 5, [provider])).results.artists).toHaveLength(1)
   })
 
   it('also asks without trailing edition words, the answer for the whole query first', async () => {

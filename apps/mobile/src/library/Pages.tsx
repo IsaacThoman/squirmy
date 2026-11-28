@@ -15,7 +15,7 @@ import { fallbackTint } from '../data/color';
 import { isNotFound } from '../data/errors';
 import { useLibraryActions, useLiked, useLikeFailure, usePlaylistActions, usePlaylistFailure, useWanted, useWantFailure } from '../data/library';
 import { appearsOnKey, isArtistSectionKey, releaseGroups } from '../data/artists';
-import { useAlbum, useArtist, useArtistReleases, useGenreAlbums, useHistory, useHome, useLikedTracks, usePlaylist } from '../data/queries';
+import { useAlbum, useArtist, useArtistReleases, useGenreAlbums, useHistory, useHome, useLikedTracks, useMix, usePlaylist } from '../data/queries';
 import type { BrowseProps } from '../Library';
 import { useRealtime } from '../data/realtime';
 import {
@@ -33,7 +33,7 @@ import { playAllFailure, radioFailure, wantFailureLabel, wantFailure as wantFail
 import { heartButton } from './heart';
 import {
   albumCollection, albumTypeLabels, artistCollection, CollectionCover, CollectionRail, EmptyState, FailureLine, gridColumns, gutter, likedCollection, nearEnd,
-  OfflineBadge, playlistCollection,
+  mixCollection, OfflineBadge, playlistCollection,
   QueryState, recentCollection, SectionTitle, tapFeedback, useCollectionDim, type Collection,
 } from './shared';
 import { albumPlaylistSheet, useCollectionActions } from './collectionActions';
@@ -667,7 +667,7 @@ function releaseCollection(album: AlbumSummary, group: string, link: PageProps['
 
 /** The id of a page of one discography heading, `<artist>~<heading>`. */
 const releasesId = (artistId: string, group: string) => `${artistId}~${group}`;
-/** The id of a page of songs, `<source>~<id>`: an artist's top songs, or a Home section. */
+/** The id of a page of songs, `<source>~<id>`: an artist's top songs, a Home section, or a mix (`mix~<id>`, from `mixCollection`). */
 const songsId = (source: 'top' | 'home', id: string) => `${source}~${id}`;
 const splitId = (id: string) => {
   const at = id.indexOf('~');
@@ -695,10 +695,21 @@ export function ReleasesScreen({ id, onBack, link, bottomInset = 155 }: PageProp
         : !albums.length && <EmptyState icon="square.stack" title="Nothing here" description="This artist has no releases under this heading." />} />;
 }
 
-/** Every song of a section that shows only its first few: an artist's top songs, or a Home row. */
+/** Every song of a section that shows only its first few (an artist's top songs, or a Home row), or a mix's. */
 export function SongsScreen(props: PageProps) {
   const [source, ref] = splitId(props.id);
+  if (source === 'mix') return <MixScreen mixId={ref} props={props} />;
   return source === 'home' ? <HomeSongsScreen sectionId={ref} props={props} /> : <TopSongsScreen artistId={ref} props={props} />;
+}
+
+/** A mix made for the user, read-only: Play and Shuffle, and its songs. */
+function MixScreen({ mixId, props }: { mixId: string; props: PageProps }) {
+  const mix = useMix(mixId);
+  if (!mix.data) return <PageFallback query={mix} what="this mix" onBack={props.onBack} />;
+  const data = mix.data;
+  return <TrackListPage item={mixCollection(data, props.link)} title={data.name} info={data.description} tracks={data.tracks}
+    context={{ type: 'mix', id: data.id, title: data.name }} loadMore={noop} loadingMore={false}
+    empty={{ title: 'Nothing in this mix plays right now', description: 'Its songs are back once their music is on the server again.' }} props={props} />;
 }
 
 function TopSongsScreen({ artistId, props }: { artistId: string; props: PageProps }) {

@@ -267,6 +267,7 @@ export const artists = pgTable('artists', {
 }, (t) => [
   uniqueIndex('artists_mbid').on(t.mbid),
   index('artists_name_key_trgm').using('gin', t.nameKey.op('gin_trgm_ops')),
+  index('artists_name_key_unicode').using('gin', sql`search_unicode_bigrams(${t.nameKey})`),
   index('artists_name_key').on(t.nameKey),
   // Prefix search (modules/search): byte order, so a range scan finds every name starting with the query.
   index('artists_name_key_prefix').on(sql`${t.nameKey} collate "C"`),
@@ -346,6 +347,7 @@ export const albums = pgTable('albums', {
   index('albums_match_key').on(t.matchKey),
   // Search (modules/search): fuzzy "artist title" queries, and title prefixes in byte order.
   index('albums_match_key_trgm').using('gin', t.matchKey.op('gin_trgm_ops')),
+  index('albums_match_key_unicode').using('gin', sql`search_unicode_bigrams(${t.matchKey})`),
   index('albums_title_key_prefix').on(sql`${t.titleKey} collate "C"`),
   index('albums_primary_artist').on(t.primaryArtistId),
   index('albums_edition_of').on(t.editionOfId).where(sql`${t.editionOfId} is not null`),
@@ -424,6 +426,7 @@ export const recordings = pgTable('recordings', {
   index('recordings_title_key_trgm').using('gin', t.titleKey.op('gin_trgm_ops')),
   index('recordings_match_key').on(t.matchKey),
   index('recordings_match_key_trgm').using('gin', t.matchKey.op('gin_trgm_ops')),
+  index('recordings_match_key_unicode').using('gin', sql`search_unicode_bigrams(${t.matchKey})`),
   index('recordings_title_key_prefix').on(sql`${t.titleKey} collate "C"`),
   index('recordings_album_hint').on(t.albumHintId),
   index('recordings_isrcs').using('gin', t.isrcs),
@@ -524,7 +527,7 @@ export const lyrics = pgTable('lyrics', {
   source: text('source').notNull(),
   language: text('language'),
   fetchedAt: at('fetched_at').notNull().defaultNow(),
-})
+}, (t) => [index('lyrics_search').using('gin', sql`to_tsvector('simple', search_lyric_text(${t.plain}, ${t.synced}))`).where(sql`not ${t.instrumental}`)])
 
 // ---------------------------------------------------------------------------
 // Library: files on disk and everything derived from them.
@@ -571,6 +574,11 @@ export const mediaFiles = pgTable('media_files', {
   // Measured loudness (EBU R128). Null until the loudness job has run.
   loudnessLufs: real('loudness_lufs'),
   truePeakDb: real('true_peak_db'),
+  // Frames per channel after source trimming, at the decoder's sample rate.
+  decodedFrames: bigint('decoded_frames', { mode: 'number' }),
+  decodedRate: integer('decoded_rate'),
+  primingFrames: integer('priming_frames'),
+  paddingFrames: integer('padding_frames'),
   // ReplayGain values read from the file's own tags, when present.
   tagTrackGainDb: real('tag_track_gain_db'),
   tagTrackPeak: real('tag_track_peak'),
@@ -933,6 +941,8 @@ export const plays = pgTable('plays', {
 }, (t) => [
   index('plays_user_recent').on(t.userId, t.startedAt, t.id),
   index('plays_recording').on(t.recordingId),
+  // Most played and the daily picks read months of a user's completed plays: from the index alone.
+  index('plays_user_completed').on(t.userId, t.startedAt, t.recordingId, t.albumId).where(sql`completed and not skipped`),
 ])
 
 export const historyImports = pgTable('history_imports', {
@@ -971,6 +981,43 @@ export const historyImportedPlays = pgTable('history_imported_plays', {
   index('history_imported_plays_link').on(t.playId).where(sql`${t.playId} is not null`),
   index('history_imported_plays_unmatched_recent').on(t.userId, t.startedAt, t.id).where(sql`${t.playId} is null`),
 ])
+
+/**
+ * The mixes made for each user (Home's Made for you; radio/mixes.ts), one row per slot:
+ * "Mix 1" keeps its id while its songs are picked again each day. `artist_ids` are the
+ * mix's artists, most played first; `tracks` its songs in play order. Ids are not followed
+ * through merges here: reads resolve them, and the next day's run writes current ones.
+ */
+export const mixes = pgTable('mixes', {
+  id: id(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  /** 1 for "Mix 1". */
+  position: integer('position').notNull(),
+  /** What follows the slot in its name: its leading genres, else its first artists. */
+  label: text('label').notNull(),
+  artistIds: uuid('artist_ids').array().notNull(),
+  tracks: jsonb('tracks').$type<{ id: string; albumId: string | null; durationMs: number }[]>().notNull(),
+  generatedAt: at('generated_at').notNull().defaultNow(),
+}, (t) => [uniqueIndex('mixes_user_position').on(t.userId, t.position)])
+
+/**
+ * Home's rails made ahead of time for a user, once a day with their mixes, by the catalog's
+ * `catalog.home-picks` job (catalog/home-picks.ts): Because you listened to (an artist the
+ * user plays, and similar artists with music on the server), Your top artists, Rediscover
+ * (songs played a lot six to 24 months ago and not lately) and `hourly`, when in the day the
+ * user plays their artists (plays per UTC hour, 24 numbers per artist), which orders Home by
+ * the time of day. Each would otherwise cost a scan of months of plays on every Home.
+ * `generated_at` is when they and the mixes were last made.
+ */
+export const homePicks = pgTable('home_picks', {
+  userId: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  generatedAt: at('generated_at').notNull(),
+  becauseArtistId: uuid('because_artist_id').references(() => artists.id, { onDelete: 'set null' }),
+  becauseArtistIds: uuid('because_artist_ids').array().notNull().default(sql`'{}'::uuid[]`),
+  topArtistIds: uuid('top_artist_ids').array().notNull().default(sql`'{}'::uuid[]`),
+  rediscover: jsonb('rediscover').$type<{ id: string; albumId: string | null }[]>().notNull().default([]),
+  hourly: jsonb('hourly').$type<Record<string, number[]>>().notNull().default({}),
+})
 
 /**
  * When the user last started playback from a collection: an album, artist or playlist
@@ -1193,6 +1240,7 @@ export const catalogIndex = pgTable('catalog_index', {
   index('catalog_index_album_head').using('gin', t.nameKey.op('gin_trgm_ops')).where(sql`kind = 'album' and head`),
   index('catalog_index_recording_head').using('gin', t.nameKey.op('gin_trgm_ops')).where(sql`kind = 'recording' and head`),
   index('catalog_index_prefix').on(t.kind, sql`(${t.nameKey} collate "C")`),
+  // Unicode and composite indexes are owned by the catalog-index importer and upgrade job.
 ])
 
 /**

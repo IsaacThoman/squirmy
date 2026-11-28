@@ -1,7 +1,7 @@
-import type { AlbumSummary, PlaybackContext, PlaylistSummary, TrackSummary } from '@squirmy/contracts'
+import type { AlbumSummary, MixSummary, PlaybackContext, PlaylistSummary, TrackSummary } from '@squirmy/contracts'
 import { useQueryClient, type QueryKey } from '@tanstack/react-query'
 import { errorMessage } from '@/api/errors'
-import { albumQuery, artistQuery, loadItems, playlistQuery, type PagedResult } from '@/api/queries'
+import { albumQuery, artistQuery, loadItems, mixQuery, playlistQuery, type PagedResult } from '@/api/queries'
 import { useApi } from '@/api/services'
 import { usePlayerControls, type PlayOptions, type StatusMessage } from './player-context'
 
@@ -9,7 +9,7 @@ import { usePlayerControls, type PlayOptions, type StatusMessage } from './playe
 export const incompleteList: StatusMessage = { message: 'Couldn’t load the whole list', detail: 'Playing the songs loaded so far.', tone: 'error' }
 
 /**
- * Play buttons on cards and sidebar rows: the album or playlist is fetched (or read from the
+ * Play buttons on cards and sidebar rows: the album, playlist or mix is fetched (or read from the
  * cache) first. One that does not load says so on the player's status line, as any command to
  * play does.
  */
@@ -39,5 +39,14 @@ export function usePlayCollections() {
       detail => detail.topTracks, detail => ({ type: 'artist', id: detail.id, title: detail.name })),
     playAlbum: (album: AlbumSummary, options?: PlayOptions) => play(album.title, albumQuery(api, album.id), detail => detail.discs.flatMap(disc => disc.tracks), detail => ({ type: 'album', id: detail.id, title: detail.title }), options),
     playPlaylist: (playlist: PlaylistSummary) => play(playlist.name, playlistQuery(api, playlist.id), detail => detail.items.map(item => item.track), detail => ({ type: 'playlist', id: detail.id, title: detail.name })),
+    playMix: (mix: MixSummary, options?: PlayOptions) => play(mix.name, mixQuery(api, mix.id), detail => detail.tracks, detail => ({ type: 'mix', id: detail.id, title: detail.name }), options),
+    /** Adds a mix's songs after the current one or at the end of the queue. */
+    enqueueMix: async (mix: MixSummary, placement: 'next' | 'last') => {
+      try {
+        controls.enqueue((await queryClient.fetchQuery(mixQuery(api, mix.id))).tracks, placement)
+      } catch (error) {
+        controls.tell({ message: `Couldn’t add “${mix.name}”`, detail: errorMessage(error), tone: 'error' })
+      }
+    },
   }
 }

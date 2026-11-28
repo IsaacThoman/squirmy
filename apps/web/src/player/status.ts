@@ -7,12 +7,17 @@ import type { PlaybackNotice } from '@squirmy/client-core'
 export type PlayerStatusTone = 'info' | 'error' | 'busy'
 
 /** One line the player shows under the song: what just happened to playback, or what is on its way. */
-export type PlayerStatus = PlaybackNotice & { tone: PlayerStatusTone; key: string }
+export type PlayerStatus = PlaybackNotice & { tone: PlayerStatusTone; key: string; action?: PlayerStatusAction }
+
+/** A button at the end of the line that takes back what it says happened ("Removed … · Undo"). */
+export type PlayerStatusAction = { label: string; run: () => void }
 
 /** How long a line about something that just happened stays. */
 export const STATUS_EVENT_MS = 6000
 /** How long a failure the listener caused stays: a little longer, so it is read. */
 export const STATUS_ERROR_MS = 8000
+/** How long a queue edit offers Undo: long enough to find the button after seeing what changed. */
+export const STATUS_UNDO_MS = 10_000
 
 /**
  * The player's status line: one line at a time, the latest. A line shown `for` a time goes

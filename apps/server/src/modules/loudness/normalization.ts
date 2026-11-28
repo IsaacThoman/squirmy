@@ -1,5 +1,5 @@
 import type { Normalization } from '@squirmy/contracts'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { db, type Executor } from '../../database/client.js'
 import { mediaFiles, releaseLoudness } from '../../database/schema.js'
 
@@ -24,13 +24,30 @@ const round = (value: number, digits = 2) => Number(value.toFixed(digits))
 /**
  * Normalization values for one file: gains in dB relative to -18 LUFS and linear peaks.
  * Measured loudness wins over the file's ReplayGain tags; album values come from
- * `release_loudness`, else the tags' album values. Null when nothing is known.
+ * `release_loudness`, else the tags' album values. Until a file without gain tags is
+ * measured, the track gain can use the library's median. Null when nothing is known.
  */
 export async function normalizationFor(file: FileLoudness, executor: Executor = db): Promise<Normalization | null> {
   const [album] = file.releaseId
     ? await executor.select().from(releaseLoudness).where(eq(releaseLoudness.releaseId, file.releaseId))
     : []
-  return normalizationValues(file, album ?? null)
+  const values = normalizationValues(file, album ?? null)
+  if (file.loudnessLufs !== null || file.tagTrackGainDb !== null || file.tagAlbumGainDb !== null) return values
+
+  const [library] = await executor.execute<{ gain: number | null }>(sql`
+    select percentile_cont(0.5) within group (order by
+      case when loudness_lufs > ${SILENT_LUFS} and true_peak_db is not null then ${REFERENCE_LUFS} - loudness_lufs
+        else tag_track_gain_db end
+    ) as gain
+    from media_files where missing_since is null and not cached`)
+  if (library?.gain == null) return values
+  return {
+    trackGainDb: round(library.gain),
+    trackPeak: null,
+    albumGainDb: values?.albumGainDb ?? null,
+    albumPeak: values?.albumPeak ?? null,
+    estimated: true,
+  }
 }
 
 /** `normalizationFor` with the release's loudness row already loaded, for callers that batch. */
