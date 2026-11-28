@@ -27,8 +27,10 @@ const escapeMap: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt
 // oxlint-disable-next-line no-control-regex
 const forbidden = /[\u0000-\u0008\u000b\u000c\u000e-\u001f￾￿]/g
 
+export const xmlText = (value: string): string => value.replace(forbidden, '')
+
 function escapeXml(value: string): string {
-  return value.replace(forbidden, '').replace(/[&<>"']/g, (char) => escapeMap[char]!)
+  return xmlText(value).replace(/[&<>"']/g, (char) => escapeMap[char]!)
 }
 
 const isPrimitive = (value: unknown): value is string | number | boolean =>
@@ -41,8 +43,13 @@ function element(name: string, value: unknown, extraAttributes = ''): string {
   let text: string | undefined
   for (const [key, field] of Object.entries(value as Payload)) {
     if (field === undefined || field === null) continue
-    if (key === 'value' && isPrimitive(field)) text = escapeXml(String(field))
-    else if (isPrimitive(field)) attributes.push(` ${key}="${escapeXml(String(field))}"`)
+    if (key === 'value' && isPrimitive(field)) {
+      if (name === 'cueLine') {
+        // XML normalizes literal attribute whitespace, which would invalidate the byte offsets.
+        const escaped = escapeXml(String(field)).replace(/[\t\n\r]/g, (char) => `&#${char.charCodeAt(0)};`)
+        attributes.push(` value="${escaped}"`)
+      } else text = escapeXml(String(field))
+    } else if (isPrimitive(field)) attributes.push(` ${key}="${escapeXml(String(field))}"`)
     else if (Array.isArray(field)) for (const item of field) children.push(element(key, item))
     else children.push(element(key, field))
   }

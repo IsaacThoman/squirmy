@@ -20,7 +20,7 @@ import { suggestAutoplay } from '../radio/suggest.js'
 import { AUTOPLAY_BATCH, autoplayRequest } from './autoplay.js'
 import { recordCollectionPlay } from './collection-plays.js'
 import { entryUpdates, lookupTracks, trustSeeds } from './entries.js'
-import { countUntil, followPlay, insertPlay, isCompleted, notifyPlayStart, type OpenPlay, savePlay } from './plays.js'
+import { countUntil, followPlay, insertPlay, isCompleted, isSkipped, notifyPlayStart, type OpenPlay, savePlay } from './plays.js'
 import { applyUndo, fresh, pushUndo, undoStepFor } from './undo.js'
 import { connectedDevice, connectedDeviceIds, deviceSockets, joinDevice, leaveDevice, listDevices, seeDevice, socketDevices } from './presence.js'
 import {
@@ -1165,12 +1165,15 @@ export function replaceQueue(userId: string, request: { trackIds: readonly strin
 export async function recordExternalPlay(
   userId: string,
   recordingId: string,
-  options: { playedAt?: Date; albumId?: string | null; msPlayed?: number } = {},
+  options: { playedAt?: Date; albumId?: string | null; msPlayed?: number; durationMs?: number; id?: string } = {},
 ): Promise<boolean> {
   const track = (await lookupTracks([recordingId])).get(recordingId)
   if (!track) return false
   const msPlayed = Math.round(options.msPlayed ?? track.durationMs)
+  // Legacy scrobbles are explicit submissions; only timelines measure skips.
+  const skipped = options.msPlayed !== undefined && isSkipped(options.msPlayed)
   await insertPlay({
+    id: options.id,
     userId,
     recordingId: track.id,
     albumId: options.albumId ?? null,
@@ -1178,7 +1181,8 @@ export async function recordExternalPlay(
     client: 'subsonic',
     startedAt: options.playedAt ?? new Date(),
     msPlayed,
-    completed: isCompleted(msPlayed, track.durationMs),
+    completed: !skipped && isCompleted(msPlayed, options.durationMs ?? track.durationMs),
+    skipped,
   })
   return true
 }

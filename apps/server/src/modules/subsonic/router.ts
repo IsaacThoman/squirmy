@@ -38,17 +38,22 @@ function baseUrl(request: FastifyRequest): string {
 }
 
 async function handle(request: FastifyRequest, reply: FastifyReply) {
-  const params = Params.from(request.query, typeof request.body === 'object' ? request.body : undefined)
+  const method = (request.params as { '*': string })['*'].replace(/\.view$/, '')
+  const endpoint = endpoints.get(method.toLowerCase())
+  const contentType = request.headers['content-type']?.split(';')[0]?.trim().toLowerCase()
+  const params = Params.from(request.query, contentType === 'application/x-www-form-urlencoded' ? request.body : undefined)
   const requested = params.string('f')?.toLowerCase()
   const format: Format = requested && formats.has(requested) ? requested as Format : 'xml'
   const callback = params.string('callback')
   if (format === 'jsonp' && !(callback && callbackName.test(callback))) {
     return send(reply, 'json', undefined, envelope('failed', { error: { code: ErrorCode.missingParameter, message: 'Required parameter is missing: callback' } }))
   }
-  const method = (request.params as { '*': string })['*'].replace(/\.view$/, '')
   try {
-    const endpoint = endpoints.get(method.toLowerCase())
     if (!endpoint) throw new SubsonicError(ErrorCode.generic, `Unknown API method: ${method}`)
+    if (endpoint.jsonPost) {
+      if (request.method !== 'POST') return reply.header('allow', 'POST').code(405).send({ message: 'Use POST for this endpoint' })
+      if (contentType !== 'application/json') return reply.code(415).send({ message: 'Send an application/json ClientInfo body' })
+    }
     const user = endpoint.public ? null : await authenticate(params)
     if (endpoint.admin && user?.role !== 'admin') {
       throw new SubsonicError(ErrorCode.notAuthorized, 'User is not authorized for the given operation')
@@ -59,6 +64,11 @@ async function handle(request: FastifyRequest, reply: FastifyReply) {
   } catch (error) {
     if (reply.sent) throw error
     const failure = toSubsonic(error, request)
+    if (endpoint?.httpErrors) {
+      const status = error instanceof AppError ? error.status : error instanceof SubsonicError
+        ? ({ 40: 401, 44: 401, 50: 403, 70: 404 } as Record<number, number>)[error.code] ?? 400 : 500
+      return reply.code(status).type('text/plain').send(failure.message)
+    }
     return send(reply, format, callback, envelope('failed', { error: { code: failure.code, message: failure.message } }))
   }
 }

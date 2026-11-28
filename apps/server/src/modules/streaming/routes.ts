@@ -10,6 +10,7 @@ import { forbidden, notFound, unauthorized } from '../../lib/errors.js'
 import { measureOnPlay } from '../loudness/index.js'
 import { streamSignal } from './files.js'
 import { buildPlaybackDescriptor, verifyStreamSignature } from './playback.js'
+import { isFragmented } from './profiles.js'
 import { openStream } from './stream.js'
 
 const TrackParams = z.object({ id: Id })
@@ -46,7 +47,7 @@ async function stream(request: FastifyRequest, reply: FastifyReply) {
     head: request.method === 'HEAD',
     download: query.download === true,
     intent: query.intent,
-    startMs: query.start,
+    startMs: isFragmented(profile) ? query.start : undefined,
     userId,
     signal: profile === 'original' ? undefined : streamSignal(reply.raw),
   })

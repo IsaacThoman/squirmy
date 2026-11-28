@@ -241,14 +241,14 @@ async function touchAppPassword(id: string) {
 }
 
 /** OpenSubsonic `apiKey` auth: the key is an app password's secret. */
-export async function findAppPasswordByKey(apiKey: string): Promise<AuthUser | null> {
+export async function findAppPasswordByKey(apiKey: string): Promise<(AuthUser & { appPasswordId: string }) | null> {
   const [row] = await db.select({ user: userColumns, id: appPasswords.id })
     .from(appPasswords)
     .innerJoin(users, eq(users.id, appPasswords.userId))
     .where(and(eq(appPasswords.keyHash, hashToken(apiKey)), isNull(appPasswords.scopes), validExpiry()))
   if (!row || row.user.disabledAt) return null
   await touchAppPassword(row.id)
-  return row.user
+  return { ...row.user, appPasswordId: row.id }
 }
 
 function validExpiry() {
@@ -281,7 +281,7 @@ function sameText(a: string, b: string) {
 export async function verifyAppPassword(
   username: string,
   credential: { password: string } | { token: string; salt: string },
-): Promise<AuthUser | null> {
+): Promise<(AuthUser & { appPasswordId: string }) | null> {
   const rows = await db.select({ user: userColumns, id: appPasswords.id, secretEncrypted: appPasswords.secretEncrypted })
     .from(appPasswords)
     .innerJoin(users, eq(users.id, appPasswords.userId))
@@ -294,7 +294,7 @@ export async function verifyAppPassword(
       : sameText(md5(secret + credential.salt), credential.token.toLowerCase())
     if (matches) {
       await touchAppPassword(row.id)
-      return row.user
+      return { ...row.user, appPasswordId: row.id }
     }
   }
   return null
