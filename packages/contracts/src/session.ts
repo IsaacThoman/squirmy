@@ -82,10 +82,12 @@ export type QueueSeed = z.infer<typeof QueueSeed>
  * or `artist` (with its id) or `liked` is a play of that collection: the server records it
  * for the Library's "Recently played" (`LibraryItem.playedAt`). So a page sends its own
  * context for Play, Shuffle and its song rows, and a song started anywhere else (Search,
- * Home, a radio, the history) names that place instead, not the song's album.
+ * Home, a radio, the history) names that place instead, not the song's album. A `mix` is a
+ * mix made for the user, with its id; plays remember their context, which is how Home's Jump
+ * back in finds the albums, playlists, artists, mixes and radios the user played from.
  */
 export const PlaybackContext = z.object({
-  type: z.enum(['album', 'playlist', 'artist', 'liked', 'search', 'radio', 'history', 'other']),
+  type: z.enum(['album', 'playlist', 'artist', 'liked', 'search', 'radio', 'mix', 'history', 'other']),
   id: z.string().nullable(),
   title: z.string().nullable(),
 })
@@ -680,6 +682,8 @@ export const queryKeys = {
   /** `GET /setup/status`. Clients may add the server's URL after it. */
   setupStatus: () => ['setup-status'] as const,
   home: () => ['home'] as const,
+  /** A mix made for the user (`GET /mixes/:id`). Under `home()`: mixes are made again with Home's rails. */
+  mix: (id: string) => ['home', 'mix', id] as const,
   libraryAlbums: () => ['library', 'albums'] as const,
   libraryArtists: () => ['library', 'artists'] as const,
   libraryTracks: () => ['library', 'tracks'] as const,

@@ -7,11 +7,13 @@ import { Menu } from './Menu';
 import type { useCollectionMenu } from './menus';
 import { tv } from './theme';
 
-/** Liked Songs, history and a playlist with no covers yet have a cover of their own. */
+/** Liked Songs, history, and a playlist, mix or radio with no covers yet have a cover of their own. */
 const specials = {
   liked: { color: '#6F5BB0', icon: 'heart.fill' },
   recent: { color: '#3A5752', icon: 'clock.arrow.circlepath' },
   playlist: { color: '#4F416B', icon: 'music.note.list' },
+  mix: { color: '#3D3A56', icon: 'waveform' },
+  radio: { color: '#563A3D', icon: 'dot.radiowaves.left.and.right' },
 } as const;
 
 type Props = {

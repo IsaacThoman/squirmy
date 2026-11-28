@@ -111,6 +111,7 @@ export const apiRoutes = {
 
   'radio.track': 'POST /radio/track/:id',
   'radio.artist': 'POST /radio/artist/:id',
+  'radio.mix': 'GET /mixes/:id',
   'radio.sonic': 'POST /radio/sonic/:id',
 
   'imports.list': 'GET /imports',

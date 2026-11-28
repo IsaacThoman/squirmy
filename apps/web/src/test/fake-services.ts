@@ -8,7 +8,7 @@ import {
 import { vi } from 'vitest'
 import type { Services } from '@/api/services'
 import {
-  albumDetail, allTracks, artistDetail, genres, home, libraryAlbums, libraryArtists, libraryTracks, likedTracks, lyricsFor, playlistDetail, playlistSummaries,
+  albumDetail, allTracks, artistDetail, genres, home, libraryAlbums, mixDetail, libraryArtists, libraryTracks, likedTracks, lyricsFor, playlistDetail, playlistSummaries,
   searchFixtures, searchPage, wantlist,
 } from '@/fixtures/catalog'
 import { appPasswords, currentUser, invites, jobs, publicShare, serverSettings, shareLinks, userSettings, users } from '@/fixtures/server'
@@ -322,6 +322,11 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
       adminRevoke: vi.fn(async () => ({ ok: true as const })),
       page: vi.fn(async () => publicShare),
       trackPlayback: vi.fn(async () => ({ url: '/api/v1/share/stream?key=k', expiresAt: '2026-11-27T21:00:00.000Z', mime: 'audio/mpeg', preview: true, durationMs: 30_000 })),
+    },
+    radio: {
+      mix: vi.fn(async (id: string) => found(mixDetail(id))),
+      track: vi.fn(async (id: string) => ({ context: { type: 'radio' as const, id: `track:${id}`, title: null }, tracks: [{ trackId: id, durationMs: 1000 }] })),
+      artist: vi.fn(async (id: string) => ({ context: { type: 'radio' as const, id: `artist:${id}`, title: null }, tracks: libraryTracks.slice(0, 3).map(item => ({ trackId: item.id, durationMs: item.durationMs })) })),
     },
     acquisition: {
       providers: vi.fn(async () => list([])),
