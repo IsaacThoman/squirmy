@@ -65,8 +65,13 @@ export function TrackCover({ track, size = 42, radius = 8 }: { track: TrackSumma
 /** Actions as menu buttons. Plain elements: nothing is computed until one is chosen. */
 export function TrackActionButtons({ actions, onRun }: { actions: readonly TrackAction[]; onRun: (action: TrackAction) => void }) {
   return <>
-    {actions.map(action => <Button key={trackActionKey(action)} label={action.title} systemImage={action.icon as SymbolName}
-      role={action.destructive ? 'destructive' : undefined} onPress={() => onRun(action)} />)}
+    {actions.map(action => action.children
+      // A submenu, such as Rating's stars.
+      ? <Menu key={trackActionKey(action)} label={action.title} systemImage={action.icon as SymbolName}>
+        <TrackActionButtons actions={action.children} onRun={onRun} />
+      </Menu>
+      : <Button key={trackActionKey(action)} label={action.title} systemImage={action.icon as SymbolName}
+        role={action.destructive ? 'destructive' : undefined} onPress={() => onRun(action)} />)}
   </>;
 }
 

@@ -19,8 +19,11 @@ import { chosenPlaylist, playlistSubmenu, rowMenu } from './menuModel';
 
 export { chosenPlaylist, playlistSubmenu, rowMenu };
 
-/** Downloads are the phone's: the TV streams, and tvOS may clear what an app stores. */
-const notOnTv = new Set<TrackAction['id']>(['download', 'retryDownload', 'removeDownload']);
+/**
+ * Downloads are the phone's: the TV streams, and tvOS may clear what an app stores. Credits
+ * open a sheet the TV has no route for.
+ */
+const notOnTv = new Set<TrackAction['id']>(['download', 'retryDownload', 'removeDownload', 'credits']);
 
 const noPlaylists: PlaylistSummary[] = [];
 const OwnPlaylistsContext = createContext<PlaylistSummary[]>(noPlaylists);
@@ -64,9 +67,18 @@ export function useAddToPlaylist() {
   };
 }
 
+/** A song action as an entry of the system's menu, with its submenu (Rating's stars). */
+function menuAction(action: TrackAction): MenuAction {
+  return {
+    id: trackActionKey(action), title: action.title, subtitle: action.subtitle, image: action.icon, destructive: action.destructive,
+    checked: action.checked, children: action.children?.map(menuAction),
+  };
+}
+
 /**
  * A song's context menu, the phone's song menu in the system's glass menu: play, queue, the
- * heart, a radio, its album and artist, a playlist, and removing it from the playlist it is in.
+ * heart, the stars (for a user who shows ratings), the radios, its album and artist, a playlist,
+ * and removing it from the playlist it is in.
  */
 export function useTrackMenu(track: TrackSummary | undefined, options: TrackActionOptions = {}): { actions: MenuAction[]; onAction: (id: string) => void } {
   // The page the song is shown on is not offered again (Go to album on its own album page).
@@ -78,14 +90,13 @@ export function useTrackMenu(track: TrackSummary | undefined, options: TrackActi
   const add = useAddToPlaylist();
   const router = useRouter();
   // Keyed with the page too: a song by two artists has a Go to artist for each.
-  const actions: MenuAction[] = base.map(action => action.id === 'playlist'
-    ? playlistSubmenu(playlists)
-    : { id: trackActionKey(action), title: action.title, subtitle: action.subtitle, image: action.icon, destructive: action.destructive });
+  const actions: MenuAction[] = base.map(action => action.id === 'playlist' ? playlistSubmenu(playlists) : menuAction(action));
   const onAction = (id: string) => {
     if (!track) return;
     const playlist = chosenPlaylist(id, playlists);
     if (playlist) return add(playlist, [track], `“${track.title}”`);
-    const action = base.find(item => trackActionKey(item) === id);
+    // Rating's stars are a submenu: what was chosen may be one of them.
+    const action = base.flatMap(item => [item, ...item.children ?? []]).find(item => trackActionKey(item) === id);
     if (!action) return;
     action.run?.();
     if (action.page) open(action.page.page, action.page.id);
