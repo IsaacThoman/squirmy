@@ -2,7 +2,7 @@ import {
   ApiTokenScope, ChangePasswordRequest, ConnectListenBrainzRequest, CreateAppPasswordRequest, UpdateUserRequest,
   type AppPassword, type NormalizationMode, type ShareLink, type ScrobbleService, type ScrobbleTarget, type ScrobblingStatus, type StreamQuality, type UpdateUserSettings, type User, type UserSettings,
 } from '@squirmy/contracts'
-import { AlertTriangle, AudioLines, Check, CircleCheck, FolderUp, Info, KeyRound, Library, Link2, LogOut, Palette, Pencil, Plus, Radio, Webhook, ShieldCheck, User as UserIcon, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, AudioLines, Check, CircleCheck, FolderUp, Info, KeyRound, Library, Link2, Lock, LogOut, Palette, Pencil, Plus, Radio, Webhook, ShieldCheck, User as UserIcon, type LucideIcon } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { useFormSubmit } from '@/api/errors'
 import { shareLinkDetail } from '@/components/share/share-detail'
@@ -20,6 +20,7 @@ import { modKey } from '@/lib/platform'
 import { cn } from '@/lib/utils'
 import { WebhookSettings } from '../integrations/WebhookSettings'
 import { AppearanceSettings } from './AppearanceSettings'
+import { SecuritySettings, type SecuritySettingsProps } from './SecuritySettings'
 import type { SettingsSection } from './settings-dialog'
 
 const sections: { id: SettingsSection; label: string; icon: LucideIcon }[] = [
@@ -27,9 +28,10 @@ const sections: { id: SettingsSection; label: string; icon: LucideIcon }[] = [
   { id: 'library', label: 'Library', icon: Library },
   { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'account', label: 'Account', icon: UserIcon },
-  { id: 'scrobbling', label: 'Scrobbling', icon: Radio },
+  { id: 'security', label: 'Security', icon: Lock },
   { id: 'app-passwords', label: 'App passwords', icon: KeyRound },
   { id: 'share-links', label: 'Share links', icon: Link2 },
+  { id: 'scrobbling', label: 'Scrobbling', icon: Radio },
   { id: 'webhooks', label: 'Webhooks', icon: Webhook },
   { id: 'about', label: 'About', icon: Info },
 ]
@@ -89,6 +91,8 @@ export type SettingsDialogProps = {
   sharingEnabled: boolean
   onRevokeShareLink: (id: string) => Promise<unknown>
   onChangePassword: (request: ChangePasswordRequest) => Promise<unknown>
+  /** The Security section: two-factor authentication and signed-in devices. */
+  security: SecuritySettingsProps
   /** Only where the server lets this user rename themselves. */
   onRename?: (displayName: string | null) => Promise<unknown>
   onLogout: () => void
@@ -112,7 +116,7 @@ const SAVED_MS = 2500
 /** The user's settings in a dialog: sections down the left, the chosen one on the right. */
 export function SettingsDialog({
   open, onOpenChange, section, onSectionChange, user, serverName, version, settings, onSettingsChange, deviceName, defaultDeviceName, onDeviceNameChange,
-  scrobbling, onConnectListenBrainz, onConnectLastFm, onDisconnect, appPasswords, onCreateAppPassword, onRevokeAppPassword, shareLinks, sharingEnabled, onRevokeShareLink, onChangePassword, onRename, onLogout, onOpenAdmin, onOpenUploads, failures,
+  scrobbling, onConnectListenBrainz, onConnectLastFm, onDisconnect, appPasswords, onCreateAppPassword, onRevokeAppPassword, shareLinks, sharingEnabled, onRevokeShareLink, onChangePassword, security, onRename, onLogout, onOpenAdmin, onOpenUploads, failures,
   errors, lastFm, passwordChanged,
 }: SettingsDialogProps) {
   // The field shows the new name; "Saved" beside it says it reached the device lists.
@@ -284,6 +288,12 @@ export function SettingsDialog({
                 <Row label="Sign out of this browser">
                   <Button size="sm" variant="outline" onClick={onLogout}><LogOut />Log out</Button>
                 </Row>
+              </Panel>
+            )}
+
+            {section === 'security' && (
+              <Panel title="Security" description="How you sign in, and the browsers and apps signed in to your account.">
+                <SecuritySettings {...security} />
               </Panel>
             )}
 

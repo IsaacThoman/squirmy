@@ -1,16 +1,27 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createBrowserEngine } from './choose'
 import { EngineContext } from './engine-context'
-import { WebPlayerEngine } from './web-engine'
+import type { BrowserEngine } from './types'
 
 /** What counts as a user gesture for starting audio. */
 const GESTURES = ['pointerdown', 'keydown'] as const
 
+declare global {
+  /** The page's engine in development builds, for the end-to-end scripts. */
+  interface Window { squirmyPageEngine?: BrowserEngine }
+}
+
 /** One audio engine per page. Nothing plays until something drives it. */
 export function EngineProvider({ children }: { children: ReactNode }) {
-  const [standard] = useState(() => new WebPlayerEngine())
-  const [replacement, replace] = useState<WebPlayerEngine | null>(null)
+  const [standard] = useState(createBrowserEngine)
+  const [replacement, replace] = useState<BrowserEngine | null>(null)
   const slot = useMemo(() => ({ engine: replacement ?? standard, replace }), [replacement, standard])
   const engine = slot.engine
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+    window.squirmyPageEngine = engine
+    return () => { delete window.squirmyPageEngine }
+  }, [engine])
   // The first press anywhere opens the audio output, so the first song is heard as soon as it has loaded.
   useEffect(() => {
     // Without Web Audio (a test's DOM) there is no output to open.

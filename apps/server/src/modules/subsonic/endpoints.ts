@@ -5,10 +5,12 @@
 import { annotationEndpoints } from './handlers/annotation.js'
 import { browsingEndpoints } from './handlers/browsing.js'
 import { listEndpoints } from './handlers/lists.js'
+import { negotiationEndpoints } from './handlers/negotiation.js'
 import { mediaEndpoints } from './handlers/media.js'
 import { playlistEndpoints } from './handlers/playlists.js'
 import { queueEndpoints } from './handlers/queue.js'
 import { searchEndpoints } from './handlers/search.js'
+import { sonicEndpoints } from './handlers/sonic.js'
 import { systemEndpoints } from './handlers/system.js'
 import type { Handler } from './protocol.js'
 
@@ -17,11 +19,15 @@ export type Endpoint = {
   /** Answers without credentials (getOpenSubsonicExtensions must). */
   public?: boolean
   admin?: boolean
+  jsonPost?: boolean
+  httpErrors?: boolean
 }
 
 const options: Record<string, Omit<Endpoint, 'handler'>> = {
   getOpenSubsonicExtensions: { public: true },
   startScan: { admin: true },
+  getTranscodeDecision: { jsonPost: true },
+  getTranscodeStream: { httpErrors: true },
 }
 
 const handlers: Record<string, Handler> = {
@@ -30,6 +36,8 @@ const handlers: Record<string, Handler> = {
   ...listEndpoints,
   ...searchEndpoints,
   ...mediaEndpoints,
+  ...negotiationEndpoints,
+  ...sonicEndpoints,
   ...annotationEndpoints,
   ...playlistEndpoints,
   ...queueEndpoints,

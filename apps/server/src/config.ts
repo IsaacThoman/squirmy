@@ -51,6 +51,11 @@ const Env = z.object({
    */
   CLIENT_IP_HEADER: z.string().trim().toLowerCase().regex(/^[a-z0-9-]*$/, 'CLIENT_IP_HEADER must be a header name')
     .transform((value) => value || undefined).optional(),
+  /**
+   * Recovery for a server whose admins can no longer sign in with single sign-on: while set,
+   * admins (only) may sign in with their password even when password sign-in is off.
+   */
+  SQUIRMY_ADMIN_PASSWORD_LOGIN: z.enum(['true', 'false', '1', '0', '']).optional().transform((value) => value === 'true' || value === '1'),
   /** Connections in the database query pool of each process. Default 10, 4 under test. */
   SQUIRMY_DB_POOL_SIZE: z.coerce.number().int().min(2).max(200).optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
