@@ -9,6 +9,7 @@ import { useApi } from '@/api/services'
 import { setSetupDone, setSignedInUser, useMe, useSetupStatus, useSignInNotice } from '@/auth/session'
 import { LoginView, RegisterView, SetupAccountView, SetupDoneView, SetupLibraryView, TwoFactorView } from '@/components/auth/AuthViews'
 import { webDevice } from '@/lib/device'
+import { browserSupportsPasskeys, getPasskey, passkeyCancelled } from '@/lib/passkeys'
 
 /** Signing in only updates the session; the signed-out guard then moves on to `next`. */
 function useSignedIn() {
@@ -25,6 +26,18 @@ export function LoginPage() {
   const [challenge, setChallenge] = useState<string | null>(null)
   const login = useMutation({ mutationFn: api.auth.login, onSuccess: response => signedIn(response.user), meta: { inline: true } })
   const secondStep = useMutation({ mutationFn: api.auth.loginTwoFactor, onSuccess: response => signedIn(response.user), meta: { inline: true } })
+  const passkeys = status!.passkeysAvailable && browserSupportsPasskeys()
+  const signInWithPasskey = async () => {
+    const { challenge, options } = await api.auth.passkeyLoginOptions()
+    let response
+    try {
+      response = await getPasskey(options)
+    } catch (error) {
+      if (passkeyCancelled(error)) return
+      throw error
+    }
+    signedIn((await api.auth.loginWithPasskey({ challenge, response, device: webDevice() })).user)
+  }
   const submitPassword = async (credentials: { username: string; password: string }) => {
     try {
       await login.mutateAsync({ ...credentials, device: webDevice() })
@@ -51,6 +64,7 @@ export function LoginPage() {
       inviteRequired={status!.registrationRequiresInvite}
       notice={notice}
       onSubmit={submitPassword}
+      onPasskey={passkeys ? signInWithPasskey : undefined}
     />
   )
 }

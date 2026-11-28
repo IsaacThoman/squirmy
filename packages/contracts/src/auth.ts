@@ -36,6 +36,8 @@ export const SetupStatus = z.object({
   wantlistEnabled: z.boolean().default(false),
   /** Older servers omit this and accept TVs that identify as `other`. */
   supportsTvDevices: z.literal(true).optional(),
+  /** Whether the sign-in page can offer passkeys: PUBLIC_URL is an https address (or localhost). */
+  passkeysAvailable: z.boolean().default(false),
 })
 export type SetupStatus = z.infer<typeof SetupStatus>
 
@@ -186,11 +188,28 @@ export const TwoFactorStatus = z.object({
 })
 export type TwoFactorStatus = z.infer<typeof TwoFactorStatus>
 
+/** Most passkeys one account may hold. */
+export const PASSKEY_LIMIT = 20
+
+/** A passkey of the account. The key itself stays on the device; the server keeps its public half. */
+export const Passkey = z.object({
+  id: Id,
+  name: z.string(),
+  /** Synced to other devices by its password manager (iCloud Keychain, Google, 1Password…). */
+  backedUp: z.boolean(),
+  createdAt: IsoDateTime,
+  lastUsedAt: IsoDateTime.nullable(),
+})
+export type Passkey = z.infer<typeof Passkey>
+
+export const PasskeyName = z.string().trim().min(1).max(60)
+
 /** `GET /auth/security`: the ways this account can sign in. */
 export const AccountSecurity = z.object({
   /** False for an account made by single sign-on that never had a password set. */
   hasPassword: z.boolean(),
   twoFactor: TwoFactorStatus,
+  passkeys: z.array(Passkey).default([]),
 })
 export type AccountSecurity = z.infer<typeof AccountSecurity>
 
@@ -249,5 +268,43 @@ export type TwoFactorLoginRequest = z.infer<typeof TwoFactorLoginRequest>
 export const UserSecurity = z.object({
   twoFactorEnabled: z.boolean(),
   sessions: z.array(AuthSession),
+  passkeys: z.array(Passkey).default([]),
 })
 export type UserSecurity = z.infer<typeof UserSecurity>
+
+// ---------------------------------------------------------------------------
+// Passkeys (WebAuthn)
+// ---------------------------------------------------------------------------
+
+/** WebAuthn's JSON as `@simplewebauthn` reads and writes it; the server library checks the details. */
+const WebAuthnJson = z.record(z.string(), z.unknown())
+
+/**
+ * A ceremony to hand to the browser (`navigator.credentials`), and the challenge to send back
+ * with its answer. The challenge is used once and lasts five minutes.
+ */
+export const PasskeyOptions = z.object({ challenge: z.string(), options: WebAuthnJson })
+export type PasskeyOptions = z.infer<typeof PasskeyOptions>
+
+/** What the browser answered: a `RegistrationResponseJSON` or an `AuthenticationResponseJSON`. */
+export const PasskeyCredential = z.looseObject({
+  id: z.string().min(1).max(1400),
+  rawId: z.string().min(1).max(1400),
+  type: z.literal('public-key'),
+  response: WebAuthnJson,
+  clientExtensionResults: WebAuthnJson.default({}),
+})
+export type PasskeyCredential = z.infer<typeof PasskeyCredential>
+
+/** `POST /auth/passkeys/options`: a passkey outlives the session it is added from, so the password comes first. */
+export const StartPasskeyRequest = z.object({ currentPassword: z.string().min(1).max(200) })
+export type StartPasskeyRequest = z.infer<typeof StartPasskeyRequest>
+
+export const RegisterPasskeyRequest = z.object({ challenge: z.string().min(1).max(200), name: PasskeyName, response: PasskeyCredential })
+export type RegisterPasskeyRequest = z.infer<typeof RegisterPasskeyRequest>
+
+export const RenamePasskeyRequest = z.object({ name: PasskeyName })
+export type RenamePasskeyRequest = z.infer<typeof RenamePasskeyRequest>
+
+export const PasskeyLoginRequest = z.object({ challenge: z.string().min(1).max(200), response: PasskeyCredential, device: ClientDevice.optional() })
+export type PasskeyLoginRequest = z.infer<typeof PasskeyLoginRequest>

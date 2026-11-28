@@ -20,6 +20,7 @@ import { getQueueStats } from '../../jobs/index.js'
 import { disconnectSockets, invalidate } from '../../realtime/index.js'
 import { dropUserChallenges } from '../auth/challenges.js'
 import { hashPassword, insertUser, listSessions, revokeAppPasswords, revokeUserSession, revokeUserSessions, toUser } from '../auth/service.js'
+import { listPasskeys, revokePasskeys } from '../auth/passkeys.js'
 import { disableTwoFactor, twoFactorEnabled } from '../auth/two-factor.js'
 import { markEnrichmentStale } from '../enrichment/stale.js'
 import { queueNewlyPossibleMatching } from '../matching/retry.js'
@@ -130,8 +131,9 @@ export async function adminRoutes(app: FastifyInstance) {
       if (body.password !== undefined || body.disabled) {
         await revokeUserSessions(tx, id)
         await dropUserChallenges(tx, id)
-        // An app password minted by whoever had the account would survive the reset.
+        // An app password or a passkey added by whoever had the account would survive the reset.
         await revokeAppPasswords(tx, id)
+        await revokePasskeys(tx, id)
       }
       return row!
     })
@@ -158,7 +160,7 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get('/admin/users/:id/security', async (request): Promise<UserSecurity> => {
     const { id } = IdParams.parse(request.params)
     await requireUserRow(id)
-    return { twoFactorEnabled: await twoFactorEnabled(id), sessions: await listSessions(id, request.authSessionId) }
+    return { twoFactorEnabled: await twoFactorEnabled(id), sessions: await listSessions(id, request.authSessionId), passkeys: await listPasskeys(id) }
   })
 
   app.delete('/admin/users/:id/sessions/:sessionId', async (request): Promise<Ok> => {

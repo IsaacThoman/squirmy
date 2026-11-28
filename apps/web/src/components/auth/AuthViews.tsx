@@ -1,9 +1,9 @@
 import { CreateLibraryRootRequest, LoginRequest, RegisterRequest, SecondFactorCode, SetupRequest, UpdateLibraryRootRequest, type DirectoryListing, type LibraryRoot } from '@squirmy/contracts'
-import { ArrowLeft, ArrowRight, Check, Folder, FolderOpen, FolderPlus, Info, RotateCw, ServerCrash } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, Folder, FolderOpen, FolderPlus, Info, KeyRound, RotateCw, ServerCrash } from 'lucide-react'
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { z } from 'zod'
-import { useFormSubmit, type FormErrors } from '@/api/errors'
+import { errorMessage, useFormSubmit, type FormErrors } from '@/api/errors'
 import { rootPathErrors } from '@/api/folders'
 import { ManagedConfirmation, ManagedSwitch } from '@/components/admin/ManagedSwitch'
 import { Logo } from '@/components/layout/Logo'
@@ -98,11 +98,27 @@ type LoginProps = {
   /** Why sign-in is showing, when the visitor did not sign out themselves: their session ended. */
   notice?: string | null
   onSubmit: (credentials: Credentials) => Promise<unknown>
+  /** Offered when the server and this browser can both use passkeys. Resolves once signed in, or quietly when cancelled. */
+  onPasskey?: () => Promise<unknown>
 }
 
-export function LoginView({ serverName, version, inviteRequired, notice, onSubmit }: LoginProps) {
+export function LoginView({ serverName, version, inviteRequired, notice, onSubmit, onPasskey }: LoginProps) {
   const [value, setValue] = useState<Credentials>({ username: '', password: '' })
   const form = useFormSubmit(LoginRequest, onSubmit)
+  const [passkeyPending, setPasskeyPending] = useState(false)
+  const [passkeyError, setPasskeyError] = useState<string>()
+  const signInWithPasskey = async () => {
+    setPasskeyPending(true)
+    setPasskeyError(undefined)
+    form.reset()
+    try {
+      await onPasskey!()
+    } catch (error) {
+      setPasskeyError(errorMessage(error))
+    } finally {
+      setPasskeyPending(false)
+    }
+  }
   const submit = (event: FormEvent) => {
     event.preventDefault()
     void form.submit(value)
@@ -122,8 +138,14 @@ export function LoginView({ serverName, version, inviteRequired, notice, onSubmi
           </div>
         )}
         <CredentialFields value={value} onChange={setValue} errors={form.errors} />
-        <FormError message={form.errors.form} />
+        <FormError message={form.errors.form ?? passkeyError} />
         <Button type="submit" variant="primary" className="mt-2 w-full" pending={form.pending}>Sign in</Button>
+        {onPasskey && (
+          <>
+            <div aria-hidden className="flex items-center gap-3 text-xs text-muted-foreground"><span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" /></div>
+            <Button variant="outline" className="w-full" pending={passkeyPending} onClick={() => void signInWithPasskey()}><KeyRound />Sign in with a passkey</Button>
+          </>
+        )}
       </form>
     </AuthFrame>
   )

@@ -71,6 +71,36 @@ describe('route guards', () => {
     expect((api.auth.loginTwoFactor.mock.lastCall as unknown[] | undefined)?.[0]).toEqual(expect.objectContaining({ challenge: 'challenge-1', code: 'abcde-fghjk', device: expect.objectContaining({ kind: 'web' }) }))
   })
 
+  it('signs in with a passkey when the server and the browser can', async () => {
+    const passkeys = await import('@/lib/passkeys')
+    vi.spyOn(passkeys, 'browserSupportsPasskeys').mockReturnValue(true)
+    const get = vi.spyOn(passkeys, 'getPasskey').mockResolvedValue({ id: 'cred', rawId: 'cred', type: 'public-key', response: {}, clientExtensionResults: {} })
+    const { services, api } = fakeServices({ user: null, status: { passkeysAvailable: true } })
+    renderWithApp(app, '/login', services)
+    await userEvent.click(await screen.findByRole('button', { name: 'Sign in with a passkey' }))
+    await waitFor(() => expect(where()).toBe('/'))
+    expect(get).toHaveBeenCalledWith({ challenge: 'abc' })
+    expect((api.auth.loginWithPasskey.mock.lastCall as unknown[] | undefined)?.[0]).toEqual(expect.objectContaining({ challenge: 'login-challenge', response: expect.objectContaining({ id: 'cred' }) }))
+    vi.restoreAllMocks()
+  })
+
+  it('says nothing when the passkey prompt is closed, and offers no passkey where the server has none', async () => {
+    const passkeys = await import('@/lib/passkeys')
+    vi.spyOn(passkeys, 'browserSupportsPasskeys').mockReturnValue(true)
+    vi.spyOn(passkeys, 'getPasskey').mockRejectedValue(Object.assign(new Error('closed'), { name: 'NotAllowedError' }))
+    const { services, api } = fakeServices({ user: null, status: { passkeysAvailable: true } })
+    renderWithApp(app, '/login', services)
+    await userEvent.click(await screen.findByRole('button', { name: 'Sign in with a passkey' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Sign in with a passkey' })).toBeEnabled())
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(api.auth.loginWithPasskey).not.toHaveBeenCalled()
+    cleanup()
+    renderWithApp(app, '/login', fakeServices({ user: null }).services)
+    await screen.findByRole('button', { name: 'Sign in' })
+    expect(screen.queryByRole('button', { name: 'Sign in with a passkey' })).toBeNull()
+    vi.restoreAllMocks()
+  })
+
   it('goes back from the code to the password', async () => {
     const { services, api } = fakeServices({ user: null })
     renderWithApp(app, '/login', services)

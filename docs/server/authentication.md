@@ -6,6 +6,7 @@ How people sign in to a Squirmy server, and what an admin can do when something 
 |---|---|---|---|
 | Username and password | yes | yes | no |
 | Password and an authenticator code ([two-factor](#two-factor-authentication)) | yes | yes | no |
+| [Passkey](#passkeys) | yes | not yet | no |
 | [App password](./users.md#app-passwords) | no | no | yes |
 
 ## Sessions
@@ -48,3 +49,29 @@ The code is asked for when someone signs in with a password. It does not apply t
 ### Limits
 
 After a right password, the server waits 5 minutes for the code, and 5 wrong codes end that attempt: the password has to be entered again. Wrong codes are also counted per account, wherever they come from: after 10 in an hour, the account waits out the rest of the hour before another code is checked. Someone trying codes already has the password, so change it if this happens and you did not do it. Secrets are stored encrypted with the server secret, and recovery codes only as keyed hashes. Like the sign-in limits, the counters live in the server's memory and start again when it restarts.
+
+## Passkeys
+
+A passkey signs in with the device's own lock (Face ID, Touch ID, Windows Hello, a PIN or a security key) instead of a password. Passkeys are kept by the device or a password manager (iCloud Keychain, Google Password Manager, 1Password, Bitwarden…), which can sync them to your other devices. The server keeps only the public half.
+
+### What the server needs
+
+Browsers offer passkeys only on a secure page, and a passkey belongs to one host name. So passkeys work when **[`PUBLIC_URL`](./configuration.md) is an `https://` address**, such as `https://music.example.com`, and people open the web app at that address. (For development, `http://localhost:<port>` works too.) Without it, **Settings → Security** says so and the sign-in page offers no passkey button. Opening the web app at another address (a LAN IP, a second host name) shows the passkey button but the browser offers no passkey there.
+
+The relying party ID is `PUBLIC_URL`'s host name. **Changing the host name** makes every passkey unusable: people sign in with their password and add new ones. Moving the server behind the same name changes nothing.
+
+### Adding and using one
+
+1. Open **Settings → Security** and choose **Add passkey**.
+2. Enter your password (a passkey outlives the session it is added from, as an app password does), and name it; the name defaults to the browser's.
+3. Follow the browser's prompt.
+
+On the sign-in page, **Sign in with a passkey** lets the browser offer the passkeys it has for the server; no username is needed. A passkey sign-in skips the authenticator code: the device already checked who you are (user verification is required). **Rename** and **Remove** are next to each passkey; an account can hold 20.
+
+An admin resetting someone's password or disabling their account removes their passkeys, as it does their app passwords. Changing your own password keeps them: check the list in **Settings → Security** if you think someone else had your account. Admins see someone's passkeys in **Manage → Sign-ins and security…**.
+
+The iOS and Apple TV apps don't offer passkeys yet: they need the app to be linked to your server's domain, which a self-hosted server can't set up for the app.
+
+### Limits
+
+Passkey sign-ins are limited to 20 a minute per address. Each ceremony has its own challenge, which lasts 5 minutes and is used once. A passkey whose signature counter goes backwards (a sign of a copied authenticator) is refused.

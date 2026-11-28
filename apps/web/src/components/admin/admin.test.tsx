@@ -324,7 +324,7 @@ describe('users admin', () => {
     const onShowSecurity = vi.fn()
     const onRevokeUserSession = vi.fn(async () => {})
     const onResetTwoFactor = vi.fn(async () => {})
-    const data = { twoFactorEnabled: true, sessions: authSessions.map(session => ({ ...session, current: false })) }
+    const data = { twoFactorEnabled: true, sessions: authSessions.map(session => ({ ...session, current: false })), passkeys: [] }
     // Holds the open dialog's user, as the page does.
     function Harness() {
       const [shown, setShown] = useState<string | null>(null)

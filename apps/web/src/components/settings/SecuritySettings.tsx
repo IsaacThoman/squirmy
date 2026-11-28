@@ -1,17 +1,18 @@
 import {
-  ConfirmTwoFactorRequest, EnableTwoFactorRequest, StartTwoFactorRequest,
-  type AccountSecurity, type AuthSession, type RecoveryCodes, type TwoFactorSetup,
+  ConfirmTwoFactorRequest, EnableTwoFactorRequest, PasskeyName, StartPasskeyRequest, StartTwoFactorRequest,
+  type AccountSecurity, type AuthSession, type Passkey, type RecoveryCodes, type TwoFactorSetup,
 } from '@squirmy/contracts'
-import { Check, Copy, ShieldCheck, ShieldOff } from 'lucide-react'
+import { Check, Copy, KeyRound, Plus, ShieldCheck, ShieldOff } from 'lucide-react'
+import { z } from 'zod'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { errorMessage, useFormSubmit } from '@/api/errors'
 import { Button } from '@/components/ui/button'
 import { CopyField } from '@/components/ui/copy-field'
-import { Dialog, DialogClose, DialogContent, DialogFooter } from '@/components/ui/dialog'
+import { ConfirmDialog, Dialog, DialogClose, DialogContent, DialogFooter } from '@/components/ui/dialog'
 import { Badge, Separator, Skeleton } from '@/components/ui/feedback'
 import { Field, FormError, Input } from '@/components/ui/input'
 import { Row } from '@/components/ui/section'
-import { formatDate, plural } from '@/lib/format'
+import { formatDate, formatRelative, plural } from '@/lib/format'
 import { SessionList } from './SessionList'
 
 export type SecuritySettingsProps = {
@@ -28,13 +29,24 @@ export type SecuritySettingsProps = {
   onRegenerateRecoveryCodes: (request: ConfirmTwoFactorRequest) => Promise<RecoveryCodes>
   onRevokeSession: (id: string) => Promise<unknown>
   onRevokeOtherSessions: () => Promise<unknown>
+  /** Whether the server accepts passkeys (an https PUBLIC_URL) and this browser can make them. */
+  passkeys: { server: boolean; browser: boolean }
+  /** What a new passkey is called until it is renamed: this browser's name. */
+  defaultPasskeyName: string
+  /** Asks the browser for a new passkey and saves it. Resolves quietly when the person cancels. */
+  onAddPasskey: (request: { currentPassword: string; name: string }) => Promise<unknown>
+  onRenamePasskey: (id: string, name: string) => Promise<unknown>
+  onDeletePasskey: (id: string) => Promise<unknown>
 }
 
 /** Settings → Security: the second factor and where the account is signed in. */
 export function SecuritySettings({
   security, sessions, failures, onStartTwoFactor, onEnableTwoFactor, onDisableTwoFactor, onRegenerateRecoveryCodes, onRevokeSession, onRevokeOtherSessions,
+  passkeys, defaultPasskeyName, onAddPasskey, onRenamePasskey, onDeletePasskey,
 }: SecuritySettingsProps) {
-  const [dialog, setDialog] = useState<'enable' | 'disable' | 'codes' | null>(null)
+  const [dialog, setDialog] = useState<'enable' | 'disable' | 'codes' | 'passkey' | null>(null)
+  const [renaming, setRenaming] = useState<Passkey | null>(null)
+  const [removing, setRemoving] = useState<Passkey | null>(null)
   const [othersPending, setOthersPending] = useState(false)
   const [othersError, setOthersError] = useState<string>()
   const close = (next: boolean) => { if (!next) setDialog(null) }
@@ -82,6 +94,34 @@ export function SecuritySettings({
       <Separator />
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
+          <h3 className="text-sm font-medium">Passkeys</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">Sign in with Face ID, Touch ID, Windows Hello or a security key instead of your password. A passkey doesn’t need an authenticator code.</p>
+        </div>
+        {passkeys.server && passkeys.browser && security?.hasPassword && <Button size="sm" variant="outline" onClick={() => setDialog('passkey')}><Plus />Add passkey</Button>}
+      </div>
+      {!passkeys.server
+        ? <p className="text-xs text-muted-foreground">Passkeys need this server’s public address to use HTTPS. Ask whoever runs it to set PUBLIC_URL.</p>
+        : !passkeys.browser && <p className="text-xs text-muted-foreground">This browser can’t make passkeys.</p>}
+      {security?.passkeys.length === 0 && passkeys.server && <p className="text-xs text-muted-foreground">No passkeys yet.</p>}
+      {!!security?.passkeys.length && (
+        <ul aria-label="Passkeys" className="flex flex-col gap-4">
+          {security.passkeys.map(passkey => (
+            <li key={passkey.id}>
+              <Row
+                label={<span className="flex min-w-0 items-center gap-2"><KeyRound aria-hidden className="size-4 shrink-0 text-muted-foreground" /><span className="truncate">{passkey.name}</span>{passkey.backedUp && <Badge tone="outline">Synced</Badge>}</span>}
+                description={`Added ${formatDate(passkey.createdAt)} · ${passkey.lastUsedAt ? `last used ${formatRelative(passkey.lastUsedAt)}` : 'not used yet'}`}
+              >
+                <Button size="sm" variant="outline" onClick={() => setRenaming(passkey)}>Rename</Button>
+                <Button size="sm" variant="outline" onClick={() => setRemoving(passkey)}>Remove</Button>
+              </Row>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <Separator />
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
           <h3 className="text-sm font-medium">Where you’re signed in</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">Browsers and apps signed in to your account. Sign one out if you don’t recognize it, then change your password.</p>
         </div>
@@ -92,6 +132,16 @@ export function SecuritySettings({
         ? <SessionList sessions={sessions} onRevoke={session => onRevokeSession(session.id)} />
         : failures?.sessions ?? <Row label={<Skeleton className="h-5 w-40" />} description={<Skeleton className="mt-1 h-4 w-64 max-w-full" />} />}
 
+      <AddPasskeyDialog open={dialog === 'passkey'} onOpenChange={close} defaultName={defaultPasskeyName} onAdd={onAddPasskey} />
+      {renaming && <RenamePasskeyDialog passkey={renaming} onOpenChange={open => { if (!open) setRenaming(null) }} onRename={name => onRenamePasskey(renaming.id, name)} />}
+      <ConfirmDialog
+        open={!!removing}
+        onOpenChange={open => { if (!open) setRemoving(null) }}
+        title={`Remove “${removing?.name}”?`}
+        description="It can’t sign in to this server any more. Your password manager may still show it; you can delete it there too."
+        confirmLabel="Remove"
+        onConfirm={() => onDeletePasskey(removing!.id)}
+      />
       <EnableTwoFactorDialog open={dialog === 'enable'} onOpenChange={close} onStart={onStartTwoFactor} onEnable={onEnableTwoFactor} />
       <ConfirmTwoFactorDialog
         open={dialog === 'disable'}
@@ -264,6 +314,74 @@ function ConfirmTwoFactorDialog({ open, onOpenChange, title, description, submit
             </DialogFooter>
           </form>
         )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+const AddPasskeyForm = StartPasskeyRequest.extend({ name: PasskeyName })
+
+/** The password, then the browser's own passkey prompt. */
+function AddPasskeyDialog({ open, onOpenChange, defaultName, onAdd }: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  defaultName: string
+  onAdd: SecuritySettingsProps['onAddPasskey']
+}) {
+  const [value, setValue] = useState({ currentPassword: '', name: defaultName })
+  const clear = () => setValue({ currentPassword: '', name: defaultName })
+  const form = useFormSubmit(AddPasskeyForm, async request => {
+    await onAdd(request)
+    clear()
+    onOpenChange(false)
+  }, { invalid_credentials: 'currentPassword' })
+  const close = (next: boolean) => {
+    onOpenChange(next)
+    if (!next) {
+      clear()
+      form.reset()
+    }
+  }
+  return (
+    <Dialog open={open} onOpenChange={close}>
+      <DialogContent title="Add a passkey" description="Enter your password, then follow your browser’s prompt. The passkey is kept by your device or password manager.">
+        <form onSubmit={(event: FormEvent) => { event.preventDefault(); void form.submit(value) }} className="flex flex-col gap-4" noValidate>
+          <Field label="Your password" htmlFor="passkey-password" error={form.errors.currentPassword}>
+            <Input id="passkey-password" type="password" autoComplete="current-password" value={value.currentPassword} onChange={event => setValue(current => ({ ...current, currentPassword: event.target.value }))} aria-invalid={!!form.errors.currentPassword} autoFocus />
+          </Field>
+          <Field label="Name" htmlFor="passkey-name" error={form.errors.name} hint="So you can tell your passkeys apart.">
+            <Input id="passkey-name" value={value.name} maxLength={60} onChange={event => setValue(current => ({ ...current, name: event.target.value }))} aria-invalid={!!form.errors.name} />
+          </Field>
+          <FormError message={form.errors.form} />
+          <DialogFooter>
+            <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+            <Button type="submit" variant="primary" pending={form.pending} disabled={!value.currentPassword || !value.name.trim()}>Continue</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function RenamePasskeyDialog({ passkey, onOpenChange, onRename }: { passkey: Passkey; onOpenChange: (open: boolean) => void; onRename: (name: string) => Promise<unknown> }) {
+  const [name, setName] = useState(passkey.name)
+  const form = useFormSubmit(z.object({ name: PasskeyName }), async request => {
+    await onRename(request.name)
+    onOpenChange(false)
+  })
+  return (
+    <Dialog open onOpenChange={onOpenChange}>
+      <DialogContent title="Rename passkey">
+        <form onSubmit={(event: FormEvent) => { event.preventDefault(); void form.submit({ name }) }} className="flex flex-col gap-4" noValidate>
+          <Field label="Name" htmlFor="rename-passkey" error={form.errors.name}>
+            <Input id="rename-passkey" value={name} maxLength={60} onChange={event => setName(event.target.value)} aria-invalid={!!form.errors.name} autoFocus />
+          </Field>
+          <FormError message={form.errors.form} />
+          <DialogFooter>
+            <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+            <Button type="submit" variant="primary" pending={form.pending} disabled={!name.trim()}>Save</Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   )

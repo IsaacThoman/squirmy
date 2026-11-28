@@ -52,6 +52,11 @@ function props() {
       onRegenerateRecoveryCodes: vi.fn(async () => ({ recoveryCodes: ['zzzzz-yyyyy'] })),
       onRevokeSession: vi.fn(async () => {}),
       onRevokeOtherSessions: vi.fn(async () => {}),
+      passkeys: { server: true, browser: true },
+      defaultPasskeyName: 'Firefox on macOS',
+      onAddPasskey: vi.fn(async () => {}),
+      onRenamePasskey: vi.fn(async () => {}),
+      onDeletePasskey: vi.fn(async () => {}),
     },
   } satisfies SettingsDialogProps
 }
@@ -362,7 +367,7 @@ describe('SettingsDialog', () => {
     })
 
     it('turns two-factor off with the password and a code', async () => {
-      const given = security({ security: { hasPassword: true, twoFactor: { enabled: true, enabledAt: '2026-11-20T10:00:00.000Z', recoveryCodesRemaining: 7 } } })
+      const given = security({ security: { hasPassword: true, twoFactor: { enabled: true, enabledAt: '2026-11-20T10:00:00.000Z', recoveryCodesRemaining: 7 }, passkeys: [] } })
       renderSettings({ section: 'security', security: given })
       expect(screen.getByText(/7 recovery codes left/)).toBeInTheDocument()
       await userEvent.click(screen.getByRole('button', { name: 'Turn off' }))
@@ -372,6 +377,41 @@ describe('SettingsDialog', () => {
       await userEvent.click(within(dialog).getByRole('button', { name: 'Turn off' }))
       expect(given.onDisableTwoFactor).toHaveBeenCalledWith({ currentPassword: 'hunter22', code: '654321' })
       await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Turn off two-factor authentication?' })).toBeNull())
+    })
+
+    it('adds a passkey after the password, named after this browser', async () => {
+      const given = security()
+      renderSettings({ section: 'security', security: given })
+      const list = screen.getByRole('list', { name: 'Passkeys' })
+      expect(within(list).getByText('MacBook')).toBeInTheDocument()
+      expect(within(list).getByText('Synced')).toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: 'Add passkey' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Add a passkey' })
+      expect(within(dialog).getByLabelText('Name')).toHaveValue('Firefox on macOS')
+      await userEvent.type(within(dialog).getByLabelText('Your password'), 'hunter22')
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Continue' }))
+      expect(given.onAddPasskey).toHaveBeenCalledWith({ currentPassword: 'hunter22', name: 'Firefox on macOS' })
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add a passkey' })).toBeNull())
+    })
+
+    it('renames and removes a passkey', async () => {
+      const given = security()
+      renderSettings({ section: 'security', security: given })
+      await userEvent.click(screen.getByRole('button', { name: 'Rename' }))
+      const rename = await screen.findByRole('dialog', { name: 'Rename passkey' })
+      await userEvent.clear(within(rename).getByLabelText('Name'))
+      await userEvent.type(within(rename).getByLabelText('Name'), 'Work laptop')
+      await userEvent.click(within(rename).getByRole('button', { name: 'Save' }))
+      expect(given.onRenamePasskey).toHaveBeenCalledWith(accountSecurity.passkeys[0]!.id, 'Work laptop')
+      await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
+      await userEvent.click(within(await screen.findByRole('dialog', { name: 'Remove “MacBook”?' })).getByRole('button', { name: 'Remove' }))
+      expect(given.onDeletePasskey).toHaveBeenCalledWith(accountSecurity.passkeys[0]!.id)
+    })
+
+    it('says why passkeys cannot be added when the server has no https address', () => {
+      renderSettings({ section: 'security', security: security({ passkeys: { server: false, browser: true } }) })
+      expect(screen.getByText(/Ask whoever runs it to set PUBLIC_URL/)).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Add passkey' })).toBeNull()
     })
 
     it('lists where the account is signed in and signs one out, or all the others', async () => {

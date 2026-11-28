@@ -1,9 +1,10 @@
 import {
-  AuthResponse, ChangePasswordRequest, ConfirmTwoFactorRequest, CreateAppPasswordRequest, EnableTwoFactorRequest, Id, LoginRequest, RegisterRequest,
-  SetupRequest, StartTwoFactorRequest, TwoFactorLoginRequest,
-  type AccountSecurity, type AppPassword, type AppPasswordList, type AuthSessionList, type ClientDevice, type Ok, type RecoveryCodes, type SetupStatus,
-  type SignInMethod, type TwoFactorChallenge, type TwoFactorSetup, type User,
+  AuthResponse, ChangePasswordRequest, ConfirmTwoFactorRequest, CreateAppPasswordRequest, EnableTwoFactorRequest, Id, LoginRequest, PasskeyLoginRequest,
+  RegisterPasskeyRequest, RegisterRequest, RenamePasskeyRequest, SetupRequest, StartPasskeyRequest, StartTwoFactorRequest, TwoFactorLoginRequest,
+  type AccountSecurity, type AppPassword, type AppPasswordList, type AuthSessionList, type ClientDevice, type Ok, type Passkey, type PasskeyOptions,
+  type RecoveryCodes, type SetupStatus, type SignInMethod, type TwoFactorChallenge, type TwoFactorSetup, type User,
 } from '@squirmy/contracts'
+import type { AuthenticationResponseJSON, RegistrationResponseJSON } from '@simplewebauthn/server'
 import { and, eq, gt, isNull, or, sql } from 'drizzle-orm'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { z } from 'zod'
@@ -17,6 +18,9 @@ import { addressKey, networkKey } from '../../lib/proxy.js'
 import { getServerSettings } from '../../lib/settings.js'
 import { getVersion } from '../../lib/version.js'
 import { disconnectSockets } from '../../realtime/index.js'
+import {
+  authenticationOptions, deletePasskey, listPasskeys, registerPasskey, registrationOptions, relyingParty, renamePasskey, verifyPasskeySignIn,
+} from './passkeys.js'
 import { consumeChallenge, createChallenge, dropUserChallenges, failChallenge, findChallenge } from './challenges.js'
 import {
   countUsers, createAppPassword, createSession, deleteAppPassword, hashPassword, insertUser, listAppPasswords, listSessions, revokeAppPasswords,
@@ -30,6 +34,8 @@ const cookieMaxAgeSeconds = 180 * 24 * 60 * 60
 /** How long the second step of a sign-in waits for its code, and how many wrong codes it takes. */
 const twoFactorChallengeMs = 5 * 60 * 1000
 const twoFactorChallengeAttempts = 5
+/** A passkey ceremony waits this long for the browser and the person at it. */
+const passkeyChallengeMs = 5 * 60 * 1000
 
 /**
  * A per-minute limit as a preHandler. Every limiter shares the plugin's store, so keys are
@@ -139,6 +145,7 @@ export async function authRoutes(app: FastifyInstance) {
       registrationRequiresInvite: settings.registrationRequiresInvite,
       wantlistEnabled: settings.wantlistEnabled,
       supportsTvDevices: true,
+      passkeysAvailable: relyingParty() !== null,
     }
   })
 
@@ -325,7 +332,7 @@ export async function authRoutes(app: FastifyInstance) {
 
   app.get('/auth/security', async (request): Promise<AccountSecurity> => {
     const user = requireUser(request)
-    return { hasPassword: true, twoFactor: await twoFactorStatus(user.id) }
+    return { hasPassword: true, twoFactor: await twoFactorStatus(user.id), passkeys: await listPasskeys(user.id) }
   })
 
   app.post('/auth/two-factor/setup', { preHandler: passwordPerUser }, async (request): Promise<TwoFactorSetup> => {
@@ -365,5 +372,85 @@ export async function authRoutes(app: FastifyInstance) {
   app.post('/auth/two-factor/recovery-codes', { preHandler: passwordPerUser }, async (request, reply): Promise<RecoveryCodes> => {
     const user = await confirmTwoFactor(request, reply)
     return { recoveryCodes: await regenerateRecoveryCodes(user.id) }
+  })
+
+  // -------------------------------------------------------------------------
+  // Passkeys (WebAuthn): added in settings, used on the sign-in page
+  // -------------------------------------------------------------------------
+
+  const passkeyPerIp = limiter(app, 'passkey-ip', 20, (request) => addressKey(request.ip))
+
+  function requireRelyingParty() {
+    const rp = relyingParty()
+    if (!rp) throw new AppError(409, 'passkeys_unavailable', 'Passkeys need PUBLIC_URL to be the server’s https address.')
+    return rp
+  }
+
+  app.post('/auth/passkeys/options', { preHandler: passwordPerUser }, async (request): Promise<PasskeyOptions> => {
+    const user = requireUser(request)
+    const rp = requireRelyingParty()
+    const body = StartPasskeyRequest.parse(request.body)
+    // A passkey outlives the session it is added from, like an app password.
+    await checkCurrentPassword(user, body.currentPassword)
+    const options = await registrationOptions(user, rp, (await getServerSettings()).serverName)
+    const { token } = await createChallenge({ kind: 'passkey_register', userId: user.id, data: { challenge: options.challenge }, ttlMs: passkeyChallengeMs })
+    return { challenge: token, options: options as unknown as Record<string, unknown> }
+  })
+
+  app.post('/auth/passkeys', { preHandler: passwordPerUser }, async (request, reply): Promise<Passkey> => {
+    const user = requireUser(request)
+    const rp = requireRelyingParty()
+    const body = RegisterPasskeyRequest.parse(request.body)
+    const challenge = await consumeChallenge('passkey_register', body.challenge)
+    if (!challenge || challenge.userId !== user.id) throw badRequest('That took too long. Add the passkey again.', 'invalid_challenge')
+    const passkey = await registerPasskey({
+      userId: user.id,
+      name: body.name,
+      expectedChallenge: String(challenge.data.challenge),
+      response: body.response as unknown as RegistrationResponseJSON,
+      rp,
+    })
+    if (!passkey) throw badRequest('The passkey could not be checked. Try again.', 'invalid_passkey')
+    reply.code(201)
+    return passkey
+  })
+
+  app.patch('/auth/passkeys/:id', async (request): Promise<Passkey> => {
+    const user = requireUser(request)
+    const { id } = z.object({ id: Id }).parse(request.params)
+    const body = RenamePasskeyRequest.parse(request.body)
+    const passkey = await renamePasskey(user.id, id, body.name)
+    if (!passkey) throw notFound('No such passkey')
+    return passkey
+  })
+
+  app.delete('/auth/passkeys/:id', async (request): Promise<Ok> => {
+    const user = requireUser(request)
+    const { id } = z.object({ id: Id }).parse(request.params)
+    if (!await deletePasskey(user.id, id)) throw notFound('No such passkey')
+    return { ok: true }
+  })
+
+  app.post('/auth/passkey-login/options', { preHandler: passkeyPerIp }, async (): Promise<PasskeyOptions> => {
+    const rp = requireRelyingParty()
+    const options = await authenticationOptions(rp)
+    const { token } = await createChallenge({ kind: 'passkey_login', data: { challenge: options.challenge }, ttlMs: passkeyChallengeMs })
+    return { challenge: token, options: options as unknown as Record<string, unknown> }
+  })
+
+  app.post('/auth/passkey-login', { preHandler: passkeyPerIp }, async (request, reply): Promise<AuthResponse> => {
+    const rp = requireRelyingParty()
+    const body = PasskeyLoginRequest.parse(request.body)
+    // Used up whatever the outcome: each ceremony is signed over its own challenge.
+    const challenge = await consumeChallenge('passkey_login', body.challenge)
+    if (!challenge) throw unauthorized('That took too long. Try your passkey again.', 'invalid_challenge')
+    const user = await verifyPasskeySignIn({
+      expectedChallenge: String(challenge.data.challenge),
+      response: body.response as unknown as AuthenticationResponseJSON,
+      rp,
+    })
+    if (!user) throw unauthorized('That passkey isn’t one this server knows. Sign in with your password, then add it in Settings → Security.', 'invalid_passkey')
+    if (user.disabledAt) throw forbidden('This account is disabled', 'account_disabled')
+    return signIn(request, reply, db, user, 'passkey', body.device)
   })
 }

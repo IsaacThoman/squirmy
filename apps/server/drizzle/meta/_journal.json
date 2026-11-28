@@ -232,6 +232,13 @@
       "when": 1795850488342,
       "tag": "0032_auth_two_factor",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1795851299155,
+      "tag": "0033_auth_passkeys",
+      "breakpoints": true
     }
   ]
 }

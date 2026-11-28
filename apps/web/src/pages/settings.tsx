@@ -13,6 +13,7 @@ import { SettingsDialog } from '@/components/settings/SettingsDialog'
 import { loadFailure } from '@/components/ui/load-failure'
 import { canUploadMusic } from '@/lib/catalog'
 import { browserName, deviceName } from '@/lib/device'
+import { browserSupportsPasskeys, createPasskey, passkeyCancelled } from '@/lib/passkeys'
 import { usePlayerControls } from '@/player/player-context'
 
 const appPasswordsKey = ['app-passwords'] as const
@@ -23,6 +24,7 @@ const sessionsKey = ['auth-sessions'] as const
 function useSecuritySettings(open: boolean): SecuritySettingsProps {
   const api = useApi()
   const queryClient = useQueryClient()
+  const serverPasskeys = useSetupStatus().data?.passkeysAvailable ?? false
   const security = useQuery({ queryKey: securityKey, queryFn: () => api.auth.security(), enabled: open })
   const sessions = useQuery({ queryKey: sessionsKey, queryFn: () => api.auth.sessions(), enabled: open })
   const refreshSecurity = () => queryClient.invalidateQueries({ queryKey: securityKey })
@@ -48,6 +50,22 @@ function useSecuritySettings(open: boolean): SecuritySettingsProps {
     },
     onRevokeSession: id => api.auth.revokeSession(id).then(refreshSessions),
     onRevokeOtherSessions: () => api.auth.revokeOtherSessions().then(refreshSessions),
+    passkeys: { server: serverPasskeys, browser: browserSupportsPasskeys() },
+    defaultPasskeyName: browserName(),
+    onAddPasskey: async ({ currentPassword, name }) => {
+      const { challenge, options } = await api.auth.startPasskey({ currentPassword })
+      let response
+      try {
+        response = await createPasskey(options)
+      } catch (error) {
+        if (passkeyCancelled(error)) return
+        throw error
+      }
+      await api.auth.addPasskey({ challenge, name, response })
+      await refreshSecurity()
+    },
+    onRenamePasskey: (id, name) => api.auth.renamePasskey(id, { name }).then(refreshSecurity),
+    onDeletePasskey: id => api.auth.deletePasskey(id).then(refreshSecurity),
   }
 }
 

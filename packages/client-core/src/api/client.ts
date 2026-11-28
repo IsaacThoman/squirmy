@@ -1,5 +1,11 @@
 import {
   AccountSecurity,
+  Passkey,
+  type PasskeyLoginRequest,
+  PasskeyOptions,
+  type RegisterPasskeyRequest,
+  type RenamePasskeyRequest,
+  type StartPasskeyRequest,
   AuthSessionList,
   type ConfirmTwoFactorRequest,
   type EnableTwoFactorRequest,
@@ -363,6 +369,14 @@ export function createApiClient(options: ApiClientOptions) {
       enableTwoFactor: (body: Input<typeof EnableTwoFactorRequest>) => send('POST', '/auth/two-factor/enable', RecoveryCodes, body),
       disableTwoFactor: (body: ConfirmTwoFactorRequest) => send('POST', '/auth/two-factor/disable', Ok, body),
       regenerateRecoveryCodes: (body: ConfirmTwoFactorRequest) => send('POST', '/auth/two-factor/recovery-codes', RecoveryCodes, body),
+      /** Creation options for `navigator.credentials.create`, and the challenge to send back with its answer. */
+      startPasskey: (body: StartPasskeyRequest) => send('POST', '/auth/passkeys/options', PasskeyOptions, body),
+      addPasskey: (body: RegisterPasskeyRequest) => send('POST', '/auth/passkeys', Passkey, body),
+      renamePasskey: (passkeyId: string, body: RenamePasskeyRequest) => send('PATCH', `/auth/passkeys/${id(passkeyId)}`, Passkey, body),
+      deletePasskey: (passkeyId: string) => send('DELETE', `/auth/passkeys/${id(passkeyId)}`, Ok),
+      /** Request options for `navigator.credentials.get`, for any passkey of this server. */
+      passkeyLoginOptions: () => send('POST', '/auth/passkey-login/options', PasskeyOptions),
+      loginWithPasskey: (body: PasskeyLoginRequest) => send('POST', '/auth/passkey-login', AuthResponse, body),
     },
     admin: {
       users: () => get('/admin/users', UserList),

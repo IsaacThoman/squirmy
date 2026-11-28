@@ -24,6 +24,12 @@ export const apiRoutes = {
   'auth.enableTwoFactor': 'POST /auth/two-factor/enable',
   'auth.disableTwoFactor': 'POST /auth/two-factor/disable',
   'auth.regenerateRecoveryCodes': 'POST /auth/two-factor/recovery-codes',
+  'auth.startPasskey': 'POST /auth/passkeys/options',
+  'auth.addPasskey': 'POST /auth/passkeys',
+  'auth.renamePasskey': 'PATCH /auth/passkeys/:id',
+  'auth.deletePasskey': 'DELETE /auth/passkeys/:id',
+  'auth.passkeyLoginOptions': 'POST /auth/passkey-login/options',
+  'auth.loginWithPasskey': 'POST /auth/passkey-login',
 
   'admin.users': 'GET /admin/users',
   'admin.createUser': 'POST /admin/users',

@@ -256,6 +256,12 @@ function UserSecurityDialog({ user, isSelf, security, failure, onOpenChange, onR
             >
               {security.twoFactorEnabled && !isSelf && <Button size="sm" variant="outline" onClick={() => setConfirm('two-factor')}>Turn off</Button>}
             </Row>
+            <Row
+              label={<span className="flex items-center gap-2"><KeyRound aria-hidden className="size-4 text-muted-foreground" />Passkeys</span>}
+              description={security.passkeys.length
+                ? `${security.passkeys.map(passkey => passkey.name).join(', ')}. Resetting their password or disabling the account removes them.`
+                : 'None.'}
+            />
             <Separator />
             {sessions?.length === 0
               ? <p className="text-sm text-muted-foreground">Not signed in anywhere.</p>

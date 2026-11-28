@@ -38,7 +38,7 @@ const textArray = (name: string) => text(name).array().notNull().default(sql`'{}
 
 export type UserRole = 'admin' | 'member'
 export type SignInMethod = 'password' | 'two_factor' | 'recovery_code' | 'passkey' | 'sso'
-export type AuthChallengeKind = 'two_factor'
+export type AuthChallengeKind = 'two_factor' | 'passkey_register' | 'passkey_login'
 export type CatalogEntityType = 'artist' | 'album' | 'release' | 'recording'
 export type LikeEntityType = 'recording' | 'album' | 'artist'
 export type LibraryRootMode = 'read_only' | 'managed'
@@ -147,6 +147,28 @@ export const totpCredentials = pgTable('totp_credentials', {
   confirmedAt: at('confirmed_at'),
   createdAt: createdAt(),
 })
+
+/** WebAuthn credentials: the public half of each passkey, found by its credential id at sign-in. */
+export const passkeys = pgTable('passkeys', {
+  id: id(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  /** base64url, as browsers send it. */
+  credentialId: text('credential_id').notNull(),
+  /** base64url of the COSE public key. */
+  publicKey: text('public_key').notNull(),
+  /** The authenticator's signature counter; synced passkeys keep it at 0. */
+  counter: bigint('counter', { mode: 'number' }).notNull().default(0),
+  /** WebAuthn transports (`internal`, `hybrid`, `usb`…), handed back to the browser as hints. */
+  transports: textArray('transports'),
+  deviceType: text('device_type').notNull(),
+  backedUp: boolean('backed_up').notNull().default(false),
+  createdAt: createdAt(),
+  lastUsedAt: at('last_used_at'),
+}, (t) => [
+  uniqueIndex('passkeys_credential_id').on(t.credentialId),
+  index('passkeys_user').on(t.userId),
+])
 
 /** One-time codes that stand in for an authenticator code. Only a keyed hash is kept. */
 export const recoveryCodes = pgTable('recovery_codes', {

@@ -92,7 +92,8 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Documentation site ([docs/](./index.md), built with VitePress)
 - [x] Docker health check on `/ready`, and the image reports its source version
 - [x] Sessions list and sign-out, TOTP two-factor with recovery codes (server, web, iOS and Apple TV sign-in) ([authentication.md](./server/authentication.md))
-- [ ] Passkeys on the web, and OpenID Connect single sign-on
+- [x] Passkeys on the web: add, rename, remove, and username-less sign-in
+- [ ] OpenID Connect single sign-on
 
 ## 9. Apple TV
 

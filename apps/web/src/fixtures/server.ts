@@ -93,6 +93,9 @@ export const devices: DeviceInfo[] = [
 export const accountSecurity: AccountSecurity = {
   hasPassword: true,
   twoFactor: { enabled: false, enabledAt: null, recoveryCodesRemaining: 0 },
+  passkeys: [
+    { id: '00000000-0000-4000-8900-000000000001', name: 'MacBook', backedUp: true, createdAt: at('14T10:00'), lastUsedAt: at('26T09:30') },
+  ],
 }
 
 export const authSessions: AuthSession[] = [
