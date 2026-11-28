@@ -314,6 +314,58 @@ final class FakeOutput: AudioOutput {
   }
 }
 
+/// Several streams by the last part of their URL, each from its own `FakeLoader`, as one server.
+final class FakeServer: ByteLoader {
+  private(set) var files: [String: FakeLoader] = [:]
+
+  /// Serves `file` at every URL that ends in `name`, whatever its query.
+  func serve(_ name: String, _ file: URL) throws -> FakeLoader {
+    let loader = FakeLoader(data: try Data(contentsOf: file))
+    files[name] = loader
+    return loader
+  }
+
+  func load(_ url: URL, from offset: Int64, to end: Int64?, handler: ByteLoadHandler) -> ByteLoadTask {
+    guard let loader = files[url.lastPathComponent] else {
+      let task = FakeTask()
+      DispatchQueue.global().async {
+        _ = handler.response(ByteResponse(status: 404, start: 0, total: nil, acceptsRanges: false, contentType: nil))
+        handler.complete(EngineError.cancelled)
+      }
+      return task
+    }
+    return loader.load(url, from: offset, to: end, handler: handler)
+  }
+}
+
+/// What a `StreamStore` reported, from whichever thread it said it.
+final class ReportLog {
+  private let condition = NSCondition()
+  private var reports: [CacheReport] = []
+
+  func add(_ report: CacheReport) {
+    condition.lock()
+    reports.append(report)
+    condition.broadcast()
+    condition.unlock()
+  }
+
+  var all: [CacheReport] {
+    condition.lock()
+    defer { condition.unlock() }
+    return reports
+  }
+
+  /// Waits up to `timeout` seconds for `count` reports, and gives what there is.
+  func wait(for count: Int, timeout: TimeInterval = 5) -> [CacheReport] {
+    let deadline = Date().addingTimeInterval(timeout)
+    condition.lock()
+    defer { condition.unlock() }
+    while reports.count < count, condition.wait(until: deadline) {}
+    return reports
+  }
+}
+
 /// An engine on a `FakeOutput`, stepped by hand.
 final class Harness {
   let output: FakeOutput
@@ -324,12 +376,13 @@ final class Harness {
   /// Called on the feed queue with each event, before it is recorded.
   var onEvent: ((EngineEvent) -> Void)?
 
-  init(rate: Double = Fixtures.rate, fadeIn: Double = 0) {
+  /// `sources` replaces the fixture files of `factory`, such as a `StreamStore` on a fake server.
+  init(rate: Double = Fixtures.rate, fadeIn: Double = 0, sources: SourceFactory? = nil) {
     output = FakeOutput(sampleRate: rate)
     var config = EngineConfig()
     config.manualTicks = true
     config.fadeIn = fadeIn
-    engine = Engine(output: output, factory: factory, config: config)
+    engine = Engine(output: output, factory: sources ?? factory, config: config)
     engine.listener = { [weak self] event in
       guard let self else { return }
       self.onEvent?(event)
@@ -356,8 +409,8 @@ final class Harness {
     events.compactMap { if case .ended(let id) = $0 { return id } else { return nil } }
   }
 
-  func item(_ id: String, _ url: URL, startMs: Double = 0, gain: Float = 1, decoder: DecoderKind = .file) -> EngineItem {
-    EngineItem(entryId: id, url: url, startMs: startMs, gain: gain, decoder: decoder, gapless: nil, cacheKey: nil)
+  func item(_ id: String, _ url: URL, startMs: Double = 0, gain: Float = 1, decoder: DecoderKind = .file, cacheKey: String? = nil) -> EngineItem {
+    EngineItem(entryId: id, url: url, startMs: startMs, gain: gain, decoder: decoder, gapless: nil, cacheKey: cacheKey)
   }
 
   /// Waits for the queued commands, then for the decoders.

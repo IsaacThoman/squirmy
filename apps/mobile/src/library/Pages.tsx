@@ -533,7 +533,7 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const tracks = useMemo(() => items?.map(item => item.track) ?? [], [items]);
   // The kept copy has no item ids, and edits need the server.
   const mine = Boolean(data) && state.status === 'signedIn' && data!.ownerId === state.user.id && Boolean(playlist.data) && !offline;
-  // A smart playlist's songs come from its rules (edited on the web): none are moved or removed here.
+  // A smart playlist's songs come from its rules (Edit Rules): none are moved or removed here.
   const smart = Boolean(data?.smart);
   const editsItems = !smart && (mine || (Boolean(playlist.data) && !offline && data?.collaboratorRole === 'edit'));
   const play = (shuffle?: boolean, start?: number) => {
@@ -579,6 +579,8 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
       },
     }),
     ...mine ? [
+      // A smart playlist's rules, with its name and visibility, are edited in one sheet.
+      ...smart ? [{ title: 'Edit Rules', icon: 'slider.horizontal.3', onPress: () => onOpen({ pathname: '/smart-playlist', params: { id: data.id } }) }] : [],
       { title: 'Rename', icon: 'pencil', onPress: rename },
       { title: 'Delete Playlist', icon: 'trash', destructive: true, onPress: remove },
     ] : [],

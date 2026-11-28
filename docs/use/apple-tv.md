@@ -28,7 +28,7 @@ Select a cover to open its album, artist or playlist. Songs that can't play righ
 
 Select a song to play it, or **Play** or the shuffle button at the top of an album or playlist. The Play/Pause button on the remote plays and pauses from anywhere in the app.
 
-Hold the click on a song or an album for its menu. A song's has **Play next**, **Add to queue**, **Add to playlist**, **Start radio**, saving it to your library, and going to its album or artist; an album's plays, shuffles or queues it, adds it to a playlist, or goes to its artist. These are the same actions as the long-press menus on the phone. An album page's **⋯** button opens its menu too.
+Hold the click on a song or an album for its menu. A song's has **Play next**, **Add to queue**, **Add to playlist**, **Start radio**, **Songs that sound like this** (a radio led by how the song sounds), saving it to your library, **Rating** (one to five stars, when **Show star ratings** is on for your account in the web or phone app's settings), and going to its album or artist; an album's plays, shuffles or queues it, adds it to a playlist, or goes to its artist. These are the same actions as the long-press menus on the phone. An album page's **⋯** button opens its menu too.
 
 ## Now Playing
 

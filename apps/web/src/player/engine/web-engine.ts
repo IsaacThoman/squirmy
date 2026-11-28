@@ -1,7 +1,9 @@
 import type { EngineEvent, EngineLoad, EnginePreload, EngineState, EngineStatus } from '@squirmy/client-core'
 import type { PlaybackQuery } from '@squirmy/contracts'
 import { playableCodecs } from '@/lib/codecs'
+import type { EqGains } from './equalizer'
 import { AUDIO_BLOCKED_MESSAGE, clampPosition, mediaErrorMessage, playFailure } from './errors'
+import { EngineOutput, supportsLimiter, type OutputOptions } from './output'
 import type { BrowserEngine } from './types'
 
 type Entry = { entryId: string; url: string; gain: number }
@@ -15,8 +17,12 @@ type Voice = { audio: HTMLAudioElement; gain: GainNode | null; entry: Entry | nu
 export type WebEngineOptions = {
   createAudio?: () => HTMLAudioElement
   createContext?: () => AudioContext
-  /** The node voices play into. Defaults to the context's destination; the dev page inserts an analyser. */
+  /** The node the output chain plays into. Defaults to the context's destination; the dev page inserts an analyser. */
   output?: (context: AudioContext) => AudioNode
+  /** Whether the limiter can run here. Defaults to whether AudioWorklet exists (`supportsLimiter`). */
+  limiter?: boolean
+  /** Makes the limiter node (see `OutputOptions`). */
+  createLimiter?: OutputOptions['createLimiter']
   /** How long a suspended `AudioContext` gets to resume before audio counts as blocked. */
   resumeTimeoutMs?: number
   /** Playing without the position moving for this long counts as buffering. */
@@ -44,7 +50,8 @@ const HANDOFF_GRACE_MS = 250
  *
  * Two voices alternate: the loaded entry plays on one while the preloaded entry buffers on
  * the other, and at a natural end the voices swap. Each voice runs through its own
- * `GainNode`, so normalization can boost above unity (`canBoost`). The `AudioContext` is
+ * `GainNode` into the `OutputChain` (equalizer, true-peak limiter, output device), so
+ * normalization can boost above unity with the limiter (`canBoost`). The `AudioContext` is
  * created on the first play and resumed whenever play is requested.
  *
  * When the browser's autoplay policy refuses to start audio, the entry goes to `error`
@@ -52,9 +59,11 @@ const HANDOFF_GRACE_MS = 250
  * from a user gesture, which starts the blocked playback.
  */
 export class WebPlayerEngine implements BrowserEngine {
-  readonly canBoost = true
+  readonly limiter: boolean
+  readonly canBoost: boolean
   private readonly options: WebEngineOptions
   private context: AudioContext | null = null
+  private readonly output = new EngineOutput()
   private current: Voice
   private spare: Voice
   private state: EngineState = 'idle'
@@ -79,6 +88,8 @@ export class WebPlayerEngine implements BrowserEngine {
 
   constructor(options: WebEngineOptions = {}) {
     this.options = options
+    this.limiter = options.limiter ?? supportsLimiter()
+    this.canBoost = this.limiter
     this.current = this.createVoice()
     this.spare = this.createVoice()
   }
@@ -218,10 +229,19 @@ export class WebPlayerEngine implements BrowserEngine {
     void this.ensureContext().resume().catch(() => {})
   }
 
+  setEqualizer(gains: EqGains | null): void {
+    this.output.setEqualizer(gains)
+  }
+
+  setOutputDevice(sinkId: string): Promise<void> {
+    return this.output.setSink(sinkId)
+  }
+
   /** Stops playback and releases the elements and the audio context. */
   dispose(): void {
     this.stop()
     for (const detach of this.detach.splice(0)) detach()
+    this.output.dispose()
     void this.context?.close().catch(() => {})
     this.context = null
   }
@@ -378,12 +398,17 @@ export class WebPlayerEngine implements BrowserEngine {
   private ensureContext(): AudioContext {
     if (this.context) return this.context
     const context = this.options.createContext?.() ?? new AudioContext()
-    const output = this.options.output?.(context) ?? context.destination
+    const destination = this.options.output?.(context) ?? context.destination
     // Set first: `applyGain` needs the context, or the loaded entry would play at unity gain.
     this.context = context
+    const chain = this.output.attach(context, destination, {
+      createLimiter: this.limiter ? this.options.createLimiter : null,
+      // In the chain, the limiter lets a boost through; gone, it holds gains to 1 again.
+      onLimiterChange: () => { for (const voice of [this.current, this.spare]) this.applyGain(voice) },
+    })
     for (const voice of [this.current, this.spare]) {
       voice.gain = context.createGain()
-      context.createMediaElementSource(voice.audio).connect(voice.gain).connect(output)
+      context.createMediaElementSource(voice.audio).connect(voice.gain).connect(chain.input)
       this.applyGain(voice)
     }
     return context
@@ -393,11 +418,12 @@ export class WebPlayerEngine implements BrowserEngine {
     if (!voice.gain || !voice.entry || !this.context) return
     const { gain } = voice.gain
     const now = this.context.currentTime
+    const value = this.output.headroom(voice.entry.gain)
     gain.cancelScheduledValues(now)
     // A jump in gain on a sounding signal clicks. A voice that is not playing yet takes the
     // value at once, so a track never starts mid-ramp.
-    if (voice.audio.paused) gain.setValueAtTime(voice.entry.gain, now)
-    else gain.setTargetAtTime(voice.entry.gain, now, GAIN_RAMP_SECONDS / 3)
+    if (voice.audio.paused) gain.setValueAtTime(value, now)
+    else gain.setTargetAtTime(value, now, GAIN_RAMP_SECONDS / 3)
   }
 
   private clear(voice: Voice): void {

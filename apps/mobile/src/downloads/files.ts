@@ -50,6 +50,12 @@ export function downloadFiles(): DownloadFiles {
     list: () => new Map(directory.list().flatMap(entry => entry instanceof File ? [[entry.name, Number(entry.size)] as const] : [])),
     uri: name => file(name).uri,
     newName: extension => `${uuid.v4()}.${extension}`,
+    // From the streaming cache's folder: a rename on the same volume, which a player reading the file does not notice.
+    adopt: (uri, name) => {
+      const target = file(name);
+      new File(uri).moveSync(target);
+      return Number(target.size);
+    },
   };
 }
 

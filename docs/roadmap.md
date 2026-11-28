@@ -133,7 +133,7 @@ Designed in [audio-engine.md](./audio-engine.md); each item is a pull request fr
 - [ ] C1. Queue diffs with checkpoints on the session socket
 - [ ] C2. Undoing queue edits
 - [x] M1. The native iOS and tvOS engine, behind a setting
-- [ ] M2. Streaming to the cache in one pass
+- [x] M2. Streaming to the cache in one pass
 - [ ] M3. Fragmented MP4 transcodes and live seeking on iOS
 - [x] M4. Normalization with boost and a true-peak limiter, with a target setting
 - [ ] M5. Equalizer
@@ -143,7 +143,7 @@ Designed in [audio-engine.md](./audio-engine.md); each item is a pull request fr
 - [ ] M9. The native engine by default, and `expo-audio` removed
 - [x] W1. Ramped gain changes on the web
 - [x] W2. Gapless web playback through Media Source Extensions (Chromium; Firefox and Safari keep today's engine)
-- [ ] W3. Limiter, equalizer and output device on the web
+- [x] W3. Limiter, equalizer and output device on the web
 - [ ] W4. Crossfade on the web
 
 ## Deferred

@@ -1,6 +1,6 @@
 import { cachedInLibrary, heartFields, heartRollback, planChanges, TrackStore } from '@squirmy/client-core';
 import {
-  queryKeys, type AlbumDetail, type LikeEntityType, type Page, type MovePlaylistItemRequest, type PlaylistDetail, type PlaylistSummary, type TrackSummary,
+  queryKeys, type AlbumDetail, type CreatePlaylistRequest, type LikeEntityType, type Page, type MovePlaylistItemRequest, type PlaylistDetail, type PlaylistSummary, type TrackSummary,
   type WantEntityType,
 } from '@squirmy/contracts';
 import { useMutation, useQuery, useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query';
@@ -364,6 +364,15 @@ export function usePlaylistActions() {
       settle(summary);
     },
   });
+  // A smart playlist's songs come from its rules, so its page loads them again once they change.
+  const saveSmart = useMutation({
+    mutationFn: ({ id, request }: { id: string | null; request: CreatePlaylistRequest }) =>
+      run(api => (id ? api.userdata.updatePlaylist(id, request) : api.userdata.createPlaylist(request))),
+    onSuccess: summary => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.playlist(summary.id) });
+      settle(summary);
+    },
+  });
   const remove = useMutation({
     mutationFn: (id: string) => run(api => api.userdata.deletePlaylist(id)),
     onMutate: id => failPlaylist(id, null),
@@ -410,6 +419,8 @@ export function usePlaylistActions() {
   return {
     create: (name: string) => create.mutateAsync(name),
     rename: (id: string, name: string) => rename.mutateAsync({ id, name }),
+    /** Makes a smart playlist (`id` null) or changes one's name, description, visibility and rules; resolves with it. */
+    saveSmart: (id: string | null, request: CreatePlaylistRequest) => saveSmart.mutateAsync({ id, request }),
     /** Resolves once the server has deleted it; a refusal is shown on the playlist's page. */
     remove: (id: string) => remove.mutateAsync(id),
     /**

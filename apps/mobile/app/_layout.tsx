@@ -86,12 +86,15 @@ function Routes() {
         <Stack.Screen name="listen-together" options={sheet} />
         <Stack.Screen name="track-actions" options={sheet} />
         <Stack.Screen name="track-info" options={sheet} />
+        <Stack.Screen name="track-credits" options={sheet} />
         <Stack.Screen name="add-to-playlist" options={sheet} />
         <Stack.Screen name="account" options={sheet} />
         <Stack.Screen name="pair" options={sheet} />
         <Stack.Screen name="settings" options={{ ...sheet, sheetAllowedDetents: [0.92] }} />
         <Stack.Screen name="downloads" options={{ ...sheet, sheetAllowedDetents: [0.92] }} />
+        <Stack.Screen name="replay" options={{ ...sheet, sheetAllowedDetents: [0.92] }} />
         <Stack.Screen name="name-playlist" options={sheet} />
+        <Stack.Screen name="smart-playlist" options={{ ...sheet, sheetAllowedDetents: [0.92] }} />
         <Stack.Protected guard={__DEV__}>
           <Stack.Screen name="dev/engine" options={{ presentation: 'modal' }} />
         </Stack.Protected>
