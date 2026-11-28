@@ -58,7 +58,7 @@ Describes the provider.
 `coverage` decides how tracks appear before anyone asks for them:
 
 - `must_resolve`: a track is playable on demand only after a `resolve` call returned an offer for it. Use this when the provider knows exactly what it has. The server asks about tracks as lists show them, in batches of up to 100, and remembers the answers: offers for 30 days, "nothing" for a day.
-- `assume_available`: every track shows as playable on demand. If a later request finds nothing, or the delivery fails, that track turns gray for a day and is not asked for again until then.
+- `assume_available`: unowned tracks initially show as playable on demand. The server checks when an album page opens and as it prepares the next five queue entries, batching up to 100 recordings per call. It reuses available offers for up to an hour or until they expire. An empty answer or a failed delivery hides the track for a day if no other provider covers it. Open pages update as answers arrive, and playback skips known misses in the queue.
 
 Either "nothing" (a miss) lasts a day, or until the provider changes: another `version` or capabilities, the operator turning it back on or giving it a new address or secret, or the operator choosing **Retry unavailable tracks**. Then everything it could not supply is asked for again.
 
@@ -100,7 +100,7 @@ Any identifying field may be null or empty; match on what is present, most speci
 }
 ```
 
-An item with an empty `offers` array cannot be supplied. `offerId` is opaque to the server. Respond within 15 seconds.
+An item with an empty `offers` array cannot be supplied. An omitted item is left unanswered by background checks. `offerId` is opaque to the server. Respond within 15 seconds.
 
 An `album` item asks for a whole release group (`ProviderAlbumQuery`: title, artist, MusicBrainz id, barcode and the track list). The track list is always the whole edition, so the provider can tell editions apart; a track marked `"wanted": false` is one the server already has (or does not need from this job) and must not be delivered, and a track without the field is wanted. The server sends album items only to providers whose `kinds` include `album`; otherwise an album request becomes one recording request per missing track. An album that no provider offers whole, that the provider declines, or that fails before any file arrives is also fetched as one recording request per missing track.
 
