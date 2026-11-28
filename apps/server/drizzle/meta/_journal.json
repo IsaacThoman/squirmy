@@ -281,6 +281,13 @@
       "when": 1795856371621,
       "tag": "0039_share_links",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1795859254831,
+      "tag": "0040_album_versions",
+      "breakpoints": true
     }
   ]
 }

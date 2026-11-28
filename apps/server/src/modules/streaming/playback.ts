@@ -48,7 +48,7 @@ export async function verifyStreamSignature(fileId: string, profile: StreamProfi
 
 /**
  * `GET /tracks/:id/playback`: picks the file and profile for the recording (after following
- * merges of the recording and of `albumId`), signs a URL for `userId`, and describes what that URL will deliver. Throws 404
+ * merges of the recording and of `albumId`; the user's version picks first, see `selectFile`), signs a URL for `userId`, and describes what that URL will deliver. Throws 404
  * `not_available` when the recording has no present file, and 403 `explicit_not_allowed` for
  * an explicit file the user does not allow.
  */
@@ -58,9 +58,9 @@ export async function buildPlaybackDescriptor(userId: string, recordingId: strin
     resolveOne('recordings', recordingId).then((id) => id ?? recordingId),
     query.albumId ? resolveOne('albums', query.albumId).then((id) => id ?? query.albumId) : undefined,
   ])
-  const selection = await selectFile(target, { ...query, albumId })
+  const selection = await selectFile(target, { ...query, albumId, userId })
   if (!selection) throw notFound('No file of this track is available', 'not_available')
-  const { file, profile } = selection
+  const { file, profile, versionId } = selection
   await assertFileAllowed(userId, file)
   const { url, expiresAt } = signStreamUrl(file.id, profile, userId, query)
   const base = {
@@ -80,6 +80,7 @@ export async function buildPlaybackDescriptor(userId: string, recordingId: strin
       bitDepth: file.bitDepth,
       channels: file.channels,
       bytes: file.size,
+      ...(versionId ? { versionId } : {}),
     },
   }
   const frames = isFragmented(profile) ? await fragmentedSourceFrames(file) : file.decodedFrames

@@ -26,7 +26,7 @@ function rangeHeaders(context: Context) {
 async function stream(context: Context): Promise<typeof sent> {
   const { params, reply } = context
   const recordingId = await resolve('track', expectId(params.required('id'), 'track').id)
-  const selection = await selectFile(recordingId, { quality: 'original' })
+  const selection = await selectFile(recordingId, { quality: 'original', userId: context.user.id })
   if (!selection) throw notFound('Song')
   const { file } = selection
   // A 403, error 50: a client that saved the id before explicit content was turned off.
@@ -71,7 +71,7 @@ async function stream(context: Context): Promise<typeof sent> {
 async function download(context: Context): Promise<typeof sent> {
   const { params, reply } = context
   const recordingId = await resolve('track', expectId(params.required('id'), 'track').id)
-  const selection = await selectFile(recordingId, { quality: 'original' })
+  const selection = await selectFile(recordingId, { quality: 'original', userId: context.user.id })
   if (!selection) throw notFound('Song')
   await assertFileAllowed(context.user.id, selection.file)
   const response = await openStream(selection.file, 'original', { ...rangeHeaders(context), download: true })
