@@ -1,12 +1,13 @@
+import { usePlaylistFolders } from '@/api/playlist-folders'
 /**
  * Route containers for the music pages. Each one gathers its data with TanStack Query and
  * hands it to a view in components/views.
  */
 import { ApiError, filterKind, searchContext, searchFilters, searchItemsOfKind, type SearchFilter, type SearchItem } from '@squirmy/client-core'
-import type { HomeSection, Page as ListPage, PlaylistDetail } from '@squirmy/contracts'
+import type { HomeSection, MovePlaylistItemRequest, Page as ListPage, PlaylistDetail } from '@squirmy/contracts'
 import { SearchFacets, queryKeys } from '@squirmy/contracts'
 import { useMutation, useQueryClient, type InfiniteData, type UseQueryResult } from '@tanstack/react-query'
-import { Compass } from 'lucide-react'
+import { Compass, Download, Folder, Image, Layers, Users } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
 import { moveItem } from '@/lib/reorder'
@@ -19,11 +20,15 @@ import { useApi } from '@/api/services'
 import { matchingPlaylists, useMergedSearch, useSearchPages } from '@/api/use-search'
 import { useCurrentUser, useWantlistEnabled } from '@/auth/session'
 import { Page } from '@/components/layout/Page'
+import {
+  CollaboratorsDialog, DedupePlaylistDialog, ExportPlaylistDialog, LibraryPlaylistFolders, MovePlaylistDialog, PlaylistCoverDialog,
+} from '@/components/layout/PlaylistTools'
 import { PlaylistDialog } from '@/components/layout/PlaylistDialog'
 import { SmartPlaylistDialog } from '@/components/layout/SmartPlaylistDialog'
 import { CollectionSkeleton } from '@/components/music/Skeletons'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/dialog'
+import type { MenuEntry } from '@/components/ui/menu'
 import { EmptyState } from '@/components/ui/feedback'
 import { LoadError, QueryState } from '@/components/ui/query-state'
 import { AlbumView } from '@/components/views/AlbumView'
@@ -240,7 +245,7 @@ function EditablePlaylist({ playlist, onDeleting }: { playlist: PlaylistDetail; 
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const user = useCurrentUser()
-  const [dialog, setDialog] = useState<'edit' | 'delete' | null>(null)
+  const [dialog, setDialog] = useState<'edit' | 'delete' | 'collaborators' | 'cover' | 'folder' | 'dedupe' | 'export' | null>(null)
   const key = queryKeys.playlist(playlist.id)
   const save = (detail: PlaylistDetail) => queryClient.setQueryData(key, detail)
   const refetch = () => queryClient.invalidateQueries({ queryKey: key })
@@ -282,7 +287,7 @@ function EditablePlaylist({ playlist, onDeleting }: { playlist: PlaylistDetail; 
     return refetch()
   }
   const move = useMutation({
-    mutationFn: ({ itemId, toIndex }: { itemId: string; toIndex: number }) => api.userdata.movePlaylistItem(playlist.id, { itemId, toIndex }),
+    mutationFn: (body: MovePlaylistItemRequest) => api.userdata.movePlaylistItem(playlist.id, body),
     onSuccess: save,
     onError: () => refused('Couldn’t move the song. Try again.'),
   })
@@ -292,18 +297,37 @@ function EditablePlaylist({ playlist, onDeleting }: { playlist: PlaylistDetail; 
     onError: (_error, { title }) => refused(`Couldn’t remove “${title}”. Try again.`),
   })
 
+  const owned = playlist.ownerId === user.id
+  const extraMenu: MenuEntry[] = []
+  if (playlist.customCover !== undefined) {
+    if (owned) {
+      if (!playlist.smart) extraMenu.push({ label: 'Collaborators…', icon: <Users />, onSelect: () => setDialog('collaborators') })
+      extraMenu.push(
+        { label: 'Change cover…', icon: <Image />, onSelect: () => setDialog('cover') },
+        { label: 'Move to folder…', icon: <Folder />, onSelect: () => setDialog('folder') },
+      )
+    }
+    if (!playlist.smart && playlist.items.length > 1 && (owned || playlist.collaboratorRole === 'edit')) {
+      extraMenu.push({ label: 'Remove duplicates…', icon: <Layers />, onSelect: () => setDialog('dedupe') })
+    }
+    extraMenu.push({ label: 'Export playlist…', icon: <Download />, onSelect: () => setDialog('export') })
+  }
   return (
     <>
       <PlaylistView
         playlist={playlist}
-        owned={playlist.ownerId === user.id}
+        owned={owned}
+        extraMenu={extraMenu}
         onEdit={() => setDialog('edit')}
         onTogglePublic={() => update.mutateAsync({ isPublic: !playlist.isPublic })}
         onDelete={() => setDialog('delete')}
         onMove={(from, to) => {
           if (to < 0 || to >= playlist.items.length || from === to) return
           change(detail => ({ ...detail, items: moveItem(detail.items, from, to) }))
-          move.mutate({ itemId: playlist.items[from].itemId, toIndex: to })
+          move.mutate({
+            itemId: playlist.items[from].itemId, toIndex: to,
+            anchor: { itemId: playlist.items[to].itemId, side: from < to ? 'after' : 'before' },
+          })
         }}
         onRemove={index => {
           const { itemId, track } = playlist.items[index]
@@ -325,6 +349,11 @@ function EditablePlaylist({ playlist, onDeleting }: { playlist: PlaylistDetail; 
         }}
         failure={failure}
       />
+      {dialog === 'collaborators' && <CollaboratorsDialog id={playlist.id} onClose={() => setDialog(null)} />}
+      {dialog === 'cover' && <PlaylistCoverDialog playlist={playlist} onClose={() => setDialog(null)} />}
+      {dialog === 'folder' && <MovePlaylistDialog playlist={playlist} onClose={() => setDialog(null)} />}
+      {dialog === 'dedupe' && <DedupePlaylistDialog id={playlist.id} onClose={() => setDialog(null)} />}
+      {dialog === 'export' && <ExportPlaylistDialog id={playlist.id} onClose={() => setDialog(null)} />}
       {playlist.rules
         ? <SmartPlaylistDialog open={dialog === 'edit'} onOpenChange={open => setDialog(open ? 'edit' : null)} playlist={{ ...playlist, rules: playlist.rules }} showRatings={library.showRatings} onSubmit={request => update.mutateAsync(request)} />
         : <PlaylistDialog open={dialog === 'edit'} onOpenChange={open => setDialog(open ? 'edit' : null)} playlist={playlist} onSubmit={request => update.mutateAsync(request)} />}
@@ -541,6 +570,9 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
   const [params, setParams] = useSearchParams()
   const [layout, setLayout] = useState(readLibraryLayout)
   const [query, setQuery] = useState('')
+  const folders = usePlaylistFolders().data
+  const selectedFolder = filter === 'playlists' ? folders?.find(folder => folder.id === params.get('folder')) : undefined
+  const folderIds = useMemo(() => new Set(folders?.map(folder => folder.id)), [folders])
   const chosen = params.get('sort')
   const sort = sortFor(filter, isLibrarySort(chosen) ? chosen : null)
   const genre = params.get('genre') ?? undefined
@@ -588,6 +620,10 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
           .filter(item => matches(query, item.kind === 'liked' ? 'Liked Songs' : item.playlist.name, item.kind === 'liked' ? '' : item.playlist.ownerName)),
       )
     }
+    if (filter === 'playlists') {
+      if (selectedFolder) return collections.filter(item => item.kind === 'playlist' && item.playlist.folderId === selectedFolder.id)
+      if (!query.trim()) return collections.filter(item => item.kind !== 'playlist' || !item.playlist.folderId || !folderIds.has(item.playlist.folderId))
+    }
     if (showsAlbums && !(albumsFailed && !searching)) {
       const list = searching ? matched?.albums : albums.data && itemsOf(albums.data).filter(album => matches(query, album.title, album.artistCredit))
       if (!list) return undefined
@@ -600,7 +636,7 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
       collections.push(...list.map(artist => ({ kind: 'artist', artist }) as const))
     }
     return collections
-  }, [filter, showsPlaylists, showsAlbums, albumsFailed, listFailed, playlists, playlistsFailed, query, searching, matched, all.data, albums.data, artists.data])
+  }, [filter, selectedFolder, folderIds, showsPlaylists, showsAlbums, albumsFailed, listFailed, playlists, playlistsFailed, query, searching, matched, all.data, albums.data, artists.data])
 
   const tracks = useMemo(() => {
     if (filter !== 'songs') return undefined
@@ -615,7 +651,7 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
     : filter === 'artists' ? listCount(artists, 'artist')
       : filter === 'songs' ? listCount(songs, 'song')
         // Liked Songs is listed, and labeled, as a playlist, so it counts as one.
-        : filter === 'playlists' && playlists ? plural(playlists.length + 1, 'playlist') : undefined
+        : filter === 'playlists' && items ? plural(items.length, 'playlist') : undefined
   const setParam = (key: string, value: string | undefined) => setParams(current => {
     const next = new URLSearchParams(current)
     if (value) next.set(key, value)
@@ -655,6 +691,9 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
       genre={genre}
       onClearGenre={() => setParam('genre', undefined)}
       items={items}
+      playlistFolders={filter === 'playlists' && folders && <LibraryPlaylistFolders folders={folders} selected={selectedFolder}
+        canMove={id => Boolean(playlists?.some(playlist => playlist.id === id && playlist.ownerId === user.id))}
+        onOpen={id => { setQuery(''); setParam('folder', id) }} />}
       tracks={tracks}
       // All lists collections; a search also finds songs, which follow them rather than going unsaid.
       songMatches={filter === 'all' ? matched?.tracks : undefined}

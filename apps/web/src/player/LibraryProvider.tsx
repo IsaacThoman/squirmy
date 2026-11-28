@@ -181,7 +181,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
 
   const wantedIds = useMemo(() => new Set(wants?.items.map(item => (item.type === 'album' ? item.album.id : item.track.id))), [wants])
   const ownPlaylists = useMemo(() => allPlaylists?.items.filter(playlist => playlist.ownerId === user.id) ?? [], [allPlaylists, user.id])
-  const playlists = useMemo(() => ownPlaylists.filter(playlist => !playlist.smart), [ownPlaylists])
+  const playlists = useMemo(() => allPlaylists?.items.filter(playlist => !playlist.smart && (playlist.ownerId === user.id || playlist.collaboratorRole)) ?? [], [allPlaylists, user.id])
   const { mutateAsync: setSaved } = save
   const { mutateAsync: setWanted } = want
   const { mutateAsync: addTo } = add

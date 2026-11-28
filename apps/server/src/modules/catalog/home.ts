@@ -207,7 +207,7 @@ export async function jumpBackIn(userId: string): Promise<HomeItem[]> {
   const [albums, artists, playlists, mixes, radioTracks, radioArtists] = await Promise.all([
     albumSummaries([...new Set(albumIds.values())]),
     artistSummaries([...new Set(artistIds.values())], userId),
-    playlistSummaries(valid(idsOf('playlist'))),
+    playlistSummaries(valid(idsOf('playlist')), userId),
     mixSummaries(userId, valid(idsOf('mix'))),
     trackSummaries(userId, radios.filter((radio) => radio.seed === 'track').map((radio) => ({ id: radio.id }))),
     artistSummaries(radios.filter((radio) => radio.seed === 'artist').map((radio) => radio.id), userId),

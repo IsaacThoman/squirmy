@@ -332,6 +332,18 @@ export class StreamingCache {
     this.pump();
   }
 
+  /**
+   * Drops the copies of these tracks and stops their fetches: the server now serves another
+   * file for them, as after the user picked another version, and a copy plays before the
+   * server is asked. They are fetched again as they come near; a file the player holds goes
+   * once it lets go.
+   */
+  forget(trackIds: readonly string[]): void {
+    for (const trackId of trackIds) this.cancel(trackId);
+    this.drop(trackIds.flatMap(trackId => this.copies(trackId)));
+    this.pump();
+  }
+
   // Internals
 
   private copies(trackId: string): CacheRow[] {

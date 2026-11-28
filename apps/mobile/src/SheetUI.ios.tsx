@@ -11,8 +11,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BrandMark } from './BrandMark';
 import { IconButton, NativeCover, Symbol, TrackCover, hitShape, plainButton } from './native/Controls';
 import type {
-  SheetActionProps, SheetFactsProps, SheetFieldProps, SheetFrameProps, SheetNoteProps, SheetPickerRowProps, SheetScrollProps, SheetInfoProps, SheetRowProps, SheetSliderProps,
-  TrackSummaryProps,
+  SheetActionProps, SheetFactsProps, SheetFieldProps, SheetFrameProps, SheetNoteProps, SheetPickerRowProps, SheetScrollProps, SheetInfoProps, SheetRowProps, SheetRowsProps,
+  SheetSliderProps, TrackSummaryProps,
 } from './SheetUI';
 import { isAccessibilitySize } from './fontScale';
 import { useColors } from './theme';
@@ -62,8 +62,18 @@ export function SheetFormHeader({ title, onClose }: SheetFrameProps) {
   </HStack>;
 }
 
-export function SheetRows({ children }: { children: React.ReactNode }) {
-  return <VStack alignment="leading" spacing={0}>{children}</VStack>;
+export function SheetRows({ title, children }: SheetRowsProps) {
+  return <VStack alignment="leading" spacing={0}>
+    {title ? <SectionHeading title={title} /> : null}
+    {children}
+  </VStack>;
+}
+
+/** The heading of a section of a sheet: its facts, or rows such as a song's versions. */
+function SectionHeading({ title }: { title: string }) {
+  const colors = useColors();
+  return <Text modifiers={[font({ textStyle: 'footnote', weight: 'semibold' }), foregroundStyle(colors.muted), accessibilityAddTraits(['isHeader']),
+    padding({ bottom: 4 })]}>{title}</Text>;
 }
 
 /** Rows that scroll inside a sheet of this height, for lists that would not fit. */
@@ -198,8 +208,7 @@ export function SheetSlider({ label, value, onChange }: SheetSliderProps) {
 export function SheetFacts({ title, rows }: SheetFactsProps) {
   const colors = useColors();
   return <VStack alignment="leading" spacing={0}>
-    <Text modifiers={[font({ textStyle: 'footnote', weight: 'semibold' }), foregroundStyle(colors.muted), accessibilityAddTraits(['isHeader']),
-      padding({ bottom: 4 })]}>{title}</Text>
+    <SectionHeading title={title} />
     {rows.map((row, index) => <VStack key={row.label} alignment="leading" spacing={0}>
       <HStack spacing={12} modifiers={[frame({ minHeight: 36 }), accessibilityLabel(`${row.label}, ${row.value}`)]}>
         <Text modifiers={[foregroundStyle(colors.muted)]}>{row.label}</Text>

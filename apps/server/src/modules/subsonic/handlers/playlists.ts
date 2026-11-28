@@ -17,6 +17,7 @@ import { usernameKey } from '../../auth/service.js'
 import {
   addPlaylistItems, createPlaylist, deletePlaylist, playlistFull, replacePlaylistItems, updatePlaylist, type PlaylistItemSlot,
 } from '../../userdata/playlists.js'
+import { playlistVisibleTo } from '../../userdata/playlist-access.js'
 import { dailySeed, smartTracks, type SmartTrackRow } from '../../userdata/smart.js'
 import { coverArtId, expectId, playlistId } from '../ids.js'
 import { ErrorCode, invalidParameter, missingParameter, notAuthorized, notFound, SubsonicError, type Context, type Handler, type Payload } from '../protocol.js'
@@ -35,17 +36,22 @@ type PlaylistRow = {
   songCount: number
   durationMs: number | string
   artworkId: string | null
+  customArt: string | null
+  collaboratorRole: 'add' | 'edit' | null
   rules: SmartPlaylistRules | null
 }
 
 const smartReadOnly = () => new SubsonicError(ErrorCode.notAuthorized, 'A smart playlist’s songs come from its rules; change it in Squirmy')
 
-/** Playlists the user can see (their own and public ones), or all of `ownerId`'s (for admins), newest change first. */
+/** Visible playlists, or all of `ownerId`'s (for admins), newest change first. */
 async function playlistRows(userId: string, filter: { ids?: string[]; ownerId?: string }): Promise<PlaylistRow[]> {
   return db.execute<PlaylistRow>(sql`
     select p.id, p.name, p.description, p.owner_id as "ownerId", u.username as owner, p.is_public as "isPublic",
       ${isoTime('p.created_at')} as created, ${isoTime('p.updated_at')} as changed,
-      stats."songCount", stats."durationMs", cover.id as "artworkId", p.rules
+      stats."songCount", stats."durationMs", coalesce(${servableArt('p.artwork_asset_id')}, cover.id) as "artworkId",
+      ${servableArt('p.artwork_asset_id')} as "customArt", p.rules,
+      (select case when c.can_edit then 'edit' else 'add' end from playlist_collaborators c
+       where c.playlist_id = p.id and c.user_id = ${userId}) as "collaboratorRole"
     from playlists p
     join users u on u.id = p.owner_id
     cross join lateral (
@@ -58,7 +64,7 @@ async function playlistRows(userId: string, filter: { ids?: string[]; ownerId?: 
       select ${servableArt('a.artwork_asset_id')} as id from playlist_items i join albums a on a.id = i.album_id
       where i.playlist_id = p.id and ${servableArt('a.artwork_asset_id')} is not null order by i.position limit 1
     ) cover on true
-    where ${filter.ownerId ? sql`p.owner_id = ${filter.ownerId}` : sql`(p.owner_id = ${userId} or p.is_public)`}
+    where ${filter.ownerId ? sql`p.owner_id = ${filter.ownerId}` : playlistVisibleTo(userId)}
       ${filter.ids ? sql`and p.id = any(${uuidArray(filter.ids)})` : sql``}
     order by p.updated_at desc, p.id desc`)
 }
@@ -71,7 +77,8 @@ async function withSmartStats(rows: PlaylistRow[]): Promise<PlaylistRow[]> {
   return Promise.all(rows.map(async (row) => {
     if (!row.rules) return row
     const tracks = await smartSongs({ ...row, rules: row.rules })
-    return { ...row, ...await smartRowStats(tracks) }
+    const stats = await smartRowStats(tracks)
+    return { ...row, ...stats, artworkId: row.customArt ?? stats.artworkId }
   }))
 }
 
@@ -100,7 +107,7 @@ function toPlaylist(row: PlaylistRow, userId: string): Payload {
     created: row.created,
     changed: row.changed,
     coverArt: row.artworkId ? coverArtId(row.artworkId) : undefined,
-    readonly: row.ownerId !== userId || row.rules !== null,
+    readonly: (row.ownerId !== userId && row.collaboratorRole === null) || row.rules !== null,
   }
 }
 
@@ -108,7 +115,7 @@ function toPlaylist(row: PlaylistRow, userId: string): Payload {
 async function playlistItems(id: string) {
   const items = await db.execute<{ itemId: string; recordingId: string; albumId: string | null }>(sql`
     select id as "itemId", recording_id as "recordingId", album_id as "albumId" from playlist_items
-    where playlist_id = ${id} order by position`)
+    where playlist_id = ${id} order by position, playlist_items.id`)
   const resolved = await resolveMerged('recordings', items.map((item) => item.recordingId))
   const availability = await trackAvailability([...resolved.values()])
   return items.map((item) => ({ ...item, visible: availability.get(resolved.get(item.recordingId) ?? '') === 'server' }))
@@ -126,7 +133,7 @@ async function playlistWithSongs(userId: string, id: string): Promise<Payload> {
   if (row.rules) {
     const tracks = await smartSongs({ ...row, rules: row.rules })
     const stats = await smartRowStats(tracks)
-    return { ...toPlaylist({ ...row, ...stats }, userId), entry: await songs(userId, tracks.map((track) => ({ id: track.id, albumId: track.albumId }))) }
+    return { ...toPlaylist({ ...row, ...stats, artworkId: row.customArt ?? stats.artworkId }, userId), entry: await songs(userId, tracks.map((track) => ({ id: track.id, albumId: track.albumId }))) }
   }
   const items = (await playlistItems(id)).filter((item) => item.visible)
   return { ...toPlaylist(row, userId), entry: await songs(userId, items.map((item) => ({ id: item.recordingId, albumId: item.albumId }))) }
@@ -186,7 +193,7 @@ async function createOrOverwrite({ user, params }: Context): Promise<Payload> {
       const itemId = reusable.get(trackId)?.shift()
       return itemId ? { itemId } : { trackId }
     })
-    await replacePlaylistItems(user.id, row.id, mergeVisible(items, visible))
+    await replacePlaylistItems(user.id, row.id, mergeVisible(items, visible), items.map((item) => item.itemId))
     return { playlist: await playlistWithSongs(user.id, row.id) }
   }
   const name = params.string('name')
@@ -198,7 +205,7 @@ async function createOrOverwrite({ user, params }: Context): Promise<Payload> {
 
 async function updatePlaylistHandler({ user, params }: Context): Promise<Payload> {
   const row = await readPlaylist(user.id, params.required('playlistId'))
-  if (row.ownerId !== user.id) throw notAuthorized()
+  if (row.ownerId !== user.id && !row.collaboratorRole) throw notAuthorized()
   if (row.rules) throw smartReadOnly()
   const name = params.string('name')
   const comment = params.string('comment')
@@ -208,20 +215,25 @@ async function updatePlaylistHandler({ user, params }: Context): Promise<Payload
     if (!/^\d+$/.test(value)) throw invalidParameter('songIndexToRemove')
     return Number(value)
   }))
-  if (name !== undefined || comment !== undefined || isPublic !== undefined) {
+  const metadata = name !== undefined || comment !== undefined || isPublic !== undefined
+  if (metadata && row.ownerId !== user.id) throw notAuthorized()
+  if (removed.size && row.collaboratorRole === 'add') throw notAuthorized()
+  if (metadata) {
     await updatePlaylist(user.id, row.id, {
       name: name ? playlistName(name) : undefined,
       description: comment === undefined ? undefined : playlistComment(comment),
       isPublic,
     })
   }
-  if (added.length > 0 || removed.size > 0) {
+  if (!removed.size && added.length) {
+    await addPlaylistItems(user.id, row.id, added.map((trackId) => ({ trackId })))
+  } else if (removed.size) {
     const items = await playlistItems(row.id)
     const visible = items.filter((item) => item.visible)
     if ([...removed].some((index) => index >= visible.length)) throw invalidParameter('songIndexToRemove')
     const removedIds = new Set(visible.filter((_, index) => removed.has(index)).map((item) => item.itemId))
     const kept = items.filter((item) => !removedIds.has(item.itemId)).map((item): PlaylistItemSlot => ({ itemId: item.itemId }))
-    await replacePlaylistItems(user.id, row.id, [...kept, ...added.map((trackId) => ({ trackId }))])
+    await replacePlaylistItems(user.id, row.id, [...kept, ...added.map((trackId) => ({ trackId }))], items.map((item) => item.itemId), 'edit')
   }
   return {}
 }

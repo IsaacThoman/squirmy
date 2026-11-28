@@ -442,6 +442,8 @@ export const releases = pgTable('releases', {
   barcode: text('barcode'),
   format: text('format'),
   status: text('status'),
+  /** MusicBrainz's note that tells pressings apart ("2011 remaster", "Japan SHM-CD"). */
+  disambiguation: text('disambiguation'),
   trackCount: integer('track_count').notNull().default(0),
   discCount: integer('disc_count').notNull().default(1),
   detailLevel: smallint('detail_level').notNull().default(0),
@@ -963,12 +965,20 @@ export const ratings = pgTable('ratings', {
   updatedAt: updatedAt(),
 }, (t) => [primaryKey({ columns: [t.userId, t.entityType, t.entityId] })])
 
+export const playlistFolders = pgTable('playlist_folders', {
+  id: id(),
+  ownerId: uuid('owner_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+}, (t) => [index('playlist_folders_owner').on(t.ownerId)])
+
 export const playlists = pgTable('playlists', {
   id: id(),
   ownerId: uuid('owner_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   description: text('description'),
   isPublic: boolean('is_public').notNull().default(false),
+  folderId: uuid('folder_id').references(() => playlistFolders.id, { onDelete: 'set null' }),
+  artworkAssetId: uuid('artwork_asset_id').references(() => assets.id, { onDelete: 'set null' }),
   /**
    * A smart playlist's rules (`userdata/smart.ts` evaluates them on every read); null for a
    * playlist of items. A smart playlist has no `playlist_items`.
@@ -976,7 +986,13 @@ export const playlists = pgTable('playlists', {
   rules: jsonb('rules').$type<SmartPlaylistRules>(),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
-}, (t) => [index('playlists_owner').on(t.ownerId)])
+}, (t) => [index('playlists_owner').on(t.ownerId), index('playlists_folder').on(t.folderId)])
+
+export const playlistCollaborators = pgTable('playlist_collaborators', {
+  playlistId: uuid('playlist_id').notNull().references(() => playlists.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  canEdit: boolean('can_edit').notNull(),
+}, (t) => [primaryKey({ columns: [t.playlistId, t.userId] }), index('playlist_collaborators_user').on(t.userId)])
 
 export const playlistItems = pgTable('playlist_items', {
   id: id(),
@@ -1151,6 +1167,26 @@ export const libraryPins = pgTable('library_pins', {
   primaryKey({ columns: [t.userId, t.entityType, t.entityId] }),
   // Merges repoint rows by entity.
   index('library_pins_entity').on(t.entityType, t.entityId),
+])
+
+/**
+ * The version (an edition held as files, in one quality tier) that plays by default for a
+ * user: of an album, or of one song. See docs/architecture.md, "Editions and versions".
+ * A pick goes with its release; one whose files left stays and applies when they return.
+ */
+export const versionPicks = pgTable('version_picks', {
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  entityType: text('entity_type').$type<'album' | 'recording'>().notNull(),
+  entityId: uuid('entity_id').notNull(),
+  releaseId: uuid('release_id').notNull().references(() => releases.id, { onDelete: 'cascade' }),
+  /** `AudioTier` in the catalog contract. */
+  tier: text('tier').$type<import('@squirmy/contracts').AudioTier>().notNull(),
+  pickedAt: at('picked_at').notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.entityType, t.entityId] }),
+  // Merges repoint rows by entity; a release's deletion finds its picks.
+  index('version_picks_entity').on(t.entityType, t.entityId),
+  index('version_picks_release').on(t.releaseId),
 ])
 
 /** Outbound scrobbles, one row per play and target, retried until sent. */

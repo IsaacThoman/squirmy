@@ -261,6 +261,7 @@ export function PlaylistRow({ playlist, onPlay, className, pin }: { playlist: Pl
     <CollectionRow
       to={`/playlist/${playlist.id}`}
       title={playlist.name}
+      drag={{ kind: 'playlist', id: playlist.id, title: playlist.name }}
       subtitle={<PlaylistKind playlist={playlist} />}
       art={<PlaylistCover artworks={playlist.artworks} className={className} />}
       onPlay={playlist.trackCount ? onPlay : undefined}
@@ -343,6 +344,7 @@ type CollectionRowProps = {
   /** Nothing on it plays for this user, as on a card. */
   unavailable?: boolean
   prefetch?: PrefetchHandlers
+  drag?: CollectionDrag
   /** The card's play button, over the artwork. */
   onPlay?: () => void
   menu?: CardMenu
@@ -353,7 +355,7 @@ type CollectionRowProps = {
  * A card laid out as a row: small artwork, the title and a subtitle. The Library's list view. It
  * keeps the card's controls: the play button over the artwork, and its menu.
  */
-export function CollectionRow({ to, title, subtitle, art, dimmed, unavailable, prefetch, onPlay, menu: own, pin }: CollectionRowProps) {
+export function CollectionRow({ to, title, subtitle, art, dimmed, unavailable, prefetch, drag, onPlay, menu: own, pin }: CollectionRowProps) {
   const menu = withPin(own, pin)
   return (
     <WithMenu menu={menu}>
@@ -366,6 +368,9 @@ export function CollectionRow({ to, title, subtitle, art, dimmed, unavailable, p
           to={to}
           title={title}
           {...prefetch}
+          draggable={Boolean(drag)}
+          onDragStart={drag && (event => startCollectionDrag(event, drag))}
+          onDragEnd={drag && endTrackDrag}
           className="min-w-0 flex-1 outline-none after:absolute after:inset-0 after:rounded-md focus-visible:after:ring-2 focus-visible:after:ring-ring"
         >
           <div dir="auto" className={cn('truncate text-sm font-medium', dimmed && 'text-muted-foreground')}>{title}{unavailable && unavailableName}</div>

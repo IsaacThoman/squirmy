@@ -16,6 +16,7 @@ import { createAlbum, createUser } from '../../test/factories.js'
 import { createSession } from '../auth/service.js'
 import { sessionsModule } from './index.js'
 import { configureSessions, controlPlayback, getSnapshot } from './service.js'
+import { versionPicker } from './versions.js'
 
 /**
  * Listen together, end to end: real `SessionClient`s with `FakeEngine`s for several users,
@@ -267,6 +268,26 @@ describe('listen together', () => {
     expect((await getSnapshot(host.userId)).state.stalled).toBe(false)
     await eventually(() => expect(b.engine.getStatus().positionMs).toBe(22_000))
     expect(b.engine.calls).toContainEqual(['seek', 22_000])
+  })
+
+  it('plays the host\'s version of the jam\'s songs for members, and the member\'s own once they leave', async () => {
+    const a = await device(host, 'host-phone-versions')
+    const b = await device(guest, 'guest-phone-versions')
+    a.client.dispatch(playAlbum())
+    const [first, , last] = album.tracks.map((track) => track.recordingId)
+    const elsewhere = newId()
+    expect(versionPicker(guest.userId, first!)).toBe(guest.userId)
+    const jamId = await started(a)
+    await jam(b, { action: 'join', jamId })
+    await inStep(guest)
+    // Current and up next are the jam's; a song it does not hold keeps the member's own picks.
+    expect(versionPicker(guest.userId, first!)).toBe(host.userId)
+    expect(versionPicker(guest.userId, last!)).toBe(host.userId)
+    expect(versionPicker(guest.userId, elsewhere)).toBe(guest.userId)
+    expect(versionPicker(host.userId, first!)).toBe(host.userId)
+    await jam(b, { action: 'leave' })
+    await eventually(async () => expect((await getSnapshot(guest.userId)).state.jam).toBeUndefined())
+    expect(versionPicker(guest.userId, first!)).toBe(guest.userId)
   })
 
   it('lets members leave, and pauses them when the host ends the jam', async () => {

@@ -332,6 +332,26 @@ describe('StreamingCache', () => {
     expect([...files.disk.keys()]).toEqual([]);
   });
 
+  it('forgets the copies of tracks the server now serves another file for, and fetches the near ones again', async () => {
+    const { cache, index, files, source, changed, settle, finish } = setup({ seed: [row(2), row(3), row(9)] });
+    cache.setOutlook(outlook('active', 1, 2, 3));
+    await settle();
+    // The stream being played is on its way when the user picks another version of it and of 2.
+    const playing = files.active()[0]!;
+    expect(playing.url).toContain(id(701));
+    source.fileIds.set(id(1), id(801));
+    source.fileIds.set(id(2), id(802));
+    cache.forget([id(1), id(2), id(9)]);
+    expect(playing.cancelled).toBe(true);
+    expect(changed).toEqual([2, 9]);
+    expect(index.tracks()).toEqual([3]);
+    expect(cache.playback(id(2), 'original')).toBeNull();
+    await finish();
+    expect(index.row(1)!.fileId).toBe(id(801));
+    expect(index.row(2)!.fileId).toBe(id(802));
+    expect(index.tracks()).toEqual([1, 2, 3]);
+  });
+
   it('removes the least recently played files once a new one takes it over the limit', async () => {
     const seed = [row(10, { playedAt: 100 }), row(11, { playedAt: 300 }), row(12, { addedAt: 200 })];
     const { cache, index, files, changed, settle, finish } = setup({ seed, settings: { limitBytes: 3500 } });

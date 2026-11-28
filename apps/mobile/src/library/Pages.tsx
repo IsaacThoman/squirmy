@@ -39,6 +39,8 @@ import {
 } from './shared';
 import { albumPlaylistSheet, useCollectionActions } from './collectionActions';
 import { albumActions, playActions } from './albumActions';
+import { useVersionPick } from './useVersionPick';
+import { versionFailure, versionsButton } from './versions';
 import { confirmQueued } from './queued';
 import { uniqueTracks } from './loadAll';
 import { useStartGuard } from './pending';
@@ -262,6 +264,11 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const lead = useArtist(leadId ?? '', { enabled: Boolean(leadId), poll: false });
   const leadData = lead.isPlaceholderData ? undefined : lead.data;
   const related = useMemo(() => data ? relatedAlbums(data, leadData) : { versions: [], more: [] }, [data, leadData]);
+  const pickVersion = useVersionPick();
+  const versionPicks = useStartGuard();
+  // A pick the server refused says so on the Versions button and under the buttons for a few
+  // seconds, as a radio that didn't start does; the menu opens again to try again.
+  const versionFailures = useBriefFailures<true>();
   if (!data) return <PageFallback query={album} what="this album" onBack={onBack} />;
   const tracks = data.discs.flatMap(disc => disc.tracks);
   const context: PlaybackContext = { type: 'album', id: data.id, title: data.title };
@@ -314,15 +321,31 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
     share: () => shareAlbum({ kind: 'album', id: data.id, title: data.title }, `${data.title} · ${data.artistCredit}`),
   });
 
+  // Which edition plays by default, for every song of the album. The page is read again with the
+  // pick, whose edition may list other songs; the songs already loaded to play are loaded again.
+  const versionFailed = versionFailures.failures.has('version');
+  const chooseVersion = (versionId: string | null) => {
+    tapFeedback();
+    versionFailures.drop('version');
+    versionPicks.run('version', () => pickVersion('album', data.id, versionId).catch(() => {
+      versionFailures.fail('version', true);
+      announce(versionFailure(data.title));
+    }));
+  };
+  // Only from the server's answer, never from a download kept offline: the versions are the server's.
+  const versions = album.data && !album.isPlaceholderData && !offline
+    ? versionsButton(album.data, { busy: versionPicks.pending('version'), failed: versionFailed }, chooseVersion) : false;
+
   return <DetailPage item={albumCollection(data, link)} tint={data.artwork?.color ?? fallbackTint} title={data.title}
     artist={data.artistCredit} artistLinks={artistLinks}
     info={[albumTypeLabels[data.type], data.genres[0], data.year, albumNote(data, viewer)].filter(Boolean).join('  ·  ')}
-    buttons={buttons} status={control.status}
+    buttons={buttons} status={<>{control.status}{versionFailed && <FailureLine message={versionFailure(data.title)} />}</>}
     nav={[
       // The heart saves the album to the library. The placeholder does not know whether it is saved.
       !album.isPlaceholderData && { ...heartButton(liked, data.title, likeFailure),
         onPress: () => { tapFeedback(); setLiked('album', data.id, !liked, data.title); } },
       control.nav,
+      versions,
       { icon: 'ellipsis', label: `More options for ${data.title}`, menu },
     ]}
     onBack={onBack} bottomInset={bottomInset}>
@@ -512,7 +535,7 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const mine = Boolean(data) && state.status === 'signedIn' && data!.ownerId === state.user.id && Boolean(playlist.data) && !offline;
   // A smart playlist's songs come from its rules (edited on the web): none are moved or removed here.
   const smart = Boolean(data?.smart);
-  const editsItems = mine && !smart;
+  const editsItems = !smart && (mine || (Boolean(playlist.data) && !offline && data?.collaboratorRole === 'edit'));
   const play = (shuffle?: boolean, start?: number) => {
     if (!data) return;
     tapFeedback();
@@ -521,11 +544,17 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const itemIds = useMemo(() => items?.map(item => item.itemId) ?? [], [items]);
   const songListProps: SongListProps = {
     tracks,
+    addedByNames: data?.collaborative ? items?.map(item => item.addedByName) : undefined,
     onPlay: start => play(undefined, start),
     onTrackMenu: (track, index) => onTrackMenu(track, editsItems ? { id, itemId: itemIds[index]! } : undefined),
     playlist: editsItems ? {
       id, itemIds, editing,
-      onMove: (itemId, toIndex) => edits.move(id, itemId, toIndex),
+      onMove: (itemId, toIndex) => {
+        const from = itemIds.indexOf(itemId);
+        const target = itemIds[toIndex];
+        if (from < 0 || !target || target === itemId) return;
+        edits.move(id, itemId, toIndex, { itemId: target, side: from < toIndex ? 'after' : 'before' });
+      },
       onRemove: itemId => edits.removeItem(id, itemId),
     } : undefined,
   };
@@ -556,7 +585,7 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   ];
 
   return <DetailPage item={playlistCollection(data, link)} tint={data.artworks[0]?.color ?? null} title={data.name}
-    artist={state.status === 'signedIn' && data.ownerId === state.user.id ? undefined : data.ownerName} info={smart ? 'Smart Playlist' : 'Playlist'}
+    artist={state.status === 'signedIn' && data.ownerId === state.user.id ? undefined : data.ownerName} info={data.collaborative ? 'Collaborative Playlist' : smart ? 'Smart Playlist' : 'Playlist'}
     description={data.description}
     status={<>{failure && <FailureLine message={failure} />}{control.status}</>}
     nav={[
@@ -566,7 +595,7 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
       // While the playlist is deleted the button waits for the server, with nothing to choose.
       deleting ? { icon: 'ellipsis', label: `Deleting ${data.name}`, busy: true, onPress: () => undefined }
         : menu.length > 0 && { icon: 'ellipsis', label: `More options for ${data.name}`, menu },
-      { icon: 'square.and.arrow.up', label: `Share ${data.name}`, onPress: () => sharePlaylist({ kind: 'playlist', id: data.id, title: data.name }, data.name) },
+      (mine || data.isPublic) && { icon: 'square.and.arrow.up', label: `Share ${data.name}`, onPress: () => sharePlaylist({ kind: 'playlist', id: data.id, title: data.name }, data.name) },
     ]}
     // Reordering drags rows within one native list, so while editing every row is drawn.
     onBack={onBack} bottomInset={bottomInset} list={tracks.length && !editing ? songs : undefined}>
