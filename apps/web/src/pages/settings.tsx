@@ -14,6 +14,8 @@ import { loadFailure } from '@/components/ui/load-failure'
 import { canUploadMusic } from '@/lib/catalog'
 import { browserName, deviceName } from '@/lib/device'
 import { browserSupportsPasskeys, createPasskey, passkeyCancelled } from '@/lib/passkeys'
+import { useEngine } from '@/player/engine/engine-context'
+import { supportsOutputDevice } from '@/player/engine/output'
 import { usePlayerControls } from '@/player/player-context'
 
 const appPasswordsKey = ['app-passwords'] as const
@@ -135,6 +137,7 @@ export function SettingsDialogHost({ open, section, lastFm, sso, onOpenChange, o
   const user = useCurrentUser()
   const logout = useLogout()
   const controls = usePlayerControls()
+  const engine = useEngine()
   const status = useSetupStatus().data
   const settings = useUserSettings()
   const scrobbling = useScrobbling()
@@ -183,6 +186,8 @@ export function SettingsDialogHost({ open, section, lastFm, sso, onOpenChange, o
       version={status?.version ?? ''}
       settings={settings.data}
       onSettingsChange={patch => update.mutate(patch)}
+      boosts={engine?.canBoost ?? false}
+      choosesOutput={supportsOutputDevice()}
       deviceName={name}
       defaultDeviceName={deviceName(navigator.userAgent)}
       onDeviceNameChange={next => {

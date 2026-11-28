@@ -79,7 +79,7 @@ A louder target turns more songs up, and a quiet song turned up can have peaks a
 **How clients apply it.** The gain is applied on the device. If the chosen gain is unavailable, clients try the other gain. When neither is available, playback uses the current volume with no normalization adjustment. What happens to a song that needs turning up depends on the device:
 
 - **iOS and Apple TV with the Native engine** turn songs up as far as the target asks. A true-peak limiter at the end of the engine keeps every peak, between samples too, under -1 dBTP: it turns down over 1.5 ms ahead of a peak and comes back over 50 to 150 ms. While nothing goes over it does nothing, and the sound passes untouched. With normalization off the engine plays the file as it is. **Track info** says how far the limiter turns the song's loudest peak down, or that it isn't needed.
-- **The web app** turns songs up only as far as the peak of the gain in use allows without clipping. A song whose gain the server estimated (not yet measured, no tags) is not turned up at all, as its peak is unknown.
+- **The web app** turns songs up as far as the target asks, with the same true-peak limiter at the end of its audio (an AudioWorklet), and **Track info** says what the limiter does. Browsers run AudioWorklets only over HTTPS (or on `localhost`): over plain HTTP the web app has no limiter, so it turns songs up only as far as the peak of the gain in use allows without clipping, and a song whose gain the server estimated (not yet measured, no tags) not at all, as its peak is unknown.
 - **iOS and Apple TV with the classic engine** only turn songs down: a louder target turns loud songs down less.
 
 ## Listening history
