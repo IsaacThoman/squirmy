@@ -1,8 +1,8 @@
-import type { RemoteFeedback } from './feedback.js'
 import { cachedFetch, ProviderError, unexpectedResponse } from '../../lib/http.js'
 import { badRequest } from '../../lib/errors.js'
 import { integrationSettings } from '../integrations/settings.js'
 import { getServerSecret, getServerSettings } from '../../lib/settings.js'
+import type { RemoteFeedback } from './feedback.js'
 
 /** A recording ranked by how often ListenBrainz users play it. */
 export type LbTopRecording = {
@@ -191,17 +191,20 @@ type RawFeedback = {
   track_metadata?: { track_name?: string; artist_name?: string; mbid_mapping?: { recording_mbid?: string } }
 }
 
-export async function feedbackPage(token: string, account: string, offset: number, apiUrl?: string): Promise<RemoteFeedback[]> {
+export async function feedbackPage(token: string, account: string, offset: number, apiUrl?: string): Promise<{ items: RemoteFeedback[]; more: boolean }> {
   const result = await userRequest(`feedback/user/${encodeURIComponent(account)}/get-feedback?metadata=true&count=100&offset=${offset}`, token, apiUrl)
   const body = result.json as { feedback?: RawFeedback[] } | undefined
   if (result.status !== 200 || !Array.isArray(body?.feedback)) throw new ProviderError(provider, `Feedback read failed (HTTP ${result.status})`, result.status)
-  return body.feedback.filter(item => item.score === 1 || item.score === -1).map(item => ({
-    mbid: item.recording_mbid ?? item.track_metadata?.mbid_mapping?.recording_mbid,
-    title: item.track_metadata?.track_name,
-    artist: item.track_metadata?.artist_name,
-    at: Number(item.created),
-    loved: item.score === 1,
-  }))
+  return {
+    items: body.feedback.filter(item => item.score === 1 || item.score === -1).map(item => ({
+      mbid: item.recording_mbid ?? item.track_metadata?.mbid_mapping?.recording_mbid,
+      title: item.track_metadata?.track_name,
+      artist: item.track_metadata?.artist_name,
+      at: Number(item.created),
+      loved: item.score === 1,
+    })),
+    more: body.feedback.length >= 100,
+  }
 }
 
 export async function love(token: string, mbid: string, apiUrl?: string): Promise<void> {

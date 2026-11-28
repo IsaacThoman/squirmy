@@ -25,7 +25,10 @@ export function IntegrationsAdmin() {
         {loadFailure(deliveries, 'The delivery log did not load')}
         {deliveries.data?.length === 0 && <p className="text-sm text-muted-foreground">No deliveries yet.</p>}
         {deliveries.data?.map(delivery => (
-          <Row key={delivery.id} label={delivery.name} description={`${delivery.event} · ${delivery.attempts} attempts · ${formatRelative(delivery.updatedAt)}`}>
+          <Row key={delivery.id} label={delivery.name} description={<>
+            {`${delivery.event} · ${delivery.attempts} attempts · ${formatRelative(delivery.updatedAt)}`}
+            {delivery.error && <span className="block text-destructive">{delivery.error}</span>}
+          </>}>
             <span className="text-sm capitalize">{delivery.status}{delivery.httpStatus ? ` · HTTP ${delivery.httpStatus}` : ''}</span>
           </Row>
         ))}

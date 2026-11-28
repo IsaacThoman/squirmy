@@ -68,7 +68,9 @@ export async function ingestGroup({ rootId, groupKey }: IngestJob) {
   })
   if (!outcome) return
 
-  if (outcome.newAlbum) await emitWebhook('library.album_added', { albumId: outcome.albumId }, null, outcome.albumId)
+  if (outcome.newAlbum) {
+    await emitWebhook('library.album_added', { albumId: outcome.albumId, ...outcome.newAlbum }, null, outcome.albumId)
+  }
   await attachFileExtras(root.path, outcome.albumId, outcome.files, outcome.recordings)
   // Files a provider delivered are in no library (acquisition announces the saves they
   // reach). Files of an import are not known to be either until the import marks them, and
@@ -187,7 +189,7 @@ async function requestedArtists(tx: Transaction, files: readonly File[]): Promis
 }
 
 class GroupWriter {
-  newAlbum = false
+  newAlbum: { title: string; artist: string } | null = null
   /** Artists whose credits this run replaced, for orphan cleanup. */
   readonly formerArtists: string[] = []
   /** Artists credited on what this run wrote, for invalidation. */
@@ -343,10 +345,7 @@ class GroupWriter {
         .where(and(inArray(albums.id, await this.reusable(mediaFiles.albumId, (file) => file.albumId)), isNull(albums.mbid)))
         .orderBy(asc(albums.id)).limit(1)
       if (linked) [album] = await tx.update(albums).set(values).where(eq(albums.id, linked.id)).returning()
-      if (!album) {
-        ;[album] = await tx.insert(albums).values({ id: newId(), detailLevel: 1, ...values }).returning()
-        this.newAlbum = true
-      }
+      if (!album) [album] = await tx.insert(albums).values({ id: newId(), detailLevel: 1, ...values }).returning()
       const former = await tx.delete(albumArtists).where(eq(albumArtists.albumId, album!.id)).returning({ artistId: albumArtists.artistId })
       this.formerArtists.push(...former.map((row) => row.artistId))
       await tx.insert(albumArtists).values(albumCredits.map((credit) => ({ albumId: album!.id, ...credit })))
@@ -449,6 +448,11 @@ class GroupWriter {
   async build(plan: GroupPlan): Promise<{ albumId: string }> {
     const { tx } = this
     const { album, release } = await this.albumAndRelease(plan)
+    if (this.files.some(file => !file.cached)) {
+      const [owned] = await tx.select({ id: mediaFiles.id }).from(mediaFiles)
+        .where(and(eq(mediaFiles.albumId, album.id), isNull(mediaFiles.missingSince), eq(mediaFiles.cached, false))).limit(1)
+      if (!owned) this.newAlbum = { title: album.title, artist: album.artistCredit }
+    }
     // Releases fetched from MusicBrainz keep their own track list; files are fitted to it.
     const managed = release.fetchedAt === null
     const tracks = await tx.select().from(releaseTracks).where(eq(releaseTracks.releaseId, release.id))

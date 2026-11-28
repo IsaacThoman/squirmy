@@ -13,7 +13,7 @@ An admin webhook receives events from across the server. A personal webhook rece
 | `playback.started`, `playback.paused`, `playback.stopped`, `playback.track_changed` | Device ID, track ID, album ID, position in milliseconds and state |
 | `scrobble` | Completed play ID, track ID, album ID, start time and milliseconds played |
 | `library.scan_finished` | Library root ID and counts from a full discovery scan. Probing and matching continue in background jobs. |
-| `library.album_added` | Album ID when file ingest creates a catalog album |
+| `library.album_added` | Album ID, title and artist when file ingest adds the first copy to the shared collection |
 | `import.finished` | Import ID, outcome and kind |
 
 The receiver gets an HTTP POST with `Content-Type: application/json` and an envelope with `id`, `type`, `at` (ISO 8601), `userId` (null for shared events) and `data`. Compare `X-Squirmy-Signature` to `sha256=` followed by the hex HMAC-SHA256 of the **raw request body**, using the signing secret as the HMAC key. Use constant-time comparison. Squirmy retries timeouts, transient HTTP errors and connection failures with backoff. Return 2xx to acknowledge receipt and use the signed event ID to deduplicate a retry.

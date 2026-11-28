@@ -68,9 +68,9 @@ async function importFeedback(userId: string, connection: Connection, key: strin
   for (let page = 1; page <= 100; page++) {
     const result = connection.target === 'lastfm'
       ? await lastfm.lovedPage(connection.account, page)
-      : { items: await listenbrainz.feedbackPage(connection.credential, connection.account, (page - 1) * 100, connection.apiUrl), more: true }
+      : await listenbrainz.feedbackPage(connection.credential, connection.account, (page - 1) * 100, connection.apiUrl)
     await applyFeedback(userId, key, result.items)
-    if (!result.more || result.items.length === 0 || (connection.target === 'listenbrainz' && result.items.length < 100)) return
+    if (!result.more) return
   }
 }
 

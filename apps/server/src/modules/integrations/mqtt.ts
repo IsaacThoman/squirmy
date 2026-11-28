@@ -34,7 +34,9 @@ export class MqttBridge {
       if (getConfig().LOG_LEVEL !== 'silent') console.warn('[mqtt]', error.message)
     })
     this.#client.on('connect', () => {
-      this.#client.subscribe(`${broker.topicPrefix}/+/+/command`, { qos: 0 })
+      this.#client.subscribe([
+        `${broker.topicPrefix}/+/+/command`, `${broker.topicPrefix}/+/+/state`,
+      ], { qos: 0 })
       for (const [topic, { payload }] of this.#states) {
         this.discover(topic)
         this.#client.publish(`${topic}/state`, payload, qos)
@@ -42,6 +44,13 @@ export class MqttBridge {
       this.#client.publish(this.#availability, 'online', qos)
     })
     this.#client.on('message', (topic, body, packet) => {
+      if (topic.endsWith('/state')) {
+        // A hard shutdown can leave a player's state in the broker after it has gone.
+        if (packet.retain && !this.#states.has(topic.slice(0, -'/state'.length)) && body.toString() !== JSON.stringify(stopped)) {
+          this.#client.publish(topic, JSON.stringify(stopped), qos)
+        }
+        return
+      }
       if (packet.retain || body.byteLength > 200 || !topic.endsWith('/command')) return
       const state = this.#states.get(topic.slice(0, -'/command'.length))
       if (!state) return

@@ -1,7 +1,7 @@
-import type { RemoteFeedback } from './feedback.js'
 import { createHash } from 'node:crypto'
 import { cachedFetch, type HttpResult, ProviderError } from '../../lib/http.js'
 import { getServerSecret, getServerSettings } from '../../lib/settings.js'
+import type { RemoteFeedback } from './feedback.js'
 
 /** One play. `startedAt` is when playback began, as Last.fm's timestamp requires. */
 export type LastFmPlay = {
