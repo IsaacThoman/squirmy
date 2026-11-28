@@ -43,7 +43,7 @@ type PlaylistRow = {
 
 const smartReadOnly = () => new SubsonicError(ErrorCode.notAuthorized, 'A smart playlist’s songs come from its rules; change it in Squirmy')
 
-/** Playlists the user can see (their own and public ones), or all of `ownerId`'s (for admins), newest change first. */
+/** Visible playlists, or all of `ownerId`'s (for admins), newest change first. */
 async function playlistRows(userId: string, filter: { ids?: string[]; ownerId?: string }): Promise<PlaylistRow[]> {
   return db.execute<PlaylistRow>(sql`
     select p.id, p.name, p.description, p.owner_id as "ownerId", u.username as owner, p.is_public as "isPublic",

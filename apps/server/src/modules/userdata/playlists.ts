@@ -134,7 +134,7 @@ const playlistOrdering: Ordering = {
   ],
 }
 
-/** One page of the playlists the user can see (theirs and other users' public ones), or only theirs. */
+/** One page of visible playlists, or only the viewer's own. */
 export async function listPlaylists(userId: string, query: PageQuery, options: { ownOnly?: boolean } = {}): Promise<PlaylistPage> {
   const visible = options.ownOnly ? sql`p.owner_id = ${userId}` : playlistVisibleTo(userId)
   const rows = await db.execute<{ id: string; cursorKeys: string[] }>(sql`
@@ -145,7 +145,7 @@ export async function listPlaylists(userId: string, query: PageQuery, options: {
 }
 
 /**
- * A playlist with its items. Readable by its owner, and by anyone when public; 404 otherwise.
+ * A playlist with its items. Visible to its owner, collaborators and, when public, all users.
  * A smart playlist's items are its songs as its owner's rules find them now, summarized for
  * the reader.
  */
@@ -192,7 +192,7 @@ export async function getPlaylist(userId: string, id: string): Promise<PlaylistD
 
 /**
  * Locks a playlist for a change by `userId`. A playlist the user cannot see is 404; a
- * public one they do not own is 403.
+ * visible one they do not own is 403.
  */
 async function lockOwned(tx: Transaction, userId: string, id: string) {
   const [row] = await tx.select().from(playlists).where(eq(playlists.id, id)).for('update')

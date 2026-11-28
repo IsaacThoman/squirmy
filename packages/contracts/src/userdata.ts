@@ -226,7 +226,7 @@ export const PlaylistDetail = PlaylistSummary.extend({
 })
 export type PlaylistDetail = z.infer<typeof PlaylistDetail>
 
-/** `GET /api/v1/playlists`: your playlists and other users' public ones, recently updated first. */
+/** `GET /api/v1/playlists`: owned, public and collaborative playlists, recently updated first. */
 export const PlaylistPage = page(PlaylistSummary)
 export type PlaylistPage = z.infer<typeof PlaylistPage>
 

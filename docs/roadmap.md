@@ -99,7 +99,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Detached playback: web and iOS devices can play their own queue and rejoin the shared session later ([detached-playback-ui.md](./detached-playback-ui.md))
 - [x] Local search index: importer, search and admin routes ([local-search-index.md](./local-search-index.md)), offered as the first search provider, and its admin screen
 - [x] Smart playlists: rules evaluated live on the server, a rule editor on the web, read-only in Subsonic and the iOS and Apple TV apps ([web.md](./use/web.md#smart-playlists))
-- [x] Collaborative playlists with edit or add-only access, personal folders, custom artwork, file import and export, and duplicate removal ([web.md](./use/web.md#organizing-and-sharing-playlists), [ios.md](./use/ios.md#using-it), [subsonic.md](./server/subsonic.md#what-does-not))
+- [x] Collaborative playlists with edit or add-only access, personal folders, custom artwork, file import and export, and duplicate removal ([web.md](./use/web.md#organizing-and-sharing-playlists), [ios.md](./use/ios.md#using-it), [subsonic.md](./server/subsonic.md#how-it-maps-onto-squirmy))
 - [ ] Edit smart playlist rules in the iOS app
 - [x] Documentation site ([docs/](./index.md), built with VitePress)
 - [x] Docker health check on `/ready`, and the image reports its source version
