@@ -98,6 +98,8 @@ export function channelsLabel(channels: number): string {
 
 const profileNames: Record<Exclude<StreamProfile, 'original'>, string> = {
   aac_256: 'AAC 256 kbps', opus_128: 'Opus 128 kbps', mp3_320: 'MP3 320 kbps', mp3_192: 'MP3 192 kbps',
+  flac_mp4: 'FLAC', opus_mp4_192: 'Opus 192 kbps', opus_mp4_96: 'Opus 96 kbps',
+  aac_mp4_256: 'AAC 256 kbps', aac_mp4_128: 'AAC 128 kbps', copy_mp4: 'Fragmented MP4',
 }
 
 const reasonNames: Record<TranscodeReason, string> = {
@@ -143,7 +145,7 @@ export function signalSections(signal: SignalReport): TrackInfoSection[] {
       ]),
     })
   }
-  const stream = delivery.transcoded
+  const stream = delivery.profile === 'copy_mp4' ? `${codecLabel(delivery.codec)} in fragmented MP4` : delivery.transcoded
     ? `Transcoded to ${delivery.profile === 'original' ? codecLabel(delivery.codec) : profileNames[delivery.profile]}`
     : 'Original file'
   sections.push({

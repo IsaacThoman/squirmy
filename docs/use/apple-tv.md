@@ -17,7 +17,7 @@ When a field opens the keyboard, Apple TV also offers it on your iPhone: accept 
 
 The tabs are in the sidebar at the left, as in Apple's own apps: **Search**, **Home**, **Library**, **Now Playing** and **Settings**. Once you browse into a page the sidebar folds away; press **Back** on a tab's first page to bring it back.
 
-- **Home** has what you played lately, your playlists and what is new on the server, as rows of covers.
+- **Home** has the same rows as the phone, as rows of covers: **Jump back in**, your mixes under **Made for you**, the artists you play and artists like them, your playlists and what is new on the server ([Home](./web.md#home)). Choose a mix for its songs, with **Play** and **Shuffle**.
 - **Library** has your albums, artists, playlists and songs.
 - **Search** searches your library and the catalog as you type, with the one-row tvOS keyboard or your iPhone.
 
@@ -51,7 +51,7 @@ The Apple TV is one of your devices, like your phone and your browser, and they 
 
 ## Settings
 
-**Settings** shows who is signed in and to which server, with **Change Server** and **Sign Out**. Under **Playback** are **Volume Normalization**, **Target Loudness** (while normalization is on) and **Streaming Quality**; the Apple TV streams at your Wi-Fi quality, over Ethernet too, and these settings are your account's, so they change on your phone as well. TestFlight and development builds also have **Engine**, which switches between the classic engine and Squirmy's own, gapless one for this Apple TV, from the next time the app opens. **Library** has the switch that shows all of this server's music in your library.
+**Settings** shows who is signed in and to which server, with **Sign Out**. Under **Profiles** are the household's other accounts on this Apple TV, on any server: select one to switch to it, still signed in (one that was signed out opens at its sign-in), or hold it and choose **Remove Profile**. **Add Profile** signs in to another server, or as someone else on this one, and keeps the profile in use signed in. Switching stops what the Apple TV was playing; each profile keeps its own streaming cache. Under **Playback** are **Volume Normalization**, **Target Loudness** (while normalization is on) and **Streaming Quality**; the Apple TV streams at your Wi-Fi quality, over Ethernet too, and these settings are your account's, so they change on your phone as well. **Library** has the switch that shows all of this server's music in your library. TestFlight and development builds also have **Engine**, which switches between the classic engine and Squirmy's own, gapless one for this Apple TV, from the next time the app opens. **Library** has the switch that shows all of this server's music in your library.
 
 **Scrobbling** shows whether ListenBrainz and Last.fm are connected, and turns a connected service on or off; hold the click on one to disconnect it. Connecting needs a sign-in page or a token, so connect them in Squirmy on your iPhone or in the web app ([scrobbling](../server/scrobbling.md)). **About** has the app's and the server's versions, for bug reports.
 

@@ -72,16 +72,33 @@ export function lastUsed(row: Pick<CacheRow, 'playedAt' | 'addedAt'>): number {
   return row.playedAt ?? row.addedAt;
 }
 
+/**
+ * A row another account on this device keeps. The limit is the device's, so these count
+ * toward it and go like any other, least recently played first; they are never played here.
+ */
+export type ForeignRow = Pick<CacheRow, 'trackId' | 'quality' | 'file' | 'art' | 'bytes' | 'addedAt' | 'playedAt'> & { account: string };
+
 /** The rows to remove so the cache fits `limitBytes`: least recently played first, never a track in `keep`. */
 export function evictions(rows: readonly CacheRow[], limitBytes: number, keep: ReadonlySet<string>): CacheRow[] {
-  let total = rows.reduce((sum, row) => sum + row.bytes, 0);
-  const gone: CacheRow[] = [];
-  for (const row of rows.filter(row => !keep.has(row.trackId)).sort((a, b) => lastUsed(a) - lastUsed(b))) {
+  return evictionsAcross(rows, [], limitBytes, keep).own;
+}
+
+/** As `evictions`, with other accounts' rows counted toward the limit too. `keep` names this account's tracks only. */
+export function evictionsAcross(rows: readonly CacheRow[], foreign: readonly ForeignRow[], limitBytes: number, keep: ReadonlySet<string>) {
+  let total = [...rows, ...foreign].reduce((sum, row) => sum + row.bytes, 0);
+  const own: CacheRow[] = [];
+  const others: ForeignRow[] = [];
+  const candidates = [
+    ...rows.filter(row => !keep.has(row.trackId)).map(row => ({ row, foreign: false as const })),
+    ...foreign.map(row => ({ row, foreign: true as const })),
+  ].sort((a, b) => lastUsed(a.row) - lastUsed(b.row));
+  for (const candidate of candidates) {
     if (total <= limitBytes) break;
-    gone.push(row);
-    total -= row.bytes;
+    if (candidate.foreign) others.push(candidate.row);
+    else own.push(candidate.row);
+    total -= candidate.row.bytes;
   }
-  return gone;
+  return { own, foreign: others };
 }
 
 /**

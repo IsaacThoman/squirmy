@@ -16,6 +16,14 @@ export const apiRoutes = {
   'auth.createAppPassword': 'POST /auth/app-passwords',
   'auth.deleteAppPassword': 'DELETE /auth/app-passwords/:id',
 
+  'admin.duplicates': 'GET /admin/library/duplicates',
+  'admin.removeDuplicate': 'DELETE /admin/library/duplicates/:id',
+  'admin.lowQuality': 'GET /admin/library/quality',
+  'admin.fileHealth': 'GET /admin/library/file-health',
+  'admin.recheckFile': 'POST /admin/library/file-health/:id',
+  'admin.albumTags': 'GET /admin/albums/:id/tags',
+  'admin.tagCovers': 'GET /admin/albums/:id/tag-covers',
+  'admin.editAlbumTags': 'PATCH /admin/albums/:id/tags',
   'admin.users': 'GET /admin/users',
   'admin.createUser': 'POST /admin/users',
   'admin.updateUser': 'PATCH /admin/users/:id',
@@ -111,6 +119,7 @@ export const apiRoutes = {
 
   'radio.track': 'POST /radio/track/:id',
   'radio.artist': 'POST /radio/artist/:id',
+  'radio.mix': 'GET /mixes/:id',
   'radio.sonic': 'POST /radio/sonic/:id',
 
   'imports.list': 'GET /imports',

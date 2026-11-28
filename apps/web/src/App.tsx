@@ -5,7 +5,7 @@ import { Page } from '@/components/layout/Page'
 import { Spinner } from '@/components/ui/feedback'
 import { LoginPage, RegisterPage, SetupPage } from '@/pages/account'
 import {
-  AlbumPage, ArtistPage, ArtistReleasesPage, CollectionPage, HomePage, LibraryPage, LibraryRedirect, LikedPage, NotFoundPage, PlaylistPage, SearchPage, WantlistPage,
+  AlbumPage, ArtistPage, ArtistReleasesPage, CollectionPage, HomePage, LibraryPage, LibraryRedirect, LikedPage, MixPage, NotFoundPage, PlaylistPage, SearchPage, WantlistPage,
 } from '@/pages/music'
 import { SettingsRoute, ShellPage } from '@/pages/shell'
 
@@ -14,6 +14,8 @@ const admin = (name: keyof typeof import('@/pages/admin')) => lazy(() => import(
 const AdminLayout = admin('AdminLayout')
 const AdminLibraryPage = admin('AdminLibraryPage')
 const AdminReviewsPage = admin('AdminReviewsPage')
+const AdminDuplicatesPage = admin('AdminDuplicatesPage')
+const AdminFileHealthPage = admin('AdminFileHealthPage')
 const AdminOrganizePage = admin('AdminOrganizePage')
 const AdminSearchIndexPage = admin('AdminSearchIndexPage')
 const AdminUsersPage = admin('AdminUsersPage')
@@ -69,6 +71,7 @@ export function AppRoutes() {
               <Route path="artist/:id" element={<ArtistPage />} />
               <Route path="artist/:id/releases/:section" element={<ArtistReleasesPage />} />
               <Route path="playlist/:id" element={<PlaylistPage />} />
+              <Route path="mix/:id" element={<MixPage />} />
               <Route path="settings" element={<SettingsRoute />} />
               <Route path="settings/:section" element={<SettingsRoute />} />
               <Route path="imports" element={<Loading><ImportsPage /></Loading>} />
@@ -80,6 +83,8 @@ export function AppRoutes() {
                   <Route path="library" element={<Loading><AdminLibraryPage /></Loading>} />
                   <Route path="uploads" element={<Loading><AdminUploadsPage /></Loading>} />
                   <Route path="reviews" element={<Loading><AdminReviewsPage /></Loading>} />
+                  <Route path="duplicates" element={<Loading><AdminDuplicatesPage /></Loading>} />
+                  <Route path="file-health" element={<Loading><AdminFileHealthPage /></Loading>} />
                   <Route path="organize" element={<Loading><AdminOrganizePage /></Loading>} />
                   <Route path="search-index" element={<Loading><AdminSearchIndexPage /></Loading>} />
                   <Route path="users" element={<Loading><AdminUsersPage /></Loading>} />

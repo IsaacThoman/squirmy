@@ -26,6 +26,17 @@ These work anywhere in the app, as long as the focused element does not use the 
 
 Play, pause and seeking need something in the session. The volume keys change the volume of whichever device plays, so they work as a remote too. Browsers and operating systems with media keys also control the player through the Media Session API while this tab plays.
 
+## Now Playing
+
+| Key | Action |
+|---|---|
+| F | Go into [full screen](./web.md#playing-music), or leave it |
+| Escape | Leave full screen; otherwise close Now Playing |
+| Enter | In full screen, on the screen itself: play or pause |
+| ← / → | In full screen, on the transport: move to the button before or after |
+
+In full screen, while the controls are hidden, the first key only brings them back.
+
 ## Quick search
 
 | Key | Action |
@@ -52,4 +63,4 @@ Play, pause and seeking need something in the session. The volume keys change th
 | Admin folder picker, path field | Enter | Open the typed path |
 | Admin server settings, a text field | Enter | Save the value |
 
-There are no other single-key shortcuts yet.
+There are no other single-key shortcuts.
