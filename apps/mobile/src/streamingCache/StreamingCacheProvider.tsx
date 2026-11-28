@@ -8,11 +8,13 @@ import { useUserSettings } from '../data/queries';
 import { useRealtime } from '../data/realtime';
 import { useDownloadManager } from '../downloads/DownloadsProvider';
 import { downloadNetwork } from '../downloads/files';
+import { runningEngine } from '../player/engine';
 import { codecsFor } from '../player/session';
 import { StreamingCacheContext } from './context';
 import { cacheIndex } from './database';
 import { cacheFiles } from './files';
 import { StreamingCache, type CacheSource } from './manager';
+import { engineStreams } from './streams';
 import { savedLimit } from '../downloads/model';
 import { defaultLimitBytes, limitOptions } from './model';
 
@@ -32,7 +34,8 @@ function storedLimit(): number {
  * for the network it is on and the device's size limit (shared with the other accounts'
  * caches), and fetches only while the server is reachable. What it holds stays when the
  * account signs out or another one is opened. `PlaybackProvider` tells it what the session
- * will play next.
+ * will play next. With the native engine it keeps what the engine streams, and downloads
+ * take its whole files instead of fetching them again.
  */
 export function StreamingCacheProvider({ children }: PropsWithChildren) {
   const api = useSignedInApi();
@@ -69,6 +72,7 @@ export function StreamingCacheProvider({ children }: PropsWithChildren) {
     const network = downloadNetwork();
     const next = new StreamingCache({
       index: cacheIndex(account), files: cacheFiles(), network, source,
+      streams: (runningEngine() === 'native' && engineStreams()) || undefined,
       settings: {
         limitBytes: storedLimit(),
         wifiQuality: live.current.settings?.qualityWifi ?? 'original',
@@ -84,6 +88,13 @@ export function StreamingCacheProvider({ children }: PropsWithChildren) {
       setCache(null);
     };
   }, [account]);
+
+  // A download of a track the cache holds in that very stream takes the file instead of fetching it.
+  useEffect(() => {
+    if (!cache || !downloads) return;
+    downloads.setStreamingCache(cache);
+    return () => downloads.setStreamingCache(null);
+  }, [cache, downloads]);
 
   // Cached tracks show in the queue with no connection.
   useEffect(() => {
