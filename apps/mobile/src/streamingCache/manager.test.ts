@@ -3,7 +3,7 @@ import type { PlaybackDescriptor, StreamQuality, TrackSummary } from '@squirmy/c
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NetworkKind } from '../downloads/model';
 import { StreamingCache, type CacheFiles, type CacheIndex, type CacheSettings, type CacheSource } from './manager';
-import type { CacheRow, Near, Outlook } from './model';
+import type { CacheRow, ForeignRow, Near, Outlook } from './model';
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const numberOf = (trackId: string) => Number(trackId.slice(-12));
@@ -55,8 +55,13 @@ class MemoryIndex implements CacheIndex {
   remove(rows: readonly Pick<CacheRow, 'trackId' | 'quality'>[]) {
     for (const item of rows) this.data.delete(`${item.trackId}:${item.quality}`);
   }
-  removeOthers() {
-    for (const account of [...MemoryIndex.accounts.keys()]) if (account !== this.account) MemoryIndex.accounts.delete(account);
+  others(): ForeignRow[] {
+    return [...MemoryIndex.accounts].filter(([account]) => account !== this.account).flatMap(([account, rows]) => [...rows.values()].map(item => ({
+      account, trackId: item.trackId, quality: item.quality, file: item.file, art: item.art, bytes: item.bytes, addedAt: item.addedAt, playedAt: item.playedAt,
+    })));
+  }
+  removeOthers(rows: readonly ForeignRow[]) {
+    for (const item of rows) MemoryIndex.accounts.get(item.account)?.delete(`${item.trackId}:${item.quality}`);
   }
   referencedFiles() {
     const names = new Set<string>();
@@ -287,6 +292,41 @@ describe('StreamingCache', () => {
     expect(cache.summary().usedBytes).toBe(3000);
   });
 
+  it('counts other accounts’ files toward the device’s limit, and evicts theirs and its own alike, least recently played first', async () => {
+    const files = new FakeFiles();
+    const other = new MemoryIndex('b');
+    other.put([row(50, { playedAt: 100, art: 'art-shared.webp' }), row(51, { playedAt: 400 })]);
+    for (const name of ['seed-50-original.flac', 'seed-51-original.flac']) files.disk.set(name, 1000);
+    files.disk.set('art-shared.webp', 10);
+    const seed = [row(10, { playedAt: 200, art: 'art-shared.webp' }), row(11, { playedAt: 300 })];
+    const { cache, index, settle } = setup({ seed, files, settings: { limitBytes: 4500 } });
+    // Within the limit together: nothing goes, and the cover both accounts use stays.
+    expect(other.tracks()).toEqual([50, 51]);
+    expect(files.disk.has('art-shared.webp')).toBe(true);
+    expect(cache.summary()).toEqual({ usedBytes: 2000, count: 2 });
+
+    cache.setSettings({ limitBytes: 2500 });
+    await settle();
+    // 4000 bytes over 2500: the other account's song played longest ago, then this account's.
+    expect(other.tracks()).toEqual([51]);
+    expect(index.tracks()).toEqual([11]);
+    expect(files.audio()).toEqual(['seed-11-original.flac', 'seed-51-original.flac']);
+    expect(files.disk.has('art-shared.webp')).toBe(false);
+  });
+
+  it('removes another account’s files when that account is removed, and leaves its own', () => {
+    const files = new FakeFiles();
+    const other = new MemoryIndex('b');
+    other.put([row(50, { art: 'art-other.webp' })]);
+    files.disk.set('seed-50-original.flac', 1000);
+    files.disk.set('art-other.webp', 10);
+    const { cache, index } = setup({ seed: [row(10)], files });
+    cache.forgetAccount('b');
+    expect(other.tracks()).toEqual([]);
+    expect(index.tracks()).toEqual([10]);
+    expect([...files.disk.keys()]).toEqual(['seed-10-original.flac']);
+  });
+
   it('evicts at once when the limit is lowered, but never what plays or follows', async () => {
     const seed = [row(1, { playedAt: 1 }), row(2, { playedAt: 2 }), row(3, { playedAt: 900 }), row(4, { playedAt: 800 })];
     const { cache, index, files, changed, settle } = setup({ seed });
@@ -414,9 +454,10 @@ describe('StreamingCache', () => {
     expect(source.describes).toEqual(['2:original', '1:original']);
   });
 
-  it('reconciles with the folder at launch: purged files, strays and other accounts', () => {
+  it('reconciles with the folder at launch: purged files and strays, keeping other accounts’ files', () => {
     const files = new FakeFiles();
-    new MemoryIndex('b').put([row(50)]);
+    const other = new MemoryIndex('b');
+    other.put([row(50), row(51)]);
     files.disk.set('seed-50-original.flac', 1000);
     files.disk.set('stray.flac', 77);
     files.disk.set('art-kept.webp', 10);
@@ -435,8 +476,9 @@ describe('StreamingCache', () => {
     expect(index.tracks()).toEqual([1, 4]);
     expect(second.has(id(2))).toBe(false);
     expect(index.row(4)!.art).toBeNull();
-    expect([...files.disk.keys()].sort()).toEqual(['art-kept.webp', 'seed-1-original.flac', 'seed-4-original.flac']);
-    expect(MemoryIndex.accounts.has('b')).toBe(false);
+    expect([...files.disk.keys()].sort()).toEqual(['art-kept.webp', 'seed-1-original.flac', 'seed-4-original.flac', 'seed-50-original.flac']);
+    // The other account keeps its file for when it is opened again; one the system purged is forgotten.
+    expect(other.tracks()).toEqual([50]);
     expect(second.summary()).toEqual({ usedBytes: 2000, count: 2 });
     expect(second.tracks().map(item => item.title)).toEqual(['Track 1', 'Track 4']);
   });

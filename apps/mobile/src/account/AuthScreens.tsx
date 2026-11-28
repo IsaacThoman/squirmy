@@ -2,18 +2,20 @@ import { ApiError } from '@squirmy/client-core';
 import { useMutation } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { useEffect, useRef, useState } from 'react';
-import { Linking } from 'react-native';
+import { Linking, Platform } from 'react-native';
 import { displayAddress, isExposedHttp } from './address';
 import { unsavedSignIn, useAccount } from './AccountProvider';
 import { signInErrorMessage } from './auth';
 import { AuthField, AuthLink, AuthPage, AuthSection, AuthServer, AuthSubmit, type FieldHandle } from './AuthForm';
 import { ConnectError, findServer } from './server';
 import { lastUsername, rememberUsername } from './storage';
+import { accountTitle } from './storageUsage';
 
 const addressHint = 'For example music.example.com or http://192.168.1.20:4747.';
+const savedNote = `Accounts on this ${Platform.OS === 'ios' ? 'iPhone' : 'phone'}. One that’s still signed in opens at once.`;
 
 export function ConnectScreen() {
-  const { state, connect } = useAccount();
+  const { state, accounts, connect, switchTo } = useAccount();
   const previous = state.status === 'connect' ? state.previous : null;
   const [address, setAddress] = useState(previous ? displayAddress(previous.url) : '');
   const search = useRef<AbortController | null>(null);
@@ -55,13 +57,18 @@ export function ConnectScreen() {
     </AuthSection>}
     <AuthSubmit title="Continue" busyTitle="Connecting…" busy={lookup.isPending} disabled={!address.trim()} onPress={submit} />
     {lookup.isPending && <AuthSection><AuthLink title="Cancel" onPress={cancel} /></AuthSection>}
+    {/* Back to an account already on this phone, as it was: adding one can be called off here. */}
+    {accounts.length > 0 && !lookup.isPending && <AuthSection footer={savedNote}>
+      {accounts.map(account => <AuthLink key={account.key} icon="person.crop.circle"
+        title={`${accountTitle(account)} on ${account.server.name}`} onPress={() => void switchTo(account.key)} />)}
+    </AuthSection>}
   </AuthPage>;
 }
 
 type Mode = 'signIn' | 'register';
 
 export function SignInScreen() {
-  const { state, unsaved, signIn, register, switchServer } = useAccount();
+  const { state, unsaved, signIn, register, addAccount } = useAccount();
   const [mode, setMode] = useState<Mode>('signIn');
   const serverUrl = state.status === 'signIn' ? state.server.url : '';
   const [inviteCode, setInviteCode] = useState('');
@@ -116,7 +123,7 @@ export function SignInScreen() {
     message={notice ?? (unsaved ? unsavedSignIn : registering
       ? inviteRequired ? `Use the invite code you were given to join ${server.name}.` : `Create an account on ${server.name}.`
       : `Sign in to listen to ${server.name}.`)}>
-    <AuthServer server={server} onChange={switchServer} />
+    <AuthServer server={server} onChange={addAccount} />
     {registering && <AuthSection footer={inviteRequired
       ? 'Ask the person who runs this server for an invite code.'
       : 'An invite code can give your account more permissions. You can leave it empty.'}>
