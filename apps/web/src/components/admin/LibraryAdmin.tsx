@@ -1,6 +1,7 @@
 import {
   CreateLibraryRootRequest, UpdateLibraryRootRequest,
   type AcquisitionUsage, type DirectoryListing, type JobQueueStats, type LibraryRoot, type LibraryStats, type OrganizeTemplateInfo, type ServerEvent,
+  type SonicProgress,
 } from '@squirmy/contracts'
 import { Briefcase, ChevronRight, Eye, FolderOpen, FolderPlus, MoreHorizontal, Pencil, Power, RefreshCw, ScanLine, Trash2, Wand2 } from 'lucide-react'
 import { Fragment, useState, type ReactNode } from 'react'
@@ -188,8 +189,32 @@ function LibraryStatistics({ stats, cache, openReviews, failure }: { stats: Libr
             </ul>
           </div>
         )}
+        {stats.sonic && stats.sonic.files > 0 && <SonicAnalysis progress={stats.sonic} />}
       </div>
     </Panel>
+  )
+}
+
+/**
+ * How far the sonic analysis radio ranks with has got. It runs one song at a time at the
+ * lowest priority, so a large library takes a day or more; the bar shows it moving.
+ */
+function SonicAnalysis({ progress }: { progress: SonicProgress }) {
+  const done = progress.analyzed + progress.failed >= progress.files
+  return (
+    <div className={cn(cardClass, 'p-4')}>
+      <div className="flex items-baseline justify-between gap-3 text-xs text-muted-foreground">
+        <p>Sonic analysis</p>
+        <p><span className="font-medium tabular text-foreground">{progress.analyzed.toLocaleString()}</span> of {plural(progress.files, 'file')}</p>
+      </div>
+      <ProgressBar className="mt-3" value={progress.analyzed / progress.files} label="Sonic analysis" />
+      <p className="mt-3 text-xs text-muted-foreground">
+        {!progress.enabled
+          ? <>Off. Turn it on in <Link to="/admin/settings" className="text-primary underline-offset-4 hover:underline">Server settings</Link>; tempo, key and mood tags are read either way.</>
+          : done ? 'Every song is analysed; new ones are as they arrive.' : 'Tempo, key, energy and sound of each song, for radio. It runs in the background, one song at a time.'}
+        {progress.failed > 0 && <> {plural(progress.failed, 'file')} could not be decoded.</>}
+      </p>
+    </div>
   )
 }
 

@@ -174,7 +174,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   // The player says a radio is starting, and why one did not; a second press while one starts does nothing.
   const radio = useMutation({
-    mutationFn: (seed: RadioSeed) => (seed.type === 'track' ? api.radio.track(seed.id) : api.radio.artist(seed.id)),
+    mutationFn: (seed: RadioSeed) => (seed.type === 'artist' ? api.radio.artist(seed.id) : seed.type === 'sonic' ? api.radio.sonic(seed.id) : api.radio.track(seed.id)),
     onMutate: () => status.show({ message: 'Starting radio…', tone: 'busy', key: RADIO_STATUS }),
     onSuccess: ({ tracks, context }) => {
       status.clear(RADIO_STATUS)
