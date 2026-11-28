@@ -543,7 +543,8 @@ export function useTrackLoading(trackId: string | undefined): LoadingPhase {
   });
 }
 
-function useAppActive(): boolean {
+/** Whether the app is on screen (not in the background or the app switcher). */
+export function useAppActive(): boolean {
   const [active, setActive] = useState(AppState.currentState === 'active');
   useEffect(() => {
     const subscription = AppState.addEventListener('change', status => setActive(status === 'active'));

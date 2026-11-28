@@ -24,6 +24,7 @@ import { useLoading, usePlaybackState, usePosition } from './playback';
 import { DETACHED_LABEL, DETACHED_SYMBOL } from './player/detach';
 import { playPauseLabel, STILL_LOADING_LABEL } from './player/loading';
 import { artworkTransform, type ArtworkFrame } from './player/artwork';
+import { AmbientArtwork } from './player/AmbientArtwork';
 import { ArtworkPrefetch } from './player/ArtworkPrefetch';
 import { QualityBadge } from './player/QualityBadge';
 import { usePlaybackStatus } from './player/usePlaybackStatus';
@@ -117,7 +118,6 @@ export default function Player() {
   const loading = useLoading();
   const artwork = track?.album?.artwork;
   const artworkImage = useArtworkImage(artwork, tablet ? tabletArtworkLimit : 440);
-  const backdropImage = useArtworkImage(artwork, 300);
   const detail = useSharedValue(0);
   const queueShown = useSharedValue(0);
   const nowPlayingShift = useSharedValue(0);
@@ -426,8 +426,8 @@ export default function Player() {
         <Glass tint="systemThinMaterial" animatedProps={glassProps} style={StyleSheet.absoluteFill} />
         <Animated.View style={[styles.page, { width, height }, pageStyle]}>
           <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: artwork?.color ?? fallbackTint }, backdropStyle]} pointerEvents="none">
-            {backdropImage && <Image source={backdropImage.source} placeholder={backdropImage.placeholder} blurRadius={70}
-              contentFit="cover" cachePolicy="memory-disk" transition={210} style={styles.backdropArt} />}
+            {/* The cover's colours, turning slowly; held back as the still blur was, under the same gradient. */}
+            <View style={styles.backdropArt}><AmbientArtwork artwork={artwork} /></View>
             <LinearGradient
               colors={colors.playerGradient}
               locations={[0, 0.39, 0.85, 1]}
@@ -731,7 +731,7 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   page: { position: 'absolute', top: 0, left: 0 },
   bubbleContent: { position: 'absolute', top: 0, left: 0 },
   safe: { flex: 1 },
-  backdropArt: { width: '110%', height: '86%', opacity: 0.62 },
+  backdropArt: { ...StyleSheet.absoluteFill, opacity: 0.62 },
   grabberTouch: { alignItems: 'center' },
   collapse: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center' },
   offline: { position: 'absolute', top: 2, left: artworkInset },

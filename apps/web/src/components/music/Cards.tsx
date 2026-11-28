@@ -334,7 +334,7 @@ export function AlbumRow({ album, onPlay, className, pin }: { album: AlbumSummar
 
 /** A responsive grid of cards that fills the width. */
 export function CardGrid({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn('grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-[repeat(auto-fill,minmax(10rem,1fr))]', className)}>{children}</div>
+  return <div className={cn('grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] compact:sm:grid-cols-[repeat(auto-fill,minmax(8rem,1fr))]', className)}>{children}</div>
 }
 
 /** A colored tile for browsing a genre, with a cover tilted into the corner, or a record where there is none. */

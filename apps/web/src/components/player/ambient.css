@@ -1,0 +1,67 @@
+/*
+ * Now Playing's ambient backdrop (AmbientArtwork.tsx). Each turning layer is a canvas of a few
+ * dozen pixels scaled up past the window's diagonal, so a turned layer always covers the corners.
+ * Only `transform` and `opacity` change, which the compositor does without painting.
+ */
+.ambient {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  container-type: size;
+}
+
+.ambient-layer,
+.ambient-shade {
+  position: absolute;
+  inset: 0;
+}
+
+.ambient-fade {
+  animation: ambient-in var(--ambient-fade, 900ms) ease both;
+}
+
+.ambient-turn {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(max(100cqw, 100cqh) * 1.5);
+  height: calc(max(100cqw, 100cqh) * 1.5);
+  /* Smooth scaling is the blur. */
+  image-rendering: auto;
+  will-change: transform;
+  animation: 120s linear infinite;
+}
+
+.ambient-turn-forward {
+  transform: translate(-50%, -50%) rotate(0deg) scale(1.1);
+  animation-name: ambient-forward;
+}
+
+.ambient-turn-back {
+  opacity: 0.7;
+  transform: translate(-50%, -50%) rotate(180deg) scaleX(-1);
+  animation-name: ambient-back;
+}
+
+.ambient[data-turning='false'] .ambient-turn {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient-turn {
+    animation: none;
+  }
+}
+
+@keyframes ambient-in {
+  from { opacity: 0; }
+}
+
+@keyframes ambient-forward {
+  to { transform: translate(-50%, -50%) rotate(360deg) scale(1.1); }
+}
+
+@keyframes ambient-back {
+  to { transform: translate(-50%, -50%) rotate(-180deg) scaleX(-1); }
+}
