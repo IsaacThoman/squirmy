@@ -1,6 +1,6 @@
 import { SmartPlaylistRules } from '@squirmy/contracts'
 import { describe, expect, it } from 'vitest'
-import { emptyDraft, fieldOptions, newCondition, newGroup, toDraft, toRules, withField, type Draft } from './smart-rules'
+import { emptyDraft, fieldOptions, newCondition, newGroup, toDraft, toRules, withField, type Draft } from './smart-rules.js'
 
 const draftWith = (rules: Draft['rules'], extra: Partial<Draft> = {}): Draft => ({ ...emptyDraft(), rules, ...extra })
 

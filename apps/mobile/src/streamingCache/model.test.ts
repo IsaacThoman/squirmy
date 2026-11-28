@@ -99,6 +99,8 @@ describe('streaming cache rules', () => {
     expect(policyFor('cellular', 'high')).toEqual({ ahead: 2, current: false, concurrency: 1 });
     expect(policyFor('cellular', 'data_saver').ahead).toBe(0);
     expect(policyFor('none', 'original').concurrency).toBe(0);
+    // The native engine keeps what it streams: the playing stream is never fetched a second time.
+    expect(policyFor('wifi', 'high', true)).toEqual({ ahead: 2, current: false, concurrency: 2 });
   });
 });
 
@@ -145,6 +147,17 @@ describe('prefetch plan', () => {
     const second = plan(input({ rows: [row(2)], running: new Map([[id(3), 'original' as StreamQuality]]) }));
     expect(started(second)).toEqual([1]);
     expect(started(plan(input({ rows: [row(1), row(2), row(3)] })))).toEqual([]);
+  });
+
+  it('with an engine that keeps what it streams, never fetches the stream being played, and lets a fetch of it finish', () => {
+    expect(started(plan(input({ shared: true, rows: [row(2), row(3)] })))).toEqual([]);
+    // Track 2 began while its fetch ran: that fetch is the download the engine plays.
+    const running = new Map<string, StreamQuality>([[id(2), 'original'], [id(9), 'original']]);
+    const moved = plan(input({ shared: true, outlook: outlook('active', 2, 3, 4), running }));
+    expect(moved.cancel).toEqual([id(9)]);
+    expect(started(moved)).toEqual([3]);
+    // With nothing playing here, what play would start is fetched like the rest.
+    expect(started(plan(input({ shared: true, outlook: outlook('idle', 1, 2, 3) })))).toEqual([1, 2]);
   });
 
   it('waits for entries the server is still preparing, and looks past them', () => {

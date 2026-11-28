@@ -4,7 +4,7 @@ import type { DownloadNetwork } from '../downloads/manager';
 import { extensionFor, retryDelay, sizeMatches } from '../downloads/model';
 import {
   estimateBytes, evictionsAcross, inUse, maxAttempts, nothingNear, pick, plan, reconcile, sameOutlook, type CacheRow, type ForeignRow,
-  type Outlook, type Plan, type Target,
+  type Near, type Outlook, type Plan, type Target,
 } from './model';
 
 /** The index of the cache, for one account. Writes are synchronous so a row and its file change together. */
@@ -41,6 +41,28 @@ export type CacheFiles = {
   newName(extension: string): string;
   /** Bytes free on the device. */
   freeBytes(): number;
+  /** Moves a whole file from elsewhere on the device (`uri`) into the folder as `name`, and gives its size. */
+  adopt(uri: string, name: string): number;
+  /** Deletes a file outside the folder: a stream the engine wrote that the cache does not keep. */
+  discardOutside(uri: string): void;
+};
+
+/** What the engine says of a stream it downloaded under a key: its whole file, or that there is none. */
+export type StreamReport = { key: string; uri: string; bytes: number } | { key: string; uri: null; message: string };
+
+/**
+ * The native engine's streams, when it is the one playing. It writes what it streams to a
+ * file and hands the file over once it is whole, so the cache keeps what plays instead of
+ * fetching it a second time, and its fetches go through the engine too, so a fetch and the
+ * load of the same stream share one download.
+ */
+export type EngineStreams = {
+  /** Downloads `url` under `key` without playing it, unless it is downloading already. */
+  prefetch(key: string, url: string): void;
+  /** Stops a prefetch; the download goes on while the engine plays it. */
+  cancelPrefetch(key: string): void;
+  /** Each keyed stream once, as it ends. Returns a function that stops listening. */
+  subscribe(listener: (report: StreamReport) => void): () => void;
 };
 
 /** The server, as the cache needs it. */
@@ -63,6 +85,8 @@ export type CacheSettings = {
 export type CacheSummary = { usedBytes: number; count: number };
 
 type Job = { quality: StreamQuality; cancelled: boolean; cancel: (() => void) | null; art: string | null };
+/** A stream the engine fills that the cache will keep: what the file is, for its row. */
+type Stream = { trackId: string; albumId: string | null; quality: StreamQuality; descriptor: PlaybackDescriptor };
 
 /** Skipping through a queue changes what is near several times a second; fetches begin once it has settled. */
 const settleMs = 1000;
@@ -70,13 +94,25 @@ const farFuture = '2100-01-01T00:00:00.000Z';
 const artSuffix = '.webp';
 const qualities: readonly StreamQuality[] = ['original', 'high', 'data_saver'];
 const keyOf = (row: Pick<CacheRow, 'trackId' | 'quality'>) => `${row.trackId}:${row.quality}`;
+/** Streams waiting for the engine's word are forgotten past this many, oldest first: most are of songs skipped or never loaded. */
+const maxStreams = 64;
+
+/** The stream's key for the engine: the same file in the same profile is the same bytes, whatever URL signs it. */
+export function streamKeyOf(descriptor: Pick<PlaybackDescriptor, 'fileId' | 'profile'>): string {
+  return `${descriptor.fileId}:${descriptor.profile}`;
+}
 
 /**
  * The streaming cache of one account: audio files of what was played and what plays next,
  * kept in the app's Caches folder under a size limit. It follows the session's outlook,
- * fetches the entries about to play (and, on Wi-Fi, the stream being played), cancels
- * fetches the queue has moved away from, and removes the least recently played files
- * when over the limit. Files the player may hold are never removed under it.
+ * fetches the entries about to play (and, on Wi-Fi with the classic player, the stream being
+ * played), cancels fetches the queue has moved away from, and removes the least recently
+ * played files when over the limit. Files the player may hold are never removed under it.
+ *
+ * With the native engine (`streams`), what plays is what is kept: the player names each
+ * stream it loads from the server (`streamKey`), the engine hands the file over once it is
+ * whole, and the cache moves it into its folder. Fetches ahead go through the engine, so a
+ * track that starts while its fetch runs reads the same download.
  */
 export class StreamingCache {
   private rows = new Map<string, CacheRow>();
@@ -90,6 +126,12 @@ export class StreamingCache {
   private readonly retired = new Map<string, string>();
   private readonly art = new Set<string>();
   private readonly artFetches = new Map<string, Promise<string | null>>();
+  /** Streams the engine fills that the cache will keep, by stream key. */
+  private readonly streams = new Map<string, Stream>();
+  /** Fetches through the engine waiting for its report, by stream key. */
+  private readonly arrivals = new Map<string, (report: StreamReport) => void>();
+  /** Files the engine handed over being recorded, so their covers are spared meanwhile. */
+  private readonly keeping = new Set<Job>();
   private readonly listeners = new Set<() => void>();
   private readonly fileListeners = new Set<(trackId: string) => void>();
   private outlook: Outlook = nothingNear;
@@ -103,6 +145,7 @@ export class StreamingCache {
   private settleTimer: ReturnType<typeof setTimeout> | undefined;
   private retryTimer: ReturnType<typeof setTimeout> | undefined;
   private stopNetwork: (() => void) | undefined;
+  private stopStreams: (() => void) | undefined;
 
   constructor(private readonly ports: {
     index: CacheIndex;
@@ -110,6 +153,8 @@ export class StreamingCache {
     network: DownloadNetwork;
     source: CacheSource;
     settings: CacheSettings;
+    /** The native engine's streams, when it plays; absent for the classic player. */
+    streams?: EngineStreams;
     /** The track is a download, which plays first and needs no cached copy. */
     downloaded: (trackId: string) => boolean;
     now?: () => number;
@@ -139,6 +184,7 @@ export class StreamingCache {
     for (const name of onDisk.keys()) if (name.endsWith(artSuffix) && !orphans.includes(name)) this.art.add(name);
     this.pruneArt();
     this.stopNetwork = network.subscribe(() => this.pump());
+    this.stopStreams = this.ports.streams?.subscribe(report => this.streamEnded(report));
     this.changed();
     this.pump();
   }
@@ -147,9 +193,11 @@ export class StreamingCache {
   dispose(): void {
     this.disposed = true;
     this.stopNetwork?.();
+    this.stopStreams?.();
     clearTimeout(this.settleTimer);
     clearTimeout(this.retryTimer);
     for (const trackId of [...this.jobs.keys()]) this.cancel(trackId);
+    for (const job of this.keeping) job.cancelled = true;
   }
 
   /** Removes what another account keeps here, when it is removed from the device. */
@@ -241,6 +289,35 @@ export class StreamingCache {
     return this.art.has(name) ? this.ports.files.uri(name) : null;
   }
 
+  /**
+   * The key the engine streams `descriptor` under while it plays `entry` at `quality`, so the
+   * file is kept once it is whole; null when nothing would keep it (the classic player, the
+   * cache off or just cleared, or a downloaded track).
+   */
+  streamKey(entry: Pick<Near, 'trackId' | 'albumId'>, quality: StreamQuality, descriptor: PlaybackDescriptor): string | null {
+    const { streams, settings, downloaded } = this.ports;
+    if (!streams || this.disposed || this.held || settings.limitBytes <= 0 || downloaded(entry.trackId)) return null;
+    return this.expect({ trackId: entry.trackId, albumId: entry.albumId, quality, descriptor });
+  }
+
+  /**
+   * Gives up the cached file of exactly this stream (the same file in the same profile) to
+   * be moved into downloads: the cache forgets it without deleting it. Null when there is
+   * none, or while the classic player may open it again by its name.
+   */
+  take(trackId: string, stream: Pick<PlaybackDescriptor, 'fileId' | 'profile'>): { uri: string; bytes: number } | null {
+    const { files, index, streams } = this.ports;
+    const row = this.copies(trackId).find(copy => copy.fileId === stream.fileId && copy.descriptor.profile === stream.profile);
+    if (!row || !files.exists(row.file)) return null;
+    // The native engine reads through the open file wherever it is moved.
+    if (!streams && inUse(this.outlook).has(trackId)) return null;
+    this.rows.delete(keyOf(row));
+    index.remove([row]);
+    this.pruneArt();
+    this.changed([trackId]);
+    return { uri: files.uri(row.file), bytes: row.bytes };
+  }
+
   // Changing
 
   /**
@@ -249,6 +326,7 @@ export class StreamingCache {
    */
   clear(): void {
     for (const trackId of [...this.jobs.keys()]) this.cancel(trackId);
+    for (const job of this.keeping) job.cancelled = true;
     this.held = true;
     this.drop([...this.rows.values()]);
     this.pump();
@@ -289,6 +367,7 @@ export class StreamingCache {
       running: new Map([...this.jobs].map(([trackId, job]) => [trackId, job.quality])),
       size: trackId => this.sizes.get(trackId),
       retryAt: trackId => this.failures.get(trackId)?.retryAt,
+      shared: Boolean(this.ports.streams),
     });
   }
 
@@ -333,34 +412,13 @@ export class StreamingCache {
       if (this.plan().cancel.includes(trackId)) return;
 
       name = files.newName(extensionFor(descriptor));
-      const transfer = files.fetch(source.url(descriptor), name);
-      job.cancel = transfer.cancel;
-      const { written, total } = await transfer.done;
+      const { written, total } = await this.download(target, descriptor, name, job);
       if (job.cancelled) return;
       if (!sizeMatches(written, [total, descriptor.transcoded ? null : descriptor.bytes])) throw new Error('The file was incomplete.');
       // A transcode's size was an estimate. One that turns out too big is let go now, and not fetched again while it is near.
       this.sizes.set(trackId, written);
       if (this.plan().cancel.includes(trackId)) return;
-      const track = await source.track(trackId, target.albumId).catch(() => null);
-      job.art = track?.album?.artwork ? await this.fetchArt(track.album.artwork, job) : null;
-      if (job.cancelled) return;
-
-      const { url: _url, expiresAt: _expiresAt, ...kept } = descriptor;
-      // Any copy the track already had is of a lesser quality, or of a file the server has replaced.
-      const replaced = this.copies(trackId);
-      const playing = this.outlook.role === 'active' && this.outlook.current?.trackId === trackId;
-      const playedAt = playing ? this.now : Math.max(0, ...replaced.map(old => old.playedAt ?? 0)) || null;
-      const row: CacheRow = {
-        trackId, albumId: target.albumId, quality: target.quality, file: name, fileId: descriptor.fileId, bytes: written,
-        art: job.art, descriptor: kept, track, addedAt: this.now, playedAt, checkedAt: this.now,
-      };
-      name = null;
-      this.rows.set(keyOf(row), row);
-      this.ports.index.put([row]);
-      this.failures.delete(trackId);
-      for (const old of replaced) if (keyOf(old) === keyOf(row)) this.discard(old.file, trackId);
-      this.drop(replaced.filter(old => keyOf(old) !== keyOf(row)), false);
-      this.changed([trackId]);
+      if (await this.record(target, descriptor, name, written, job)) name = null;
     } catch (error) {
       if (job.cancelled || this.disposed) return;
       const missing = error instanceof ApiError && error.status === 404;
@@ -373,6 +431,116 @@ export class StreamingCache {
         this.jobs.delete(trackId);
         this.pump();
       }
+    }
+  }
+
+  /** Fetches the stream into `name`: through the engine when it plays, so a load of the same stream reads this download. */
+  private download(target: Target, descriptor: PlaybackDescriptor, name: string, job: Job): Promise<{ written: number; total: number }> {
+    const { files, source, streams } = this.ports;
+    const url = source.url(descriptor);
+    if (!streams) {
+      const transfer = files.fetch(url, name);
+      job.cancel = transfer.cancel;
+      return transfer.done;
+    }
+    const key = this.expect({ trackId: target.trackId, albumId: target.albumId, quality: target.quality, descriptor });
+    return new Promise((resolve, reject) => {
+      const arrived = (report: StreamReport) => {
+        if (report.uri === null) return reject(new Error(report.message));
+        try {
+          resolve({ written: files.adopt(report.uri, name), total: report.bytes });
+        } catch (error) {
+          files.discardOutside(report.uri);
+          reject(error);
+        }
+      };
+      this.arrivals.set(key, arrived);
+      job.cancel = () => {
+        if (this.arrivals.get(key) === arrived) this.arrivals.delete(key);
+        streams.cancelPrefetch(key);
+        reject(new Error('cancelled'));
+      };
+      streams.prefetch(key, url);
+    });
+  }
+
+  /**
+   * Makes `name`, a whole file of `written` bytes in the folder, the track's copy at
+   * `target.quality`, with its cover and summary. False when it was cancelled meanwhile.
+   */
+  private async record(target: Target, descriptor: PlaybackDescriptor, name: string, written: number, job: Job): Promise<boolean> {
+    const { trackId } = target;
+    const track = await this.ports.source.track(trackId, target.albumId).catch(() => null);
+    job.art = track?.album?.artwork ? await this.fetchArt(track.album.artwork, job) : null;
+    if (job.cancelled || this.disposed) return false;
+
+    const { url: _url, expiresAt: _expiresAt, ...kept } = descriptor;
+    // Any copy the track already had is of a lesser quality, or of a file the server has replaced.
+    const replaced = this.copies(trackId);
+    const playing = this.outlook.role === 'active' && this.outlook.current?.trackId === trackId;
+    const playedAt = playing ? this.now : Math.max(0, ...replaced.map(old => old.playedAt ?? 0)) || null;
+    const row: CacheRow = {
+      trackId, albumId: target.albumId, quality: target.quality, file: name, fileId: descriptor.fileId, bytes: written,
+      art: job.art, descriptor: kept, track, addedAt: this.now, playedAt, checkedAt: this.now,
+    };
+    this.rows.set(keyOf(row), row);
+    this.ports.index.put([row]);
+    this.failures.delete(trackId);
+    for (const old of replaced) if (keyOf(old) === keyOf(row)) this.discard(old.file, trackId);
+    this.drop(replaced.filter(old => keyOf(old) !== keyOf(row)), false);
+    this.changed([trackId]);
+    return true;
+  }
+
+  /** Remembers that the stream is wanted, so its file is kept when the engine hands it over. */
+  private expect(stream: Stream): string {
+    const key = streamKeyOf(stream.descriptor);
+    this.streams.delete(key);
+    this.streams.set(key, stream);
+    if (this.streams.size > maxStreams) this.streams.delete(this.streams.keys().next().value!);
+    return key;
+  }
+
+  /** The engine finished a keyed stream: a fetch waiting for it takes it, a stream the player streamed is kept, any other goes. */
+  private streamEnded(report: StreamReport): void {
+    const waiting = this.arrivals.get(report.key);
+    if (waiting) {
+      this.arrivals.delete(report.key);
+      if (report.uri !== null) this.streams.delete(report.key);
+      return waiting(report);
+    }
+    // Its name is kept, should the player stream it again.
+    if (report.uri === null) return;
+    const stream = this.streams.get(report.key);
+    this.streams.delete(report.key);
+    if (!stream || this.disposed) return this.ports.files.discardOutside(report.uri);
+    void this.keepStream(stream, report.uri, report.bytes);
+  }
+
+  /** Keeps a file the engine streamed while it played, as if it had been fetched. */
+  private async keepStream(stream: Stream, uri: string, bytes: number): Promise<void> {
+    const { files, settings, downloaded } = this.ports;
+    const { trackId, albumId, quality, descriptor } = stream;
+    // Too big for the whole cache, or a download plays instead.
+    if (this.held || settings.limitBytes <= 0 || bytes > settings.limitBytes || downloaded(trackId)) return files.discardOutside(uri);
+    const name = files.newName(extensionFor(descriptor));
+    let written: number;
+    try {
+      written = files.adopt(uri, name);
+    } catch {
+      return files.discardOutside(uri);
+    }
+    const job: Job = { quality, cancelled: false, cancel: null, art: null };
+    this.keeping.add(job);
+    let kept = false;
+    try {
+      if (!sizeMatches(written, [bytes, descriptor.transcoded ? null : descriptor.bytes])) return;
+      this.sizes.set(trackId, written);
+      kept = await this.record({ trackId, albumId, quality, check: false }, descriptor, name, written, job);
+      if (kept) this.pump();
+    } finally {
+      this.keeping.delete(job);
+      if (!kept) files.remove(name);
     }
   }
 
@@ -462,7 +630,7 @@ export class StreamingCache {
 
   /** Removes covers no row uses, sparing one a fetch is about to attach to its row. */
   private pruneArt(): void {
-    const used = new Set([...this.rows.values(), ...this.jobs.values(), ...this.foreign].map(item => item.art));
+    const used = new Set([...this.rows.values(), ...this.jobs.values(), ...this.keeping, ...this.foreign].map(item => item.art));
     for (const name of [...this.art]) {
       if (used.has(name)) continue;
       this.art.delete(name);

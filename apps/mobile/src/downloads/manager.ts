@@ -42,6 +42,17 @@ export type DownloadFiles = {
   uri(name: string): string;
   /** A name no other file has or will have. */
   newName(extension: string): string;
+  /** Moves a whole file from elsewhere on the device (`uri`) into the folder as `name`, and gives its size. */
+  adopt(uri: string, name: string): number;
+};
+
+/**
+ * The streaming cache, as downloads need it: a whole cached file of the very stream a
+ * download asks for is moved into downloads instead of fetched again.
+ */
+export type CachedStreams = {
+  /** Gives up the cached file of exactly this stream (the same file in the same profile), or null. */
+  take(trackId: string, stream: Pick<PlaybackDescriptor, 'fileId' | 'profile'>): { uri: string; bytes: number } | null;
 };
 
 export type DownloadNetwork = { kind(): NetworkKind; subscribe(listener: () => void): () => void };
@@ -135,6 +146,7 @@ export class DownloadManager {
   private fetching: Promise<void> | null = null;
   private fetchPausedUntil = 0;
   private stopNetwork: (() => void) | undefined;
+  private cached: CachedStreams | null = null;
 
   constructor(private readonly ports: {
     index: DownloadIndex;
@@ -184,6 +196,11 @@ export class DownloadManager {
     this.online = online;
     this.changed();
     this.pump();
+  }
+
+  /** The streaming cache whose whole files a download takes instead of fetching, or null. */
+  setStreamingCache(cached: CachedStreams | null): void {
+    this.cached = cached;
   }
 
   setOptions(options: Partial<DownloadOptions>): void {
@@ -622,6 +639,11 @@ export class DownloadManager {
       if (job.cancelled) return;
       job.descriptor = descriptor;
       job.name = files.newName(extensionFor(descriptor));
+      const moved = this.fromCache(row.trackId, descriptor, job.name);
+      if (moved !== null) {
+        job.total = moved;
+        return await this.finish(row.trackId, job, moved);
+      }
       job.transfer = files.transfer(source.url(descriptor), job.name, (written, total) => {
         job.total = total;
         const size = total > 0 ? total : descriptor.bytes ?? 0;
@@ -632,6 +654,18 @@ export class DownloadManager {
       await this.finish(row.trackId, job, await job.transfer.run());
     } catch (error) {
       this.failed(row.trackId, job, error);
+    }
+  }
+
+  /** Moves the streaming cache's whole copy of this very stream into the folder as `name`: its size, or null when there is none. */
+  private fromCache(trackId: string, descriptor: PlaybackDescriptor, name: string): number | null {
+    const copy = this.cached?.take(trackId, descriptor);
+    if (!copy) return null;
+    try {
+      return this.ports.files.adopt(copy.uri, name);
+    } catch {
+      // Left in the cache's folder without a row, which its next launch sweeps away.
+      return null;
     }
   }
 

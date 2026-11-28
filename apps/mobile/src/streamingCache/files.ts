@@ -48,5 +48,15 @@ export function cacheFiles(): CacheFiles {
     uri: name => file(name).uri,
     newName: extension => `${uuid.v4()}.${extension}`,
     freeBytes: () => Paths.availableDiskSpace,
+    // A rename on the same volume: a player reading the file reads on through its open descriptor.
+    adopt: (uri, name) => {
+      const target = file(name);
+      new File(uri).moveSync(target);
+      return Number(target.size);
+    },
+    discardOutside: uri => {
+      const target = new File(uri);
+      if (target.exists) target.delete();
+    },
   };
 }

@@ -124,6 +124,16 @@ class FakeFiles implements DownloadFiles {
   newName(extension: string) {
     return `file-${(this.serial += 1)}.${extension}`;
   }
+  /** Files moved in from elsewhere, such as the streaming cache's folder, by where they came from. */
+  readonly adopted = new Map<string, string>();
+  sizes = new Map<string, number>();
+  adopt(uri: string, name: string) {
+    const bytes = this.sizes.get(uri);
+    if (bytes === undefined) throw new Error(`No file at ${uri}`);
+    this.adopted.set(uri, name);
+    this.disk.set(name, bytes);
+    return bytes;
+  }
   /** Transfers still running. */
   active() {
     return this.transfers.filter(transfer => !transfer.cancelled && !this.disk.has(transfer.name));
@@ -392,6 +402,39 @@ describe('DownloadManager queue', () => {
     manager.setOptions({ otherBytes: 0 });
     await settle();
     expect(files.transfers).toHaveLength(1);
+  });
+
+  it('moves the streaming cache’s whole file of the same stream in instead of downloading it again', async () => {
+    const { manager, files, index, settle } = setup();
+    const taken: string[] = [];
+    files.sizes.set('file:///cache/one.flac', 1000);
+    manager.setStreamingCache({
+      take: (trackId, stream) => {
+        taken.push(`${trackId}:${stream.fileId}:${stream.profile}`);
+        return trackId === id(1) ? { uri: 'file:///cache/one.flac', bytes: 1000 } : null;
+      },
+    });
+    manager.addTrack(track(1));
+    manager.addTrack(track(2));
+    await settle();
+    // Asked with exactly the stream the download would fetch.
+    expect(taken).toEqual([`${id(1)}:${id(1)}:original`, `${id(2)}:${id(2)}:original`]);
+    expect(files.adopted.get('file:///cache/one.flac')).toBe('file-1.flac');
+    expect(index.row(id(1))).toMatchObject({ state: 'done', file: 'file-1.flac', bytes: 1000 });
+    expect(manager.playback(id(1))?.url).toBe('file:///downloads/file-1.flac');
+    // The other is downloaded as ever.
+    expect(files.transfers.map(transfer => transfer.name)).toEqual(['file-2.flac']);
+  });
+
+  it('downloads after all when the cached file cannot be moved', async () => {
+    const { manager, files, settle } = setup();
+    manager.setStreamingCache({ take: () => ({ uri: 'file:///cache/gone.flac', bytes: 1000 }) });
+    manager.addTrack(track(1));
+    await settle();
+    expect(files.transfers).toHaveLength(1);
+    files.transfers[0]!.complete();
+    await settle();
+    expect(manager.isDownloaded(id(1))).toBe(true);
   });
 
   it('plays a download from its file with its normalization', async () => {

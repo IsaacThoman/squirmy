@@ -98,7 +98,18 @@ export type EngineMedia = {
   transcoded: boolean
   /** The stream's exact length and priming, when the server knows them. */
   gapless?: PlaybackDescriptor['gapless']
+  /**
+   * Names the stream in the app's streaming cache, for an engine that keeps what it streams
+   * (see `ResolvedPlayback`). Engines that do not ignore it.
+   */
+  cacheKey?: string | null
 } & Partial<Pick<PlaybackDescriptor, 'profile' | 'mime' | 'codec' | 'sampleRate' | 'durationMs'>>
+
+/**
+ * What `SessionPlayer.resolvePlayback` gives: the descriptor, and the key under which the
+ * app's streaming cache keeps the stream when the engine fills a file as it plays.
+ */
+export type ResolvedPlayback = PlaybackDescriptor & { cacheKey?: string | null }
 
 /**
  * - `idle`: nothing loaded.
