@@ -384,7 +384,7 @@ function QueueMode({ symbol, label, active, onPress }: {
 type QueueHandlers = {
   play: (entry: QueueEntry, track: TrackSummary) => void;
   move: (entry: QueueEntry, index: number) => void;
-  remove: (entry: QueueEntry) => void;
+  remove: (entry: QueueEntry, title?: string) => void;
   run: ReturnType<typeof useTrackActionRunner>['run'];
   /** A queued row's menu: an action that places the song moves this entry, rather than queue the song again. */
   runQueued: (entry: QueueEntry, track: TrackSummary, action: TrackAction, position: QueuePosition) => void;
@@ -397,7 +397,7 @@ function useQueueHandlers(history: boolean): QueueHandlers {
   return useMemo(() => ({
     play: (entry, track) => history ? actions.playNow(track) : actions.playQueueEntry(entry.id),
     move: (entry, index) => actions.moveInQueue(entry.id, index),
-    remove: entry => actions.removeFromQueue(entry.id),
+    remove: (entry, title) => actions.removeWithUndo(entry.id, title),
     run,
     runQueued: (entry, track, action, { total, autoplay }) => {
       switch (queuedEntryCommand(action.id)) {
@@ -509,7 +509,7 @@ const QueueTrack = memo(function QueueTrack({ entry, handlers, position, minHeig
   const placement = position && <>
     {position.index > 0 && <Button label="Move up" systemImage="chevron.up" onPress={() => handlers.move(entry, position.index - 1)} />}
     {position.index + 1 < position.total && <Button label="Move down" systemImage="chevron.down" onPress={() => handlers.move(entry, position.index + 1)} />}
-    <Button label="Remove from queue" systemImage="trash" role="destructive" onPress={() => handlers.remove(entry)} />
+    <Button label="Remove from queue" systemImage="trash" role="destructive" onPress={() => handlers.remove(entry, track?.title)} />
   </>;
   return <HStack spacing={0} modifiers={[frame({ minHeight }), onGeometryChange(({ height }) => onHeight(entry.id, height))]}>
     <Button onPress={() => { if (track && !failed) handlers.play(entry, track); }} modifiers={[plainButton, label]}>{body}</Button>
