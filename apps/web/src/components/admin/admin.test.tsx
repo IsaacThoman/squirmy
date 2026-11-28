@@ -394,7 +394,7 @@ describe('users admin', () => {
   })
 
   it('shows which users have explicit content turned off', () => {
-    renderWithApp(<UsersAdmin users={[{ ...user, explicitRestricted: true }]} invites={[]} currentUserId={id(51)} inviteLink={() => ''} onCreateUser={ok()} onUpdateUser={ok()} onDeleteUser={ok()} onCreateInvite={vi.fn()} onRevokeInvite={ok()} />)
+    renderWithApp(<UsersAdmin users={[{ ...user, explicitRestricted: true }]} invites={[]} currentUserId={id(51)} inviteLink={() => ''} onCreateUser={ok()} onUpdateUser={ok()} onDeleteUser={ok()} onCreateInvite={vi.fn()} onRevokeInvite={ok()} {...securityProps} />)
     expect(within(screen.getByText('@sam').closest('tr')!).getAllByText('No explicit').length).toBeGreaterThan(0)
   })
 })
