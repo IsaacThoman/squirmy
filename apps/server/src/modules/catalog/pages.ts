@@ -10,10 +10,12 @@ import { badRequest, notFound } from '../../lib/errors.js'
 import { getServerSettings } from '../../lib/settings.js'
 import { queueAlbumResolve } from '../acquisition/coverage.js'
 import { ensureAlbumDetail, ensureArtistDetail, ensureLyrics } from '../enrichment/detail.js'
+import { servedLyrics } from '../library/lyrics.js'
 import { specialPurposeArtists } from '../metadata/musicbrainz.js'
 import { canStartArtistRadio, similarArtists } from '../radio/index.js'
 import { editionFreeTitle, labelFreeKey, prefixEnd, printedTitleKey, releaseKey } from '../search/keys.js'
 import { canonicalRelease, collectionCounts, collectionFile } from './availability.js'
+import { cleanTrackList } from './explicit.js'
 import { resolveOne } from './redirects.js'
 import { alignedTrackSummaries, albumSummaries, artistSummaries, trackSummaries } from './summaries.js'
 
@@ -206,7 +208,8 @@ export async function albumDetail(userId: string, id: string): Promise<AlbumDeta
   ])
   if (!summary || !extra) throw notFound('No such album', 'album_not_found')
 
-  const summaries = await alignedTrackSummaries(userId, tracks.map((track) => ({ id: track.recordingId, albumId })))
+  // Clean versions stand in for explicit songs for a user who has explicit content off.
+  const summaries = await cleanTrackList(userId, await alignedTrackSummaries(userId, tracks.map((track) => ({ id: track.recordingId, albumId }))), albumId)
   await queueAlbumResolve(summaries.flatMap((track) => track?.availability === 'on_demand' ? [track.id] : []), albumId)
   const discs: AlbumDisc[] = []
   for (const [index, track] of tracks.entries()) {
@@ -489,5 +492,5 @@ export async function trackLyrics(id: string): Promise<Lyrics> {
     select recording_id as "trackId", synced, plain, instrumental, source from lyrics
     where recording_id = ${recordingId} and (synced is not null or plain is not null or instrumental)`)
   if (!row) throw notFound('No lyrics for this track', 'lyrics_not_found')
-  return row
+  return servedLyrics(row)
 }

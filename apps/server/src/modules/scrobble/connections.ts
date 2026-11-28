@@ -13,6 +13,7 @@ import { notFound } from '../../lib/errors.js'
 type StoredConnection = {
   /** `encrypt('scrobble-credential', …)` of the token or session key. */
   credential: string
+  apiUrl?: string
   account: string
   /** ISO time of the first connection to this account. Earlier plays are never scrobbled. */
   since: string
@@ -25,6 +26,7 @@ export type Connection = {
   credential: string
   /** The stored ciphertext, which identifies this connection when it is updated later. */
   ciphertext: string
+  apiUrl?: string
   account: string
   since: Date
   needsAttention: boolean
@@ -54,6 +56,7 @@ export function scrobblingOf(settings: Record<string, unknown>): UserScrobbling 
       credential: decrypt(purpose, one.credential),
       ciphertext: one.credential,
       account: one.account,
+      apiUrl: one.apiUrl,
       since: new Date(one.since),
       needsAttention: one.needsAttention ?? false,
       lastError: one.lastError ?? null,
@@ -87,14 +90,14 @@ async function dropPending(executor: Executor, userId: string, target: ScrobbleT
  * again (a new token, or after the old one was revoked) keeps its start time, so plays
  * waiting for it are still sent; a different account starts from now.
  */
-export async function saveConnection(userId: string, target: ScrobbleTarget, credential: string, account: string): Promise<void> {
+export async function saveConnection(userId: string, target: ScrobbleTarget, credential: string, account: string, apiUrl?: string): Promise<void> {
   await db.transaction(async (tx) => {
     const [row] = await tx.select({ settings: users.settings }).from(users).where(eq(users.id, userId)).for('update')
     if (!row) throw notFound('No such user')
     const previous = storedConnections(row.settings)[target]
-    const sameAccount = previous?.account === account
+    const sameAccount = previous?.account === account && previous.apiUrl === apiUrl
     if (previous && !sameAccount) await dropPending(tx, userId, target)
-    const stored: StoredConnection = { credential: encrypt(purpose, credential), account, since: sameAccount ? previous.since : new Date().toISOString() }
+    const stored: StoredConnection = { credential: encrypt(purpose, credential), account, apiUrl, since: sameAccount ? previous.since : new Date().toISOString() }
     await tx.update(users).set({
       settings: sql`${users.settings}
         || jsonb_build_object('secrets', coalesce(${users.settings}->'secrets', '{}'::jsonb) || jsonb_build_object(${target}::text, ${JSON.stringify(stored)}::jsonb))

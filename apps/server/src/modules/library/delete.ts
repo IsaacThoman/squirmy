@@ -27,10 +27,12 @@ export type DeletedFile = typeof mediaFiles.$inferSelect
 export type DeleteOptions = {
   /** Further conditions the file must meet, checked under the row lock (on `media_files`). */
   where?: SQL
+  /** Validates a file under the same catalog lock before touching disk. */
+  beforeUnlink?: (tx: Transaction, file: DeletedFile) => Promise<void>
   /** Runs in the transaction after the row is deleted and before orphans are removed. */
   beforeOrphans?: (tx: Transaction, file: DeletedFile) => Promise<void>
   /** Where the file's folder is tidied: only under `_Fetched/` and `_Incoming/` (the default), or anywhere in the root. */
-  tidy?: 'staging' | 'anywhere'
+  tidy?: 'staging' | 'anywhere' | false
 }
 
 function report(error: unknown) {
@@ -51,6 +53,7 @@ export async function deleteLibraryFile(fileId: string, options: DeleteOptions =
       .where(and(eq(mediaFiles.id, fileId), sql`${mediaFiles.missingSince} is null`, eq(libraryRoots.mode, 'managed'), options.where))
       .for('update', { of: mediaFiles })
     if (!row) return null
+    await options.beforeUnlink?.(tx, row.file)
     await unlink(path.join(row.rootPath, row.file.relPath)).catch((error: NodeJS.ErrnoException) => {
       if (error.code !== 'ENOENT') throw error
     })
@@ -60,7 +63,7 @@ export async function deleteLibraryFile(fileId: string, options: DeleteOptions =
     return row
   })
   if (!removed) return null
-  await tidyFolder(removed.file.rootId, removed.rootPath, removed.file.relPath, options.tidy ?? 'staging').catch(report)
+  if (options.tidy !== false) await tidyFolder(removed.file.rootId, removed.rootPath, removed.file.relPath, options.tidy ?? 'staging').catch(report)
   return removed.file
 }
 

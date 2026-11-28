@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { db } from '../../database/client.js'
 import { mediaFiles } from '../../database/schema.js'
 import { requireUser } from '../../lib/auth.js'
+import { assertFileAllowed } from '../catalog/explicit.js'
 import { forbidden, notFound, unauthorized } from '../../lib/errors.js'
 import { measureOnPlay } from '../loudness/index.js'
 import { streamSignal } from './files.js'
@@ -19,6 +20,7 @@ const StreamQuery = z.object({
   sig: z.string().optional(),
   download: z.stringbool().optional(),
   intent: StreamIntent.default('play'),
+  start: z.coerce.number().nonnegative().max(Number.MAX_SAFE_INTEGER / 1000).optional(),
 })
 
 /** A valid signature for this file and profile, or else a signed-in session. */
@@ -37,12 +39,14 @@ async function stream(request: FastifyRequest, reply: FastifyReply) {
   const userId = await authorizeStream(request, fileId, profile, query)
   const [file] = await db.select().from(mediaFiles).where(eq(mediaFiles.id, fileId))
   if (!file) throw notFound('No such file', 'not_available')
+  await assertFileAllowed(userId, file)
   const response = await openStream(file, profile, {
     range: request.headers.range,
     ifRange: [request.headers['if-range']].flat()[0],
     head: request.method === 'HEAD',
     download: query.download === true,
     intent: query.intent,
+    startMs: query.start,
     userId,
     signal: profile === 'original' ? undefined : streamSignal(reply.raw),
   })

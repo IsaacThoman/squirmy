@@ -382,4 +382,19 @@ describe('users admin', () => {
     const row = screen.getByText('@sam').closest('tr')!
     expect(await within(row).findByText('Password changed. They were signed out everywhere.')).toBeInTheDocument()
   })
+
+  it('turns explicit content off for a user, and marks their row', async () => {
+    const onUpdateUser = vi.fn(async () => user)
+    render(onUpdateUser)
+    await userEvent.click(screen.getByRole('button', { name: 'Manage sam' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Edit…' }))
+    await userEvent.click(await screen.findByRole('switch', { name: 'Turn off explicit content' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onUpdateUser).toHaveBeenCalledWith(user.id, expect.objectContaining({ explicitRestricted: true }))
+  })
+
+  it('shows which users have explicit content turned off', () => {
+    renderWithApp(<UsersAdmin users={[{ ...user, explicitRestricted: true }]} invites={[]} currentUserId={id(51)} inviteLink={() => ''} onCreateUser={ok()} onUpdateUser={ok()} onDeleteUser={ok()} onCreateInvite={vi.fn()} onRevokeInvite={ok()} />)
+    expect(within(screen.getByText('@sam').closest('tr')!).getAllByText('No explicit').length).toBeGreaterThan(0)
+  })
 })

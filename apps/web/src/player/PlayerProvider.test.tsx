@@ -1,9 +1,12 @@
-import { act, screen, waitFor, within } from '@testing-library/react'
+import { act, createEvent, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ApiError } from '@squirmy/client-core'
+import { queryKeys, UNDO_LIMIT } from '@squirmy/contracts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from '@/App'
-import { album, allTracks } from '@/fixtures/catalog'
+import { album, allTracks, track } from '@/fixtures/catalog'
+import { endTrackDrag, startTrackDrag } from '@/lib/drag'
+import { dataTransfer } from '@/test/data-transfer'
 import { fakeServices } from '@/test/fake-services'
 import { renderWithApp } from '@/test/render'
 
@@ -19,8 +22,9 @@ async function playAlbum() {
 describe('PlayerProvider', () => {
   it('says on the player that a radio is starting, and why one did not, with no second request meanwhile', async () => {
     const { services, api } = fakeServices()
-    let fail: (error: Error) => void = () => {}
-    const track = vi.fn(() => new Promise<never>((_resolve, reject) => { fail = reject }))
+    let fail!: (error: Error) => void
+    const request = new Promise<never>((_resolve, reject) => { fail = reject })
+    const track = vi.fn(() => request)
     Object.assign(api, { radio: { track, artist: vi.fn() } })
     renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
     const song = blueHour.discs[0].tracks[0]
@@ -31,21 +35,27 @@ describe('PlayerProvider', () => {
     const player = screen.getByRole('region', { name: 'Player' })
     expect(await within(player).findByText('Starting radio…')).toBeInTheDocument()
     expect(track).toHaveBeenCalledOnce()
-    act(() => fail(new Error('Boom')))
-    expect(await within(player).findByText('Couldn’t start a radio from this song. Try again.')).toBeInTheDocument()
+    await act(async () => { fail(new Error('Boom')) })
+    expect(within(player).getByText('Couldn’t start a radio from this song. Try again.')).toBeInTheDocument()
     expect(within(player).queryByText('Starting radio…')).toBeNull()
   })
 
   it('starts a radio of songs that sound like a song', async () => {
-    const { services, api } = fakeServices()
-    const sonic = vi.fn(() => new Promise<never>(() => {}))
-    Object.assign(api, { radio: { track: vi.fn(), artist: vi.fn(), sonic } })
-    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    const { services, api, socket } = fakeServices()
     const song = blueHour.discs[0].tracks[0]
+    const related = blueHour.discs[0].tracks[1]
+    const radio = {
+      context: { type: 'radio' as const, id: `sonic:${song.id}`, title: null },
+      tracks: [{ trackId: related.id, durationMs: related.durationMs }],
+    }
+    const sonic = vi.fn(async () => radio)
+    Object.assign(api.radio, { sonic })
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
     await userEvent.click(await screen.findByRole('button', { name: `More options for ${song.title}` }))
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Songs that sound like this' }))
-    expect(await within(screen.getByRole('region', { name: 'Player' })).findByText('Starting radio…')).toBeInTheDocument()
+    await waitFor(() => expect(socket.session.current?.trackId).toBe(related.id))
     expect(sonic).toHaveBeenCalledWith(song.id)
+    expect(socket.session.context).toEqual(radio.context)
   })
 
   it('plays an album through the session, never sending what cannot play', async () => {
@@ -138,14 +148,15 @@ describe('PlayerProvider', () => {
 
   it('says what a command from elsewhere told it on the status line, under the song', async () => {
     const { services, api } = fakeServices()
-    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    const target = album('glass-city')
+    const { queryClient } = renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    // This test exercises the status line. Leave retry and backoff to the query client's tests.
+    queryClient.setQueryDefaults(queryKeys.album(target.id), { retry: false })
     await playAlbum()
-    // A card's Play whose album does not load says so where playback is told.
     api.catalog.album.mockRejectedValue(new ApiError(503, 'unavailable', 'The server is busy.'))
     await userEvent.click(screen.getByRole('link', { name: 'Home' }))
-    // Not Blue Hour, which just played: its album is already loaded.
-    const card = (await screen.findAllByRole('button', { name: /^Play / })).find(button => button.closest('[class*="group/card"]') && button.getAttribute('aria-label') !== 'Play Blue Hour')!
-    await userEvent.click(card)
+    const rail = await screen.findByRole('region', { name: 'Recently played' })
+    await userEvent.click(await within(rail).findByRole('button', { name: `Play ${target.title}` }))
     const player = screen.getByRole('region', { name: 'Player' })
     expect(await within(player).findByText(/^Couldn’t play “.+”\. /)).toBeInTheDocument()
     expect(within(player).getByText(/The server is busy\./)).toBeInTheDocument()
@@ -193,6 +204,96 @@ describe('song menus in the queue and Now Playing', () => {
     expect(screen.getByRole('menuitem', { name: 'Add to playlist' })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('menuitem', { name: 'Go to album' }))
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Now Playing' })).toBeNull())
+  })
+})
+
+/** jsdom's drag events carry no pointer position; this gives one. */
+const at = (event: Event, clientY: number) => Object.defineProperty(event, 'clientY', { value: clientY })
+
+describe('dragging music to the queue and the player', () => {
+  afterEach(endTrackDrag)
+
+  it('puts songs dropped on the queue where the line shows, between the songs under the pointer', async () => {
+    const { services, socket } = fakeServices()
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    await playAlbum()
+    await userEvent.click(screen.getByRole('button', { name: 'Queue' }))
+    const panel = await screen.findByRole('complementary', { name: 'Queue' })
+    await waitFor(() => expect(socket.session.queue.length).toBeGreaterThan(2))
+    const before = socket.session.queue.map(entry => entry.trackId)
+    const amber = track('amber')
+    const transfer = dataTransfer()
+    startTrackDrag({ dataTransfer: transfer }, { tracks: [amber], list: null, index: 0 })
+    // jsdom lays nothing out: the songs start at 0, so 60 px down is after the first one.
+    const target = within(panel).getByRole('region', { name: 'Continue Playing' })
+    expect(fireEvent(target, at(createEvent.dragOver(target, { dataTransfer: transfer }), 60))).toBe(false)
+    fireEvent(target, at(createEvent.drop(target, { dataTransfer: transfer }), 60))
+    await waitFor(() => expect(socket.session.queue.map(entry => entry.trackId)).toEqual([before[0], amber.id, ...before.slice(1)]))
+
+    // One Undo takes the drop back, moves and all.
+    const player = screen.getByRole('region', { name: 'Player' })
+    expect(within(player).getByText(`Added “${amber.title}” to the queue`)).toBeInTheDocument()
+    await userEvent.click(within(player).getByRole('button', { name: 'Undo' }))
+    await waitFor(() => expect(socket.session.queue.map(entry => entry.trackId)).toEqual(before))
+    expect(socket.commands.filter(command => command.type === 'undo')).toHaveLength(1)
+  })
+
+  it('takes a drop of many songs back with Undo when its moves have pushed it off the server\'s stack', async () => {
+    const { services, socket } = fakeServices()
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    await playAlbum()
+    await userEvent.click(screen.getByRole('button', { name: 'Queue' }))
+    const panel = await screen.findByRole('complementary', { name: 'Queue' })
+    await waitFor(() => expect(socket.session.queue.length).toBeGreaterThan(2))
+    const before = socket.session.queue.map(entry => entry.trackId)
+    const playable = allTracks.filter(song => song.availability === 'server')
+    const songs = Array.from({ length: UNDO_LIMIT }, (_, index) => playable[index % playable.length]!)
+    const transfer = dataTransfer()
+    startTrackDrag({ dataTransfer: transfer }, { tracks: songs, list: null, index: 0 })
+    const target = within(panel).getByRole('region', { name: 'Continue Playing' })
+    fireEvent(target, at(createEvent.dragOver(target, { dataTransfer: transfer }), 60))
+    fireEvent(target, at(createEvent.drop(target, { dataTransfer: transfer }), 60))
+    await waitFor(() => expect(socket.session.queue).toHaveLength(before.length + UNDO_LIMIT))
+
+    const player = screen.getByRole('region', { name: 'Player' })
+    await userEvent.click(within(player).getByRole('button', { name: 'Undo' }))
+    await waitFor(() => expect(socket.session.queue.map(entry => entry.trackId)).toEqual(before))
+    expect(socket.commands.some(command => command.type === 'undo')).toBe(false)
+  })
+
+  it('picks songs in Up next with Ctrl-click and takes them out from the bar', async () => {
+    const { services, socket } = fakeServices()
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    await playAlbum()
+    await userEvent.click(screen.getByRole('button', { name: 'Queue' }))
+    const panel = await screen.findByRole('complementary', { name: 'Queue' })
+    const next = within(panel).getByRole('region', { name: 'Continue Playing' })
+    const [first, second] = blueHour.discs[0].tracks.slice(1)
+    fireEvent.click(await within(next).findByRole('button', { name: `Play ${first.title}` }), { ctrlKey: true })
+    fireEvent.click(within(next).getByRole('button', { name: `Play ${second.title}` }), { ctrlKey: true })
+    // Picked, not played.
+    expect(socket.session.queue[0]?.trackId).toBe(first.id)
+    const bar = within(panel).getByRole('toolbar', { name: 'Selected songs' })
+    expect(bar).toHaveTextContent('2 songs')
+    await userEvent.click(within(bar).getByRole('button', { name: 'Remove from queue' }))
+    await waitFor(() => expect(socket.session.queue.map(entry => entry.trackId)).not.toContain(second.id))
+    expect(socket.session.queue.map(entry => entry.trackId)).not.toContain(first.id)
+  })
+
+  it('plays next what is dropped on the player, and says so there', async () => {
+    const { services, socket } = fakeServices()
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    await playAlbum()
+    await waitFor(() => expect(socket.session.current).not.toBeNull())
+    const songs = [track('amber'), track('riverside')]
+    const transfer = dataTransfer()
+    startTrackDrag({ dataTransfer: transfer }, { tracks: songs, list: null, index: 0 })
+    const player = screen.getByRole('region', { name: 'Player' })
+    fireEvent.dragOver(player, { dataTransfer: transfer })
+    expect(within(player).getByText('Drop to play next')).toBeInTheDocument()
+    fireEvent.drop(player, { dataTransfer: transfer })
+    await waitFor(() => expect(socket.session.queue.slice(0, 2).map(entry => entry.trackId)).toEqual(songs.map(song => song.id)))
+    expect(await within(player).findByText(/Playing next/)).toBeInTheDocument()
   })
 })
 

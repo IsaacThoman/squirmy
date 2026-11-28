@@ -73,5 +73,5 @@ export function Rail({ title, href, quiet, children }: RailProps) {
 
 /** A fixed-width slot in a rail. */
 export function RailItem({ children, wide }: { children: ReactNode; wide?: boolean }) {
-  return <div className={wide ? 'w-[min(78vw,22rem)] shrink-0 snap-start' : 'w-36 shrink-0 snap-start sm:w-40 lg:w-44'}>{children}</div>
+  return <div className={wide ? 'w-[min(78vw,22rem)] shrink-0 snap-start' : 'w-36 shrink-0 snap-start sm:w-40 lg:w-44 compact:w-32 compact:sm:w-32 compact:lg:w-36'}>{children}</div>
 }

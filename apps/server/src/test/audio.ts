@@ -97,6 +97,85 @@ export async function makeTone(directory: string, spec: ToneSpec): Promise<strin
   return output
 }
 
+export type SplitToneSpec = {
+  durationSec?: number
+  sampleRate?: number
+  /** Where the halves meet, in frames. Pick one that is no codec's frame size multiple. */
+  splitFrame: number
+  /** Peak level in dBFS. Keep it very quiet: these may be played out loud. */
+  levelDb?: number
+  /** Each encoding of the halves: the output's extension and ffmpeg's codec and muxer arguments. */
+  encodings: Record<string, { extension: string; args: string[] }>
+}
+
+/**
+ * A quiet stereo sweep, a different one per channel so that a cross-correlation has one
+ * peak, written whole as `ref.flac`, then cut at `splitFrame` into two halves that are
+ * encoded separately in each encoding as `<name>.a.<ext>` and `<name>.b.<ext>`: two
+ * consecutive tracks, played without a gap exactly when the halves back to back are the
+ * whole. Returns the reference's path and each encoding's pair.
+ */
+export async function makeSplitTonePairs(directory: string, spec: SplitToneSpec) {
+  await mkdir(directory, { recursive: true })
+  const rate = spec.sampleRate ?? 44100
+  const duration = spec.durationSec ?? 4
+  const amplitude = 10 ** ((spec.levelDb ?? -40) / 20)
+  const sweep = (from: number, to: number) => `${amplitude}*sin(2*PI*(${from}*t+${(to - from) / (2 * duration)}*t*t))`
+  const source = ['-f', 'lavfi', '-i', `aevalsrc=${sweep(220, 1760)}|${sweep(1320, 330)}:s=${rate}:d=${duration}`]
+  const reference = path.join(directory, 'ref.flac')
+  await run(ffmpeg(), ['-v', 'error', '-y', ...source, '-c:a', 'flac', reference])
+  const halves = {
+    a: ['-af', `atrim=end_sample=${spec.splitFrame}`],
+    b: ['-af', `atrim=start_sample=${spec.splitFrame},asetpts=PTS-STARTPTS`],
+  }
+  const pairs: Record<string, { a: string; b: string }> = {}
+  for (const [name, encoding] of Object.entries(spec.encodings)) {
+    const pair = { a: path.join(directory, `${name}.a.${encoding.extension}`), b: path.join(directory, `${name}.b.${encoding.extension}`) }
+    for (const half of ['a', 'b'] as const) {
+      await run(ffmpeg(), ['-v', 'error', '-y', '-i', reference, ...halves[half], ...encoding.args, pair[half]])
+    }
+    pairs[name] = pair
+  }
+  return { reference, pairs }
+}
+
+/** A quiet stereo chirp split between codec packet boundaries, with an uncut FLAC reference. */
+export async function makeSplitTone(directory: string, {
+  rate = 44_100, format = 'flac',
+}: { rate?: number; format?: 'flac' | 'm4a' | 'mp3' | 'alac' } = {}) {
+  const frames = [133_077, 88_533] as const
+  const total = frames[0] + frames[1]
+  const pcm = new Float32Array(total * 2)
+  for (let index = 0; index < total; index++) {
+    const t = index / rate
+    pcm[2 * index] = 0.023 * Math.sin(2 * Math.PI * (251 * t + 159 * t * t))
+    pcm[2 * index + 1] = 0.019 * Math.sin(2 * Math.PI * (113 * t + 221 * t * t))
+  }
+  await mkdir(directory, { recursive: true })
+  const raw = path.join(directory, '.chirp.f32')
+  const write = async (name: string, from: number, to: number, codec: typeof format) => {
+    const output = path.join(directory, `${name}.${codec === 'alac' ? 'm4a' : codec}`)
+    await run(ffmpeg(), [
+      '-v', 'error', '-f', 'f32le', '-ar', String(rate), '-ac', '2', '-i', raw,
+      '-af', `atrim=start_sample=${from}:end_sample=${to},asetpts=PTS-STARTPTS`,
+      ...(codec === 'alac' ? ['-c:a', 'alac'] : codecs[codec]),
+      // The movie clock must represent every sample in the AAC edit list.
+      ...(codec === 'm4a' ? ['-movie_timescale', String(rate)] : []),
+      '-metadata', `title=${name}`, '-metadata', 'artist=Fixture', output,
+    ])
+    return output
+  }
+  await writeFile(raw, new Uint8Array(pcm.buffer))
+  try {
+    const whole = await write('Whole', 0, total, 'flac')
+    const first = await write('First', 0, frames[0], format)
+    const second = await write('Second', frames[0], total, format)
+    return { whole, halves: [first, second] as const, frames, rate }
+  } finally {
+    await rm(raw, { force: true })
+  }
+}
+
 export type AlbumSpec = {
   artist: string
   album: string

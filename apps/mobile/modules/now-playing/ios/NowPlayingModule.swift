@@ -51,6 +51,17 @@ public class NowPlayingModule: Module {
         center.addObserver(forName: AVAudioSession.routeChangeNotification, object: session, queue: .main) { [weak self] note in
           self?.routeChange(note)
         },
+        // The native audio engine's clock (modules/audio-engine), whenever it changes other than
+        // by playing on: the lock screen's elapsed time is right without waiting for JavaScript.
+        center.addObserver(forName: Notification.Name("SquirmyAudioClockDidChange"), object: nil, queue: .main) { note in
+          guard let elapsed = note.userInfo?["elapsed"] as? Double, let rate = note.userInfo?["rate"] as? Double,
+                var info = MPNowPlayingInfoCenter.default().nowPlayingInfo else {
+            return
+          }
+          info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = elapsed
+          info[MPNowPlayingInfoPropertyPlaybackRate] = rate
+          MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+        },
       ]
     }
 

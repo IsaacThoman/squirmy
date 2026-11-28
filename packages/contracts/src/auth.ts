@@ -18,6 +18,17 @@ export const User = z.object({
   disabled: z.boolean(),
   /** Set by an admin; single sign-on links a provider account with the same verified address. */
   email: z.string().nullable().optional(),
+  /**
+   * An admin turned explicit content off for this user (a child's account), who cannot turn
+   * it back on. Older servers leave it out.
+   */
+  explicitRestricted: z.boolean().default(false),
+  /**
+   * Whether explicit songs play for this user: their `allowExplicit` setting, unless an admin
+   * restricted it. Clients gray explicit songs when it is false (client-core's `isPlayable`).
+   * Older servers leave it out, and they play everything.
+   */
+  allowsExplicit: z.boolean().default(true),
 })
 export type User = z.infer<typeof User>
 
@@ -38,6 +49,8 @@ export const SetupStatus = z.object({
   serverName: z.string(),
   registrationRequiresInvite: z.boolean(),
   wantlistEnabled: z.boolean().default(false),
+  /** Whether members can make public share links. Older servers have none. */
+  sharingEnabled: z.boolean().default(false),
   /** Older servers omit this and accept TVs that identify as `other`. */
   supportsTvDevices: z.literal(true).optional(),
   /** Whether the sign-in page can offer passkeys: PUBLIC_URL is an https address (or localhost). */
@@ -119,6 +132,7 @@ export const CreateUserRequest = z.object({
   canUpload: z.boolean().default(false),
   canAcquire: z.boolean().default(false),
   email: Email.nullable().default(null),
+  explicitRestricted: z.boolean().default(false),
 })
 export type CreateUserRequest = z.infer<typeof CreateUserRequest>
 
@@ -130,16 +144,23 @@ export const UpdateUserRequest = z.object({
   disabled: z.boolean().optional(),
   password: Password.optional(),
   email: Email.nullable().optional(),
+  /** Turns explicit content off for the user and keeps it off, or lifts that. */
+  explicitRestricted: z.boolean().optional(),
 })
 export type UpdateUserRequest = z.infer<typeof UpdateUserRequest>
 
-/** Credential for Subsonic clients. `secret` is only present in the create response. */
+export const ApiTokenScope = z.enum(['library:read', 'playback:control', 'playlists:manage', 'admin'])
+export type ApiTokenScope = z.infer<typeof ApiTokenScope>
+
+/** Credential for Subsonic clients or the native API. `secret` is only present in the create response. */
 export const AppPassword = z.object({
   id: Id,
   name: z.string(),
   createdAt: IsoDateTime,
   lastUsedAt: IsoDateTime.nullable(),
   secret: z.string().optional(),
+  scopes: z.array(ApiTokenScope).nullable().optional(),
+  expiresAt: IsoDateTime.nullable().optional(),
 })
 export type AppPassword = z.infer<typeof AppPassword>
 
@@ -155,7 +176,12 @@ export const APP_PASSWORD_LIMIT = 50
  * clients that do not send it yet. An account without a password (made by single sign-on)
  * leaves it out and needs a sign-in from the last few minutes instead.
  */
-export const CreateAppPasswordRequest = z.object({ name: z.string().trim().min(1).max(60), currentPassword: z.string().min(1).max(200).optional() })
+export const CreateAppPasswordRequest = z.object({
+  name: z.string().trim().min(1).max(60),
+  currentPassword: z.string().min(1).max(200).optional(),
+  scopes: z.array(ApiTokenScope).min(1).max(4).optional(),
+  expiresAt: IsoDateTime.optional(),
+})
 export type CreateAppPasswordRequest = z.infer<typeof CreateAppPasswordRequest>
 
 // ---------------------------------------------------------------------------

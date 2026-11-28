@@ -23,7 +23,12 @@ export type AuthEvent =
   /** A request made with `token` came back 401. */
   | { type: 'unauthorized'; token: string }
   | { type: 'signedOut' }
-  | { type: 'switchServer' };
+  | { type: 'switchServer' }
+  /**
+   * Another saved account is being opened. Nothing is signed in until its saved library is
+   * read back, so no screen asks a server meanwhile; `restored` then opens it.
+   */
+  | { type: 'switching' };
 
 export const expiredNotice = 'Your session ended. Sign in again to keep listening.';
 
@@ -62,13 +67,16 @@ export function reduceAuth(state: AuthState, event: AuthEvent): AuthState {
       return state.status === 'signIn' || state.status === 'signedIn'
         ? { status: 'connect', previous: state.server }
         : state;
+    case 'switching':
+      return { status: 'restoring' };
   }
 }
 
 function sameServer(a: Server, b: Server): boolean {
   return a.name === b.name && a.version === b.version && a.registrationRequiresInvite === b.registrationRequiresInvite
     && a.wantlistEnabled === b.wantlistEnabled && a.supportsTvDevices === b.supportsTvDevices
-    && a.ssoName === b.ssoName && a.passwordLogin === b.passwordLogin;
+    && a.ssoName === b.ssoName && a.passwordLogin === b.passwordLogin
+    && (a.sharingEnabled ?? false) === (b.sharingEnabled ?? false);
 }
 
 /** What to tell the person when signing in or registering fails. */

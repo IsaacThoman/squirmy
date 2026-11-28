@@ -75,6 +75,8 @@ Stored in the `server_settings` table, from `ServerSettings` in `packages/contra
 |---|---|---|---|---|
 | General | Server name | `serverName` | `Squirmy` | Shown on the web app's sign-in page and in the iOS app's connect and sign-in screens. |
 | | Wantlist | `wantlistEnabled` | off | Turns on the [wantlist](../use/wantlist.md), a list of music the server does not have yet. Off, the apps show no trace of it and wants stay stored, so turning it back on brings them back. |
+| Sharing (in **Admin → Sharing**) | Share links | `sharingEnabled` | on | Lets members make public links to albums, playlists and songs. Off, every link stops working but is kept. See [Share links](./sharing.md). |
+| | What a shared page plays | `sharePlayback` | 30-second previews | `previews`, `full` or `off`: what people opening a share link can hear. |
 | Registration | Require an invite to join | `registrationRequiresInvite` | on | Off lets anyone who can reach the server create a member account. |
 | Single sign-on | Issuer URL, Client ID, Client secret | `ssoIssuerUrl`, `ssoClientId`, `ssoClientSecret` | not set | The OpenID Connect provider. See [Single sign-on](./authentication.md#single-sign-on-openid-connect). The secret is stored encrypted. |
 | | Button name | `ssoName` | `Single sign-on` | Shown as **Sign in with …**. |

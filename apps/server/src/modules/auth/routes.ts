@@ -150,6 +150,7 @@ export async function authRoutes(app: FastifyInstance) {
       serverName: settings.serverName,
       registrationRequiresInvite: settings.registrationRequiresInvite,
       wantlistEnabled: settings.wantlistEnabled,
+      sharingEnabled: settings.sharingEnabled,
       supportsTvDevices: true,
       passkeysAvailable: relyingParty() !== null,
       ssoName: await ssoProvider() ? settings.ssoName : null,
@@ -300,8 +301,11 @@ export async function authRoutes(app: FastifyInstance) {
   app.post('/auth/app-passwords', { preHandler: passwordPerUser }, async (request, reply): Promise<AppPassword> => {
     const body = CreateAppPasswordRequest.parse(request.body)
     const user = await reauthenticate(request, body.currentPassword)
+    if (body.scopes?.includes('admin') && user.role !== 'admin') throw forbidden()
+    const expiresAt = body.expiresAt ? new Date(body.expiresAt) : undefined
+    if (expiresAt && expiresAt.getTime() <= Date.now()) throw badRequest('The expiry must be in the future', 'invalid_expiry')
     reply.code(201)
-    return createAppPassword(user.id, body.name)
+    return createAppPassword(user.id, body.name, { scopes: body.scopes, expiresAt })
   })
 
   app.delete('/auth/app-passwords/:id', async (request): Promise<Ok> => {

@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { connectNowPlaying, createPlayerEngine } from '../player/engine';
+import { storedEngine } from '../player/engine/setting';
 import { createThemedStyles, useColors } from '../theme';
 import { Icon } from '../ui';
 
@@ -54,7 +55,9 @@ export function EngineBench() {
   const entries = useRef(new Map<string, Tone>());
 
   const append = (text: string) => setLog(lines => [{ id: ++serial.current, at: Date.now() - started, text }, ...lines].slice(0, 60));
-  const [engine] = useState(() => createPlayerEngine({ onInterrupted: entryId => append(`system paused ${entryId}`) }));
+  // The engine Settings chose for this device. The native one is the process's one engine, so
+  // the bench drives the same engine as the app does: stop the music before using it.
+  const [engine] = useState(() => createPlayerEngine({ onInterrupted: entryId => append(`system paused ${entryId}`) }, storedEngine()));
 
   useEffect(() => {
     const unsubscribe = engine.subscribe(event => {
@@ -66,6 +69,7 @@ export function EngineBench() {
       unsubscribe();
       clearInterval(timer);
       engine.stop();
+      engine.dispose?.();
     };
   }, [engine]);
 

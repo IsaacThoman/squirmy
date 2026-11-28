@@ -10,11 +10,13 @@ import { getConfig } from '../../config.js'
 import { db } from '../../database/client.js'
 import { transcodes } from '../../database/schema.js'
 import { randomToken } from '../../lib/crypto.js'
-import { AppError } from '../../lib/errors.js'
+import { AppError, badRequest } from '../../lib/errors.js'
 import { audioInput } from '../../lib/ffmpeg.js'
 import { newId } from '../../lib/ids.js'
 import { libraryPath, serveFile, withLibraryFile, type StreamRequest, type StreamResponse } from './files.js'
-import { outputSampleRate, profiles, type MediaFile, type TranscodeProfile } from './profiles.js'
+import { fragmentedSourceFrames } from './gapless.js'
+import { rewritePacketDurations } from './mp4.js'
+import { codecFamily, fragmentedEncoder, isFragmented, mp4Options, outputBitDepth, outputSampleRate, profiles, sourceSampleRate, type MediaFile, type TranscodeProfile } from './profiles.js'
 
 type TranscodeRow = typeof transcodes.$inferSelect
 
@@ -40,6 +42,8 @@ function deferred() {
   return { promise, resolve }
 }
 
+type Seek = { seconds: number; frame: number; trimFrames?: number }
+
 /**
  * One running ffmpeg. Its output is appended to `tempPath`; readers follow the file up to
  * `written` bytes and wait on `changed()` for more, so no client holds the encoder back and
@@ -50,6 +54,7 @@ class Transcode {
   written = 0
   finished = false
   error: Error | null = null
+  startFrame: number | undefined
   readonly started = deferred()
   readonly ready = deferred()
   readonly done: Promise<void>
@@ -63,8 +68,12 @@ class Transcode {
   private child: ChildProcess | undefined
   private publishing = false
 
-  constructor(readonly file: MediaFile, readonly profile: TranscodeProfile, readonly userId: string | undefined, intent: StreamIntent) {
+  constructor(
+    readonly file: MediaFile, readonly profile: TranscodeProfile, readonly userId: string | undefined,
+    intent: StreamIntent, private readonly seek?: Seek,
+  ) {
     this.lastIntent = intent
+    this.startFrame = seek?.frame
     this.done = this.run()
   }
 
@@ -85,6 +94,7 @@ class Transcode {
   }
 
   get abandoned() {
+    if (this.seek) return this.readers.size === 0
     const halfway = this.file.durationMs > 0 && this.encodedMs * 2 >= this.file.durationMs
     return this.readers.size === 0 && !this.cacheIntent && !halfway
   }
@@ -97,6 +107,10 @@ class Transcode {
     return () => {
       this.lastIntent = this.intent
       if (!this.readers.delete(reader)) return
+      if (this.seek && this.abandoned) {
+        if (this.finished) void this.removeTemporaryFile()
+        else this.cancel()
+      }
       if (this.interruptible && this.abandoned) {
         if (slotQueue.has(this)) this.cancel()
         else {
@@ -127,6 +141,10 @@ class Transcode {
     resolve()
   }
 
+  private async removeTemporaryFile() {
+    if (this.tempPath) await unlink(this.tempPath).catch(() => {})
+  }
+
   private async run() {
     let handle: FileHandle | undefined
     let pending = false
@@ -137,11 +155,14 @@ class Transcode {
     try {
       signal.throwIfAborted()
       const input = await libraryPath(this.file)
+      const frames = fragmentedEncoder(this.profile) ? await fragmentedSourceFrames(this.file, input) : null
       signal.throwIfAborted()
       const target = path.join(cacheRoot(), storagePath)
-      await db.insert(transcodes).values({ id: newId(), fileId: this.file.id, profile: this.profile, storagePath, status: 'pending' })
-        .onConflictDoUpdate({ target: [transcodes.fileId, transcodes.profile], set: { storagePath, status: 'pending', error: null, lastUsedAt: new Date() } })
-      pending = true
+      if (!this.seek) {
+        await db.insert(transcodes).values({ id: newId(), fileId: this.file.id, profile: this.profile, storagePath, status: 'pending' })
+          .onConflictDoUpdate({ target: [transcodes.fileId, transcodes.profile], set: { storagePath, status: 'pending', error: null, lastUsedAt: new Date() } })
+        pending = true
+      }
       signal.throwIfAborted()
 
       // A unique name, so a second process encoding the same profile cannot interleave writes.
@@ -150,13 +171,17 @@ class Transcode {
       this.tempPath = temp
       signal.throwIfAborted()
 
-      const child = spawn(getConfig().FFMPEG_PATH, ffmpegArgs(input, this.file, this.profile), { stdio: ['ignore', 'pipe', 'pipe'] })
+      const remuxSeek = this.profile === 'copy_mp4' && this.seek
+      const trimAt = frames !== null && frames !== this.file.decodedFrames ? frames : undefined
+      const child = spawn(getConfig().FFMPEG_PATH, ffmpegArgs(input, this.file, this.profile, this.seek, trimAt), {
+        stdio: remuxSeek ? ['ignore', 'pipe', 'pipe', 'pipe'] : ['ignore', 'pipe', 'pipe'],
+      })
       this.child = child
       let processError: Error | undefined
       child.once('error', (error) => { processError = error })
       const exited = new Promise<number | null>((resolve) => child.once('close', resolve))
       let stderr = ''
-      createInterface({ input: child.stderr }).on('line', (line) => {
+      createInterface({ input: child.stderr! }).on('line', (line) => {
         if (line.startsWith('out_time_us=')) {
           const microseconds = Number(line.slice('out_time_us='.length))
           if (Number.isFinite(microseconds)) this.encodedMs = Math.max(this.encodedMs, microseconds / 1000)
@@ -166,8 +191,17 @@ ${line}`.slice(-2000)
         }
       })
       try {
-        for await (const chunk of child.stdout as AsyncIterable<Buffer>) {
+        const packetFrames = fragmentedEncoder(this.profile)?.packetFrames
+          ?? (this.profile === 'copy_mp4' && codecFamily(this.file) === 'aac' ? 'source' : undefined)
+        const pipe = child.stdout as AsyncIterable<Buffer>
+        const output = packetFrames ? rewritePacketDurations(pipe, packetFrames) : pipe
+        const packetStart = remuxSeek ? firstPacketFrame(child.stdio[3] as Readable) : undefined
+        for await (const chunk of output) {
           signal.throwIfAborted()
+          if (packetStart && this.written === 0) {
+            this.startFrame = await packetStart
+            if (this.startFrame === undefined) throw new Error('FFmpeg did not report a remux start frame')
+          }
           await handle.write(chunk)
           this.written += chunk.length
           this.ready.resolve()
@@ -187,15 +221,17 @@ ${line}`.slice(-2000)
       this.publishing = true
       await handle.close()
       handle = undefined
+      if (this.seek) return
       await rename(temp, target)
       // Readers that open after this point find the file under its final name.
       this.tempPath = target
       const { size } = await stat(target)
       await db.update(transcodes).set({ status: 'ready', bytes: size, error: null, lastUsedAt: new Date() }).where(rowKey)
+      published++
     } catch (error) {
       this.error = signal.aborted ? signal.reason as Error : error as Error
       await handle?.close().catch(() => {})
-      if (this.tempPath) await unlink(this.tempPath).catch(() => {})
+      await this.removeTemporaryFile()
       if (pending) {
         const where = and(rowKey, eq(transcodes.status, 'pending'))
         if (this.cancelled) await db.delete(transcodes).where(where).catch(() => {})
@@ -203,7 +239,8 @@ ${line}`.slice(-2000)
       }
     } finally {
       clearTimeout(this.idleTimer)
-      active.delete(keyOf(this.file.id, this.profile))
+      if (this.seek && this.abandoned) await this.removeTemporaryFile()
+      active.delete(keyOf(this.file.id, this.profile, this.seek))
       slotQueue.delete(this)
       running.delete(this)
       this.finished = true
@@ -215,8 +252,9 @@ ${line}`.slice(-2000)
 }
 
 const priority = (intent: StreamIntent) => StreamIntent.options.indexOf(intent)
-const keyOf = (fileId: string, profile: TranscodeProfile) => `${fileId}/${profile}`
+const keyOf = (fileId: string, profile: TranscodeProfile, seek?: Seek) => `${fileId}/${profile}${seek ? `/${seek.seconds}/${seek.frame}` : ''}`
 const active = new Map<string, Transcode>()
+let published = 0
 const slotQueue = new Set<Transcode>()
 const running = new Set<Transcode>()
 const liveByUser = new Map<string, number>()
@@ -307,7 +345,7 @@ export const transcoderBusy = () => new AppError(503, 'transcoder_busy', 'Too ma
  * whitelist of tags taken from the database rather than whatever the source carries,
  * written to stdout so every byte is final the moment it is produced.
  */
-function ffmpegArgs(input: string, file: MediaFile, profile: TranscodeProfile): string[] {
+function ffmpegArgs(input: string, file: MediaFile, profile: TranscodeProfile, seek?: Seek, trimAt?: number): string[] {
   const tags = file.tags
   const metadata: [string, string | number | undefined][] = [
     ['title', tags.title],
@@ -320,14 +358,59 @@ function ffmpegArgs(input: string, file: MediaFile, profile: TranscodeProfile): 
     ['genre', tags.genres?.join('; ')],
   ]
   const sampleRate = outputSampleRate(file, profile)
+  const copy = profile === 'copy_mp4'
+  const remuxSeek = copy && seek
+  const filters: string[] = []
+  if (trimAt !== undefined) {
+    const inputRate = file.decodedRate!
+    const first = Math.round((seek?.seconds ?? 0) * inputRate)
+    if (seek && sampleRate && seek.frame >= Math.ceil(trimAt * sampleRate / inputRate)) {
+      throw badRequest('The seek starts beyond the end of the track', 'invalid_start')
+    }
+    filters.push(`atrim=end_sample=${trimAt - first}`)
+  }
+  if (seek?.trimFrames) filters.push(`aresample=${sampleRate}`, `atrim=start_sample=${seek.trimFrames}`)
+  if (filters.length) filters.push('asetpts=PTS-STARTPTS')
+  // With copyts, the side muxer reports where the first packet sits on the source
+  // timeline even though the MP4 muxer rebases the fragment timestamps to zero.
+  const muxer = remuxSeek ? [
+    '-c:a', 'copy', '-f', 'tee',
+    `[f=mp4:strict=-2:${Object.entries(mp4Options).map(([key, value]) => `${key}=${value}`).join(':')}]pipe:1|[f=framecrc:flush_packets=1]pipe:3`,
+  ] : [...profiles[profile].args, 'pipe:1']
   return [
-    '-v', 'error', '-nostdin', '-progress', 'pipe:2', ...audioInput(input),
+    '-v', 'error', '-nostdin', '-progress', 'pipe:2',
+    ...(remuxSeek ? ['-copyts', '-start_at_zero'] : []),
+    ...(seek ? ['-ss', seek.seconds.toFixed(6)] : []), ...audioInput(input),
     '-map', '0:a:0', '-vn', '-sn', '-dn', '-map_metadata', '-1', '-map_chapters', '-1',
     ...metadata.flatMap(([key, value]) => value === undefined || value === '' ? [] : ['-metadata', `${key}=${value}`]),
-    ...(sampleRate ? ['-ar', String(sampleRate)] : []),
-    ...profiles[profile].args,
-    'pipe:1',
+    ...(sampleRate && !copy ? ['-ar', String(sampleRate)] : []),
+    ...(filters.length ? ['-af', filters.join(',')] : []),
+    ...(profile === 'flac_mp4' ? ['-sample_fmt', outputBitDepth(file, profile) === 16 ? 's16' : 's32'] : []),
+    ...(copy && codecFamily(file) === 'aac' ? ['-bsf:a', 'aac_adtstoasc'] : []),
+    ...muxer,
   ]
+}
+
+/** Observes the first copied packet in the framecrc side output, then drains that pipe. */
+function firstPacketFrame(pipe: Readable): Promise<number | undefined> {
+  return new Promise((resolve) => {
+    let timeBase: number | undefined
+    let rate: number | undefined
+    const lines = createInterface({ input: pipe })
+    lines.on('line', (line) => {
+      const tb = /^#tb 0: (\d+)\/(\d+)$/.exec(line)
+      if (tb) timeBase = Number(tb[1]) / Number(tb[2])
+      const sampleRate = /^#sample_rate 0: (\d+)$/.exec(line)
+      if (sampleRate) rate = Number(sampleRate[1])
+      const pts = /^0,\s*-?\d+,\s*(-?\d+),/.exec(line)
+      if (!pts || !timeBase || !rate) return
+      resolve(Math.max(0, Math.round(Number(pts[1]) * timeBase * rate)))
+      lines.close()
+      pipe.resume()
+    })
+    lines.once('close', () => resolve(undefined))
+    lines.once('error', () => resolve(undefined))
+  })
 }
 
 /**
@@ -384,10 +467,15 @@ function follow(job: Transcode, detach: () => void): Readable {
 async function openEither(job: Transcode): Promise<FileHandle> {
   for (;;) {
     const file = job.tempPath!
+    const changed = job.changed()
     try {
       return await open(file, 'r')
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT' || job.tempPath === file) throw error
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      if (job.tempPath !== file) continue
+      if (job.finished) throw job.error ?? error
+      // The rename can have happened on disk before its callback updates tempPath.
+      await changed
     }
   }
 }
@@ -472,30 +560,86 @@ function requireSource(file: MediaFile): Promise<MediaFile> {
   })) ? at : null)
 }
 
+function gcd(a: number, b: number): number {
+  return b === 0 ? a : gcd(b, a % b)
+}
+
+function planSeek(file: MediaFile, profile: TranscodeProfile, startMs: number): Seek | undefined {
+  const sourceRate = sourceSampleRate(file)
+  const outputRate = outputSampleRate(file, profile)
+  if (!sourceRate || !outputRate) throw badRequest('The audio sample rate is unknown', 'seek_unavailable')
+  const frame = Math.round(startMs * outputRate / 1000)
+  if (!Number.isSafeInteger(frame)) throw badRequest('The seek position is too large', 'invalid_start')
+  const frames = file.decodedFrames ?? (file.durationMs > 0 ? Math.round(file.durationMs * sourceRate / 1000) : null)
+  if (frames !== null && frame >= Math.ceil(frames * outputRate / sourceRate)) {
+    throw badRequest('The seek starts beyond the end of the track', 'invalid_start')
+  }
+  if (profile === 'copy_mp4') {
+    // Leave time for overlap and the MP3 bit reservoir, plus a packet's rounding.
+    const seconds = Math.max(0, (startMs - 150) / 1000)
+    return seconds > 0 ? { seconds, frame: 0 } : undefined
+  }
+  if (frame === 0) return undefined
+  if (sourceRate === outputRate) return { seconds: frame / sourceRate, frame }
+  // Start on a frame shared by both sample clocks, so resampling uses the same
+  // phase as the full encode. Trim in the output clock after resampler preroll.
+  const phase = outputRate / gcd(sourceRate, outputRate)
+  const preroll = Math.ceil(64 * outputRate / sourceRate)
+  const start = Math.max(0, Math.floor((frame - preroll) / phase) * phase)
+  return { seconds: start / outputRate, frame, trimFrames: frame - start }
+}
+
 /**
  * Streams a transcode. A cached one is served with Range. Otherwise this joins (or starts)
  * the encoder and streams its output from the first byte as it is produced: 200, no
  * length, `Accept-Ranges: none`. HEAD reports those headers without starting anything.
  */
 export async function openTranscode(file: MediaFile, profile: TranscodeProfile, request: StreamRequest, headers: Record<string, string> = {}): Promise<StreamResponse> {
-  const cached = await serveCached(file, profile, request, headers)
-  if (cached) return cached
+  let cacheVersion = published
+  if (profile === 'copy_mp4' && !['aac', 'flac', 'mp3'].includes(codecFamily(file))) {
+    throw badRequest('This codec cannot be remuxed for playback', 'unsupported_remux')
+  }
+  const startMs = isFragmented(profile) ? request.startMs : undefined
+  const seek = startMs && !request.range ? planSeek(file, profile, startMs) : undefined
+  const responseHeaders = startMs !== undefined && !request.range
+    ? { ...headers, 'x-squirmy-start-frame': String(seek?.frame ?? 0), 'access-control-expose-headers': 'X-Squirmy-Start-Frame' }
+    : headers
+  if (!seek) {
+    const cached = await serveCached(file, profile, request, responseHeaders)
+    if (cached) return cached
+  }
   const source = await requireSource(file)
-  const live = { 'content-type': profiles[profile].mime, 'accept-ranges': 'none', 'cache-control': 'private', ...headers }
+  const live: Record<string, string> = { 'content-type': profiles[profile].mime, 'accept-ranges': 'none', 'cache-control': seek ? 'no-store' : 'private', ...responseHeaders }
+  // A remux seek's start frame is only known once the first packet has been copied.
+  if (seek && profile === 'copy_mp4') delete live['x-squirmy-start-frame']
   if (request.head) return { status: 200, headers: live, body: null }
   const { signal, intent = 'play', userId } = request
-  const key = keyOf(source.id, profile)
+  const key = keyOf(source.id, profile, seek)
   signal?.throwIfAborted()
-  let job = active.get(key)
-  while (job?.cancelled) {
-    await waitForEncode(job.done, signal)
-    job = active.get(key)
-  }
-  if (stopping) throw transcoderBusy()
-  if (!job) {
-    job = new Transcode(source, profile, userId, intent)
+  let job: Transcode
+  for (;;) {
+    signal?.throwIfAborted()
+    if (stopping) throw transcoderBusy()
+    const existing = active.get(key)
+    if (existing) {
+      if (existing.cancelled) {
+        await waitForEncode(existing.done, signal)
+        continue
+      }
+      job = existing
+      break
+    }
+    // A simultaneous encode may have published and left the active map since our miss.
+    if (!seek && cacheVersion !== published) {
+      cacheVersion = published
+      const refreshed = await serveCached(source, profile, request, responseHeaders)
+      if (refreshed) return refreshed
+      continue
+    }
+    job = new Transcode(source, profile, userId, intent, seek)
     active.set(key, job)
     slotQueue.add(job)
+    break
   }
   const detach = job.attach(intent)
   scheduleEncoders()
@@ -503,6 +647,7 @@ export async function openTranscode(file: MediaFile, profile: TranscodeProfile, 
     // Wait for the first bytes so an encoder that fails at once becomes an error response.
     await waitForEncode(job.ready.promise, signal)
     if (job.error && job.written === 0) throw transcodeFailed(job.error)
+    if (job.startFrame !== undefined) live['x-squirmy-start-frame'] = String(job.startFrame)
     const body = follow(job, detach)
     return { status: 200, headers: live, body: signal ? addAbortSignal(signal, body) : body }
   } catch (error) {

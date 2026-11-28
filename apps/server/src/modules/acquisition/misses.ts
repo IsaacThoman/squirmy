@@ -49,7 +49,7 @@ export async function recordMisses(executor: Pick<typeof db, 'insert' | 'delete'
   const providerEpoch = sql<number>`coalesce((select miss_epoch from acquisition_providers where id = ${providerId}), 0)`
   const providerIdentity = sql<string | null>`(select identity from acquisition_providers where id = ${providerId})`
   await executor.insert(acquisitionMisses).values(ids.map((entityId) => ({
-    providerId, entityType, entityId, reason: reason.slice(0, 500), providerEpoch, providerIdentity, createdAt: new Date(),
+    providerId, entityType, entityId, reason: reason.slice(0, 500), providerEpoch, providerIdentity, createdAt: sql`clock_timestamp()`,
   }))).onConflictDoUpdate({
     target: [acquisitionMisses.providerId, acquisitionMisses.entityType, acquisitionMisses.entityId],
     set: {

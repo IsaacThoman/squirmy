@@ -1,5 +1,5 @@
 import type {
-  AccountSecurity, AppPassword, AuthSession, DeviceInfo, Invite, JobQueueStats, ServerSettings, User, UserSettings,
+  AccountSecurity, AppPassword, AuthSession, DeviceInfo, Invite, JobQueueStats, PublicShare, ServerSettings, ShareLink, User, UserSettings,
 } from '@squirmy/contracts'
 
 const at = (iso: string) => `2026-11-${iso}:00.000Z`
@@ -13,12 +13,14 @@ export const currentUser: User = {
   canAcquire: true,
   createdAt: at('02T09:12'),
   disabled: false,
+  explicitRestricted: false,
+  allowsExplicit: true,
 }
 
 export const users: User[] = [
   currentUser,
   { ...currentUser, id: '00000000-0000-4000-8600-000000000002', username: 'sam', displayName: 'Sam Okafor', role: 'member', canAcquire: false, createdAt: at('05T18:40') },
-  { ...currentUser, id: '00000000-0000-4000-8600-000000000003', username: 'robin', displayName: null, role: 'member', canUpload: false, canAcquire: false, createdAt: at('11T12:03') },
+  { ...currentUser, id: '00000000-0000-4000-8600-000000000003', username: 'robin', displayName: null, role: 'member', canUpload: false, canAcquire: false, createdAt: at('11T12:03'), explicitRestricted: true, allowsExplicit: false },
   { ...currentUser, id: '00000000-0000-4000-8600-000000000004', username: 'kit', displayName: 'Kit', role: 'member', canUpload: false, canAcquire: false, createdAt: at('12T08:55'), disabled: true },
 ]
 
@@ -32,6 +34,29 @@ export const appPasswords: AppPassword[] = [
   { id: '00000000-0000-4000-8700-000000000102', name: 'Desktop player', createdAt: at('08T09:30'), lastUsedAt: null },
 ]
 
+export const shareLinks: ShareLink[] = [
+  {
+    id: '00000000-0000-4000-8700-000000000201', kind: 'album', targetId: '00000000-0000-4000-8000-000000000301', title: 'Blue Hour', subtitle: 'Mira Vale', artwork: null,
+    createdAt: at('20T18:02'), expiresAt: at('27T18:02'), expired: false, openCount: 4, lastOpenedAt: at('21T09:15'),
+  },
+  {
+    id: '00000000-0000-4000-8700-000000000202', kind: 'playlist', targetId: '00000000-0000-4000-8000-000000000302', title: 'Late drive', subtitle: null, artwork: null,
+    createdAt: at('12T22:40'), expiresAt: null, expired: false, openCount: 0, lastOpenedAt: null,
+  },
+  {
+    id: '00000000-0000-4000-8700-000000000203', kind: 'track', targetId: '00000000-0000-4000-8000-000000000303', title: 'Night Swimming', subtitle: 'Mira Vale', artwork: null,
+    createdAt: at('02T08:00'), expiresAt: at('03T08:00'), expired: true, openCount: 12, lastOpenedAt: at('02T23:59'),
+  },
+]
+
+export const publicShare: PublicShare = {
+  kind: 'album', title: 'Blue Hour', artistCredit: 'Mira Vale', year: 2024, artwork: null, durationMs: 401_000, playback: 'previews', expiresAt: at('27T18:02'), serverName: 'Squirmy',
+  tracks: [
+    { id: '00000000-0000-4000-8000-000000000401', title: 'Night Swimming', artistCredit: 'Mira Vale', albumTitle: null, artwork: null, durationMs: 214_000, disc: 1, position: 1, explicit: null, available: true },
+    { id: '00000000-0000-4000-8000-000000000402', title: 'Glass City', artistCredit: 'Mira Vale', albumTitle: null, artwork: null, durationMs: 187_000, disc: 1, position: 2, explicit: false, available: false },
+  ],
+}
+
 export const userSettings: UserSettings = {
   normalization: 'auto',
   qualityWifi: 'original',
@@ -42,6 +67,8 @@ export const userSettings: UserSettings = {
   scrobbleLastFm: false,
   libraryIncludesServerMusic: false,
   shareNowPlaying: false,
+  showRatings: false,
+  allowExplicit: true,
 }
 
 export const serverSettings: ServerSettings = {
@@ -57,6 +84,7 @@ export const serverSettings: ServerSettings = {
   fanartKeySet: false,
   lastFmKeySet: false,
   matchAutoAcceptScore: 0.9,
+  fileHealthIntervalDays: 7,
   missingFileGraceDays: 14,
   transcodeCacheMaxBytes: 10 * 1024 ** 3,
   registrationRequiresInvite: true,
@@ -79,6 +107,8 @@ export const serverSettings: ServerSettings = {
   ssoAutoCreateUsers: false,
   passwordLoginDisabled: false,
   ssoCallbackUrl: 'https://music.example.com/api/v1/auth/sso/callback',
+  sharingEnabled: true,
+  sharePlayback: 'previews',
 }
 
 export const jobs: JobQueueStats[] = [

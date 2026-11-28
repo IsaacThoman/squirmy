@@ -137,6 +137,17 @@ describe('download rules', () => {
     expect(canPlay({ id: 'there', availability: 'server' }, { offline: false, onDevice, viewer: listener })).toBe(true);
   });
 
+  it('never plays an explicit song for a viewer who has explicit content off, not even a download', () => {
+    const onDevice = (id: string) => id === 'here';
+    const off = { ...listener, allowsExplicit: false };
+    expect(canPlay({ id: 'here', availability: 'server', explicit: true }, { offline: true, onDevice, viewer: off })).toBe(false);
+    expect(canPlay({ id: 'there', availability: 'server', explicit: true }, { offline: false, onDevice, viewer: off })).toBe(false);
+    expect(canPlay({ id: 'there', availability: 'server', explicit: false }, { offline: false, onDevice, viewer: off })).toBe(true);
+    expect(canPlay({ id: 'there', availability: 'server', explicit: true }, { offline: false, onDevice, viewer: listener })).toBe(true);
+    expect(unavailableReason({ availability: 'server', explicit: true }, false, off)).toBe('Explicit content is off');
+    expect(unavailableReason({ availability: 'server', explicit: true }, true, off)).toBe('Explicit content is off');
+  });
+
   it('says only "Not available" or, offline, "Not downloaded"', () => {
     expect(unavailableReason({ availability: 'on_demand' }, false, listener)).toBe('Not available');
     expect(unavailableReason({ availability: 'none' }, false, requester)).toBe('Not available');

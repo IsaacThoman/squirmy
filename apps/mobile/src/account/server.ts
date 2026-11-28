@@ -12,6 +12,8 @@ export type Server = {
   ssoName?: string;
   /** Present when the server turned password sign-in off. */
   passwordLogin?: false;
+  /** Whether members can make public share links. Absent from servers saved before it was known. */
+  sharingEnabled?: boolean;
 };
 
 export type ConnectProblem = 'invalid' | 'unreachable' | 'notSquirmy' | 'serverError' | 'needsSetup' | 'cancelled';
@@ -30,6 +32,7 @@ export function serverFrom(url: string, status: SetupStatus): Server {
     url, name: status.serverName, version: status.version, registrationRequiresInvite: status.registrationRequiresInvite,
     // Release builds do not validate responses, and servers from before the setting leave it out.
     wantlistEnabled: status.wantlistEnabled === true,
+    sharingEnabled: status.sharingEnabled === true,
     ...(status.supportsTvDevices === true && { supportsTvDevices: true as const }),
     ...(typeof status.ssoName === 'string' && { ssoName: status.ssoName }),
     ...(status.passwordLoginEnabled === false && { passwordLogin: false as const }),

@@ -1,9 +1,10 @@
 import type { AlbumDetail, AlbumSummary, ArtistDetail } from '@squirmy/contracts'
-import { MoreHorizontal, Music, Wand2 } from 'lucide-react'
+import { MoreHorizontal, Music, Tags, Wand2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { TRACK_LIST_POLL_FOR_MS } from '@/api/queries'
 import { useCurrentUser } from '@/auth/session'
+import { TagEditor } from '@/components/admin/TagEditor'
 import { FixMatch } from '@/components/admin/FixMatch'
 import { ArtistLinks } from '@/components/music/ArtistLinks'
 import { AlbumCard } from '@/components/music/Cards'
@@ -54,6 +55,7 @@ export function AlbumView({ album, artist, onPlayAlbum, onRefresh }: AlbumViewPr
   const viewer = useViewer()
   const user = useCurrentUser()
   const controls = usePlayerControls()
+  const [editingTags, setEditingTags] = useState(false)
   const [fixing, setFixing] = useState(false)
   const tracks = album.discs.flatMap(disc => disc.tracks)
   const context = { type: 'album' as const, id: album.id, title: album.title }
@@ -123,8 +125,9 @@ export function AlbumView({ album, artist, onPlayAlbum, onRefresh }: AlbumViewPr
                   onToggleSaved: toggleSaved,
                   want: library.wantlistEnabled && dimmed ? { wanted, onToggle: want } : undefined,
                   onGoToArtist: artist => void navigate(`/artist/${artist.id}`),
+                  onShare: library.sharingEnabled ? () => library.share({ kind: 'album', id: album.id, title: album.title }) : undefined,
                 }),
-                ...(user.role === 'admin' && owned ? [{ kind: 'separator' }, { label: 'Fix match…', icon: <Wand2 />, onSelect: () => setFixing(true) }] satisfies MenuEntry[] : []),
+                ...(user.role === 'admin' && owned ? [{ kind: 'separator' }, { label: 'Fix match…', icon: <Wand2 />, onSelect: () => setFixing(true) }, { label: 'Edit tags…', icon: <Tags />, onSelect: () => setEditingTags(true) }] satisfies MenuEntry[] : []),
               ]}
               trigger={<IconButton label="More options" size="lg"><MoreHorizontal /></IconButton>}
             />
@@ -169,6 +172,7 @@ export function AlbumView({ album, artist, onPlayAlbum, onRefresh }: AlbumViewPr
           </div>
         )}
       </div>
+      {editingTags && <TagEditor key={album.id} albumId={album.id} onClose={() => setEditingTags(false)} />}
       {fixing && (
         <FixMatch
           albumId={album.id}

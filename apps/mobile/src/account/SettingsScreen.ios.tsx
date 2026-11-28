@@ -10,13 +10,15 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, StyleSheet } from 'react-native';
 import { closeSheet } from '../closeSheet';
+import { engineNote, engineOptions, showsEngineSetting, useEngineSetting } from '../player/engine/setting';
 import { SheetFormHeader, SheetPickerRow } from '../SheetUI';
 import { StorageSection } from '../streamingCache/StorageSection';
 import { useColors } from '../theme';
 import { serviceNames } from './scrobbling';
 import {
   lastFmAdminNote, normalizationNote, normalizationOptions, openListenBrainzSettings, qualityNote, qualityOptions,
-  scrobbleDetail, scrobbleFooter, serverMusicLabel, serverMusicNote, shareNowPlayingLabel, shareNowPlayingNote, useSettingsScreen,
+  explicitLabel, explicitNote, explicitRestrictedNote, scrobbleDetail, scrobbleFooter, serverMusicLabel, serverMusicNote, shareNowPlayingLabel,
+  shareNowPlayingNote, useSettingsScreen,
 } from './settings';
 
 const clearRow = [listRowBackground('clear'), listRowInsets({ top: 0, leading: 0, bottom: 0, trailing: 0 })];
@@ -27,6 +29,8 @@ export function SettingsScreen() {
   const screen = useSettingsScreen();
   const { settings, update } = screen;
   const lastFm = screen.lastFm;
+  const [engine, setEngine] = useEngineSetting();
+  const engineChoice = showsEngineSetting();
 
   return <KeyboardAvoidingView behavior="padding" style={styles.page}>
     <Host style={styles.page}>
@@ -36,9 +40,12 @@ export function SettingsScreen() {
             values take `muted`: the form's own secondary gray is about 3.2:1 on this sheet in Light. */}
         <Form modifiers={[scrollDismissesKeyboard('interactively'), scrollContentBackground('hidden'), tint(colors.accent)]}>
         {settings ? <>
-          <Section title="Playback" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{normalizationNote}</Text>}>
+          <Section title="Playback" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>
+            {engineChoice ? `${normalizationNote}\n\n${engineNote}` : normalizationNote}
+          </Text>}>
             <SheetPickerRow label="Volume Normalization" value={settings.normalization} options={normalizationOptions}
               onChange={normalization => update({ normalization })} />
+            {engineChoice && <SheetPickerRow label="Engine" value={engine} options={engineOptions} onChange={setEngine} />}
           </Section>
           <Section title="Streaming Quality" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{qualityNote}</Text>}>
             <SheetPickerRow label="Wi-Fi" value={settings.qualityWifi} options={qualityOptions} onChange={qualityWifi => update({ qualityWifi })} />
@@ -51,6 +58,11 @@ export function SettingsScreen() {
               <Text modifiers={[font({ textStyle: 'body' })]}>{serverMusicLabel}</Text>
             </Toggle>
             {screen.errors.library && <ServiceError message={screen.errors.library} />}
+          </Section>
+          <Section title="Explicit Content" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{screen.explicitRestricted ? explicitRestrictedNote : explicitNote}</Text>}>
+            <Toggle isOn={screen.allowExplicit} onIsOnChange={screen.setAllowExplicit} modifiers={[tint(colors.accent), disabled(screen.explicitRestricted)]}>
+              <Text modifiers={[font({ textStyle: 'body' })]}>{explicitLabel}</Text>
+            </Toggle>
           </Section>
         </> : screen.settingsFailure
           ? <LoadFailure title="Couldn’t load your settings" failure={screen.settingsFailure} />

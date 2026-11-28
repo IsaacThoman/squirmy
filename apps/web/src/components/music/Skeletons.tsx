@@ -19,7 +19,7 @@ export function RailSkeleton() {
     <div aria-hidden className="min-w-0">
       <div className="mb-3 flex h-8 items-center"><Skeleton className="h-4 w-36" /></div>
       <div className="flex gap-4 overflow-hidden">
-        {[0, 1, 2, 3, 4, 5, 6, 7].map(item => <div key={item} className="w-36 shrink-0 sm:w-40 lg:w-44"><CardSkeleton /></div>)}
+        {[0, 1, 2, 3, 4, 5, 6, 7].map(item => <div key={item} className="w-36 shrink-0 sm:w-40 lg:w-44 compact:w-32 compact:sm:w-32 compact:lg:w-36"><CardSkeleton /></div>)}
       </div>
     </div>
   )
@@ -37,8 +37,8 @@ export function TrackRowsSkeleton({ rows = 8, art }: { rows?: number; art?: bool
   return (
     <div aria-hidden className="flex flex-col">
       {Array.from({ length: rows }, (_, row) => (
-        <div key={row} className={cn('flex items-center gap-3', art ? 'h-11' : 'h-10')}>
-          {art ? <Skeleton className="size-8 shrink-0 rounded-[5px]" /> : <div className="flex w-8 shrink-0 justify-center"><Skeleton className="h-3 w-4" /></div>}
+        <div key={row} className={cn('flex items-center gap-3', art ? 'h-11 compact:h-9' : 'h-10')}>
+          {art ? <Skeleton className="size-8 shrink-0 rounded-[5px] compact:size-7" /> : <div className="flex w-8 shrink-0 justify-center"><Skeleton className="h-3 w-4" /></div>}
           <div className="flex min-w-0 flex-1 flex-col gap-2">
             <Skeleton className="h-3 w-[min(16rem,60%)]" />
             {art && <Skeleton className="h-2.5 w-[min(9rem,35%)]" />}

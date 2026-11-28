@@ -14,11 +14,15 @@ const admin = (name: keyof typeof import('@/pages/admin')) => lazy(() => import(
 const AdminLayout = admin('AdminLayout')
 const AdminLibraryPage = admin('AdminLibraryPage')
 const AdminReviewsPage = admin('AdminReviewsPage')
+const AdminDuplicatesPage = admin('AdminDuplicatesPage')
+const AdminFileHealthPage = admin('AdminFileHealthPage')
 const AdminOrganizePage = admin('AdminOrganizePage')
 const AdminSearchIndexPage = admin('AdminSearchIndexPage')
 const AdminUsersPage = admin('AdminUsersPage')
 const AdminProvidersPage = admin('AdminProvidersPage')
 const AdminSettingsPage = admin('AdminSettingsPage')
+const AdminSharingPage = admin('AdminSharingPage')
+const AdminIntegrationsPage = admin('AdminIntegrationsPage')
 const AdminJobsPage = admin('AdminJobsPage')
 const imports = (name: keyof typeof import('@/pages/imports')) => lazy(() => import('@/pages/imports').then(module => ({ default: module[name] })))
 const ImportsPage = imports('ImportsPage')
@@ -27,6 +31,8 @@ const uploads = (name: keyof typeof import('@/pages/uploads')) => lazy(() => imp
 const ReplayPage = lazy(() => import('@/pages/replay').then(module => ({ default: module.ReplayPage })))
 const ReplayTrackPage = lazy(() => import('@/pages/replay').then(module => ({ default: module.ReplayTrackPage })))
 const UploadsPage = uploads('UploadsPage')
+// Public share pages: a download of their own, for visitors who never open the app.
+const SharePage = lazy(() => import('@/pages/share').then(module => ({ default: module.SharePage })))
 const AdminUploadsPage = uploads('AdminUploadsPage')
 // The developer pages run on fixtures, which production builds leave out.
 const dev = import.meta.env.DEV && {
@@ -41,6 +47,8 @@ function Loading({ children }: { children: ReactNode }) {
 export function AppRoutes() {
   return (
     <Routes>
+      {/* For anyone with the link: no session, no setup check, nothing of the signed-in app. */}
+      <Route path="/s/:token" element={<Loading><SharePage /></Loading>} />
       <Route element={<Bootstrap />}>
         <Route path="/setup" element={<SetupPage step="account" />} />
         <Route path="/setup/library" element={<SetupPage step="library" />} />
@@ -81,11 +89,15 @@ export function AppRoutes() {
                   <Route path="library" element={<Loading><AdminLibraryPage /></Loading>} />
                   <Route path="uploads" element={<Loading><AdminUploadsPage /></Loading>} />
                   <Route path="reviews" element={<Loading><AdminReviewsPage /></Loading>} />
+                  <Route path="duplicates" element={<Loading><AdminDuplicatesPage /></Loading>} />
+                  <Route path="file-health" element={<Loading><AdminFileHealthPage /></Loading>} />
                   <Route path="organize" element={<Loading><AdminOrganizePage /></Loading>} />
                   <Route path="search-index" element={<Loading><AdminSearchIndexPage /></Loading>} />
                   <Route path="users" element={<Loading><AdminUsersPage /></Loading>} />
                   <Route path="providers" element={<Loading><AdminProvidersPage /></Loading>} />
+                  <Route path="sharing" element={<Loading><AdminSharingPage /></Loading>} />
                   <Route path="settings" element={<Loading><AdminSettingsPage /></Loading>} />
+                  <Route path="integrations" element={<Loading><AdminIntegrationsPage /></Loading>} />
                   <Route path="jobs" element={<Loading><AdminJobsPage /></Loading>} />
                 </Route>
               </Route>

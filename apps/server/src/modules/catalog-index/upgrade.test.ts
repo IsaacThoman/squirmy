@@ -4,14 +4,12 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import { migrate } from 'drizzle-orm/postgres-js/migrator'
 import { describe, expect, it } from 'vitest'
 import { getConfig } from '../../config.js'
-import { db, getSql } from '../../database/client.js'
+import { getSql } from '../../database/client.js'
 import { runMigrations } from '../../database/migrate.js'
-import { lyrics } from '../../database/schema.js'
 import { drainJobs, jobs, startJobs } from '../../jobs/index.js'
 import { newId } from '../../lib/ids.js'
 import { useTestDatabase } from '../../test/database.js'
 import { buildDump, testCatalog } from '../../test/catalog-index-dump.js'
-import { createAlbum } from '../../test/factories.js'
 import { librarySearchIndexNames, searchIndexValidity } from '../search/indexes.js'
 import { searchLibrary } from '../search/library.js'
 import { searchLyrics } from '../search/scopes.js'
@@ -54,13 +52,25 @@ describe('search index upgrades', () => {
     expect(freshLibrary).toHaveLength(4)
     expect(await catalogDefinitions()).toHaveLength(4)
     await migrateBeforeUniversalSearch()
-    // Written in SQL: the factory writes every column of today's users table, and later migrations add some.
-    const user = (await getSql()<{ id: string }[]>`
-      insert into users (id, username, username_key, password_hash) values (${newId()}, 'reader', 'reader', 'not-a-real-hash') returning id`)[0]!
-    const album = await createAlbum({ owned: true, tracks: [{ title: '宇多田ヒカル' }, { title: 'Lantern Song' }] })
-    const recording = album.tracks[0]!
-    await db.insert(lyrics).values({ recordingId: recording.recordingId, source: 'embedded', plain: 'lantern harbor' })
+    const [japanese, english, artist, album, user, root] = [newId(), newId(), newId(), newId(), newId(), newId()]
     const sql = getSql()
+    // Seed the legacy table columns explicitly: the current ORM schema includes fields
+    // from migrations the database under test has not applied yet.
+    await sql`insert into users (id, username, username_key, password_hash) values (${user}, 'reader', 'reader', 'fixture')`
+    await sql`insert into library_roots (id, name, path) values (${root}, 'Library', '/music')`
+    await sql`insert into artists (id, name, sort_name, name_key) values (${artist}, 'Artist', 'Artist', 'artist')`
+    await sql`
+      insert into albums (id, title, artist_credit, primary_artist_id, title_key, match_key)
+      values (${album}, 'Album', 'Artist', ${artist}, 'album', 'artist|album')`
+    await sql`
+      insert into recordings (id, title, artist_credit, primary_artist_id, title_key, match_key) values
+        (${japanese}, '宇多田ヒカル', 'Artist', ${artist}, '宇多田ヒカル', 'artist|宇多田ヒカル'),
+        (${english}, 'Lantern Song', 'Artist', ${artist}, 'lantern song', 'artist|lantern song')`
+    await sql`
+      insert into media_files (id, root_id, rel_path, size, mtime, container, codec, recording_id, album_id) values
+        (${newId()}, ${root}, 'one.flac', 1, now(), 'flac', 'flac', ${japanese}, ${album}),
+        (${newId()}, ${root}, 'two.flac', 1, now(), 'flac', 'flac', ${english}, ${album})`
+    await sql`insert into lyrics (recording_id, source, plain) values (${japanese}, 'embedded', 'lantern harbor')`
     await sql`
       insert into catalog_index (kind, mbid, name, artist_name, album_name, name_key, score, head) values
       ('recording', gen_random_uuid(), 'Yesterday', 'The Beatles', 'Help!', 'yesterday', 1, false),
@@ -73,13 +83,13 @@ describe('search index upgrades', () => {
     expect(await getCatalogIndexStatus()).toMatchObject({ searchUpgrade: 'pending' })
 
     const catalog = (query: string) => searchCatalogIndex(query, { kinds: ['recording'] })
-    const library = (query: string) => searchLibrary(user.id, query, 10, { types: ['track'], scope: 'server' })
-    const lyric = () => searchLyrics(user.id, 'lantern harbor', 10, 0, 'server', {})
+    const library = (query: string) => searchLibrary(user, query, 10, { types: ['track'], scope: 'server' })
+    const lyric = () => searchLyrics(user, 'lantern harbor', 10, 0, 'server', {})
     expect(await catalog('yest')).toMatchObject([{ name: 'Yesterday' }])
     expect(await catalog('宇多田')).toMatchObject([{ name: '宇多田ヒカル' }])
     expect(await catalog('beatles yesterday')).toEqual([])
-    expect(await library('宇多田')).toMatchObject({ tracks: [recording.recordingId] })
-    expect(await library('lantern sng')).toMatchObject({ tracks: [album.tracks[1]!.recordingId] })
+    expect(await library('宇多田')).toMatchObject({ tracks: [japanese] })
+    expect(await library('lantern sng')).toMatchObject({ tracks: [english] })
     expect(await lyric()).toEqual([])
 
     const writer = await sql.reserve()
@@ -92,7 +102,9 @@ describe('search index upgrades', () => {
       await catalogIndexModule.start!({ role: 'api' })
       expect(await getCatalogIndexStatus()).toMatchObject({ searchUpgrade: 'pending' })
       await catalogIndexModule.start!({ role: 'worker' })
-      await expect.poll(async () => (await getCatalogIndexStatus()).searchUpgrade, { timeout: 10_000 }).toBe('building')
+      // The progress view can report a build before its invalid index is visible to other sessions.
+      await expect.poll(async () => (await searchIndexValidity(['catalog_index_unicode'])).get('catalog_index_unicode'), { timeout: 10_000 }).toBe(false)
+      expect(await getCatalogIndexStatus()).toMatchObject({ searchUpgrade: 'building' })
       expect(await catalog('宇多田')).toMatchObject([{ name: '宇多田ヒカル' }])
       expect(await catalog('宇多田ひかる')).toEqual([])
       await expect(dropCatalogIndex()).rejects.toMatchObject({ code: 'catalog_index_maintenance_running' })
@@ -111,8 +123,8 @@ describe('search index upgrades', () => {
     expect(await catalog('beatles yesterday')).toMatchObject([{ name: 'Yesterday' }])
     expect(await catalog('yesterday help')).toMatchObject([{ name: 'Yesterday' }])
     expect(await catalog('宇多田ひかる')).toMatchObject([{ name: '宇多田ヒカル' }])
-    expect(await library('宇多田ひかる')).toMatchObject({ tracks: [recording.recordingId] })
-    expect(await lyric()).toMatchObject([{ track: { id: recording.recordingId } }])
+    expect(await library('宇多田ひかる')).toMatchObject({ tracks: [japanese] })
+    expect(await lyric()).toMatchObject([{ track: { id: japanese } }])
     expect(await definitions(librarySearchIndexNames)).toEqual(freshLibrary)
 
     const upgradedCatalog = await catalogDefinitions()

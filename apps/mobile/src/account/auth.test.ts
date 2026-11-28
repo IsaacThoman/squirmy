@@ -7,7 +7,7 @@ const server = { url: 'https://music.example.com', name: 'Home', version: '1.0.0
 const other = { url: 'http://192.168.1.20:4747', name: 'Studio', version: '1.0.0', registrationRequiresInvite: false, wantlistEnabled: false };
 const user: User = {
   id: '6f1c2e4a-1d2b-4c3d-8e9f-0a1b2c3d4e5f', username: 'ada', displayName: null, role: 'member',
-  canUpload: false, canAcquire: false, createdAt: '2026-11-20T08:00:00.000Z', disabled: false,
+  canUpload: false, canAcquire: false, createdAt: '2026-11-20T08:00:00.000Z', disabled: false, explicitRestricted: false, allowsExplicit: true,
 };
 const signedIn: AuthState = { status: 'signedIn', server, token: 'token-1', user };
 
@@ -43,9 +43,19 @@ describe('reduceAuth', () => {
     expect(run(signedIn, { type: 'unauthorized', token: 'token-1' })).toEqual({ status: 'signIn', server, notice: expiredNotice });
   });
 
+  it('opens another saved account by closing everything until its saved library is read', () => {
+    expect(run(signedIn, { type: 'switching' })).toEqual({ status: 'restoring' });
+    expect(run(signedIn, { type: 'switching' }, { type: 'restored', server: other, token: 'token-2', user }))
+      .toEqual({ status: 'signedIn', server: other, token: 'token-2', user });
+    // One that was signed out opens at its sign-in.
+    expect(run(signedIn, { type: 'switching' }, { type: 'restored', server: other, token: null, user: null }))
+      .toEqual({ status: 'signIn', server: other, notice: null });
+  });
+
   it('switches server from sign-in or signed in, remembering the last one', () => {
     expect(run(signedIn, { type: 'switchServer' })).toEqual({ status: 'connect', previous: server });
     expect(run({ status: 'signIn', server, notice: expiredNotice }, { type: 'switchServer' })).toEqual({ status: 'connect', previous: server });
+
   });
 
   it('takes what the server now says about itself, for the same server only', () => {

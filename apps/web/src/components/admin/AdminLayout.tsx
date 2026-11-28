@@ -12,10 +12,14 @@ const sections = [
   { to: '/admin/uploads', label: 'Uploads' },
   { to: '/admin/reviews', label: 'Review queue' },
   { to: '/admin/organize', label: 'Organize' },
+  { to: '/admin/duplicates', label: 'Duplicates & quality' },
+  { to: '/admin/file-health', label: 'File health' },
   { to: '/admin/search-index', label: 'Search index' },
   { to: '/admin/providers', label: 'Providers' },
   { to: '/admin/users', label: 'Users & invites' },
+  { to: '/admin/sharing', label: 'Sharing' },
   { to: '/admin/settings', label: 'Server settings' },
+  { to: '/admin/integrations', label: 'Integrations' },
   { to: '/admin/jobs', label: 'Jobs' },
 ]
 

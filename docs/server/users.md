@@ -19,6 +19,12 @@ The server always keeps at least one active admin: the last one cannot be demote
 
 Shown as the **Upload** and **Fetch** badges next to a user in **Admin → Users & invites**.
 
+## Explicit content
+
+Each person can turn explicit songs off for themselves in **Settings → Library → Allow explicit content** (see [Explicit content](../use/web.md#explicit-content)). For an account that should never hear them, such as a child's, an admin turns on **Turn off explicit content** in the user's **Edit…** dialog (or when adding the user). The account then has explicit content off on every device and in Subsonic apps, its own switch shows off and can't be turned back on, and the user is marked **No explicit** in the list. Turning the admin's switch off again leaves the person's own choice.
+
+With explicit content off, explicit songs are gray and never play: the server leaves them out of the queue, radio and Autoplay, search, Home's **Most played** and **Rediscover**, their mixes and Subsonic answers, and refuses to stream them (`explicit_not_allowed`), whatever an older app asks. A known clean version of a song (same artist and title, marked clean) is shown and played in its place. What counts as explicit is the file's advisory tag (`ITUNESADVISORY`, MP4 `rtng`, `EXPLICIT`), else Deezer's flag for the song; songs neither marks play for everyone. MusicBrainz has no such flag, so music identified only through MusicBrainz and untagged counts as clean.
+
 ## Inviting people
 
 1. Open **Admin → Users & invites** and choose **Invite someone**.
@@ -37,7 +43,7 @@ To make an account yourself instead, choose **Add user**, set a username, an opt
 
 Each user's **Manage** menu in **Admin → Users & invites** has:
 
-- **Edit…**: display name, email, role and permissions. The email address lets [single sign-on](./authentication.md#who-gets-in-and-as-whom) find the account; only admins set it.
+- **Edit…**: display name, email, role, permissions and [explicit content](#explicit-content). The email address lets [single sign-on](./authentication.md#who-gets-in-and-as-whom) find the account; only admins set it.
 - **Reset password…**: sets a new password, signs them out everywhere and deletes their app passwords, so whoever had the account keeps nothing that still works.
 - **Disable account…**: signs them out everywhere, deletes their app passwords and blocks sign-in until **Enable account**.
 - **Delete account…**: deletes their likes, playlists and history too. The shared library stays.

@@ -155,6 +155,11 @@ export const TrackSummary = z.object({
    * entry from it; current clients read `liked` and `inLibrary`. Optional for older servers.
    */
   library: TrackLibrary.nullable().optional(),
+  /**
+   * The viewer's star rating, 1 to 5, or null when they gave none (`PUT /me/ratings/track/:id`).
+   * Clients show it only for a viewer with `showRatings` on. Optional so older servers still parse.
+   */
+  rating: z.number().int().min(1).max(5).nullable().optional(),
 })
 export type TrackSummary = z.infer<typeof TrackSummary>
 
@@ -289,13 +294,41 @@ export const ArtistDetail = ArtistSummary.extend({
 })
 export type ArtistDetail = z.infer<typeof ArtistDetail>
 
+/** A word of a synced line and when it is sung, in milliseconds into the song. */
+export const LyricWord = z.object({
+  startMs: z.number().int().nonnegative(),
+  endMs: z.number().int().nonnegative(),
+  /** The word as written, with the space after it: a line's words joined spell its text. */
+  text: z.string(),
+})
+export type LyricWord = z.infer<typeof LyricWord>
+
+export const LyricLine = z.object({
+  startMs: z.number().int().nonnegative(),
+  /** Empty for an instrumental gap. */
+  text: z.string(),
+  /** Each word's time, when the lyrics have them (Enhanced LRC or TTML word timing). */
+  words: z.array(LyricWord).optional(),
+  /** A translation or romanization the lyrics give for the line. */
+  translation: z.string().optional(),
+})
+export type LyricLine = z.infer<typeof LyricLine>
+
 export const Lyrics = z.object({
   trackId: Id,
-  /** LRC text with [mm:ss.xx] timestamps, when synced lyrics exist. */
+  /**
+   * LRC text with [mm:ss.xx] timestamps, when synced lyrics exist. Only line stamps: word
+   * timing, where there is some, is in `lines`.
+   */
   synced: z.string().nullable(),
   plain: z.string().nullable(),
   instrumental: z.boolean(),
   source: z.string(),
+  /**
+   * `synced` read into lines, with each word's time and a line's translation when the lyrics
+   * have them. Optional: older servers send only `synced`, which clients then read themselves.
+   */
+  lines: z.array(LyricLine).optional(),
 })
 export type Lyrics = z.infer<typeof Lyrics>
 

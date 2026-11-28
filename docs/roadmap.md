@@ -23,8 +23,10 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Streaming: playback descriptor, signed URLs, Range, transcode cache
 - [x] Loudness measurement and normalization values
 - [x] Likes, ratings, playlists, history, user settings
-- [x] Lyrics: embedded, sidecar and LRCLIB, shown on web and iOS
+- [x] Lyrics: embedded, sidecar and LRCLIB, shown on web and iOS, word by word from Enhanced LRC and TTML
 - [x] Web app: setup, login, library, album and artist pages, player, queue
+- [x] Web app on a desktop: multi-select in song lists and the queue, dragging songs and cards to playlists, the queue and the player, right-click menus on cards and the player, a command palette, keyboard shortcuts, a pop-out player
+- [x] Now Playing's turning cover colors (web and iPhone), covers that crossfade, a lean-back full screen on the web and a Compact density
 - [x] Mobile app: connect, login, real data, real audio, lock-screen controls
 
 ## 3. Connect
@@ -46,6 +48,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Managed roots: preview, apply, journal, undo (server and API)
 - [x] Admin screens (web): library folders, review queue, Fix match, Organize, users and invites, server settings, jobs
 - [x] Tag writing with verification
+- [x] Admin tag editor, duplicate and bitrate review, and scheduled file health checks
 
 ## 5. OpenSubsonic
 
@@ -76,6 +79,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] A personal library: the library is what you heart (uploads hearted for their uploader), the server's music on Home and On this server, an opt-in to include all of it; Your uploads and Admin → Uploads to delete uploaded music (web; iOS next)
 - [x] Fingerprinting for untagged files
 - [x] Offline downloads on mobile, with their lyrics, and search over what the phone holds while offline
+- [x] Several accounts on one phone or Apple TV: a switcher, and each account's downloads, streaming cache and saved library kept on the device for switching back
 
 ## 8. Providers and extras
 
@@ -84,7 +88,8 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] A song the provider doesn't have is skipped with a light notice and playback goes on; only an outage, or nothing left that is available, stops it (server, web and iOS)
 - [x] Gray out songs a provider lacks before they are played: resolve ahead of the queue and on album pages for `assume_available` providers
 - [x] Replay listening statistics, Year in Review and listening history import and export (web)
-- [x] Scrobbling to ListenBrainz and Last.fm (server, API, mobile and web settings)
+- [x] Scrobbling to ListenBrainz and Last.fm, compatible ListenBrainz destinations and optional two-way heart sync
+- [x] Webhooks, MQTT with Home Assistant discovery and scoped native API tokens
 - [x] Radio and autoplay (server, API, web and iOS, and Subsonic similar songs)
 - [x] A personal Home: Jump back in, daily mixes (Made for you) with their own page, Because you listened to, Your top artists, Rediscover, ordered by the time of day (server, web, iOS and Apple TV; iOS and tvOS not yet checked on a device)
 - [x] Sonic analysis: tempo, key, energy, danceability, intro and outro, and timbre vectors from Squirmy's own DSP; tempo, key and mood tags; Deezer's tempo as a fallback. Radio ranks with it, and the web app has **Songs that sound like this** ([sonic-analysis.md](./server/sonic-analysis.md))
@@ -92,11 +97,15 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [ ] Mixes and DJ-style transitions from the sonic analysis (the `artistSoundAffinity` seam and the hooks in [Sonic analysis](./architecture.md#sonic-analysis))
 - [x] Detached playback: web and iOS devices can play their own queue and rejoin the shared session later ([detached-playback-ui.md](./detached-playback-ui.md))
 - [x] Local search index: importer, search and admin routes ([local-search-index.md](./local-search-index.md)), offered as the first search provider, and its admin screen
+- [x] Smart playlists: rules evaluated live on the server, a rule editor on the web, read-only in Subsonic and the iOS and Apple TV apps ([web.md](./use/web.md#smart-playlists))
+- [ ] Edit smart playlist rules in the iOS app
 - [x] Documentation site ([docs/](./index.md), built with VitePress)
 - [x] Docker health check on `/ready`, and the image reports its source version
 - [x] Sessions list and sign-out, TOTP two-factor with recovery codes (server, web, iOS and Apple TV sign-in) ([authentication.md](./server/authentication.md))
 - [x] Passkeys on the web: add, rename, remove, and username-less sign-in
 - [x] OpenID Connect single sign-on (server, web, admin settings, iOS sign-in), linking accounts, and turning password sign-in off
+- [x] Explicit content controls: a per-user switch an admin can enforce, explicit songs gray and kept out of queues, radio, search, Home and Subsonic, and known clean versions in their place (server, web, iOS and Apple TV)
+- [x] Public share links to albums, playlists and songs: expiring and revocable, a public page with previews or whole songs as the admin allows, managed in Settings and Admin → Sharing (server, web, and Share on iOS)
 
 ## 9. Apple TV
 
@@ -115,10 +124,10 @@ Designed in [audio-engine.md](./audio-engine.md); each item is a pull request fr
 - [x] Design, with measurements of today's gaps and spikes of the new engine and formats
 - [x] S1. Transcode priorities and cancelling abandoned encodes
 - [x] S2. Exact lengths and priming per file, estimated gains for unmeasured files
-- [ ] S3. Fragmented MP4 profiles (FLAC, Opus, AAC) with exact gapless numbers, and seeking live transcodes
+- [x] S3. Fragmented MP4 profiles (FLAC, Opus, AAC) with exact gapless numbers, and seeking live transcodes
 - [ ] C1. Queue diffs with checkpoints on the session socket
 - [ ] C2. Undoing queue edits
-- [ ] M1. The native iOS and tvOS engine, behind a setting
+- [x] M1. The native iOS and tvOS engine, behind a setting
 - [ ] M2. Streaming to the cache in one pass
 - [ ] M3. Fragmented MP4 transcodes and live seeking on iOS
 - [ ] M4. Normalization with boost and a true-peak limiter, with a target setting

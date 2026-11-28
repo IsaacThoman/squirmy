@@ -2,18 +2,20 @@ import { ApiError } from '@squirmy/client-core';
 import { useMutation } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { useEffect, useRef, useState } from 'react';
-import { Linking } from 'react-native';
+import { Linking, Platform } from 'react-native';
 import { displayAddress, isExposedHttp } from './address';
 import { SsoError, unsavedSignIn, useAccount } from './AccountProvider';
 import { signInErrorMessage, ssoErrorMessage } from './auth';
 import { AuthField, AuthLink, AuthPage, AuthSection, AuthServer, AuthSubmit, type FieldHandle } from './AuthForm';
 import { ConnectError, findServer } from './server';
 import { lastUsername, rememberUsername } from './storage';
+import { accountTitle } from './storageUsage';
 
 const addressHint = 'For example music.example.com or http://192.168.1.20:4747.';
+const savedNote = `Accounts on this ${Platform.OS === 'ios' ? 'iPhone' : 'phone'}. One that’s still signed in opens at once.`;
 
 export function ConnectScreen() {
-  const { state, connect } = useAccount();
+  const { state, accounts, connect, switchTo } = useAccount();
   const previous = state.status === 'connect' ? state.previous : null;
   const [address, setAddress] = useState(previous ? displayAddress(previous.url) : '');
   const search = useRef<AbortController | null>(null);
@@ -55,13 +57,18 @@ export function ConnectScreen() {
     </AuthSection>}
     <AuthSubmit title="Continue" busyTitle="Connecting…" busy={lookup.isPending} disabled={!address.trim()} onPress={submit} />
     {lookup.isPending && <AuthSection><AuthLink title="Cancel" onPress={cancel} /></AuthSection>}
+    {/* Back to an account already on this phone, as it was: adding one can be called off here. */}
+    {accounts.length > 0 && !lookup.isPending && <AuthSection footer={savedNote}>
+      {accounts.map(account => <AuthLink key={account.key} icon="person.crop.circle"
+        title={`${accountTitle(account)} on ${account.server.name}`} onPress={() => void switchTo(account.key)} />)}
+    </AuthSection>}
   </AuthPage>;
 }
 
 type Mode = 'signIn' | 'register';
 
 export function SignInScreen() {
-  const { state, unsaved, signIn, signInWithCode, signInWithSso, register, switchServer } = useAccount();
+  const { state, unsaved, signIn, signInWithCode, signInWithSso, register, addAccount } = useAccount();
   const sso = useMutation({
     mutationFn: signInWithSso,
     onSuccess: () => void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success),
@@ -142,7 +149,7 @@ export function SignInScreen() {
       if (code.trim() && !attempt.isPending) attempt.mutate();
     };
     return <AuthPage title="Enter your code" message={`Open your authenticator app and enter the code it shows for ${server.name}.`}>
-      <AuthServer server={server} onChange={switchServer} />
+      <AuthServer server={server} onChange={addAccount} />
       <AuthSection footer={error ?? 'Lost your phone? Enter one of your recovery codes instead.'} tone={error ? 'error' : 'note'}>
         <AuthField kind="code" placeholder="Authentication code" value={code} onChange={setCode} onSubmit={submitCode} autoFocus />
       </AuthSection>
@@ -166,7 +173,7 @@ export function SignInScreen() {
   if (passwordsOff) {
     // Only single sign-on (passkeys are web-only for now): what went wrong is said in the page's message.
     return <AuthPage title="Sign in" message={error ?? notice ?? (server.ssoName ? `Sign in to listen to ${server.name}.` : `${server.name} doesn’t take passwords, and has no single sign-on set up.`)}>
-      <AuthServer server={server} onChange={switchServer} />
+      <AuthServer server={server} onChange={addAccount} />
       {ssoButton}
     </AuthPage>;
   }
@@ -176,7 +183,7 @@ export function SignInScreen() {
     message={notice ?? (unsaved ? unsavedSignIn : registering
       ? inviteRequired ? `Use the invite code you were given to join ${server.name}.` : `Create an account on ${server.name}.`
       : `Sign in to listen to ${server.name}.`)}>
-    <AuthServer server={server} onChange={switchServer} />
+    <AuthServer server={server} onChange={addAccount} />
     {registering && <AuthSection footer={inviteRequired
       ? 'Ask the person who runs this server for an invite code.'
       : 'An invite code can give your account more permissions. You can leave it empty.'}>

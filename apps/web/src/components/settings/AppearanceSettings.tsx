@@ -1,8 +1,9 @@
-import { Check, Monitor, Moon, Sun } from 'lucide-react'
+import { Check, Monitor, Moon, Rows3, Rows4, Sun } from 'lucide-react'
 import { useId } from 'react'
 import { Row } from '@/components/ui/section'
 import { setAppearanceMode, setColorTheme, useAppearance, type AppearanceMode } from '@/lib/appearance'
 import { COLOR_THEMES, resolvePalette, type ColorTheme, type ThemeAppearance } from '@/lib/color-themes'
+import { setDensity, useDensitySetting, type Density } from '@/lib/density'
 import { cn } from '@/lib/utils'
 
 const modes: { id: AppearanceMode; label: string; icon: typeof Sun }[] = [
@@ -11,11 +12,25 @@ const modes: { id: AppearanceMode; label: string; icon: typeof Sun }[] = [
   { id: 'system', label: 'System', icon: Monitor },
 ]
 
-/** Light, dark or the system's choice, and the color theme. Both are kept in this browser. */
+const densities: { id: Density; label: string; icon: typeof Sun }[] = [
+  { id: 'comfortable', label: 'Comfortable', icon: Rows3 },
+  { id: 'compact', label: 'Compact', icon: Rows4 },
+]
+
+/** The look of a selected and an unselected segment of a choice in this section. */
+const segment = (selected: boolean) => cn(
+  'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 pointer-coarse:min-h-11 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring @xl:flex-none',
+  // Filled in the action color: a quiet fill is hard to tell from the segments beside it.
+  selected ? 'bg-primary font-medium text-primary-foreground focus-visible:ring-offset-1 focus-visible:ring-offset-background' : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
+)
+
+/** Light, dark or the system's choice, the display density and the color theme. All are kept in this browser. */
 export function AppearanceSettings() {
   const appearance = useAppearance()
   const modeLabel = useId()
   const themeLabel = useId()
+  const densityLabel = useId()
+  const density = useDensitySetting()
   return (
     <>
       <Row label={<span id={modeLabel}>Theme</span>} description="System follows your device between light and dark.">
@@ -26,12 +41,17 @@ export function AppearanceSettings() {
               type="button"
               aria-pressed={appearance.mode === id}
               onClick={() => setAppearanceMode(id)}
-              className={cn(
-                'flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 pointer-coarse:min-h-11 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring @xl:flex-none',
-                // Filled in the action color: a quiet fill is hard to tell from the segments beside it.
-                appearance.mode === id ? 'bg-primary font-medium text-primary-foreground focus-visible:ring-offset-1 focus-visible:ring-offset-background' : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
-              )}
+              className={segment(appearance.mode === id)}
             >
+              <Icon aria-hidden className="size-4" />{label}
+            </button>
+          ))}
+        </div>
+      </Row>
+      <Row label={<span id={densityLabel}>Density</span>} description="Compact fits more songs and albums on the screen. On a touch screen, rows keep their size.">
+        <div role="group" aria-labelledby={densityLabel} className="flex w-full rounded-lg border p-0.5 @xl:w-auto">
+          {densities.map(({ id, label, icon: Icon }) => (
+            <button key={id} type="button" aria-pressed={density === id} onClick={() => setDensity(id)} className={segment(density === id)}>
               <Icon aria-hidden className="size-4" />{label}
             </button>
           ))}

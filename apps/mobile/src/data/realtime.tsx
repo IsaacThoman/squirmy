@@ -73,7 +73,11 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
   const queryClient = useQueryClient();
   const serverUrl = state.status === 'signedIn' ? state.server.url : null;
   const token = state.status === 'signedIn' ? state.token : null;
-  const [socket, setSocket] = useState<SquirmySocket | null>(null);
+  // Tagged with the session it was opened for: in the render that switches accounts the old
+  // one is still in state, and nothing may be built on it for the new account.
+  const [opened, setOpened] = useState<{ socket: SquirmySocket; session: string } | null>(null);
+  const session = serverUrl && token ? `${serverUrl}\n${token}` : null;
+  const socket = opened && opened.session === session ? opened.socket : null;
   const [offline, setOffline] = useState(false);
   const [listeners] = useState(() => new Set<InvalidateListener>());
   const [changeListeners] = useState(() => new Set<ChangesListener>());
@@ -185,7 +189,7 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
     const answers = reach.subscribe(updateOffline);
     updateOffline();
     next.connect();
-    setSocket(next);
+    setOpened({ socket: next, session: `${serverUrl}\n${token}` });
     return () => {
       clearTimeout(retry);
       clearTimeout(goingOffline);
@@ -199,7 +203,7 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
       next.removeAllListeners();
       next.io.off('ping', heard);
       next.disconnect();
-      setSocket(null);
+      setOpened(null);
     };
   }, [changeListeners, echoes, listeners, queryClient, reach, serverUrl, token]);
 

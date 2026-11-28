@@ -91,6 +91,7 @@ export function UsersAdmin({
                     <Badge tone={user.role === 'admin' ? 'accent' : 'neutral'} className="capitalize">{user.role}</Badge>
                     {user.canUpload && <Badge tone="outline">Upload</Badge>}
                     {user.canAcquire && <Badge tone="outline">Fetch</Badge>}
+                    {user.explicitRestricted && <Badge tone="outline">No explicit</Badge>}
                   </>
                 )
                 return (
@@ -327,7 +328,16 @@ function AccessFields({ value, onChange, roleLocked }: { value: Access; onChange
   )
 }
 
-const newUser = { username: '', password: '', displayName: '', role: 'member' as UserRole, canUpload: false, canAcquire: false, email: '' }
+/** An admin's switch the user cannot undo from their own settings: for a child's account. */
+function ExplicitField({ value, onChange }: { value: boolean; onChange: (explicitRestricted: boolean) => void }) {
+  return (
+    <OptionRow label="Turn off explicit content" description="Explicit songs are gray and never play. They can’t turn it back on.">
+      <Switch aria-label="Turn off explicit content" checked={value} onCheckedChange={onChange} />
+    </OptionRow>
+  )
+}
+
+const newUser = { username: '', password: '', displayName: '', role: 'member' as UserRole, canUpload: false, canAcquire: false, explicitRestricted: false, email: '' }
 
 function CreateUserDialog({ open, onOpenChange, onCreate }: { open: boolean; onOpenChange: (open: boolean) => void; onCreate: UsersAdminProps['onCreateUser'] }) {
   const [value, setValue] = useState(newUser)
@@ -358,7 +368,10 @@ function CreateUserDialog({ open, onOpenChange, onCreate }: { open: boolean; onO
           <Field label="Password" htmlFor="new-password" error={form.errors.password} hint="At least 8 characters.">
             <Input id="new-password" type="password" autoComplete="new-password" value={value.password} onChange={event => setValue({ ...value, password: event.target.value })} aria-invalid={!!form.errors.password} />
           </Field>
-          <OptionGroup><AccessFields value={value} onChange={access => setValue({ ...value, ...access })} /></OptionGroup>
+          <OptionGroup>
+            <AccessFields value={value} onChange={access => setValue({ ...value, ...access })} />
+            <ExplicitField value={value.explicitRestricted} onChange={explicitRestricted => setValue({ ...value, explicitRestricted })} />
+          </OptionGroup>
         </DialogForm>
       </DialogContent>
     </Dialog>
@@ -366,7 +379,7 @@ function CreateUserDialog({ open, onOpenChange, onCreate }: { open: boolean; onO
 }
 
 function EditUserDialog({ user, isSelf, onOpenChange, onSave }: { user: User; isSelf: boolean; onOpenChange: (open: boolean) => void; onSave: (patch: UpdateUserRequest) => Promise<unknown> }) {
-  const [value, setValue] = useState({ displayName: user.displayName ?? '', email: user.email ?? '', role: user.role, canUpload: user.canUpload, canAcquire: user.canAcquire })
+  const [value, setValue] = useState({ displayName: user.displayName ?? '', email: user.email ?? '', role: user.role, canUpload: user.canUpload, canAcquire: user.canAcquire, explicitRestricted: user.explicitRestricted })
   const form = useFormSubmit(UpdateUserRequest, onSave, { email_taken: 'email' })
   const submit = async () => {
     if (await form.submit({ ...value, displayName: value.displayName.trim() || null, email: value.email.trim() || null })) onOpenChange(false)
@@ -383,6 +396,7 @@ function EditUserDialog({ user, isSelf, onOpenChange, onSave }: { user: User; is
           </Field>
           <OptionGroup>
             <AccessFields value={value} onChange={access => setValue({ ...value, ...access })} roleLocked={isSelf && value.role === 'member' ? 'You lose access to Admin when you save.' : undefined} />
+            <ExplicitField value={value.explicitRestricted} onChange={explicitRestricted => setValue({ ...value, explicitRestricted })} />
           </OptionGroup>
         </DialogForm>
       </DialogContent>
