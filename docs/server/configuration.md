@@ -74,6 +74,8 @@ Stored in the `server_settings` table, from `ServerSettings` in `packages/contra
 |---|---|---|---|---|
 | General | Server name | `serverName` | `Squirmy` | Shown on the web app's sign-in page and in the iOS app's connect and sign-in screens. |
 | | Wantlist | `wantlistEnabled` | off | Turns on the [wantlist](../use/wantlist.md), a list of music the server does not have yet. Off, the apps show no trace of it and wants stay stored, so turning it back on brings them back. |
+| Sharing (in **Admin → Sharing**) | Share links | `sharingEnabled` | on | Lets members make public links to albums, playlists and songs. Off, every link stops working but is kept. See [Share links](./sharing.md). |
+| | What a shared page plays | `sharePlayback` | 30-second previews | `previews`, `full` or `off`: what people opening a share link can hear. |
 | Registration | Require an invite to join | `registrationRequiresInvite` | on | Off lets anyone who can reach the server create a member account. |
 | Metadata sources | MusicBrainz | `musicBrainzEnabled` | on | Identifies albums and fills in discographies. Off means nothing new is identified. |
 | | MusicBrainz server | `musicBrainzBaseUrl` | `https://musicbrainz.org` | Base URL of a MusicBrainz web service, a full `http://` or `https://` address. Only `musicbrainz.org` and its subdomains are rate limited, so a mirror lifts the limit. |

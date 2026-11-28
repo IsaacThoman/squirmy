@@ -1,10 +1,12 @@
 import {
   ApiTokenScope, ChangePasswordRequest, ConnectListenBrainzRequest, CreateAppPasswordRequest, UpdateUserRequest,
-  type AppPassword, type NormalizationMode, type NormalizationTarget, type ScrobbleService, type ScrobbleTarget, type ScrobblingStatus, type StreamQuality, type UpdateUserSettings, type User, type UserSettings,
+  type AppPassword, type NormalizationMode, type NormalizationTarget, type ShareLink, type ScrobbleService, type ScrobbleTarget, type ScrobblingStatus, type StreamQuality, type UpdateUserSettings, type User, type UserSettings,
 } from '@squirmy/contracts'
-import { AlertTriangle, AudioLines, Check, CircleCheck, FolderUp, Info, KeyRound, Library, LogOut, Palette, Pencil, Plus, Radio, Webhook, ShieldCheck, User as UserIcon, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, AudioLines, Check, CircleCheck, FolderUp, Info, KeyRound, Library, Link2, LogOut, Palette, Pencil, Plus, Radio, Webhook, ShieldCheck, User as UserIcon, type LucideIcon } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { useFormSubmit } from '@/api/errors'
+import { shareLinkDetail } from '@/components/share/share-detail'
+import { ShareLinkLabel } from '@/components/share/share-links'
 import { Button } from '@/components/ui/button'
 import { CopyField } from '@/components/ui/copy-field'
 import { ConfirmDialog, Dialog, DialogClose, DialogContent, DialogFooter, DialogFrame, DialogTitle } from '@/components/ui/dialog'
@@ -27,6 +29,7 @@ const sections: { id: SettingsSection; label: string; icon: LucideIcon }[] = [
   { id: 'account', label: 'Account', icon: UserIcon },
   { id: 'scrobbling', label: 'Scrobbling', icon: Radio },
   { id: 'app-passwords', label: 'App passwords', icon: KeyRound },
+  { id: 'share-links', label: 'Share links', icon: Link2 },
   { id: 'webhooks', label: 'Webhooks', icon: Webhook },
   { id: 'about', label: 'About', icon: Info },
 ]
@@ -56,9 +59,10 @@ const shortcuts: { keys: string[]; action: string }[] = [
   { keys: ['Space'], action: 'Play or pause' },
   { keys: ['←', '→'], action: 'Seek 5 seconds' },
   { keys: ['↑', '↓'], action: 'Volume' },
-  { keys: [`${modKey}K`], action: 'Search' },
+  { keys: [`${modKey}K`], action: 'Search and commands' },
   { keys: [`${modKey}B`], action: 'Show or hide the sidebar' },
   { keys: [`${modKey},`], action: 'Settings' },
+  { keys: ['?'], action: 'All shortcuts' },
 ]
 
 export type SettingsDialogProps = {
@@ -87,6 +91,11 @@ export type SettingsDialogProps = {
   /** Resolves with the new password, whose `secret` is shown once. */
   onCreateAppPassword: (request: CreateAppPasswordRequest) => Promise<AppPassword>
   onRevokeAppPassword: (id: string) => Promise<unknown>
+  /** The user's public links, undefined while loading. */
+  shareLinks: ShareLink[] | undefined
+  /** Whether the server lets members make links; off, every link is switched off. */
+  sharingEnabled: boolean
+  onRevokeShareLink: (id: string) => Promise<unknown>
   onChangePassword: (request: ChangePasswordRequest) => Promise<unknown>
   /** Only where the server lets this user rename themselves. */
   onRename?: (displayName: string | null) => Promise<unknown>
@@ -96,7 +105,7 @@ export type SettingsDialogProps = {
   /** Whoever may upload gets a link to Your uploads in the Library section. */
   onOpenUploads?: () => void
   /** Said in place of a section's controls when its first read failed. */
-  failures?: Partial<Record<'settings' | 'sharing' | 'scrobbling' | 'appPasswords', ReactNode>>
+  failures?: Partial<Record<'settings' | 'sharing' | 'scrobbling' | 'appPasswords' | 'shareLinks', ReactNode>>
   /** A change the section's controls made that the server refused, said under them. */
   errors?: Partial<Record<'playback' | 'library' | 'scrobbling', string>>
   /** What Last.fm answered when it sent the browser back here, said at the top of Scrobbling. */
@@ -111,7 +120,7 @@ const SAVED_MS = 2500
 /** The user's settings in a dialog: sections down the left, the chosen one on the right. */
 export function SettingsDialog({
   open, onOpenChange, section, onSectionChange, user, serverName, version, settings, onSettingsChange, deviceName, defaultDeviceName, onDeviceNameChange,
-  scrobbling, onConnectListenBrainz, onConnectLastFm, onDisconnect, appPasswords, onCreateAppPassword, onRevokeAppPassword, onChangePassword, onRename, onLogout, onOpenAdmin, onOpenUploads, failures,
+  scrobbling, onConnectListenBrainz, onConnectLastFm, onDisconnect, appPasswords, onCreateAppPassword, onRevokeAppPassword, shareLinks, sharingEnabled, onRevokeShareLink, onChangePassword, onRename, onLogout, onOpenAdmin, onOpenUploads, failures,
   errors, lastFm, passwordChanged,
 }: SettingsDialogProps) {
   // The field shows the new name; "Saved" beside it says it reached the device lists.
@@ -123,6 +132,7 @@ export function SettingsDialog({
   }, [nameSaved])
   const [dialog, setDialog] = useState<'app-password' | 'password' | 'rename' | 'listenbrainz' | null>(null)
   const [revoking, setRevoking] = useState<AppPassword | null>(null)
+  const [unsharing, setUnsharing] = useState<ShareLink | null>(null)
   const [disconnecting, setDisconnecting] = useState<ScrobbleService | null>(null)
   const close = (next: boolean) => { if (!next) setDialog(null) }
   const nav = useRef<HTMLElement>(null)
@@ -350,6 +360,21 @@ export function SettingsDialog({
               </Panel>
             )}
 
+            {section === 'share-links' && (
+              <Panel
+                title="Share links"
+                description="Public links to albums, playlists and songs. Anyone with one can open it without an account until it expires or you revoke it."
+              >
+                {!sharingEnabled && <Row label="Sharing is off on this server" description="Your links do not open while it is off. An admin can turn it back on." />}
+                {!shareLinks && (failures?.shareLinks ?? <LoadingRows rows={1} />)}
+                {shareLinks?.length === 0 && <Row label="No share links" description="Choose Share… in the menu of an album, playlist or song to make one." />}
+                {shareLinks?.map(link => (
+                  <Row key={link.id} label={<ShareLinkLabel link={link} />} description={shareLinkDetail(link)}>
+                    <Button size="sm" variant="outline" onClick={() => setUnsharing(link)}>Revoke</Button>
+                  </Row>
+                ))}
+              </Panel>
+            )}
             {section === 'webhooks' && <WebhookSettings />}
 
             {section === 'about' && (
@@ -395,6 +420,14 @@ export function SettingsDialog({
           description="Apps using it are signed out and need a new app password."
           confirmLabel="Revoke"
           onConfirm={() => onRevokeAppPassword(revoking!.id)}
+        />
+        <ConfirmDialog
+          open={!!unsharing}
+          onOpenChange={next => { if (!next) setUnsharing(null) }}
+          title={`Revoke the link to “${unsharing?.title}”?`}
+          description="The link stops working for everyone who has it. You can make a new one any time."
+          confirmLabel="Revoke"
+          onConfirm={() => onRevokeShareLink(unsharing!.id)}
         />
       </DialogFrame>
     </Dialog>

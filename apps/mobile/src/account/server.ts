@@ -6,7 +6,11 @@ import { displayAddress, parseServerAddress } from './address';
  * `registrationRequiresInvite` is false when anyone may create an account. `wantlistEnabled`
  * is whether the server's admin turned the wantlist on; while it is off the app never shows it.
  */
-export type Server = { url: string; name: string; version: string; registrationRequiresInvite: boolean; wantlistEnabled: boolean; supportsTvDevices?: true };
+export type Server = {
+  url: string; name: string; version: string; registrationRequiresInvite: boolean; wantlistEnabled: boolean; supportsTvDevices?: true;
+  /** Whether members can make public share links. Absent from servers saved before it was known. */
+  sharingEnabled?: boolean;
+};
 
 export type ConnectProblem = 'invalid' | 'unreachable' | 'notSquirmy' | 'serverError' | 'needsSetup' | 'cancelled';
 
@@ -24,6 +28,7 @@ export function serverFrom(url: string, status: SetupStatus): Server {
     url, name: status.serverName, version: status.version, registrationRequiresInvite: status.registrationRequiresInvite,
     // Release builds do not validate responses, and servers from before the setting leave it out.
     wantlistEnabled: status.wantlistEnabled === true,
+    sharingEnabled: status.sharingEnabled === true,
     ...(status.supportsTvDevices === true && { supportsTvDevices: true as const }),
   };
 }

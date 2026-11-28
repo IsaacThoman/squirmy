@@ -198,6 +198,8 @@ export async function adminRoutes(app: FastifyInstance) {
     if (before.wantlistEnabled !== settings.wantlistEnabled) {
       await invalidate('all', [queryKeys.setupStatus(), queryKeys.home(), queryKeys.wants()])
     }
+    // Owned by the share module: clients offer Share from the setup status.
+    if (before.sharingEnabled !== settings.sharingEnabled) await invalidate('all', [queryKeys.setupStatus(), queryKeys.shares()])
     return settings
   })
 

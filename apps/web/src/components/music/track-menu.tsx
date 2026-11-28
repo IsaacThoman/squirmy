@@ -1,8 +1,9 @@
 import type { CreditRole, TrackSummary } from '@squirmy/contracts'
-import { ArrowDown, ArrowUp, AudioWaveform, Check, Disc3, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, Plus, Radio, Star, StarOff, Trash2, Users } from 'lucide-react'
+import { ArrowDown, ArrowUp, AudioWaveform, Check, Disc3, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, Play, Plus, Radio, Share2, Star, StarOff, Trash2, Users } from 'lucide-react'
 import type { MenuEntry } from '@/components/ui/menu'
 import { librarySaveEntry, wantEntry } from './library-save-entry'
 import type { PlaylistChoice, TrackAction } from './TrackList'
+import type { BatchAction } from './track-selection'
 
 export type TrackMenuOptions = {
   unavailable: boolean
@@ -14,6 +15,8 @@ export type TrackMenuOptions = {
   /** Resolves (or rejects) for the actions that answer later, which their entries wait for. */
   act: (action: TrackAction) => void | Promise<unknown>
   navigate: (to: string) => void
+  /** The server lets members make public links: Share makes one to the song. */
+  canShare?: boolean
   extraMenu?: MenuEntry[]
   /** The row's place in a list the user may reorder. */
   reorder?: { index: number; count: number }
@@ -57,7 +60,7 @@ export function trackCreditEntries(track: TrackSummary, navigate: TrackMenuOptio
  * A song's menu, the same wherever a song is listed (track lists, search results): on a touch
  * screen its whole title and credit, then play next, queue, playlists, the radios, saving it (the heart), the Wantlist, its album and artists.
  */
-export function trackMenuEntries(track: TrackSummary, { unavailable, wanted, playlists, ratings, act, navigate, extraMenu, reorder, onAlbumPage = false, queued }: TrackMenuOptions): MenuEntry[] {
+export function trackMenuEntries(track: TrackSummary, { unavailable, wanted, playlists, ratings, act, navigate, canShare = false, extraMenu, reorder, onAlbumPage = false, queued }: TrackMenuOptions): MenuEntry[] {
   const playNext: MenuEntry[] = queued && queued.index === 0 ? [] : [{ label: 'Play next', icon: <ListStart />, onSelect: () => act('play-next'), done: 'Playing next', disabled: unavailable }]
   const toEnd: MenuEntry[] = !queued
     ? [{ label: 'Add to queue', icon: <ListEnd />, onSelect: () => act('enqueue'), done: 'Added to queue', disabled: unavailable }]
@@ -82,6 +85,7 @@ export function trackMenuEntries(track: TrackSummary, { unavailable, wanted, pla
     { label: 'Start radio', icon: <Radio />, onSelect: () => act('radio'), disabled: unavailable },
     // Leans on how the song sounds (the server's sonic analysis) more than on who made it.
     { label: 'Songs that sound like this', icon: <AudioWaveform />, onSelect: () => act('sonic-radio'), disabled: unavailable },
+    ...(canShare ? [{ label: 'Share…', icon: <Share2 />, onSelect: () => act('share') }] : []),
     { kind: 'separator' },
     librarySaveEntry(track, () => act('like')),
     ...(ratings ? [ratingEntry(track, act)] : []),
@@ -120,4 +124,46 @@ function ratingEntry(track: TrackSummary, act: TrackMenuOptions['act']): MenuEnt
       ...(current ? [{ kind: 'separator' as const }, { label: 'No rating', icon: <StarOff />, onSelect: () => act('rate:0') }] : []),
     ],
   }
+}
+
+export type SelectionMenuOptions = {
+  /** None of the songs plays here: nothing to play or queue. */
+  unavailable: boolean
+  playlists?: PlaylistChoice[]
+  act: (action: BatchAction) => void | Promise<unknown>
+  /** What Remove takes them out of (the playlist the user owns, the queue); none where they cannot be removed. */
+  remove?: string
+}
+
+/** The words for `count` songs. */
+export const songsLabel = (count: number) => `${count.toLocaleString()} ${count === 1 ? 'song' : 'songs'}`
+
+/**
+ * The menu of several picked songs, from a right-click on one of them and the selection bar's
+ * More: what a song's menu offers that makes sense for many at once.
+ */
+export function selectionMenuEntries(tracks: TrackSummary[], { unavailable, playlists, act, remove }: SelectionMenuOptions): MenuEntry[] {
+  const allSaved = tracks.every(track => track.liked)
+  return [
+    { kind: 'label', label: `${songsLabel(tracks.length)} selected` },
+    { label: 'Play', icon: <Play />, onSelect: () => act('play'), disabled: unavailable },
+    { label: 'Play next', icon: <ListStart />, onSelect: () => act('play-next'), done: 'Playing next', disabled: unavailable },
+    { label: 'Add to queue', icon: <ListEnd />, onSelect: () => act('enqueue'), done: 'Added to queue', disabled: unavailable },
+    ...(playlists ? [{
+      kind: 'submenu' as const,
+      label: 'Add to playlist',
+      icon: <ListPlus />,
+      items: [
+        { label: 'New playlist…', icon: <Plus />, onSelect: () => act('add-to:new') },
+        ...(playlists.length ? [{ kind: 'separator' as const }] : []),
+        ...playlists.map(playlist => ({ label: playlist.name, icon: <ListMusic />, onSelect: () => act(`add-to:${playlist.id}`), done: `Added to ${playlist.name}` })),
+      ],
+    }] : []),
+    { kind: 'separator' },
+    librarySaveEntry({ liked: allSaved }, () => act(allSaved ? 'unsave' : 'save')),
+    ...(remove ? [
+      { kind: 'separator' as const },
+      { label: `Remove from ${remove}`, icon: <Trash2 />, danger: true, onSelect: () => act('remove') },
+    ] : []),
+  ]
 }

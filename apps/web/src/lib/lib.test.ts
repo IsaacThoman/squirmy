@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { safeNext } from '@/auth/session'
-import { keyIsTaken } from '@/player/shortcuts'
+import { keyIsTaken, letterIsTaken } from '@/player/shortcuts'
 import { awaitsTrackList } from './catalog'
 import { codecsFor } from './codecs'
 import { claimTabDevice, deviceName } from './device'
@@ -134,6 +134,22 @@ describe('keyboard shortcuts', () => {
     expect(press('ArrowDown', element('section'))).toBe(true)
     expect(press('ArrowDown', element('art'))).toBe(false)
     expect(press(' ', element('art'))).toBe(false)
+  })
+
+  it('leave the letter keys to fields, menus and dialogs, but not to full screen’s buttons', () => {
+    document.body.innerHTML = [
+      '<input id="text">',
+      '<div role="menu"><div role="menuitem" id="item">Play next</div></div>',
+      '<div role="dialog"><button id="info">Close</button></div>',
+      '<div role="dialog" data-player-keys><div data-own-keys><button id="play">Play</button></div></div>',
+    ].join('')
+    const letter = (target: Element, modifiers: Partial<KeyboardEvent> = {}) =>
+      letterIsTaken({ target, altKey: false, ctrlKey: false, metaKey: false, defaultPrevented: false, isComposing: false, ...modifiers })
+    const element = (id: string) => document.getElementById(id)!
+    for (const id of ['text', 'item', 'info']) expect(letter(element(id)), id).toBe(true)
+    expect(letter(element('play'))).toBe(false)
+    expect(letter(element('play'), { defaultPrevented: true })).toBe(true)
+    expect(letter(element('play'), { ctrlKey: true })).toBe(true)
   })
 })
 

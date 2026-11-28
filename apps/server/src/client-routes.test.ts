@@ -24,6 +24,8 @@ const notForClients = new Set([
   // Signed URLs from a playback descriptor; `streamUrl` resolves them.
   'GET /stream/:',
   'GET /stream/:/:',
+  // Sealed song URLs of a share page (`share.trackPlayback`); `streamUrl` resolves them.
+  'GET /share/stream',
   // Plain image URLs, built by `artworkUrl`.
   'GET /art/:/:',
   // A browser attachment download streams directly to disk.

@@ -98,6 +98,28 @@ describe('lean-back mode', () => {
     expect(document.querySelector('[data-lean-back]')).toBeNull()
   })
 
+  it('leaves for Now Playing\'s queue or lyrics with Q and Y, which it does not show', () => {
+    const onPaneChange = vi.fn()
+    renderWithApp(<NowPlaying open onOpenChange={() => {}} pane="art" onPaneChange={onPaneChange} />)
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Close Now Playing' }), { key: 'f' })
+    fireEvent.keyDown(screen.getByLabelText('Full screen player'), { key: 'q' })
+    expect(document.querySelector('[data-lean-back]')).toBeNull()
+    expect(onPaneChange).toHaveBeenLastCalledWith('queue')
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Close Now Playing' }), { key: 'f' })
+    fireEvent.keyDown(screen.getByLabelText('Full screen player'), { key: 'y' })
+    expect(onPaneChange).toHaveBeenLastCalledWith('lyrics')
+  })
+
+  it('opens the song\'s menu from a right-click on the cover, whose letters stay in the menu', async () => {
+    nowPlaying()
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Close Now Playing' }), { key: 'f' })
+    fireEvent.contextMenu(document.querySelector('[data-lean-back] img')!)
+    const item = await screen.findAllByRole('menuitem')
+    // F picks an item here: it neither leaves full screen nor reaches the shell.
+    fireEvent.keyDown(item[0]!, { key: 'f' })
+    expect(document.querySelector('[data-lean-back]')).not.toBeNull()
+  })
+
   it('hides the controls while the music plays untouched, and a key that only wakes them does nothing else', () => {
     nowPlaying()
     fireEvent.keyDown(screen.getByRole('button', { name: 'Close Now Playing' }), { key: 'f' })

@@ -5,9 +5,11 @@ import { streamingRoutes } from './routes.js'
 import { stopTranscodes } from './transcode.js'
 
 export { buildPlaybackDescriptor } from './playback.js'
-export { mimeFor } from './profiles.js'
+export { mimeFor, profiles, type MediaFile } from './profiles.js'
 export { selectFile } from './select.js'
 export { openStream } from './stream.js'
+// For share links, which serve their own previews and streams through these.
+export { serveFile, streamSignal, withLibraryFile, type StreamRequest, type StreamResponse } from './files.js'
 
 export const streamingModule: ServerModule = {
   name: 'streaming',

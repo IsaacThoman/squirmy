@@ -4,18 +4,19 @@
  */
 import { searchContext } from '@squirmy/client-core'
 import type { PlaylistSummary } from '@squirmy/contracts'
-import { useQueryClient } from '@tanstack/react-query'
-import { Bookmark, Disc3, Heart, House, Library, ListMusic, MicVocal, Music2, Search, ShieldCheck, Upload } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { AudioLines, Bookmark, Disc3, Heart, House, Library, ListMusic, MicVocal, Music2, Search, ShieldCheck, Sparkles, Upload } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
 import { HOVER_DELAY_MS, prefetchPage, usePrefetchStartPages, type PrefetchTarget } from '@/api/prefetch'
-import { itemsOf, useLikedTracks, usePlaylists } from '@/api/queries'
+import { homeQuery, itemsOf, useLikedTracks, usePlaylists } from '@/api/queries'
 import { useApi } from '@/api/services'
 import { useMergedSearch } from '@/api/use-search'
 import { useLogout } from '@/auth/actions'
 import { useCurrentUser, useWantlistEnabled } from '@/auth/session'
 import { AppShell, type SearchDialogState, type SettingsDialogState } from '@/components/layout/AppShell'
 import { ErrorBoundary, ErrorMessage } from '@/components/layout/ErrorBoundary'
+import { usePaletteCommands } from '@/components/layout/palette-commands'
 import { SearchDialog, type SearchChoice, type SearchDestination } from '@/components/layout/SearchDialog'
 import { isSettingsSection, useSettingsDialog } from '@/components/settings/settings-dialog'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
@@ -99,7 +100,7 @@ function SettingsDialogMount(state: SettingsDialogState) {
 }
 
 /** Mounted only while the dialog is open, so each search starts with nothing typed and nothing found. */
-function SearchDialogHost({ onOpenChange }: SearchDialogState) {
+function SearchDialogHost({ onOpenChange, commands: shell }: SearchDialogState) {
   const api = useApi()
   const navigate = useNavigate()
   const wantlistEnabled = useWantlistEnabled()
@@ -112,6 +113,14 @@ function SearchDialogHost({ onOpenChange }: SearchDialogState) {
   const recents = useRecentSearches(user.id)
   const search = useMergedSearch(query, { playlists: library.ownPlaylists })
   const close = () => onOpenChange(false)
+  const commands = usePaletteCommands(shell)
+  // Today's mixes (Home's Made for you, as it was last loaded; it is loaded again only when there
+  // is none): a mix is made each morning and Home refreshes them itself. Mixes in Jump back in
+  // may be an earlier day's, so only these are offered.
+  const home = useQuery({ ...homeQuery(api), staleTime: Infinity })
+  const mixes = useMemo(() => (home.data?.sections ?? []).flatMap(section => (
+    section.kind === 'items' && section.id === 'made-for-you' ? section.items.flatMap(item => item.kind === 'mix' ? [item.mix] : []) : []
+  )), [home.data])
   const destinations = useMemo<SearchDestination[]>(() => [
     { label: 'Home', to: '/', icon: House },
     { label: 'Search and browse genres', to: '/search', icon: Search },
@@ -121,10 +130,12 @@ function SearchDialogHost({ onOpenChange }: SearchDialogState) {
     { label: 'Songs', to: '/library?filter=songs', icon: Music2 },
     { label: 'Playlists', to: '/library?filter=playlists', icon: ListMusic },
     { label: 'Liked Songs', to: '/liked', icon: Heart },
+    { label: 'Replay', to: '/replay', icon: AudioLines },
+    ...mixes.map(mix => ({ label: mix.name, to: `/mix/${mix.id}`, icon: Sparkles })),
     ...(wantlistEnabled ? [{ label: 'Wantlist', to: '/wantlist', icon: Bookmark }] : []),
     ...(canUploadMusic(user) ? [{ label: 'Add music', to: '/imports', icon: Upload }] : []),
     ...(user.role === 'admin' ? [{ label: 'Admin panel', to: '/admin', icon: ShieldCheck }] : []),
-  ], [user, wantlistEnabled])
+  ], [user, wantlistEnabled, mixes])
 
   // The page a highlighted row opens starts loading once the highlight rests on it.
   const client = useQueryClient()
@@ -142,6 +153,7 @@ function SearchDialogHost({ onOpenChange }: SearchDialogState) {
 
   const choose = (choice: SearchChoice) => {
     close()
+    if (choice.kind === 'command') return choice.command.run()
     if (choice.kind === 'destination') return void navigate(choice.destination.to)
     if (choice.kind === 'all') return void navigate(`/search?q=${encodeURIComponent(choice.query)}`)
     const { item } = choice
@@ -177,6 +189,7 @@ function SearchDialogHost({ onOpenChange }: SearchDialogState) {
       isDimmed={item => (item.type === 'album' ? albumPresentation(item.album, viewer) === 'dimmed' : !item.artist.inLibrary && !canFetch(viewer))}
       onChoose={choose}
       onIntent={onIntent}
+      commands={commands}
     />
   )
 }

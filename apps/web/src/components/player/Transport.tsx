@@ -6,6 +6,7 @@ import { IconButton } from '@/components/ui/icon-button'
 import { Slider } from '@/components/ui/slider'
 import { formatDuration, formatRemaining } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { rememberVolume, toggleMute } from './mute'
 import { usePosition, type Player } from '@/player/player-context'
 import { seekBarPosition } from './progress'
 
@@ -128,16 +129,11 @@ export function SeekBar({ durationMs, onSeek, disabled, stacked, center, classNa
   )
 }
 
-/**
- * The last volume heard on each device, which unmute goes back to. Kept apart from the
- * controls, so muting in the bar and unmuting in Now Playing or the devices list agree.
- */
-const audibleVolumes = new Map<string, number>()
 
 /** A mute toggle and a volume slider for `deviceId`'s volume. */
 export function VolumeControl({ volume, onChange, deviceId, label = 'Volume', fill, className }: { volume: number; onChange: (volume: number) => void; deviceId: string; label?: string; fill?: boolean; className?: string }) {
   useEffect(() => {
-    if (volume > 0) audibleVolumes.set(deviceId, volume)
+    if (volume > 0) rememberVolume(deviceId, volume)
   }, [deviceId, volume])
   const Icon = volume === 0 ? VolumeX : volume < 0.34 ? Volume : volume < 0.67 ? Volume1 : Volume2
   return (
@@ -145,10 +141,7 @@ export function VolumeControl({ volume, onChange, deviceId, label = 'Volume', fi
       <IconButton
         label={volume === 0 ? 'Unmute' : 'Mute'}
         size="sm"
-        onClick={() => {
-          if (volume) audibleVolumes.set(deviceId, volume)
-          onChange(volume ? 0 : audibleVolumes.get(deviceId) ?? 0.7)
-        }}
+        onClick={() => toggleMute(volume, deviceId, onChange)}
       >
         <Icon />
       </IconButton>

@@ -12,7 +12,7 @@ import {
   albumDetail, allTracks, artistDetail, genres, home, libraryAlbums, mixDetail, libraryArtists, libraryTracks, likedTracks, lyricsFor, playlistDetail, playlistSummaries,
   searchFixtures, searchPage, wantlist,
 } from '@/fixtures/catalog'
-import { appPasswords, currentUser, invites, jobs, serverSettings, userSettings, users } from '@/fixtures/server'
+import { appPasswords, currentUser, invites, jobs, publicShare, serverSettings, shareLinks, userSettings, users } from '@/fixtures/server'
 
 type Listener = (...args: never[]) => void
 
@@ -225,7 +225,7 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
   const socket = new FakeSocket()
   const api = {
     auth: {
-      setupStatus: vi.fn(async () => ({ needsSetup: false, version: '0.0.0', serverName: 'Squirmy', registrationRequiresInvite: true, wantlistEnabled: true, ...status })),
+      setupStatus: vi.fn(async () => ({ needsSetup: false, version: '0.0.0', serverName: 'Squirmy', registrationRequiresInvite: true, wantlistEnabled: true, sharingEnabled: true, ...status })),
       me: vi.fn(async () => {
         if (user) return user
         throw new ApiError(401, 'unauthorized', 'Sign in to continue')
@@ -353,9 +353,19 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
       adminDeleteAlbum: vi.fn(async () => ({ deletedFiles: 2, deletedBytes: 20 * 1024 ** 2, keptFiles: 0 })),
       adminDeleteFile: vi.fn(async () => ({ deletedFiles: 1, deletedBytes: 10 * 1024 ** 2, keptFiles: 0 })),
     },
+    share: {
+      list: vi.fn(async () => list(shareLinks)),
+      create: vi.fn(async () => ({ ...shareLinks[0], url: '/s/fixture-token' })),
+      revoke: vi.fn(async () => ({ ok: true as const })),
+      adminList: vi.fn(async () => list(shareLinks.map(link => ({ ...link, createdBy: { id: users[1].id, username: users[1].username } })))),
+      adminRevoke: vi.fn(async () => ({ ok: true as const })),
+      page: vi.fn(async () => publicShare),
+      trackPlayback: vi.fn(async () => ({ url: '/api/v1/share/stream?key=k', expiresAt: '2026-11-27T21:00:00.000Z', mime: 'audio/mpeg', preview: true, durationMs: 30_000 })),
+    },
     radio: {
       mix: vi.fn(async (id: string) => found(mixDetail(id))),
       track: vi.fn(async (id: string) => ({ context: { type: 'radio' as const, id: `track:${id}`, title: null }, tracks: [{ trackId: id, durationMs: 1000 }] })),
+      sonic: vi.fn(async (id: string) => ({ context: { type: 'radio' as const, id: `sonic:${id}`, title: null }, tracks: [{ trackId: id, durationMs: 1000 }] })),
       artist: vi.fn(async (id: string) => ({ context: { type: 'radio' as const, id: `artist:${id}`, title: null }, tracks: libraryTracks.slice(0, 3).map(item => ({ trackId: item.id, durationMs: item.durationMs })) })),
     },
     acquisition: {
