@@ -217,6 +217,7 @@ export const artists = pgTable('artists', {
 }, (t) => [
   uniqueIndex('artists_mbid').on(t.mbid),
   index('artists_name_key_trgm').using('gin', t.nameKey.op('gin_trgm_ops')),
+  index('artists_name_key_unicode').using('gin', sql`search_unicode_bigrams(${t.nameKey})`),
   index('artists_name_key').on(t.nameKey),
   // Prefix search (modules/search): byte order, so a range scan finds every name starting with the query.
   index('artists_name_key_prefix').on(sql`${t.nameKey} collate "C"`),
@@ -296,6 +297,7 @@ export const albums = pgTable('albums', {
   index('albums_match_key').on(t.matchKey),
   // Search (modules/search): fuzzy "artist title" queries, and title prefixes in byte order.
   index('albums_match_key_trgm').using('gin', t.matchKey.op('gin_trgm_ops')),
+  index('albums_match_key_unicode').using('gin', sql`search_unicode_bigrams(${t.matchKey})`),
   index('albums_title_key_prefix').on(sql`${t.titleKey} collate "C"`),
   index('albums_primary_artist').on(t.primaryArtistId),
   index('albums_edition_of').on(t.editionOfId).where(sql`${t.editionOfId} is not null`),
@@ -374,6 +376,7 @@ export const recordings = pgTable('recordings', {
   index('recordings_title_key_trgm').using('gin', t.titleKey.op('gin_trgm_ops')),
   index('recordings_match_key').on(t.matchKey),
   index('recordings_match_key_trgm').using('gin', t.matchKey.op('gin_trgm_ops')),
+  index('recordings_match_key_unicode').using('gin', sql`search_unicode_bigrams(${t.matchKey})`),
   index('recordings_title_key_prefix').on(sql`${t.titleKey} collate "C"`),
   index('recordings_album_hint').on(t.albumHintId),
   index('recordings_isrcs').using('gin', t.isrcs),
@@ -474,7 +477,7 @@ export const lyrics = pgTable('lyrics', {
   source: text('source').notNull(),
   language: text('language'),
   fetchedAt: at('fetched_at').notNull().defaultNow(),
-})
+}, (t) => [index('lyrics_search').using('gin', sql`to_tsvector('simple', search_lyric_text(${t.plain}, ${t.synced}))`).where(sql`not ${t.instrumental}`)])
 
 // ---------------------------------------------------------------------------
 // Library: files on disk and everything derived from them.
@@ -1187,6 +1190,7 @@ export const catalogIndex = pgTable('catalog_index', {
   index('catalog_index_album_head').using('gin', t.nameKey.op('gin_trgm_ops')).where(sql`kind = 'album' and head`),
   index('catalog_index_recording_head').using('gin', t.nameKey.op('gin_trgm_ops')).where(sql`kind = 'recording' and head`),
   index('catalog_index_prefix').on(t.kind, sql`(${t.nameKey} collate "C")`),
+  // Unicode and composite indexes are owned by the catalog-index importer and upgrade job.
 ])
 
 /**

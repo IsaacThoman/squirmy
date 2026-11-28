@@ -211,10 +211,27 @@ describe('GET /search/library', () => {
     expect(titles((await search('丸の内')).tracks)).toEqual(['丸の内サディスティック'])
   })
 
-  it('understands "artist title" and "title artist" queries', async () => {
+  it.each([
+    ['宇多田ヒカル', '宇多田ひかる'],
+    ['宇多田ヒカル', '宇多田ヒカフ'],
+    ['Кино', 'Кно'],
+    ['Μίκης Θεοδωράκης', 'Μίκης Θεοδωράκς'],
+    ['فيروز', 'فيرز'],
+    ['방탄소년단', '방탄소녀단'],
+  ])('fuzzily matches %s from %s without a locale-dependent trigram', async (name, query) => {
+    const artist = await createArtist({ name })
+    await createAlbum({ title: name, artist, owned: true, tracks: [{ title: name }] })
+    const found = await search(query)
+    expect(found.artists.map((item) => item.name)).toContain(name)
+    expect(titles(found.albums)).toContain(name)
+    expect(titles(found.tracks)).toContain(name)
+  })
+
+  it('understands artist and album context for titles', async () => {
     expect(titles((await search('radiohead karma')).tracks)[0]).toBe('Karma Police')
     expect(titles((await search('karma police radiohead')).tracks)[0]).toBe('Karma Police')
     expect(titles((await search('radiohead kid a')).albums)[0]).toBe('Kid A')
+    expect(titles((await search('karma police ok computer')).tracks)[0]).toBe('Karma Police')
     // The credit carries a featured artist; the primary artist still counts.
     expect(titles((await search('daft punk get lucky')).tracks)[0]).toBe('Get Lucky')
   })

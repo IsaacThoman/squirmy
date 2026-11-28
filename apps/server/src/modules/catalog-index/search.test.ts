@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
@@ -20,6 +21,14 @@ describe('searchCatalogIndex', () => {
     expect(await isCatalogIndexReady()).toBe(false)
     expect(await searchCatalogIndex('yesterday')).toEqual([])
     catalog = testCatalog()
+    for (const name of ['宇多田ヒカル', 'Кино', 'Μίκης Θεοδωράκης', 'فيروز', '방탄소년단']) {
+      const releaseMbid = randomUUID()
+      catalog.releases.push({ releaseMbid, releaseGroupMbid: randomUUID() })
+      catalog.recordings.push({
+        releaseMbid, releaseName: name, recordingMbid: randomUUID(), recordingName: name,
+        artistMbids: [randomUUID()], artistCredit: name, score: 40,
+      })
+    }
     const file = path.join(getConfig().SQUIRMY_DATA_DIR, 'dump.tar.zst')
     await writeFile(file, buildDump(catalog))
     await importCanonicalDump({ source: file })
@@ -65,6 +74,26 @@ describe('searchCatalogIndex', () => {
 
   it('finds names in any script by prefix', async () => {
     expect(await top('東京', 'recording')).toMatchObject({ name: '東京', artistName: 'くるり' })
+  })
+
+  it.each([
+    ['宇多田ひかる', '宇多田ヒカル'],
+    ['宇多田ヒカフ', '宇多田ヒカル'],
+    ['Кно', 'Кино'],
+    ['Μίκης Θεοδωράκς', 'Μίκης Θεοδωράκης'],
+    ['فيرز', 'فيروز'],
+    ['방탄소녀단', '방탄소년단'],
+  ])('fuzzily matches %s without locale-dependent trigrams', async (query, name) => {
+    expect(await top(query, 'artist')).toMatchObject({ name })
+    expect(await top(query, 'recording')).toMatchObject({ name })
+  })
+
+  it('finds composite readings across the whole dump, including outside the fuzzy head', async () => {
+    await getSql()`update catalog_index set head = false where mbid = ${catalog.ids['recording:beatles-yesterday']!}`
+    for (const query of ['beatles yesterday', 'yesterday the beatles', 'yesterday help']) {
+      expect(await top(query, 'recording')).toMatchObject({ mbid: catalog.ids['recording:beatles-yesterday'] })
+    }
+    expect(await top('lemonade beyonce', 'album')).toMatchObject({ name: 'Lemonade' })
   })
 
   it('prefers an exact name over a fuzzy one of similar fame', async () => {

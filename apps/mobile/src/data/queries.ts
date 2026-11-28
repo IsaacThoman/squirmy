@@ -1,6 +1,8 @@
+import { isCatalogSearchKind } from '@squirmy/contracts';
+import { searchPageItems } from '@squirmy/client-core';
 import { ApiError } from '@squirmy/client-core';
 import {
-  queryKeys, type AlbumSummary, type ArtistSectionKey, type ArtistSummary, type LibraryItemsSort, type LibrarySort, type Lyrics, type Page, type SearchKind, type SearchResults, type TrackSummary, type UpdateUserSettings,
+  queryKeys, type AlbumSummary, type ArtistSectionKey, type ArtistSummary, type LibraryItemsSort, type LibrarySort, type Lyrics, type Page, type SearchResultKind, type SearchResults, type TrackSummary, type UpdateUserSettings,
   type UserSettings,
 } from '@squirmy/contracts';
 import { keepPreviousData, useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -297,6 +299,10 @@ function useDebounced<T>(value: T, delayMs: number): T {
  * keeps the previous answer on screen until the new one arrives. A server without the
  * search routes yet answers 404, which counts as no results.
  */
+const foundTracks = ({ tracks, lyrics, credits }: SearchResults) => [
+  ...tracks, ...[...(lyrics ?? []), ...(credits ?? [])].map(({ track }) => track),
+];
+
 export function useSearch(text: string) {
   const q = useDebounced(text.trim(), searchDelayMs);
   const api = useSignedInApi();
@@ -305,7 +311,7 @@ export function useSearch(text: string) {
     queryKey: [...queryKeys.search(), scope, q],
     queryFn: async () => {
       try {
-        return prime(await api!.search[scope]({ q, limit: 20, scope: 'server' }), results => results.tracks);
+        return prime(await api!.search[scope]({ q, limit: 20, scope: 'server' }), foundTracks);
       } catch (error) {
         if (error instanceof ApiError && error.status === 404) return emptyResults;
         throw error;
@@ -326,34 +332,32 @@ export const searchPageSize = 30;
 const lastSearchOffset = 450;
 
 type SearchPage = { offset: number; library: SearchResults | null; catalog: SearchResults | null; catalogFailed: boolean };
-const kindList = (answer: SearchResults | null, kind: SearchKind) =>
-  (answer ? kind === 'artist' ? answer.artists : kind === 'album' ? answer.albums : answer.tracks : []);
-
 /**
  * One kind of search result for a filter, page by page: each page is the library's and the
  * catalog's next `searchPageSize` of that kind, asked together once typing pauses.
  */
-export function useSearchPages(text: string, kind: SearchKind | null) {
+export function useSearchPages(text: string, kind: SearchResultKind | null) {
   const q = useDebounced(text.trim(), searchDelayMs);
   const api = useSignedInApi();
   const prime = usePrime();
+  const withCatalog = kind !== null && isCatalogSearchKind(kind);
   return useInfiniteQuery({
     queryKey: [...queryKeys.search(), 'pages', kind, q],
     enabled: Boolean(api && q && kind),
     initialPageParam: 0,
     queryFn: async ({ pageParam: offset }): Promise<SearchPage> => {
       const params = { q, limit: searchPageSize, type: kind!, offset, scope: 'server' as const };
-      const [library, catalog] = await Promise.allSettled([api!.search.library(params), api!.search.catalog(params)]);
-      if (library.status === 'rejected' && catalog.status === 'rejected') throw library.reason;
-      const value = (result: PromiseSettledResult<SearchResults>) => (result.status === 'fulfilled' ? prime(result.value, answer => answer.tracks) : null);
+      const [library, catalog] = await Promise.allSettled([api!.search.library(params), withCatalog ? api!.search.catalog(params) : null]);
+      if (library.status === 'rejected' && (catalog.status === 'rejected' || !withCatalog)) throw library.reason;
+      const value = (result: PromiseSettledResult<SearchResults | null>) => (result.status === 'fulfilled' && result.value ? prime(result.value, foundTracks) : null);
       const missing = catalog.status === 'rejected' && catalog.reason instanceof ApiError && catalog.reason.status === 404;
       return { offset, library: value(library), catalog: value(catalog), catalogFailed: catalog.status === 'rejected' && !missing };
     },
     getNextPageParam: (last, pages) => {
-      const full = [last.library, last.catalog].some(answer => kindList(answer, kind!).length >= searchPageSize);
+      const full = [last.library, last.catalog].some(answer => searchPageItems(answer, kind!).length >= searchPageSize);
       // An older server ignores `offset` and answers the first page again: nothing new, so the end.
-      const earlier = new Set(pages.slice(0, -1).flatMap(page => [page.library, page.catalog].flatMap(answer => kindList(answer, kind!).map(item => item.id))));
-      const fresh = [last.library, last.catalog].some(answer => kindList(answer, kind!).some(item => !earlier.has(item.id)));
+      const earlier = new Set(pages.slice(0, -1).flatMap(page => [page.library, page.catalog].flatMap(answer => searchPageItems(answer, kind!).map(item => item.id))));
+      const fresh = [last.library, last.catalog].some(answer => searchPageItems(answer, kind!).some(item => !earlier.has(item.id)));
       const next = last.offset + searchPageSize;
       return full && fresh && next <= lastSearchOffset ? next : undefined;
     },
