@@ -55,7 +55,7 @@ export function pinnedFile(file: { recordingId: SQL; albumId: SQL }, queued: rea
     (${file.recordingId} is not null and ${file.recordingId} in (
       select entity_id from likes where entity_type = 'recording'
       union all select recording_id from playlist_items
-      union all select recording_id from plays where started_at > ${since}::timestamptz
+      union all select recording_id from plays where not skipped and started_at > ${since}::timestamptz
       union all select unnest(${uuidArray(queued)})
       union all select rt.recording_id from release_tracks rt join releases r on r.id = rt.release_id where r.album_id in ${keptAlbums}
     ))
@@ -78,7 +78,7 @@ export async function isPinned(file: { recordingId: string | null; albumId: stri
   const [row] = await db.execute<{ pinned: boolean }>(sql`select (
     exists (select 1 from likes where entity_type = 'recording' and entity_id = ${recording})
     or exists (select 1 from playlist_items where recording_id = ${recording})
-    or exists (select 1 from plays where recording_id = ${recording} and started_at > ${since}::timestamptz)
+    or exists (select 1 from plays where recording_id = ${recording} and not skipped and started_at > ${since}::timestamptz)
     or exists (select 1 from likes where entity_type = 'album' and entity_id = ${album})
     or exists (
       select 1 from release_tracks rt join releases r on r.id = rt.release_id
