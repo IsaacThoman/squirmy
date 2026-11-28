@@ -128,6 +128,8 @@ function useFixtureLibrary(): LibraryActions {
     // New playlists need the server.
     newPlaylist: () => {},
     newSmartPlaylist: () => {},
+    showRatings: false,
+    setRating: async () => {},
   }), [wanted])
 }
 

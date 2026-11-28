@@ -203,18 +203,27 @@ export function SettingsDialog({
             {section === 'library' && (
               <Panel title="Library" description="Your library is what you heart, with the music you upload. Everything on this server is on Home, and plays for everyone.">
                 {settings ? (
-                  <Row
-                    htmlFor="library-server-music"
-                    label="Show all of this server’s music in your library"
-                    description="Adds every album on this server to your library, as well as what you heart. Turn it off to keep your library to your own picks."
-                  >
-                    <Switch
-                      id="library-server-music"
-                      checked={settings.libraryIncludesServerMusic}
-                      onCheckedChange={libraryIncludesServerMusic => onSettingsChange({ libraryIncludesServerMusic })}
-                    />
-                  </Row>
-                ) : failures?.settings ?? <LoadingRows rows={1} />}
+                  <>
+                    <Row
+                      htmlFor="library-server-music"
+                      label="Show all of this server’s music in your library"
+                      description="Adds every album on this server to your library, as well as what you heart. Turn it off to keep your library to your own picks."
+                    >
+                      <Switch
+                        id="library-server-music"
+                        checked={settings.libraryIncludesServerMusic}
+                        onCheckedChange={libraryIncludesServerMusic => onSettingsChange({ libraryIncludesServerMusic })}
+                      />
+                    </Row>
+                    <Row
+                      htmlFor="library-ratings"
+                      label="Show star ratings"
+                      description="Rate songs from one to five stars in their menus, and use ratings in smart playlists. The heart still decides what is in your library."
+                    >
+                      <Switch id="library-ratings" checked={settings.showRatings} onCheckedChange={showRatings => onSettingsChange({ showRatings })} />
+                    </Row>
+                  </>
+                ) : failures?.settings ?? <LoadingRows rows={2} />}
                 <FormError message={errors?.library} />
                 {onOpenUploads && (
                   <>

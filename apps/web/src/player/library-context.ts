@@ -38,6 +38,10 @@ export type LibraryActions = {
   newPlaylist: (tracks?: TrackSummary[]) => void
   /** Opens the new smart playlist dialog; the playlist opens once made. */
   newSmartPlaylist: () => void
+  /** The user turned on star ratings (`showRatings`): songs' menus offer them, and smart playlists can use them. */
+  showRatings: boolean
+  /** Sets the user's 1 to 5 stars for a song, 0 to remove them. Shows at once, goes back if the server refuses. */
+  setRating: (track: TrackSummary, rating: number) => Promise<void>
 }
 
 export const LibraryContext = createContext<LibraryActions | null>(null)

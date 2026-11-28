@@ -1,6 +1,6 @@
 import {
   AddPlaylistItemsRequest, CreatePlaylistRequest, Id, LibraryEntityType, LibraryPinKind, LikeEntityType, LikeQuery, MovePlaylistItemRequest, PageQuery,
-  SmartPlaylistRules, UpdatePlaylistRequest, UpdateUserSettings, WantEntityType,
+  RatingRequest, SmartPlaylistRules, UpdatePlaylistRequest, UpdateUserSettings, WantEntityType,
   type AlbumSummary, type ArtistSummary, type HistoryPage, type Ok, type Page, type PlaylistDetail, type PlaylistPage, type PlaylistSummary,
   type SmartPlaylistPreview, type TrackSummary, type UnlikeResponse, type UserSettings, type WantPage,
 } from '@squirmy/contracts'
@@ -12,7 +12,7 @@ import { cachedRead, type CacheTag } from '../../lib/read-cache.js'
 import { getServerSettings } from '../../lib/settings.js'
 import { listHistory } from './history.js'
 import { pinLibraryItem, unpinLibraryItem } from './library-pins.js'
-import { likeEntity, listLikes, unlikeEntity } from './likes.js'
+import { likeEntity, listLikes, setRating, unlikeEntity } from './likes.js'
 import {
   addPlaylistItems, createPlaylist, deletePlaylist, getPlaylist, listPlaylists, movePlaylistItem, previewSmartPlaylist, removePlaylistItem, updatePlaylist,
 } from './playlists.js'
@@ -54,6 +54,12 @@ export async function userdataRoutes(app: FastifyInstance) {
   })
   app.get('/me/likes/:type', async (request): Promise<Page<TrackSummary | AlbumSummary | ArtistSummary>> =>
     listLikes(requireUser(request).id, LikeTypeParams.parse(request.params).type, PageQuery.parse(request.query)))
+
+  app.put('/me/ratings/:type/:id', async (request): Promise<Ok> => {
+    const { type, id } = LikeParams.parse(request.params)
+    await setRating(requireUser(request).id, type, id, RatingRequest.parse(request.body).rating)
+    return { ok: true }
+  })
 
   // Deprecated aliases of the heart, for app builds from before it was the one library
   // control: "Add to library" there now writes the same save. Remove after a release.

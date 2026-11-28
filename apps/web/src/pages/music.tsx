@@ -196,6 +196,7 @@ export function PlaylistPage() {
 
 function EditablePlaylist({ playlist, onDeleting }: { playlist: PlaylistDetail; onDeleting: (deleting: boolean) => void }) {
   const api = useApi()
+  const library = useLibrary()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const user = useCurrentUser()
@@ -272,7 +273,7 @@ function EditablePlaylist({ playlist, onDeleting }: { playlist: PlaylistDetail; 
         failure={failure}
       />
       {playlist.rules
-        ? <SmartPlaylistDialog open={dialog === 'edit'} onOpenChange={open => setDialog(open ? 'edit' : null)} playlist={{ ...playlist, rules: playlist.rules }} onSubmit={request => update.mutateAsync(request)} />
+        ? <SmartPlaylistDialog open={dialog === 'edit'} onOpenChange={open => setDialog(open ? 'edit' : null)} playlist={{ ...playlist, rules: playlist.rules }} showRatings={library.showRatings} onSubmit={request => update.mutateAsync(request)} />
         : <PlaylistDialog open={dialog === 'edit'} onOpenChange={open => setDialog(open ? 'edit' : null)} playlist={playlist} onSubmit={request => update.mutateAsync(request)} />}
       <ConfirmDialog
         open={dialog === 'delete'}

@@ -1,6 +1,6 @@
 import type { PlaybackContext, PlaylistDetail, TrackSummary } from '@squirmy/contracts'
-import { Globe, Heart, ListMusic, Lock, MoreHorizontal, Pencil, Sparkles, Trash2 } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { Globe, Heart, ListMusic, Lock, MoreHorizontal, Pencil, SearchX, Sparkles, Trash2 } from 'lucide-react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import type { MoreFailure } from '@/api/queries'
 import { LikedCover, likedTint, PlaylistCover } from '@/components/music/CollectionArt'
@@ -12,10 +12,13 @@ import { IconButton } from '@/components/ui/icon-button'
 import { FormError } from '@/components/ui/input'
 import { DropdownMenu } from '@/components/ui/menu'
 import { LoadError } from '@/components/ui/query-state'
+import { SearchField } from '@/components/ui/search-field'
+import { Select } from '@/components/ui/select'
 import { formatTotalDuration, plural } from '@/lib/format'
 import { useMediaQuery } from '@/lib/use-media-query'
 import { usePlayerControls, type PlayOptions } from '@/player/player-context'
 import { useTrackActions } from '@/player/use-track-actions'
+import { playlistOrder, playlistSortOptions, type PlaylistSort } from './playlist-order'
 
 type PlaylistViewProps = {
   playlist: PlaylistDetail
@@ -33,11 +36,17 @@ type PlaylistViewProps = {
 }
 
 export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete, onMove, onRemove, failure }: PlaylistViewProps) {
-  const tracks = playlist.items.map(item => item.track)
+  // Finding and sorting only change what is listed here: the playlist keeps its own order.
+  const [query, setQuery] = useState('')
+  const [sort, setSort] = useState<PlaylistSort>('custom')
+  const shown = useMemo(() => playlistOrder(playlist.items, query, sort), [playlist.items, query, sort])
+  const tracks = shown.map(index => playlist.items[index].track)
   // A finger cannot drag a song onto the sidebar (on a phone it is a drawer over the songs), so touch screens are told the menu's way.
   const touch = useMediaQuery('(pointer: coarse)')
   const smart = Boolean(playlist.rules)
   const changesItems = owned && !smart
+  // Songs are dragged only in the playlist's own order, all of them showing.
+  const asStored = !query.trim() && sort === 'custom'
   return (
     <TrackCollection
       kind={smart ? (playlist.isPublic ? 'Public smart playlist' : 'Smart playlist') : playlist.isPublic ? 'Public playlist' : 'Playlist'}
@@ -47,11 +56,18 @@ export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete
       byline={<span className="text-muted-foreground">{playlist.ownerName}</span>}
       description={playlist.description}
       tracks={tracks}
-      addedAt={playlist.items.map(item => item.addedAt)}
+      addedAt={shown.map(index => playlist.items[index].addedAt)}
+      count={playlist.items.length ? plural(playlist.items.length, 'song') : undefined}
       durationMs={playlist.durationMs}
       context={{ type: 'playlist', id: playlist.id, title: playlist.name }}
-      onMove={changesItems ? onMove : undefined}
-      onRemove={changesItems ? onRemove : undefined}
+      onMove={changesItems && asStored ? onMove : undefined}
+      onRemove={changesItems ? index => onRemove(shown[index]) : undefined}
+      toolbar={playlist.items.length > 1 && (
+        <>
+          <SearchField value={query} onValueChange={setQuery} placeholder="Find in playlist" className="w-full sm:w-64" />
+          <Select label="Sort songs" prefix="Sort:" value={sort} options={playlistSortOptions} onValueChange={setSort} className="ml-auto" />
+        </>
+      )}
       failure={failure}
       menu={owned && (
         <DropdownMenu
@@ -67,7 +83,9 @@ export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete
           trigger={<IconButton label="More options" size="lg"><MoreHorizontal /></IconButton>}
         />
       )}
-      empty={smart ? (
+      empty={playlist.items.length ? (
+        <EmptyState icon={<SearchX />} title="No songs match" description={`Nothing in this playlist matches “${query.trim()}”.`} action={<Button variant="outline" onClick={() => setQuery('')}>Show every song</Button>} />
+      ) : smart ? (
         <EmptyState
           icon={<Sparkles />}
           title="No songs match yet"
@@ -137,16 +155,18 @@ type TrackCollectionProps = {
   onRemove?: (index: number) => void
   /** Render only the rows near the viewport, loading more as the end comes into view, until a page fails. */
   virtual?: { onEndReached: () => void; moreFailure?: MoreFailure }
+  /** Controls over the songs, such as finding and sorting them. */
+  toolbar?: ReactNode
   menu?: ReactNode
   empty: ReactNode
   failure?: string
 }
 
-function TrackCollection({ kind, title, art, tint, byline, description, tracks, addedAt, count, durationMs, context, onPlay, onMove, onRemove, virtual, menu, empty, failure }: TrackCollectionProps) {
+function TrackCollection({ kind, title, art, tint, byline, description, tracks, addedAt, count, durationMs, context, onPlay, onMove, onRemove, virtual, toolbar, menu, empty, failure }: TrackCollectionProps) {
   const controls = usePlayerControls()
   const play = onPlay ?? ((index: number, options?: PlayOptions) => controls.playTracks(tracks, index, context, options))
   const actions = useTrackActions(tracks, context, { onPlay: index => play(index), onMove, onRemove })
-  const size = tracks.length ? [count ?? plural(tracks.length, 'song'), durationMs !== null && formatTotalDuration(durationMs)].filter(Boolean).join(', ') : 'No songs yet'
+  const size = tracks.length || count ? [count ?? plural(tracks.length, 'song'), durationMs !== null && formatTotalDuration(durationMs)].filter(Boolean).join(', ') : 'No songs yet'
   return (
     <div>
       <CollectionHeader
@@ -161,6 +181,7 @@ function TrackCollection({ kind, title, art, tint, byline, description, tracks, 
       />
       <div className="px-(--gutter) pb-10">
         {failure && <div className="mb-3"><FormError message={failure} /></div>}
+        {toolbar && <div className="mb-3 flex flex-wrap items-center gap-2">{toolbar}</div>}
         {!tracks.length
           ? empty
           : virtual

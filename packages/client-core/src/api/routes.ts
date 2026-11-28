@@ -75,6 +75,7 @@ export const apiRoutes = {
 
   'userdata.settings': 'GET /me/settings',
   'userdata.updateSettings': 'PATCH /me/settings',
+  'userdata.rate': 'PUT /me/ratings/:type/:id',
   'userdata.like': 'PUT /me/likes/:type/:id',
   'userdata.unlike': 'DELETE /me/likes/:type/:id',
   'userdata.likes': 'GET /me/likes/:type',

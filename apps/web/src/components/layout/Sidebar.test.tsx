@@ -59,6 +59,8 @@ function renderSidebar({ route = '/', playingFrom, wantlistEnabled = true, toggl
     addToPlaylist: vi.fn<LibraryActions['addToPlaylist']>(async () => true),
     newPlaylist: vi.fn<LibraryActions['newPlaylist']>(),
     newSmartPlaylist: vi.fn<LibraryActions['newSmartPlaylist']>(),
+    showRatings: false,
+    setRating: vi.fn<LibraryActions['setRating']>(async () => {}),
   } satisfies LibraryActions
   const on = { onToggle: vi.fn(), onNavigate: vi.fn(), onOpenSettings: vi.fn(), onPlayPlaylist: vi.fn(), onPlayLiked: vi.fn(), onLogout: vi.fn() }
   renderWithApp(

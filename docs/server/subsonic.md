@@ -59,7 +59,7 @@ Requests can be GET or form POST, with or without `.view`, and answers come as X
 ### How it maps onto Squirmy
 
 - **Stars are the heart.** Starring a song, album or artist in an app saves it to your Squirmy library, and the other way round: a song you heart in Squirmy is starred in the app.
-- **Ratings** (1 to 5 stars) are kept for Subsonic apps; Squirmy's own apps do not show them.
+- **Ratings** (1 to 5 stars) are the same as the web app's, which shows and sets them for people who turn on **Show star ratings** (off by default, since the heart is what saves). Smart playlists can filter by them.
 - **Scrobbles are plays.** A scrobble adds the play to your history at the time the app reports, and from there to ListenBrainz or Last.fm when you have connected them. A "now playing" notice shows in `getNowPlaying` until the song would have ended.
 - **The play queue is your Squirmy queue.** Save the queue in one app and Squirmy's web and phone apps pick it up paused at the same point, and the other way round. Tracks a Subsonic app saved before its current song are remembered until the queue changes in Squirmy. Of a very long queue, 5,000 tracks from the current song on, and 5,000 before it, are kept.
 - **Music folders are library roots.** Apps that filter by folder see one folder per root.

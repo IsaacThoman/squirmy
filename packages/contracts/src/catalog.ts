@@ -135,6 +135,11 @@ export const TrackSummary = z.object({
    * entry from it; current clients read `liked` and `inLibrary`. Optional for older servers.
    */
   library: TrackLibrary.nullable().optional(),
+  /**
+   * The viewer's star rating, 1 to 5, or null when they gave none (`PUT /me/ratings/track/:id`).
+   * Clients show it only for a viewer with `showRatings` on. Optional so older servers still parse.
+   */
+  rating: z.number().int().min(1).max(5).nullable().optional(),
 })
 export type TrackSummary = z.infer<typeof TrackSummary>
 

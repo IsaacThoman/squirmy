@@ -1,5 +1,5 @@
 import type { TrackSummary } from '@squirmy/contracts'
-import { ArrowDown, ArrowUp, Disc3, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, Plus, Radio, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, Disc3, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, Plus, Radio, Star, StarOff, Trash2 } from 'lucide-react'
 import type { MenuEntry } from '@/components/ui/menu'
 import { librarySaveEntry, wantEntry } from './library-save-entry'
 import type { PlaylistChoice, TrackAction } from './TrackList'
@@ -9,6 +9,8 @@ export type TrackMenuOptions = {
   /** Undefined while the server has the wantlist off. */
   wanted?: boolean
   playlists?: PlaylistChoice[]
+  /** Offers 1 to 5 stars (the user turned ratings on); the song's own is checked. */
+  ratings?: boolean
   /** Resolves (or rejects) for the actions that answer later, which their entries wait for. */
   act: (action: TrackAction) => void | Promise<unknown>
   navigate: (to: string) => void
@@ -29,7 +31,7 @@ export type TrackMenuOptions = {
  * A song's menu, the same wherever a song is listed (track lists, search results): on a touch
  * screen its whole title and credit, then play next, queue, playlists, radio, saving it (the heart), the Wantlist, its album and artists.
  */
-export function trackMenuEntries(track: TrackSummary, { unavailable, wanted, playlists, act, navigate, extraMenu, reorder, onAlbumPage = false, queued }: TrackMenuOptions): MenuEntry[] {
+export function trackMenuEntries(track: TrackSummary, { unavailable, wanted, playlists, ratings, act, navigate, extraMenu, reorder, onAlbumPage = false, queued }: TrackMenuOptions): MenuEntry[] {
   const playNext: MenuEntry[] = queued && queued.index === 0 ? [] : [{ label: 'Play next', icon: <ListStart />, onSelect: () => act('play-next'), done: 'Playing next', disabled: unavailable }]
   const toEnd: MenuEntry[] = !queued
     ? [{ label: 'Add to queue', icon: <ListEnd />, onSelect: () => act('enqueue'), done: 'Added to queue', disabled: unavailable }]
@@ -53,6 +55,7 @@ export function trackMenuEntries(track: TrackSummary, { unavailable, wanted, pla
     { label: 'Start radio', icon: <Radio />, onSelect: () => act('radio'), disabled: unavailable },
     { kind: 'separator' },
     librarySaveEntry(track, () => act('like')),
+    ...(ratings ? [ratingEntry(track, act)] : []),
     // Undefined `wanted` means the server has the wantlist off. It is for music that does not play.
     ...(!unavailable || wanted === undefined ? [] : [wantEntry(wanted, () => act('want'))]),
     { kind: 'separator' },
@@ -66,4 +69,25 @@ export function trackMenuEntries(track: TrackSummary, { unavailable, wanted, pla
       { label: 'Remove from playlist', icon: <Trash2 />, danger: true, onSelect: () => act('remove') },
     ] : []),
   ]
+}
+
+/** What a rating reads as in the menu and to screen readers. */
+const starsLabel = (stars: number) => (stars === 1 ? '1 star' : `${stars} stars`)
+
+/** "Rating: 4 stars": a submenu of 5 to 1 stars, the song's own checked, and No rating once it has one. */
+function ratingEntry(track: TrackSummary, act: TrackMenuOptions['act']): MenuEntry {
+  const current = track.rating ?? 0
+  return {
+    kind: 'submenu',
+    label: current ? `Rating: ${starsLabel(current)}` : 'Rating',
+    icon: <Star />,
+    items: [
+      ...[5, 4, 3, 2, 1].map(stars => ({
+        label: starsLabel(stars),
+        icon: stars === current ? <Check /> : <Star />,
+        onSelect: () => act(`rate:${stars}`),
+      })),
+      ...(current ? [{ kind: 'separator' as const }, { label: 'No rating', icon: <StarOff />, onSelect: () => act('rate:0') }] : []),
+    ],
+  }
 }

@@ -68,6 +68,7 @@ import {
   MatchReviewList,
   type MatchReviewQuery,
   type MovePlaylistItemRequest,
+  type RatingRequest,
   Ok,
   OrganizeBatch,
   OrganizeBatchAccepted,
@@ -432,6 +433,8 @@ export function createApiClient(options: ApiClientOptions) {
        * passes it back to `like` so the item returns to its place.
        */
       unlike: (type: LikeEntityType, entityId: string) => send('DELETE', `/me/likes/${type}/${id(entityId)}`, UnlikeResponse),
+      /** The user's 1 to 5 stars for a track, album or artist; 0 removes them. */
+      rate: (type: LikeEntityType, entityId: string, rating: number) => send('PUT', `/me/ratings/${type}/${id(entityId)}`, Ok, { rating } satisfies RatingRequest),
       likes: <T extends LikeEntityType>(type: T, query: Partial<PageQuery> = {}) =>
         get(`/me/likes/${type}`, likedPages[type] as unknown as z.ZodType<Page<LikedItems[T]>>, query),
       /** Pins an item to the top of the Library's All, on every device; Liked Songs by `LIKED_SONGS_ID`. */

@@ -26,6 +26,14 @@ export const UnlikeResponse = z.object({ ok: z.literal(true), savedAt: IsoDateTi
 export type UnlikeResponse = z.infer<typeof UnlikeResponse>
 
 /**
+ * `PUT /me/ratings/:type/:id`: the user's 1 to 5 stars for a track, album or artist; 0 removes
+ * them. Idempotent, follows merges, 404 for an unknown id. Answers `Ok`. Ratings sit beside the
+ * heart and never put anything in the library; the apps show them only with `showRatings` on.
+ */
+export const RatingRequest = z.object({ rating: z.number().int().min(0).max(5) })
+export type RatingRequest = z.infer<typeof RatingRequest>
+
+/**
  * `PUT/DELETE /me/library/:type/:id`: deprecated aliases of `PUT/DELETE /me/likes/:type/:id`,
  * kept for app builds from before the single heart. They write the same save.
  */
