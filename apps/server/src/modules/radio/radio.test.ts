@@ -4,7 +4,7 @@ import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { albums, externalIds, likes, recordingArtists, recordings } from '../../database/schema.js'
+import { albums, externalIds, likes, plays, recordingArtists, recordings } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { updateServerSettings } from '../../lib/settings.js'
 import { body, errorCode, signIn } from '../../test/api.js'
@@ -120,6 +120,28 @@ describe('radio', () => {
     expect(http.requests).toEqual([])
   })
 
+  it('samples owned albums even when the seed artist has hundreds of catalog stubs in the same genre', async () => {
+    const user = await createUser()
+    const kept = [...new Map(tracks
+      .filter((track) => track.genre === seed.genre && track.artistId !== seed.artistId && track.owned)
+      .map((track) => [track.artistId, track])).values()].slice(0, 2)
+    const exclude = tracks.filter((track) => !kept.includes(track)).map((track) => track.recordingId)
+    const stubIds = Array.from({ length: 500 }, () => newId())
+    await db.insert(albums).values(stubIds.map((id, index) => ({
+      id, title: `Stub ${index}`, titleKey: `stub ${index}`, matchKey: `rock a|stub ${index}`,
+      artistCredit: 'Rock A', primaryArtistId: seed.artistId, year: 1997, genres: [seed.genre],
+    })))
+    try {
+      for (const random of [1, 2, 3]) {
+        const result = await run(user.id, { exclude, random })
+        expect(result.map((item) => item.trackId).sort()).toEqual(kept.map((track) => track.recordingId).sort())
+        expect(result.every((item) => item.state === 'ready')).toBe(true)
+      }
+    } finally {
+      await db.delete(albums).where(inArray(albums.id, stubIds))
+    }
+  })
+
   it('boosts liked tracks', async () => {
     const user = await createUser()
     const liked = tracks.find((track) => track.genre === 'Rock' && track.artistId !== seed.artistId && track.owned)!
@@ -138,15 +160,61 @@ describe('radio', () => {
     }
   })
 
+  it('gently lowers a track after two recent skips by this listener', async () => {
+    const user = await createUser()
+    const other = await createUser()
+    const [favored, alternative] = [...new Map(tracks
+      .filter((track) => track.genre === seed.genre && track.artistId !== seed.artistId && track.owned)
+      .map((track) => [track.artistId, track])).values()]
+    await db.insert(likes).values({ userId: user.id, entityType: 'album', entityId: favored!.albumId })
+    const exclude = tracks.filter((track) => track !== favored && track !== alternative).map((track) => track.recordingId)
+    const order = async () => (await suggest({ userId: user.id, seeds: [seed.recordingId], exclude, limit: 2 }, { random: () => 0 }))
+      .map((track) => track.trackId)
+    const skip = (userId: string, daysAgo: number) => db.insert(plays).values({
+      id: newId(), userId, recordingId: favored!.recordingId, startedAt: new Date(Date.now() - daysAgo * 86_400_000), msPlayed: 2000, skipped: true,
+    })
+    await skip(user.id, 31)
+    await skip(other.id, 1)
+    await skip(user.id, 0)
+    expect(await order()).toEqual([favored!.recordingId, alternative!.recordingId])
+    await skip(user.id, 2)
+    expect(await order()).toEqual([alternative!.recordingId, favored!.recordingId])
+  })
+
   it('suggests what the user played around the seed', async () => {
     const user = await createUser()
     const jazz = tracks.find((track) => track.genre === 'Jazz')!
-    // On four earlier days the user played the seed and, right after, a jazz track.
+    const unowned = Array.from({ length: 150 }, (_, index) => ({
+      id: newId(), title: `Unavailable ${index}`, titleKey: `unavailable ${index}`, matchKey: `|unavailable ${index}`, artistCredit: '',
+    }))
+    await db.insert(recordings).values(unowned)
+    await db.insert(likes).values({ userId: user.id, entityType: 'recording', entityId: jazz.recordingId })
+    // The unowned tracks were played near the seed more often. They cannot take the
+    // 150 places in the owned co-listening pool ahead of the jazz track.
     for (const day of [1, 2, 3, 4]) {
       await createPlay({ userId: user.id, recordingId: seed.recordingId, minutesAgo: day * 24 * 60 })
-      await createPlay({ userId: user.id, recordingId: jazz.recordingId, minutesAgo: day * 24 * 60 - 4 })
+      if (day < 4) await createPlay({ userId: user.id, recordingId: jazz.recordingId, minutesAgo: day * 24 * 60 - 4 })
+      const startedAt = new Date(Date.now() - (day * 24 * 60 - 4) * 60_000)
+      await db.insert(plays).values(unowned.map((track) => ({ id: newId(), userId: user.id, recordingId: track.id, startedAt, completed: true, msPlayed: 100_000 })))
     }
     for (const random of [1, 2, 3]) expect((await run(user.id, { random }))[0]!.trackId).toBe(jazz.recordingId)
+  })
+
+  it('does not learn co-listening from either a skipped seed or a skipped candidate', async () => {
+    const user = await createUser()
+    const [skippedCandidate, nearSkippedSeed] = tracks.filter((track) => track.genre === 'Jazz')
+    for (const day of [1, 2, 3, 4]) {
+      const minutesAgo = day * 24 * 60
+      await createPlay({ userId: user.id, recordingId: seed.recordingId, minutesAgo })
+      await createPlay({ userId: user.id, recordingId: nearSkippedSeed!.recordingId, minutesAgo: minutesAgo - 120 })
+      await db.insert(plays).values([
+        { id: newId(), userId: user.id, recordingId: skippedCandidate!.recordingId, startedAt: new Date(Date.now() - (minutesAgo - 4) * 60_000), msPlayed: 2000, skipped: true },
+        { id: newId(), userId: user.id, recordingId: seed.recordingId, startedAt: new Date(Date.now() - (minutesAgo - 124) * 60_000), msPlayed: 2000, skipped: true },
+      ])
+    }
+    const suggested = (await run(user.id)).map((track) => track.trackId)
+    expect(suggested).not.toContain(skippedCandidate!.recordingId)
+    expect(suggested).not.toContain(nearSkippedSeed!.recordingId)
   })
 
   it('is repeatable under a seeded random source and varies across seeds', async () => {

@@ -14,6 +14,7 @@ import { createPlay } from '../../test/catalog.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createArtist, createUser } from '../../test/factories.js'
 import { useHttpFixtures } from '../../test/http.js'
+import { savePlay } from '../sessions/plays.js'
 import { updateUserSettings } from '../userdata/settings.js'
 import { loadScrobbling, saveConnection } from './connections.js'
 import { deliverScrobbles, MAX_ATTEMPTS, sweepScrobbles } from './delivery.js'
@@ -238,6 +239,10 @@ describe('scrobble', () => {
       const first = await play(user.id, album.tracks[0]!)
       const second = await play(user.id)
       await play(user.id, album.tracks[1]!, { completed: false })
+      await savePlay(user.id, {
+        id: newId(), entryId: 'short-play', recordingId: album.tracks[0]!.recordingId, albumId: album.albumId, deviceId: null,
+        durationMs: 6000, msPlayed: 4000, startedAt: Date.now(), countedTo: Date.now() + 4000,
+      })
       await flush()
 
       const [lb] = listens('listenbrainz')

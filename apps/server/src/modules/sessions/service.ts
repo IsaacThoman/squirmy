@@ -1088,7 +1088,7 @@ export async function stopSessions(): Promise<void> {
     const { play } = record
     if (!play) return
     countUntil(play, record.session, settings.now())
-    await savePlay(record.userId, play).catch(report)
+    await savePlay(record.userId, play, { closed: false }).catch(report)
   })
   await Promise.all(savingPlays)
 }

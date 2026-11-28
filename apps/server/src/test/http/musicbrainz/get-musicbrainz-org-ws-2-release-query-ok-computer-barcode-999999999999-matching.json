@@ -1,0 +1,16 @@
+{
+  "note": "The search finds nothing for the test barcode, so ISRCs decide.",
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release?query=release%3A%22OK+Computer%22+AND+artist%3A%22Radiohead%22+tracks%3A12+barcode%3A%22999999999999%22&limit=10&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": {
+      "releases": []
+    }
+  }
+}
