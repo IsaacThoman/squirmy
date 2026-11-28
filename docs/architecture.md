@@ -101,7 +101,8 @@ export type ServerModule = {
 | `search` | library search, search providers, stub rows, catalog resolve | 6 |
 | `imports` | web upload, inbox folder, staging, duplicate detection, filing into a managed root, managing and deleting uploads | 7 |
 | `acquisition` | provider protocol client, jobs, policy, on-demand playback | 8 |
-| `scrobble` | ListenBrainz and Last.fm submission | 8 |
+| `scrobble` | ListenBrainz and Last.fm submission and heart sync | 8 |
+| `integrations` | Webhooks, outbound connection policy and MQTT | 8 |
 | `radio` | autoplay suggestions from similar-artist data | 8 |
 | `catalog-index` | optional local search index from MusicBrainz canonical dumps | 8 |
 
@@ -360,6 +361,10 @@ The server holds one shared session per user in memory, loaded on first use and 
 
 - **Imported history.** `userdata.history-import` reads a staged export incrementally and checks normalized recording credits and titles against the catalog. Matching album placements break ties. A batch commits its private import ledger, matched `plays` and progress together. The ledger deduplicates by user, source and fingerprint, and keeps unmatched metadata in private history to keep search results focused on the shared catalog. Scrobbling excludes imported plays. Replay aggregates matched and unmatched history, except early skips. API and worker processes share the data directory so either can reach staged uploads.
 - **Replay.** `userdata/replay.ts` builds calendar windows in the requested IANA time zone. It aggregates listening rows by recording and album before joining catalog credits and genres. Local hourly buckets feed the clock, totals and streaks. Existing history invalidations also refresh Replay.
+
+### Integrations
+
+[Integrations](./server/integrations.md) owns user and server webhook subscriptions and the administrator's MQTT broker configuration. Event producers enqueue a signed delivery with an event ID that stays stable across pg-boss retries. HTTP destinations are checked as sockets resolve DNS and redirects are disabled. The API process runs the MQTT bridge and applies broker commands through the same playback session reducer as connected clients. Scoped native bearer tokens share the app-password lifecycle and are authorized against a route allowlist. The existing Subsonic credentials retain their original access.
 
 ### Radio
 

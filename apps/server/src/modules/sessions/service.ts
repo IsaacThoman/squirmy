@@ -3,7 +3,7 @@ import {
 } from '@squirmy/client-core'
 import {
   COMMAND_TRACK_LIMIT, CommandEnvelope, DEVICE_GRACE_MS, EngineReport, QUEUE_LIMIT, SessionAttach, SessionDetach,
-  type CommandAck, type EntryFailure, type DeviceInfo, type QueueEntry, type SessionCapability, type SessionCommand, type SessionHello, type SessionHelloAck,
+  type PlaybackControl, type CommandAck, type EntryFailure, type DeviceInfo, type QueueEntry, type SessionCapability, type SessionCommand, type SessionHello, type SessionHelloAck,
   type SessionMoveAck, type SessionSnapshot,
 } from '@squirmy/contracts'
 import { and, eq } from 'drizzle-orm'
@@ -13,6 +13,8 @@ import { devices } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import type { RealtimeServer } from '../../realtime/index.js'
 import { requestRecording } from '../acquisition/coverage.js'
+import { conflict } from '../../lib/errors.js'
+import { emitPlaybackWebhook } from '../integrations/playback.js'
 import { rememberDevice } from '../auth/service.js'
 import { suggestAutoplay } from '../radio/suggest.js'
 import { AUTOPLAY_BATCH, autoplayRequest } from './autoplay.js'
@@ -214,6 +216,7 @@ function commit(record: SessionRecord, next: Session, now = settings.now()): Cha
   record.version += 1
   if (queue) record.queueVersion += 1
   record.session = next
+  emitPlaybackWebhook(record.userId, previous, next, now)
   if (next.current?.state === 'ready') {
     record.failedInARow = 0
     record.skippedTracks.clear()
@@ -977,6 +980,28 @@ export function applyReport(userId: string, deviceId: string | null, raw: unknow
 }
 
 // Service functions for other modules
+
+/** Sessions with a connected player, for the integrations bridge. */
+export function playingDevices() {
+  return [...loadedRecords()].flatMap(({ userId, session, deviceId }) => {
+    const active = session.activeDeviceId
+    return active && (deviceId === null || active === deviceId) && connectedDevice(userId, active)
+      ? [{ userId, deviceId: active, session }]
+      : []
+  })
+}
+
+export function controlPlayback(userId: string, command: PlaybackControl, deviceId?: string): Promise<SessionSnapshot> {
+  return serial(userId, async () => {
+    const record = (deviceId ? loadedOwn(userId, deviceId) : undefined) ?? await load(userId)
+    const active = record.session.activeDeviceId
+    if (!active || (deviceId && active !== deviceId) || !connectedDevice(userId, active)?.canPlay) {
+      throw conflict('There is no active playback device', 'device_unavailable')
+    }
+    applyServer(record, command.type === 'volume' ? { type: 'setVolume', deviceId: active, value: command.value } : command)
+    return snapshotOf(record)
+  })
+}
 
 /** The user's shared session as `GET /me/session` and Subsonic's `getPlayQueue` see it. */
 export function getSnapshot(userId: string): Promise<SessionSnapshot> {

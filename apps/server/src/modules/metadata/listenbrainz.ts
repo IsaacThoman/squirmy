@@ -1,4 +1,7 @@
+import type { RemoteFeedback } from './feedback.js'
 import { cachedFetch, ProviderError, unexpectedResponse } from '../../lib/http.js'
+import { badRequest } from '../../lib/errors.js'
+import { integrationSettings } from '../integrations/settings.js'
 import { getServerSecret, getServerSettings } from '../../lib/settings.js'
 
 /** A recording ranked by how often ListenBrainz users play it. */
@@ -48,6 +51,26 @@ type RawTopRecording = {
 
 const provider = 'listenbrainz'
 const api = 'https://api.listenbrainz.org/1/'
+export function normalizeApiUrl(value: string): string | undefined {
+  const url = new URL(value)
+  if (url.username || url.password || url.search || url.hash) throw badRequest('Enter an API URL without credentials, query parameters or a fragment', 'invalid_api_url')
+  url.pathname = url.pathname.replace(/\/+$/, '') + '/'
+  return url.href === api ? undefined : url.href
+}
+
+async function userRequest(path: string, token: string, apiUrl?: string, body?: string) {
+  return cachedFetch(provider, (apiUrl ?? api) + path, {
+    ttlSeconds: 0,
+    cache: 'no-store',
+    method: body === undefined ? 'GET' : 'POST',
+    body,
+    headers: { Accept: 'application/json', Authorization: `Token ${token}`, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+    outbound: { allowLan: apiUrl !== undefined && (await integrationSettings()).allowLan },
+    ...rateLimit,
+    rateLimitKey: apiUrl ? `${provider}:${new URL(apiUrl).origin}` : provider,
+  })
+}
+
 const ttl = 7 * 86400
 const rateLimit = { rateLimitKey: provider, rateLimitMs: 350 }
 /** The algorithm ListenBrainz's own artist pages use. */
@@ -114,16 +137,11 @@ export async function similarArtists(artistMbid: string, options: { limit?: numb
  * when ListenBrainz does not accept it. Works without a server token: scrobbling only
  * needs the user's own.
  */
-export async function validateToken(userToken: string): Promise<{ userName: string } | null> {
+export async function validateToken(userToken: string, apiUrl?: string): Promise<{ userName: string } | null> {
   // The token travels in a header, which is not part of the cache key, so nothing is cached.
-  const result = await cachedFetch(provider, `${api}validate-token`, {
-    ttlSeconds: 0,
-    cache: 'no-store',
-    headers: { Accept: 'application/json', Authorization: `Token ${userToken}` },
-    ...rateLimit,
-  })
+  const result = await userRequest('validate-token', userToken, apiUrl)
   if (result.status === 400 || result.status === 401) return null
-  if (result.status !== 200) throw unexpectedResponse(provider, result)
+  if (result.status !== 200) throw new ProviderError(provider, `Token validation failed (HTTP ${result.status})`, result.status)
   const body = result.json as { valid?: boolean; user_name?: string } | undefined
   return body?.valid && body.user_name ? { userName: body.user_name } : null
 }
@@ -153,21 +171,40 @@ function payload(listen: LbListen, type: LbListenType) {
  * listen; `import` is sent in batches of 1000. Throws ProviderError on rejection; an
  * `upstreamStatus` of 401 means the user's token is no longer valid.
  */
-export async function submitListens(userToken: string, listens: LbListen[], type: LbListenType): Promise<void> {
+export async function submitListens(userToken: string, listens: LbListen[], type: LbListenType, apiUrl?: string): Promise<void> {
   if (type !== 'import' && listens.length !== 1) throw new Error(`A ${type} submission takes exactly one listen`)
   for (let start = 0; start < listens.length; start += importBatch) {
     const body = JSON.stringify({ listen_type: type, payload: listens.slice(start, start + importBatch).map((listen) => payload(listen, type)) })
-    const result = await cachedFetch(provider, `${api}submit-listens`, {
-      ttlSeconds: 0,
-      cache: 'no-store',
-      method: 'POST',
-      body,
-      headers: { Authorization: `Token ${userToken}`, 'Content-Type': 'application/json' },
-      ...rateLimit,
-    })
+    const result = await userRequest('submit-listens', userToken, apiUrl, body)
     if (result.status !== 200) {
-      const message = (result.json as { error?: string } | undefined)?.error ?? `HTTP ${result.status}`
+      const detail = apiUrl === undefined ? (result.json as { error?: string } | undefined)?.error : undefined
+      const message = detail ?? `HTTP ${result.status}`
       throw new ProviderError(provider, message, result.status)
     }
   }
+}
+
+type RawFeedback = {
+  recording_mbid?: string | null
+  score: number
+  created: number
+  track_metadata?: { track_name?: string; artist_name?: string; mbid_mapping?: { recording_mbid?: string } }
+}
+
+export async function feedbackPage(token: string, account: string, offset: number, apiUrl?: string): Promise<RemoteFeedback[]> {
+  const result = await userRequest(`feedback/user/${encodeURIComponent(account)}/get-feedback?metadata=true&count=100&offset=${offset}`, token, apiUrl)
+  const body = result.json as { feedback?: RawFeedback[] } | undefined
+  if (result.status !== 200 || !Array.isArray(body?.feedback)) throw new ProviderError(provider, `Feedback read failed (HTTP ${result.status})`, result.status)
+  return body.feedback.filter(item => item.score === 1 || item.score === -1).map(item => ({
+    mbid: item.recording_mbid ?? item.track_metadata?.mbid_mapping?.recording_mbid,
+    title: item.track_metadata?.track_name,
+    artist: item.track_metadata?.artist_name,
+    at: Number(item.created),
+    loved: item.score === 1,
+  }))
+}
+
+export async function love(token: string, mbid: string, apiUrl?: string): Promise<void> {
+  const result = await userRequest('feedback/recording-feedback', token, apiUrl, JSON.stringify({ recording_mbid: mbid, score: 1 }))
+  if (result.status !== 200) throw new ProviderError(provider, `Feedback write failed (HTTP ${result.status})`, result.status)
 }

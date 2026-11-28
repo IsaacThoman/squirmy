@@ -1,0 +1,38 @@
+{
+  "note": "Hand-written from the API schema with synthetic credentials and feedback.",
+  "request": {
+    "method": "GET",
+    "url": "https://scrobbles.example/lb/1/feedback/user/feedback-user/get-feedback?metadata=true&count=100&offset=0",
+    "headers": {
+      "authorization": "Token custom-token"
+    }
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "feedback": [
+        {
+          "created": 1700000000,
+          "score": 1,
+          "track_metadata": {
+            "track_name": "Deja Vu",
+            "artist_name": "Beyonce"
+          }
+        },
+        {
+          "created": 1700000010,
+          "score": -1,
+          "recording_mbid": "046f957e-30ea-477b-a078-e30f4da52d69"
+        },
+        {
+          "created": 1700000000,
+          "score": 1,
+          "track_metadata": {
+            "track_name": "Unmatched",
+            "artist_name": "Unknown"
+          }
+        }
+      ]
+    }
+  }
+}

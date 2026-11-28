@@ -1,0 +1,14 @@
+{
+  "note": "Hand-written from the API schema with synthetic credentials and feedback.",
+  "request": {
+    "method": "POST",
+    "url": "https://ws.audioscrobbler.com/2.0/",
+    "body": "sk=other-token&artist=Beyonc%C3%A9&track=Local&method=track.love&api_key=hearts-key&api_sig=c1fd6e00c8a77e8da5e020983512ac80&format=json"
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "status": "ok"
+    }
+  }
+}

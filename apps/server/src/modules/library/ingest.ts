@@ -1,3 +1,4 @@
+import { emitWebhook } from '../integrations/webhooks.js'
 import path from 'node:path'
 import { INCOMING_FOLDER, queryKeys } from '@squirmy/contracts'
 import { and, asc, eq, gte, inArray, isNull, sql } from 'drizzle-orm'
@@ -63,10 +64,11 @@ export async function ingestGroup({ rootId, groupKey }: IngestJob) {
     for (const releaseId of new Set(after.map((file) => file.releaseId))) {
       if (releaseId) await tx.execute(sql`update releases set track_count = (select count(*) from release_tracks where release_id = ${releaseId}) where id = ${releaseId} and fetched_at is null`)
     }
-    return { albumId: result.albumId, artistIds: [...writer.touchedArtists], files, recordings: new Map(after.map((file) => [file.id, file.recordingId])) }
+    return { albumId: result.albumId, newAlbum: writer.newAlbum, artistIds: [...writer.touchedArtists], files, recordings: new Map(after.map((file) => [file.id, file.recordingId])) }
   })
   if (!outcome) return
 
+  if (outcome.newAlbum) await emitWebhook('library.album_added', { albumId: outcome.albumId }, null, outcome.albumId)
   await attachFileExtras(root.path, outcome.albumId, outcome.files, outcome.recordings)
   // Files a provider delivered are in no library (acquisition announces the saves they
   // reach). Files of an import are not known to be either until the import marks them, and
@@ -185,6 +187,7 @@ async function requestedArtists(tx: Transaction, files: readonly File[]): Promis
 }
 
 class GroupWriter {
+  newAlbum = false
   /** Artists whose credits this run replaced, for orphan cleanup. */
   readonly formerArtists: string[] = []
   /** Artists credited on what this run wrote, for invalidation. */
@@ -340,7 +343,10 @@ class GroupWriter {
         .where(and(inArray(albums.id, await this.reusable(mediaFiles.albumId, (file) => file.albumId)), isNull(albums.mbid)))
         .orderBy(asc(albums.id)).limit(1)
       if (linked) [album] = await tx.update(albums).set(values).where(eq(albums.id, linked.id)).returning()
-      if (!album) [album] = await tx.insert(albums).values({ id: newId(), detailLevel: 1, ...values }).returning()
+      if (!album) {
+        ;[album] = await tx.insert(albums).values({ id: newId(), detailLevel: 1, ...values }).returning()
+        this.newAlbum = true
+      }
       const former = await tx.delete(albumArtists).where(eq(albumArtists.albumId, album!.id)).returning({ artistId: albumArtists.artistId })
       this.formerArtists.push(...former.map((row) => row.artistId))
       await tx.insert(albumArtists).values(albumCredits.map((credit) => ({ albumId: album!.id, ...credit })))

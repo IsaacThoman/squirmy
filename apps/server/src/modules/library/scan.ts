@@ -1,3 +1,4 @@
+import { emitWebhook } from '../integrations/webhooks.js'
 import { realpath, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { FETCHED_FOLDER, INCOMING_FOLDER, queryKeys, type ScanStats } from '@squirmy/contracts'
@@ -243,6 +244,7 @@ export async function scanRoot({ rootId, paths }: ScanJob): Promise<ScanStats | 
   if (stats.filesMissing > 0 || writer.filesReturned > 0) invalidateSoon([queryKeys.library(), queryKeys.home()])
   await invalidate('admins', [queryKeys.adminRoots()])
   await publishProbeProgress(rootId)
+  if (full) await emitWebhook('library.scan_finished', { rootId, stats })
   return stats
 }
 

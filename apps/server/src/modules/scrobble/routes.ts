@@ -61,10 +61,11 @@ export async function scrobbleRoutes(app: FastifyInstance) {
 
   app.put('/me/scrobbling/listenbrainz', async (request): Promise<ScrobblingStatus> => {
     const user = requireUser(request)
-    const { token } = ConnectListenBrainzRequest.parse(request.body)
-    const account = await listenbrainz.validateToken(token)
+    const { token, apiUrl: inputUrl } = ConnectListenBrainzRequest.parse(request.body)
+    const apiUrl = inputUrl ? listenbrainz.normalizeApiUrl(inputUrl) : undefined
+    const account = await listenbrainz.validateToken(token, apiUrl)
     if (!account) throw badRequest('ListenBrainz did not accept that token', 'invalid_token')
-    await saveConnection(user.id, 'listenbrainz', token, account.userName)
+    await saveConnection(user.id, 'listenbrainz', token, account.userName, apiUrl)
     await invalidateScrobbling(user.id)
     return scrobblingStatus(user.id)
   })

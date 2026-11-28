@@ -81,7 +81,7 @@ afterEach(() => {
 describe('SettingsDialog', () => {
   it('lists its sections and opens on the one it is given', () => {
     renderSettings()
-    expect(sections().getAllByRole('button').map(button => button.textContent)).toEqual(['Playback', 'Library', 'Appearance', 'Account', 'Scrobbling', 'App passwords', 'About'])
+    expect(sections().getAllByRole('button').map(button => button.textContent)).toEqual(['Playback', 'Library', 'Appearance', 'Account', 'Scrobbling', 'App passwords', 'Webhooks', 'About'])
     expect(sections().getByRole('button', { name: 'Playback' })).toHaveAttribute('aria-current', 'page')
     expect(panelTitles()).toEqual(['Settings', 'Playback'])
   })

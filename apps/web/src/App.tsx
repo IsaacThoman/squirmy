@@ -19,6 +19,7 @@ const AdminSearchIndexPage = admin('AdminSearchIndexPage')
 const AdminUsersPage = admin('AdminUsersPage')
 const AdminProvidersPage = admin('AdminProvidersPage')
 const AdminSettingsPage = admin('AdminSettingsPage')
+const AdminIntegrationsPage = admin('AdminIntegrationsPage')
 const AdminJobsPage = admin('AdminJobsPage')
 const imports = (name: keyof typeof import('@/pages/imports')) => lazy(() => import('@/pages/imports').then(module => ({ default: module[name] })))
 const ImportsPage = imports('ImportsPage')
@@ -85,6 +86,7 @@ export function AppRoutes() {
                   <Route path="users" element={<Loading><AdminUsersPage /></Loading>} />
                   <Route path="providers" element={<Loading><AdminProvidersPage /></Loading>} />
                   <Route path="settings" element={<Loading><AdminSettingsPage /></Loading>} />
+                  <Route path="integrations" element={<Loading><AdminIntegrationsPage /></Loading>} />
                   <Route path="jobs" element={<Loading><AdminJobsPage /></Loading>} />
                 </Route>
               </Route>

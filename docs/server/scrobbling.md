@@ -40,3 +40,15 @@ Until the key is set, users see "An admin of this server has to add a Last.fm AP
 ## Status and problems
 
 **Settings → Scrobbling** shows each connected service with the account name, how many plays are waiting and how many could not be sent, and a switch to stop sending to that service without disconnecting (plays made while it is off are never sent). The iOS app shows the same switch as **Scrobbling** under each connected service. Disconnecting asks first: plays still waiting to be sent are dropped. When a service stops accepting the connection (a revoked token, a removed app), it says "… no longer accepts this connection. Connect again to keep scrobbling." with **Reconnect**, and plays wait until you do. A play that fails 10 times is given up on and counted as could not be sent.
+
+### Compatible ListenBrainz servers
+
+In web Settings, choose **Change connection** to use a different server. Supply its user token and the complete versioned path in **API URL**, for example `https://listens.example.com/1/`. Compatible servers need to implement token validation and listen submission. Heart sync also requires recording feedback endpoints. Leaving the field blank uses ListenBrainz. The token, now-playing updates, completed plays and feedback for the account all go to the selected server. A change of destination starts a new connection.
+
+The server checks destination addresses on connection. For a service on an RFC1918 network, an admin must enable **Allow local HTTP destinations** in [Integrations](./integrations.md#webhooks). Use HTTPS when sending credentials over an untrusted network.
+
+## Heart sync
+
+In web **Settings → Scrobbling**, turn on **Sync hearts** for either connected service. Sync runs in the background about every 15 minutes while scrobbling is enabled. It reads Last.fm loves and ListenBrainz love/hate feedback and sends Squirmy track hearts as loves. ListenBrainz exports require a MusicBrainz recording ID. ListenBrainz hates remove a heart if the remote feedback is at least as recent as the heart.
+
+Squirmy matches a MusicBrainz recording ID first, then matches normalized artist and track names when they identify a single recording. Unmatched and ambiguous feedback is skipped and reconsidered on later runs, so there is no separate pending collection to maintain. Each sync reads up to 10,000 of the most recent entries per service and sends up to 50 local hearts per service. Imported hearts stay local and a previously observed remote love does not override a later local removal. Removing a heart in Squirmy leaves remote feedback as it was.
