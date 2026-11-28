@@ -1,5 +1,5 @@
 {
-  "id": "c6708cb1-7c42-45ef-b3d0-5b2acc9cc3fa",
+  "id": "4f196dbd-de7d-49f7-8380-8981818cc602",
   "prevId": "bf8a0fe4-0457-49e3-994f-6683ec863055",
   "version": "7",
   "dialect": "postgresql",
@@ -5061,6 +5061,149 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.playlist_collaborators": {
+      "name": "playlist_collaborators",
+      "schema": "",
+      "columns": {
+        "playlist_id": {
+          "name": "playlist_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "can_edit": {
+          "name": "can_edit",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "playlist_collaborators_user": {
+          "name": "playlist_collaborators_user",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "playlist_collaborators_playlist_id_playlists_id_fk": {
+          "name": "playlist_collaborators_playlist_id_playlists_id_fk",
+          "tableFrom": "playlist_collaborators",
+          "tableTo": "playlists",
+          "columnsFrom": [
+            "playlist_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "playlist_collaborators_user_id_users_id_fk": {
+          "name": "playlist_collaborators_user_id_users_id_fk",
+          "tableFrom": "playlist_collaborators",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "playlist_collaborators_playlist_id_user_id_pk": {
+          "name": "playlist_collaborators_playlist_id_user_id_pk",
+          "columns": [
+            "playlist_id",
+            "user_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.playlist_folders": {
+      "name": "playlist_folders",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "owner_id": {
+          "name": "owner_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "playlist_folders_owner": {
+          "name": "playlist_folders_owner",
+          "columns": [
+            {
+              "expression": "owner_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "playlist_folders_owner_id_users_id_fk": {
+          "name": "playlist_folders_owner_id_users_id_fk",
+          "tableFrom": "playlist_folders",
+          "tableTo": "users",
+          "columnsFrom": [
+            "owner_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.playlist_items": {
       "name": "playlist_items",
       "schema": "",
@@ -5227,6 +5370,18 @@
           "notNull": true,
           "default": false
         },
+        "folder_id": {
+          "name": "folder_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "artwork_asset_id": {
+          "name": "artwork_asset_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "rules": {
           "name": "rules",
           "type": "jsonb",
@@ -5263,6 +5418,21 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "playlists_folder": {
+          "name": "playlists_folder",
+          "columns": [
+            {
+              "expression": "folder_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -5277,6 +5447,32 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "playlists_folder_id_playlist_folders_id_fk": {
+          "name": "playlists_folder_id_playlist_folders_id_fk",
+          "tableFrom": "playlists",
+          "tableTo": "playlist_folders",
+          "columnsFrom": [
+            "folder_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "playlists_artwork_asset_id_assets_id_fk": {
+          "name": "playlists_artwork_asset_id_assets_id_fk",
+          "tableFrom": "playlists",
+          "tableTo": "assets",
+          "columnsFrom": [
+            "artwork_asset_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -6700,12 +6896,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "disambiguation": {
-          "name": "disambiguation",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "track_count": {
           "name": "track_count",
           "type": "integer",
@@ -7841,129 +8031,6 @@
       },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.version_picks": {
-      "name": "version_picks",
-      "schema": "",
-      "columns": {
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "entity_type": {
-          "name": "entity_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "entity_id": {
-          "name": "entity_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "release_id": {
-          "name": "release_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "tier": {
-          "name": "tier",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "picked_at": {
-          "name": "picked_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "version_picks_entity": {
-          "name": "version_picks_entity",
-          "columns": [
-            {
-              "expression": "entity_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "entity_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "version_picks_release": {
-          "name": "version_picks_release",
-          "columns": [
-            {
-              "expression": "release_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "version_picks_user_id_users_id_fk": {
-          "name": "version_picks_user_id_users_id_fk",
-          "tableFrom": "version_picks",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "version_picks_release_id_releases_id_fk": {
-          "name": "version_picks_release_id_releases_id_fk",
-          "tableFrom": "version_picks",
-          "tableTo": "releases",
-          "columnsFrom": [
-            "release_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "version_picks_user_id_entity_type_entity_id_pk": {
-          "name": "version_picks_user_id_entity_type_entity_id_pk",
-          "columns": [
-            "user_id",
-            "entity_type",
-            "entity_id"
-          ]
-        }
-      },
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},

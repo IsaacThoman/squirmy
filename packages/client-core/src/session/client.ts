@@ -24,7 +24,7 @@ import {
 } from '@squirmy/contracts'
 import { ApiError, streamUrl } from '../api/client.js'
 import type { EngineEvent, EngineMedia, EngineState, EngineStatus, PlayerEngine } from '../engine.js'
-import { appliedGain } from '../normalization.js'
+import { appliedGain, REFERENCE_LUFS, type GainContext } from '../normalization.js'
 import { signalReport } from '../signal.js'
 import { clearRepeating, setRepeating, setTimer } from '../timers.js'
 import { followsJam, memberCommandRoute } from './jam.js'
@@ -128,8 +128,15 @@ export type SessionPlayer = {
   baseUrl: string
   /** Initial normalization mode (the user's setting). Defaults to `auto`. */
   normalization?: NormalizationMode
+  /** Initial normalization target in LUFS (the user's setting). Defaults to -18. */
+  normalizationTarget?: number
   /** The engine can amplify above unity. Defaults to false. */
   canBoost?: boolean
+  /**
+   * The engine limits true peaks after the gain, so normalization is not held back to a
+   * song's peak (see `GainContext.limiter`). Defaults to false.
+   */
+  limiter?: boolean
   /**
    * This device's entry in the session's `volumes` is the system's output volume, which the
    * platform applies and keeps in step itself (iOS): the engine's gain leaves it out and
@@ -346,6 +353,7 @@ export class SessionClient {
   private serial = 0
 
   private normalization: NormalizationMode
+  private normalizationTarget: number
   private loadToken = 0
   private loadingEntryId: string | null = null
   /** The entry whose stream could not be had yet (offline), and where its first try would have started. */
@@ -385,6 +393,7 @@ export class SessionClient {
     this.reportIntervalMs = options.reportIntervalMs ?? 10_000
     this.jamAlignIntervalMs = options.jamAlignIntervalMs ?? 2000
     this.normalization = options.player?.normalization ?? 'auto'
+    this.normalizationTarget = options.player?.normalizationTarget ?? REFERENCE_LUFS
     this.onDetachedEnded = options.onDetachedEnded
     this.onJamEvent = options.onJamEvent
     if (options.restore) this.restore(options.restore)
@@ -621,6 +630,14 @@ export class SessionClient {
   /** Changes the normalization mode (the user's setting) and applies it at once. */
   setNormalization(mode: NormalizationMode): void {
     this.normalization = mode
+    if (this.isActive() && this.local.current) this.applyGain(this.local.current)
+    this.publish()
+  }
+
+  /** Changes the loudness normalization brings songs to, in LUFS (the user's setting), at once. */
+  setNormalizationTarget(targetLufs: number): void {
+    if (targetLufs === this.normalizationTarget) return
+    this.normalizationTarget = targetLufs
     if (this.isActive() && this.local.current) this.applyGain(this.local.current)
     this.publish()
   }
@@ -1035,7 +1052,11 @@ export class SessionClient {
       const descriptor = current && this.inEngine.get(current.id)
       if (current && descriptor) {
         const albumContext = this.inAlbumContext(current, this.local)
-        const normalization = { mode: this.normalization, ...appliedGain(this.normalization, descriptor.normalization, { albumContext, canBoost: this.player?.canBoost ?? false }) }
+        const normalization = {
+          mode: this.normalization,
+          targetLufs: this.normalizationTarget,
+          ...appliedGain(this.normalization, descriptor.normalization, this.gainContext(albumContext)),
+        }
         signal = { ...signalReport(current.id, descriptor, normalization, descriptor.url.startsWith('file:')), deviceId: this.device.id }
       }
     } else {
@@ -1311,7 +1332,12 @@ export class SessionClient {
     const volume = this.player?.systemVolume ? 1 : session.volumes[this.device.id] ?? 1
     const albumContext = this.inAlbumContext(entry, session)
     const fade = entry.id === session.current?.id ? this.fadeOf(session) : 1
-    return volume * fade * appliedGain(this.normalization, descriptor?.normalization, { albumContext, canBoost: this.player?.canBoost ?? false }).gain
+    return volume * fade * appliedGain(this.normalization, descriptor?.normalization, this.gainContext(albumContext)).gain
+  }
+
+  /** What normalization depends on besides the song: the same for the gain applied and the one reported. */
+  private gainContext(albumContext: boolean): GainContext {
+    return { albumContext, canBoost: this.player?.canBoost ?? false, limiter: this.player?.limiter ?? false, targetLufs: this.normalizationTarget }
   }
 
   private inAlbumContext(entry: QueueEntry, session: Session): boolean {

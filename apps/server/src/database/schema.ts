@@ -965,12 +965,20 @@ export const ratings = pgTable('ratings', {
   updatedAt: updatedAt(),
 }, (t) => [primaryKey({ columns: [t.userId, t.entityType, t.entityId] })])
 
+export const playlistFolders = pgTable('playlist_folders', {
+  id: id(),
+  ownerId: uuid('owner_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+}, (t) => [index('playlist_folders_owner').on(t.ownerId)])
+
 export const playlists = pgTable('playlists', {
   id: id(),
   ownerId: uuid('owner_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   description: text('description'),
   isPublic: boolean('is_public').notNull().default(false),
+  folderId: uuid('folder_id').references(() => playlistFolders.id, { onDelete: 'set null' }),
+  artworkAssetId: uuid('artwork_asset_id').references(() => assets.id, { onDelete: 'set null' }),
   /**
    * A smart playlist's rules (`userdata/smart.ts` evaluates them on every read); null for a
    * playlist of items. A smart playlist has no `playlist_items`.
@@ -978,7 +986,13 @@ export const playlists = pgTable('playlists', {
   rules: jsonb('rules').$type<SmartPlaylistRules>(),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
-}, (t) => [index('playlists_owner').on(t.ownerId)])
+}, (t) => [index('playlists_owner').on(t.ownerId), index('playlists_folder').on(t.folderId)])
+
+export const playlistCollaborators = pgTable('playlist_collaborators', {
+  playlistId: uuid('playlist_id').notNull().references(() => playlists.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  canEdit: boolean('can_edit').notNull(),
+}, (t) => [primaryKey({ columns: [t.playlistId, t.userId] }), index('playlist_collaborators_user').on(t.userId)])
 
 export const playlistItems = pgTable('playlist_items', {
   id: id(),

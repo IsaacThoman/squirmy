@@ -21,7 +21,7 @@ import { ScrollContainerContext } from './scroll-context'
 import { useScrollMemory } from './scroll-memory'
 import { ShellNotices } from './ShellNotices'
 import { ShortcutsDialog } from './ShortcutsDialog'
-import { Sidebar } from './Sidebar'
+import { Sidebar, type SidebarFolders } from './Sidebar'
 import { SidebarResizeHandle } from './SidebarResizeHandle'
 import {
   applySidebarWidth, clampSidebarWidth, MOBILE_QUERY, readSidebarCollapsed, readSidebarWidth, SIDEBAR_MIN_WIDTH, sidebarMaxWidth, writeSidebarCollapsed, writeSidebarWidth,
@@ -49,6 +49,7 @@ export type SearchDialogState = { open: boolean; onOpenChange: (open: boolean) =
 type AppShellProps = {
   user: User
   playlists: PlaylistSummary[]
+  folders?: SidebarFolders
   /** "24 songs" beside Liked Songs. */
   likedCount: string
   onPlayPlaylist: (playlist: PlaylistSummary) => void
@@ -116,7 +117,7 @@ function letterOf(event: KeyboardEvent): string {
  * something plays, and only the parts that show it (`ShellPlayer`, `ShellQueue`, `ShellNowPlaying`,
  * the sidebar's playing marker) render again for it.
  */
-export const AppShell = memo(function AppShell({ user, playlists, likedCount, onPlayPlaylist, onPlayLiked, onLogout, renderSearch, renderSettings }: AppShellProps) {
+export const AppShell = memo(function AppShell({ user, playlists, folders, likedCount, onPlayPlaylist, onPlayLiked, onLogout, renderSearch, renderSettings }: AppShellProps) {
   const { pathname } = useLocation()
   const frame = useRef<HTMLDivElement>(null)
   const bottom = useRef<HTMLDivElement>(null)
@@ -360,6 +361,7 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
           <Sidebar
             user={user}
             playlists={playlists}
+            folders={folders}
             likedCount={likedCount}
             collapsed={!mobile && collapsed}
             mobile={mobile}

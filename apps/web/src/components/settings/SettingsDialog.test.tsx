@@ -199,12 +199,14 @@ describe('SettingsDialog', () => {
     it('shows the user’s settings', () => {
       renderSettings()
       expect(screen.getByRole('combobox', { name: 'Volume normalization' })).toHaveTextContent('Automatic')
+      expect(screen.getByRole('combobox', { name: 'Target loudness' })).toHaveTextContent('Standard (−18 LUFS)')
       expect(screen.getByRole('combobox', { name: 'Streaming quality' })).toHaveTextContent('Original')
       expect(screen.getByRole('combobox', { name: 'Cellular quality' })).toHaveTextContent('High (AAC 256)')
     })
 
     it.each([
       ['Volume normalization', ['Automatic', 'Per song', 'Per album', 'Off'], 'Per album', { normalization: 'album' }],
+      ['Target loudness', ['Loud (−14 LUFS)', 'Medium (−16 LUFS)', 'Standard (−18 LUFS)', 'Quiet (−23 LUFS)'], 'Loud (−14 LUFS)', { normalizationTarget: -14 }],
       ['Streaming quality', ['Original', 'High (AAC 256)', 'Data saver'], 'Data saver', { qualityWifi: 'data_saver' }],
       ['Cellular quality', ['Original', 'High (AAC 256)', 'Data saver'], 'Original', { qualityCellular: 'original' }],
     ] as const)('sends a new choice of %s', async (name, choices, choice, patch) => {
@@ -219,6 +221,8 @@ describe('SettingsDialog', () => {
     it('shows the settings as they are saved', () => {
       renderSettings({ settings: { ...userSettings, normalization: 'off', qualityWifi: 'high', qualityCellular: 'data_saver' } })
       expect(screen.getByRole('combobox', { name: 'Volume normalization' })).toHaveTextContent('Off')
+      // With normalization off there is nothing to aim at.
+      expect(screen.queryByRole('combobox', { name: 'Target loudness' })).not.toBeInTheDocument()
       expect(screen.getByRole('combobox', { name: 'Streaming quality' })).toHaveTextContent('High (AAC 256)')
       expect(screen.getByRole('combobox', { name: 'Cellular quality' })).toHaveTextContent('Data saver')
     })

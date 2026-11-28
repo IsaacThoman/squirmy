@@ -109,6 +109,8 @@ type Slot = {
  * `interrupt`/`endInterruption` for a call or Siri, `routeLost` for unplugged headphones.
  */
 export class ExpoAudioEngine implements PlayerEngine {
+  readonly canBoost = false;
+  readonly limiter = false;
   private current: Slot | null = null;
   private next: Slot | null = null;
   private state: EngineState = 'idle';

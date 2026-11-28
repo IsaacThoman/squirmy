@@ -1,6 +1,6 @@
 import {
   ApiTokenScope, ChangePasswordRequest, ConnectListenBrainzRequest, CreateAppPasswordRequest, UpdateUserRequest,
-  type AppPassword, type NormalizationMode, type ShareLink, type ScrobbleService, type ScrobbleTarget, type ScrobblingStatus, type StreamQuality, type UpdateUserSettings, type User, type UserSettings,
+  type AppPassword, type NormalizationMode, type NormalizationTarget, type ShareLink, type ScrobbleService, type ScrobbleTarget, type ScrobblingStatus, type StreamQuality, type UpdateUserSettings, type User, type UserSettings,
 } from '@squirmy/contracts'
 import { AlertTriangle, AudioLines, Check, CircleCheck, FolderUp, Info, KeyRound, Library, Link2, Lock, LogOut, Palette, Pencil, Plus, Radio, Webhook, ShieldCheck, User as UserIcon, type LucideIcon } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
@@ -41,6 +41,14 @@ const normalizationOptions: SelectOption<NormalizationMode>[] = [
   { value: 'track', label: 'Per song' },
   { value: 'album', label: 'Per album' },
   { value: 'off', label: 'Off' },
+]
+
+// The select's values are strings; the setting is a number of LUFS.
+const targetOptions: SelectOption<`${NormalizationTarget}`>[] = [
+  { value: '-14', label: 'Loud (−14 LUFS)' },
+  { value: '-16', label: 'Medium (−16 LUFS)' },
+  { value: '-18', label: 'Standard (−18 LUFS)' },
+  { value: '-23', label: 'Quiet (−23 LUFS)' },
 ]
 
 const qualityOptions: SelectOption<StreamQuality>[] = [
@@ -189,6 +197,12 @@ export function SettingsDialog({
                     <Row htmlFor="normalization" label="Volume normalization" description="Evens out loudness between songs. Automatic uses album levels when you play an album in order.">
                       <Select id="normalization" label="Volume normalization" value={settings.normalization} options={normalizationOptions} onValueChange={normalization => onSettingsChange({ normalization })} className="w-40" />
                     </Row>
+                    {/* Only normalization has a target: with it off, songs play as they are. */}
+                    {settings.normalization !== 'off' && (
+                      <Row htmlFor="normalization-target" label="Target loudness" description="How loud songs play with normalization on. Loud is about as loud as most streaming services. A quiet song is turned up only as far as its peaks allow.">
+                        <Select id="normalization-target" label="Target loudness" value={`${settings.normalizationTarget ?? -18}`} options={targetOptions} onValueChange={target => onSettingsChange({ normalizationTarget: Number(target) as NormalizationTarget })} className="w-52" />
+                      </Row>
+                    )}
                     <Row htmlFor="quality-wifi" label="Streaming quality" description="On Wi-Fi and in the browser. Original plays the file untouched when your device supports it.">
                       <Select id="quality-wifi" label="Streaming quality" value={settings.qualityWifi} options={qualityOptions} onValueChange={qualityWifi => onSettingsChange({ qualityWifi })} className="w-40" />
                     </Row>

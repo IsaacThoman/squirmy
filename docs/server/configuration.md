@@ -133,7 +133,7 @@ Acquisition has its own policy settings; see [Acquisition providers](./acquisiti
 
 ### Per-user settings
 
-Each user has their own, in **Settings** in the web app and in the iOS app's account sheet: volume normalization (default Automatic), streaming quality on Wi-Fi (default Original) and on cellular (default High), scrobbling switches, and for the iOS app's downloads, the download quality (default Original) and Wi-Fi only (default on). The iOS storage limit for downloads is kept on the phone, not on the server. See [Playback](./playback.md).
+Each user has their own, in **Settings** in the web app and in the iOS app's account sheet: volume normalization (default Automatic) and its target loudness (default Standard, -18 LUFS), streaming quality on Wi-Fi (default Original) and on cellular (default High), scrobbling switches, and for the iOS app's downloads, the download quality (default Original) and Wi-Fi only (default on). The iOS storage limit for downloads is kept on the phone, not on the server. See [Playback](./playback.md).
 
 ## Splitting the API and the worker
 

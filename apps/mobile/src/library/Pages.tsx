@@ -535,7 +535,7 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const mine = Boolean(data) && state.status === 'signedIn' && data!.ownerId === state.user.id && Boolean(playlist.data) && !offline;
   // A smart playlist's songs come from its rules (edited on the web): none are moved or removed here.
   const smart = Boolean(data?.smart);
-  const editsItems = mine && !smart;
+  const editsItems = !smart && (mine || (Boolean(playlist.data) && !offline && data?.collaboratorRole === 'edit'));
   const play = (shuffle?: boolean, start?: number) => {
     if (!data) return;
     tapFeedback();
@@ -544,11 +544,17 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const itemIds = useMemo(() => items?.map(item => item.itemId) ?? [], [items]);
   const songListProps: SongListProps = {
     tracks,
+    addedByNames: data?.collaborative ? items?.map(item => item.addedByName) : undefined,
     onPlay: start => play(undefined, start),
     onTrackMenu: (track, index) => onTrackMenu(track, editsItems ? { id, itemId: itemIds[index]! } : undefined),
     playlist: editsItems ? {
       id, itemIds, editing,
-      onMove: (itemId, toIndex) => edits.move(id, itemId, toIndex),
+      onMove: (itemId, toIndex) => {
+        const from = itemIds.indexOf(itemId);
+        const target = itemIds[toIndex];
+        if (from < 0 || !target || target === itemId) return;
+        edits.move(id, itemId, toIndex, { itemId: target, side: from < toIndex ? 'after' : 'before' });
+      },
       onRemove: itemId => edits.removeItem(id, itemId),
     } : undefined,
   };
@@ -579,7 +585,7 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   ];
 
   return <DetailPage item={playlistCollection(data, link)} tint={data.artworks[0]?.color ?? null} title={data.name}
-    artist={state.status === 'signedIn' && data.ownerId === state.user.id ? undefined : data.ownerName} info={smart ? 'Smart Playlist' : 'Playlist'}
+    artist={state.status === 'signedIn' && data.ownerId === state.user.id ? undefined : data.ownerName} info={data.collaborative ? 'Collaborative Playlist' : smart ? 'Smart Playlist' : 'Playlist'}
     description={data.description}
     status={<>{failure && <FailureLine message={failure} />}{control.status}</>}
     nav={[
@@ -589,7 +595,7 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
       // While the playlist is deleted the button waits for the server, with nothing to choose.
       deleting ? { icon: 'ellipsis', label: `Deleting ${data.name}`, busy: true, onPress: () => undefined }
         : menu.length > 0 && { icon: 'ellipsis', label: `More options for ${data.name}`, menu },
-      { icon: 'square.and.arrow.up', label: `Share ${data.name}`, onPress: () => sharePlaylist({ kind: 'playlist', id: data.id, title: data.name }, data.name) },
+      (mine || data.isPublic) && { icon: 'square.and.arrow.up', label: `Share ${data.name}`, onPress: () => sharePlaylist({ kind: 'playlist', id: data.id, title: data.name }, data.name) },
     ]}
     // Reordering drags rows within one native list, so while editing every row is drawn.
     onBack={onBack} bottomInset={bottomInset} list={tracks.length && !editing ? songs : undefined}>
