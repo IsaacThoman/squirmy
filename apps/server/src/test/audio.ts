@@ -24,6 +24,13 @@ export type ToneSpec = {
   tags?: Record<string, string | number>
   /** Embed a small solid-color cover. */
   cover?: boolean | string
+  /** Sample rate in Hz. Defaults to 44100. */
+  sampleRate?: number
+  /**
+   * FLAC and WAV only: the bits per sample. Unset, WAV is 16-bit and FLAC takes the 24 bits the
+   * volume filter's samples carry; set 16 for a CD-quality FLAC.
+   */
+  bitDepth?: 16 | 24
 }
 
 const codecs: Record<ToneFormat, string[]> = {
@@ -37,6 +44,14 @@ const codecs: Record<ToneFormat, string[]> = {
 }
 
 const ffmpeg = () => process.env.FFMPEG_PATH ?? 'ffmpeg'
+
+/** Encoder arguments for a bit depth, which only the lossless formats here keep. */
+function deeper(format: ToneFormat, bitDepth: 16 | 24 | undefined): string[] {
+  if (bitDepth === undefined) return []
+  if (format === 'flac') return bitDepth === 24 ? ['-sample_fmt', 's32', '-bits_per_raw_sample', '24'] : ['-sample_fmt', 's16']
+  if (format === 'wav') return bitDepth === 24 ? ['-c:a', 'pcm_s24le'] : []
+  throw new Error(`A ${format} fixture has no bit depth`)
+}
 
 /**
  * A small solid-color JPEG, made once per color and reused. Test files run in parallel
@@ -63,13 +78,13 @@ export async function makeTone(directory: string, spec: ToneSpec): Promise<strin
   await mkdir(path.dirname(output), { recursive: true })
 
   const duration = spec.durationSec ?? 2
-  const args = ['-v', 'error', '-y', '-f', 'lavfi', '-i', `sine=frequency=${spec.frequency ?? 440}:duration=${duration}:sample_rate=44100`]
+  const args = ['-v', 'error', '-y', '-f', 'lavfi', '-i', `sine=frequency=${spec.frequency ?? 440}:duration=${duration}:sample_rate=${spec.sampleRate ?? 44100}`]
   const withCover = spec.cover && (format === 'flac' || format === 'mp3' || format === 'm4a')
   if (withCover) {
     const image = await coverImage(typeof spec.cover === 'string' ? spec.cover : 'purple')
     args.push('-i', image, '-map', '0:a', '-map', '1:v', '-c:v', 'copy', '-disposition:v', 'attached_pic')
   }
-  args.push('-af', `volume=${spec.volumeDb ?? -50}dB`, '-ac', '2', ...codecs[format])
+  args.push('-af', `volume=${spec.volumeDb ?? -50}dB`, '-ac', '2', ...codecs[format], ...deeper(format, spec.bitDepth))
   for (const [key, value] of Object.entries(spec.tags ?? {})) args.push('-metadata', `${key}=${value}`)
   args.push(output)
   await run(ffmpeg(), args)

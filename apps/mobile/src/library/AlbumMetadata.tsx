@@ -1,5 +1,6 @@
-import { ActionSheetIOS, Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActionSheetIOS, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { displayFontScale, secondaryFontScale } from '../fontScale';
+import { useMenuSheet } from '../MenuSheet';
 import { createThemedStyles } from '../theme';
 
 /** `artistLinks` makes the artist line open those artists' pages: one directly, several from a choice. */
@@ -13,6 +14,7 @@ const noArtistLinks: NonNullable<AlbumMetadataProps['artistLinks']> = [];
  */
 export function AlbumMetadata({ title, info, artist, artistLinks = noArtistLinks }: AlbumMetadataProps) {
   const styles = useStyles();
+  const menu = useMenuSheet();
   const openArtist = () => {
     if (artistLinks.length === 1) {
       artistLinks[0].open();
@@ -21,10 +23,8 @@ export function AlbumMetadata({ title, info, artist, artistLinks = noArtistLinks
         options: [...artistLinks.map(link => link.name), 'Cancel'], cancelButtonIndex: artistLinks.length,
       }, index => artistLinks[index]?.open());
     } else {
-      Alert.alert(artist ?? '', undefined, [
-        ...artistLinks.map(link => ({ text: link.name, onPress: link.open })),
-        { text: 'Cancel', style: 'cancel' as const },
-      ]);
+      // A credit can name more artists than an Android alert has buttons.
+      menu.open(artist ?? '', artistLinks.map(link => ({ title: link.name, icon: 'music.mic', onPress: link.open })));
     }
   };
   return <View style={styles.metadata}>
@@ -35,6 +35,7 @@ export function AlbumMetadata({ title, info, artist, artistLinks = noArtistLinks
       </Pressable>
       : <Text maxFontSizeMultiplier={secondaryFontScale} style={styles.artist}>{artist}</Text>)}
     <Text maxFontSizeMultiplier={secondaryFontScale} style={styles.info}>{info}</Text>
+    {menu.sheet}
   </View>;
 }
 

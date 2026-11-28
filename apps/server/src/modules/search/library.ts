@@ -1,8 +1,6 @@
 /**
- * Search over the user's own music: artists with owned tracks, albums with a present
- * file, and owned tracks, plus whatever the user saved with the heart, file or not (the
- * Library's search box searches this, and a saved album may not have arrived yet).
- * Answered from Postgres alone, in a few milliseconds.
+ * Search over the user's Library membership, including saved music without files yet.
+ * Global search can also look up everything with a present file on the server.
  *
  * The query is a `matchKey`, so case, punctuation and diacritics never matter. Candidates
  * come from three index lookups per kind, each bounded:
@@ -12,7 +10,7 @@
  * - artist: albums and tracks whose primary artist's name starts with the query;
  * - fuzzy (three characters or more): trigram word similarity against `name_key` or the
  *   whole `match_key` (artist and title), which tolerates typos and word order.
- * Only owned rows are taken, and one more lookup walks the user's saves (a few hundred rows
+ * Only rows in scope are taken, and one more lookup walks the user's saves (a few hundred rows
  * for most people) for titles or names that start with the query or are like it. They are ranked exact match first, then prefix (of a title,
  * a name or the artist), then by similarity; ties go to what the user played most among
  * their last 1,000 plays, then to what they liked.
@@ -20,6 +18,7 @@
 import { sql, type SQL } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { recordingOwned } from '../catalog/availability.js'
+import { albumIsMember, recordingIsMember } from '../catalog/library.js'
 import { prefixEnd, textArray } from './keys.js'
 
 export type LibraryKind = 'artist' | 'album' | 'track'
@@ -115,25 +114,26 @@ function inGenre(kind: LibraryKind, alias: string, genre: string | undefined): S
  * candidates of that genre are kept, before the page is cut, so `offset` pages within it
  * (the Library's search inside a genre chip).
  */
-export function libraryQuery(kind: LibraryKind, userId: string, key: string, limit: number, offset = 0, genre?: string): SQL {
+export function libraryQuery(kind: LibraryKind, userId: string, key: string, limit: number, offset = 0, genre?: string, scope: 'library' | 'server' = 'library'): SQL {
   const end = prefixEnd(key)
   const recent = sql`select recording_id, album_id from plays where user_id = ${userId} and not skipped order by started_at desc limit ${recentPlays}`
 
-  // Saves are a branch of their own, not an `or` in the owned condition, which would change
-  // the plans of the owned lookups for every query.
+  // Also walk saves directly so numerous similar catalog rows cannot crowd them out.
   const similar = (column: string) => key.length >= 3 ? sql`${key} <% ${sql.raw(column)}` : sql`false`
   if (kind === 'artist') {
-    const owned = sql`a.merged_into_id is null and ${artistOwned('a')}`
+    const credited = scope === 'server' ? artistOwned('a') : sql`exists (
+      select 1 from album_artists aa where aa.artist_id = a.id and ${albumIsMember('aa.album_id', userId)})`
+    const eligible = sql`a.merged_into_id is null and ${credited}`
     return sql`
       with candidates as (
-        (select a.id from artists a where a.name_key collate "C" >= ${key} and a.name_key collate "C" < ${end} and ${owned} limit ${prefixCandidates})
+        (select a.id from artists a where a.name_key collate "C" >= ${key} and a.name_key collate "C" < ${end} and ${eligible} limit ${prefixCandidates})
         union
         (select a.id from likes own join artists a on a.id = own.entity_id
           where own.user_id = ${userId} and own.entity_type = 'artist' and a.merged_into_id is null
             and (starts_with(a.name_key, ${key}) or ${similar('a.name_key')})
           limit ${prefixCandidates})
         union
-        (select a.id from artists a where ${fuzzy(key, sql`a.name_key`)} and ${owned} limit ${fuzzyCandidates})
+        (select a.id from artists a where ${fuzzy(key, sql`a.name_key`)} and ${eligible} limit ${fuzzyCandidates})
       ),
       played as (
         select ra.artist_id as id, count(*)::int as plays from (${recent}) p join recording_artists ra on ra.recording_id = p.recording_id group by 1
@@ -149,28 +149,30 @@ export function libraryQuery(kind: LibraryKind, userId: string, key: string, lim
 
   const table = sql.raw(kind === 'album' ? 'albums' : 'recordings')
   const likeType = kind === 'album' ? 'album' : 'recording'
-  const owned = kind === 'album'
-    ? sql`t.merged_into_id is null and exists (select 1 from media_files f where f.album_id = t.id and f.missing_since is null)`
-    : sql`t.merged_into_id is null and ${recordingOwned('t.id')}`
+  const member = kind === 'album' ? albumIsMember('t.id', userId) : recordingIsMember('t.id', userId)
+  const present = kind === 'album'
+    ? sql`exists (select 1 from media_files f where f.album_id = t.id and f.missing_since is null)`
+    : recordingOwned('t.id')
+  const eligible = sql`t.merged_into_id is null and ${scope === 'library' ? member : present}`
   const playedBy = sql.raw(kind === 'album' ? 'album_id' : 'recording_id')
   const list = readings(key)
   return sql`
     with k as (${readingsTable(list)}),
     candidates as (
       (select t.id from ${table} t
-        where t.title_key collate "C" >= ${key} and t.title_key collate "C" < ${end} and ${owned} limit ${prefixCandidates})
+        where t.title_key collate "C" >= ${key} and t.title_key collate "C" < ${end} and ${eligible} limit ${prefixCandidates})
       union
       -- An "artist title" reading starts from the artist, which is far more selective than a title word.
       (select x.id from k cross join lateral (
         select t.id from artists ar join ${table} t on t.primary_artist_id = ar.id
         where k.artist is not null and ar.name_key in (k.artist, 'the ' || k.artist) and ar.merged_into_id is null
-          and starts_with(t.title_key, k.title) and ${owned}
+          and starts_with(t.title_key, k.title) and ${eligible}
         limit ${prefixCandidates}) x)
       union
       (select t.id from artists ar join ${table} t on t.primary_artist_id = ar.id
-        where ar.name_key collate "C" >= ${key} and ar.name_key collate "C" < ${end} and ${owned} limit ${fuzzyCandidates})
+        where ar.name_key collate "C" >= ${key} and ar.name_key collate "C" < ${end} and ${eligible} limit ${fuzzyCandidates})
       union
-      (select t.id from ${table} t where ${fuzzy(key, sql`t.match_key`)} and ${owned} limit ${fuzzyCandidates})
+      (select t.id from ${table} t where ${fuzzy(key, sql`t.match_key`)} and ${eligible} limit ${fuzzyCandidates})
       union
       (select t.id from likes own join ${table} t on t.id = own.entity_id
         where own.user_id = ${userId} and own.entity_type = ${likeType} and t.merged_into_id is null
@@ -194,18 +196,18 @@ export function libraryQuery(kind: LibraryKind, userId: string, key: string, lim
 }
 
 /**
- * Ids of the best owned artists, albums and tracks for a `matchKey` query, at most `limit`
+ * Ids of the best artists, albums and tracks in scope for a `matchKey` query, at most `limit`
  * of each after skipping `offset`; only the `types` asked for (the others are empty), and
  * with a `genre` only what belongs to it (`inGenre`).
  */
-export async function searchLibrary(userId: string, key: string, limit: number, page: { offset?: number; types?: readonly LibraryKind[]; genre?: string } = {}):
+export async function searchLibrary(userId: string, key: string, limit: number, page: { offset?: number; types?: readonly LibraryKind[]; genre?: string; scope?: 'library' | 'server' } = {}):
   Promise<{ artists: string[]; albums: string[]; tracks: string[] }> {
   const offset = page.offset ?? 0
   const ids = async (kind: LibraryKind) => {
     if (page.types && !page.types.includes(kind)) return []
     return db.transaction(async (tx) => {
       await tx.execute(seqScanOff)
-      return (await tx.execute<{ id: string }>(libraryQuery(kind, userId, key, limit, offset, page.genre))).map((row) => row.id)
+      return (await tx.execute<{ id: string }>(libraryQuery(kind, userId, key, limit, offset, page.genre, page.scope))).map((row) => row.id)
     })
   }
   const [artists, albums, tracks] = await Promise.all([ids('artist'), ids('album'), ids('track')])

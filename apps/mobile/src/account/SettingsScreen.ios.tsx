@@ -17,7 +17,7 @@ import { useColors } from '../theme';
 import { serviceNames } from './scrobbling';
 import {
   lastFmAdminNote, normalizationNote, normalizationOptions, openListenBrainzSettings, qualityNote, qualityOptions,
-  scrobbleDetail, scrobbleFooter, serverMusicLabel, serverMusicNote, useSettingsScreen,
+  scrobbleDetail, scrobbleFooter, serverMusicLabel, serverMusicNote, shareNowPlayingLabel, shareNowPlayingNote, useSettingsScreen,
 } from './settings';
 
 const clearRow = [listRowBackground('clear'), listRowInsets({ top: 0, leading: 0, bottom: 0, trailing: 0 })];
@@ -62,6 +62,12 @@ export function SettingsScreen() {
           ? <LoadFailure title="Couldn’t load your settings" failure={screen.settingsFailure} />
           : <Section modifiers={clearRow}><HStack><Spacer /><ProgressView /><Spacer /></HStack></Section>}
         <StorageSection />
+        {settings && <Section title="Privacy" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{shareNowPlayingNote}</Text>}>
+          <Toggle isOn={settings.shareNowPlaying ?? false} onIsOnChange={screen.setShareNowPlaying} modifiers={[tint(colors.accent)]}>
+            <Text modifiers={[font({ textStyle: 'body' })]}>{shareNowPlayingLabel}</Text>
+          </Toggle>
+          {screen.errors.privacy && <ServiceError message={screen.errors.privacy} />}
+        </Section>}
         {/* Settings' own failure says it already; the connections have one only when they fail alone. */}
         {screen.scrobblingFailure && !screen.settingsFailure
           && <LoadFailure title="Couldn’t load scrobbling" failure={screen.scrobblingFailure} />}

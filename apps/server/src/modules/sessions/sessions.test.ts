@@ -3,7 +3,7 @@ import { positionAt } from '@squirmy/client-core'
 import {
   COMMAND_TRACK_LIMIT, QUEUE_LIMIT,
   type ClientToServerEvents, type CommandAck, type PlaybackContext, type QueueSeed, type ServerToClientEvents, type SessionCommand, type SessionHelloAck,
-  type ServerEvent, type SessionQueue, type SessionState,
+  type ServerEvent, type SessionQueue, type SessionState, type SignalReport,
 } from '@squirmy/contracts'
 import { eq, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
@@ -48,14 +48,14 @@ async function eventually<T>(read: () => T | Promise<T>, check: (value: T) => vo
   }
 }
 
-/** Grace timers that fire only when told to. */
+/** Grace and sleep timers that fire only when told to. */
 function manualTimers() {
-  const pending = new Map<number, () => void>()
+  const pending = new Map<number, { callback: () => void; ms: number }>()
   let serial = 0
   configureSessions({
     timers: {
-      set: (callback) => {
-        pending.set(++serial, callback)
+      set: (callback, ms) => {
+        pending.set(++serial, { callback, ms })
         return serial
       },
       clear: (handle) => void pending.delete(handle as number),
@@ -63,8 +63,10 @@ function manualTimers() {
   })
   return {
     pending: () => pending.size,
+    /** How long each pending timer was set for, oldest first. */
+    delays: () => [...pending.values()].map(({ ms }) => ms),
     fireAll: () => {
-      for (const [handle, callback] of [...pending]) {
+      for (const [handle, { callback }] of [...pending]) {
         pending.delete(handle)
         callback()
       }
@@ -87,7 +89,7 @@ class Peer {
   private serial = 0
 
   constructor(readonly socket: Client, readonly deviceId: string) {
-    for (const event of ['session:state', 'session:queue', 'devices', 'invalidate', 'event'] as const) {
+    for (const event of ['session:state', 'session:queue', 'session:signal', 'devices', 'invalidate', 'event'] as const) {
       socket.on(event, (payload: unknown) => this.log.push([event, payload]))
     }
   }
@@ -445,6 +447,96 @@ describe('sessions', () => {
     const reloaded = await getSnapshot(user.id)
     expect(reloaded.state).toMatchObject({ current: null, playing: false, repeat: 'off' })
     expect(reloaded.version).toBe(3)
+  })
+
+  describe('sleep timer', () => {
+    const minutes = (count: number) => count * 60_000
+
+    it('says it takes one', async () => {
+      const a = await open('device-a-0040')
+      expect((await a.hello()).capabilities).toContain('sleepTimer')
+    })
+
+    it('pauses the session when a timer set from another device runs out, on the device that plays', async () => {
+      const clock = stoppedClock()
+      const timers = manualTimers()
+      const tv = await device('device-tv-0041')
+      const phone = await device('device-ph-0041', { canPlay: false })
+      await tv.send(playAlbum())
+      expect(await phone.send({ type: 'setSleepTimer', timer: { kind: 'time', durationMs: minutes(30) } })).toEqual({ ok: true, version: 2 })
+      expect((await tv.state(2)).sleepTimer).toEqual({ kind: 'time', endsAt: clock.now() + minutes(30), durationMs: minutes(30) })
+      expect(timers.delays()).toEqual([minutes(30)])
+
+      clock.advance(minutes(30))
+      timers.fireAll()
+      const stopped = await tv.state(3)
+      expect(stopped).toMatchObject({ playing: false, activeDeviceId: 'device-tv-0041', anchorAt: clock.now() })
+      expect(stopped.sleepTimer).toBeUndefined()
+      expect(await phone.state(3)).toEqual(stopped)
+    })
+
+    it('waits for the rest when woken early, and does nothing for a timer replaced meanwhile', async () => {
+      const clock = stoppedClock()
+      const timers = manualTimers()
+      const a = await device('device-a-0042')
+      await a.send(playAlbum())
+      await a.send({ type: 'setSleepTimer', timer: { kind: 'time', durationMs: minutes(10) } })
+      await a.state(2)
+      clock.advance(minutes(4))
+      timers.fireAll()
+      await eventually(() => timers.delays(), (delays) => expect(delays).toEqual([minutes(6)]))
+      expect((await getSnapshot(user.id)).state).toMatchObject({ playing: true, sleepTimer: { kind: 'time' } })
+    })
+
+    it('cancels the scheduled stop when the timer is replaced, turned off or set to the end of a song', async () => {
+      stoppedClock()
+      const timers = manualTimers()
+      const a = await device('device-a-0043')
+      await a.send(playAlbum())
+      await a.send({ type: 'setSleepTimer', timer: { kind: 'time', durationMs: minutes(30) } })
+      await a.send({ type: 'setSleepTimer', timer: { kind: 'time', durationMs: minutes(5) } })
+      expect(timers.delays()).toEqual([minutes(5)])
+      await a.send({ type: 'setSleepTimer', timer: { kind: 'track' } })
+      expect(timers.pending()).toBe(0)
+      await a.send({ type: 'setSleepTimer', timer: { kind: 'time', durationMs: minutes(5) } })
+      await a.send({ type: 'setSleepTimer', timer: null })
+      expect(timers.pending()).toBe(0)
+      expect((await a.state(6)).sleepTimer).toBeUndefined()
+    })
+
+    it('stops at the end of the song on the server too, for a device that only says the song ended', async () => {
+      const a = await device('device-a-0044')
+      await a.send(playAlbum())
+      await a.send({ type: 'setSleepTimer', timer: { kind: 'track' } })
+      const before = await a.state(2)
+      await a.send({ type: 'trackEnded', entryId: before.current!.id })
+      const after = await a.state(3)
+      expect(after).toMatchObject({ playing: false, positionMs: 0, current: { trackId: album.tracks[1]!.recordingId } })
+      expect(after.sleepTimer).toBeUndefined()
+    })
+
+    it('keeps the timer through a restart, and stops one that ran out meanwhile as soon as the session loads', async () => {
+      const clock = stoppedClock()
+      const timers = manualTimers()
+      const a = await device('device-a-0045', { canPlay: false })
+      const tv = await device('device-tv-0045')
+      await tv.send(playAlbum())
+      await a.send({ type: 'setSleepTimer', timer: { kind: 'time', durationMs: minutes(1) } })
+      await a.state(2)
+      await sessionsModule.stop!()
+      expect(timers.pending()).toBe(0)
+      expect((await getSnapshot(user.id)).state.sleepTimer).toEqual({ kind: 'time', endsAt: clock.now() + minutes(1), durationMs: minutes(1) })
+
+      await sessionsModule.stop!()
+      clock.advance(minutes(2))
+      await getSnapshot(user.id)
+      expect(timers.delays()).toContain(0)
+      timers.fireAll()
+      await eventually(() => getSnapshot(user.id), (snapshot) => {
+        expect(snapshot.state.playing).toBe(false)
+        expect(snapshot.state.sleepTimer).toBeUndefined()
+      })
+    })
   })
 
   it('starts the grace period for an active device that is not connected when a session loads', async () => {
@@ -1148,6 +1240,36 @@ describe('sessions', () => {
     a.socket.emit('session:report', { entryId: 'rep.0', status: 'playing', positionMs: 9_000, at: clock.now() })
     expect(await b.state(3)).toMatchObject({ positionMs: 9_000, anchorAt: clock.now(), stalled: false })
     expect(b.states().map((update) => update.version)).toEqual([1, 2, 3])
+  })
+
+  it('passes on what the active device plays, and answers a hello with it while it holds', async () => {
+    const a = await device('device-a-0017')
+    const b = await device('device-b-0017', { canPlay: false })
+    await a.send(playAlbum(), 'sig')
+    await b.state(1)
+    const report: SignalReport = {
+      entryId: 'sig.0',
+      trackId: album.tracks[0]!.recordingId,
+      source: { codec: 'flac', lossless: true, bitrate: 4_608_000, sampleRate: 96_000, bitDepth: 24, channels: 2, bytes: 1000 },
+      delivery: { profile: 'original', transcoded: false, codec: 'flac', lossless: true, bitrate: 4_608_000, sampleRate: 96_000, bitDepth: 24, reason: null, local: false },
+      normalization: { mode: 'auto', applied: 'album', gainDb: -2 },
+    }
+    // Only the active device's report about the current entry counts.
+    b.socket.emit('session:signal', report)
+    a.socket.emit('session:signal', { ...report, entryId: 'sig.1' })
+    a.socket.emit('session:signal', { ...report, delivery: { ...report.delivery, profile: 'nonsense' } } as unknown as SignalReport)
+    a.socket.emit('session:signal', report)
+    await eventually(() => b.events('session:signal'), (events) => expect(events).toEqual([{ ...report, deviceId: 'device-a-0017' }]))
+    expect(a.events('session:signal')).toHaveLength(1)
+
+    const c = await open('device-c-0017')
+    const reply = await c.hello(false)
+    expect(reply.capabilities).toContain('signal')
+    expect(reply.signal).toEqual({ ...report, deviceId: 'device-a-0017' })
+    // Once the entry is no longer current, it describes nothing and is not handed out.
+    await a.send({ type: 'next' })
+    const d = await open('device-d-0017')
+    expect((await d.hello(false)).signal).toBeUndefined()
   })
 
   it('replaces the queue for Subsonic and records external plays', async () => {

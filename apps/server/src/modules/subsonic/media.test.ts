@@ -20,7 +20,7 @@ import { newPublicId } from '../../lib/ids.js'
 import { makeTone, writeHostileInputs } from '../../test/audio.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createLibraryRoot, createUser } from '../../test/factories.js'
-import { retryFailedAfterMs, storeImage } from '../artwork/store.js'
+import { dataPath, retryFailedAfterMs, storeImage } from '../artwork/store.js'
 import { createAppPassword } from '../auth/service.js'
 import { addPlaylistItems, createPlaylist } from '../userdata/playlists.js'
 import { subsonicClient, type SubsonicClient } from '../../test/subsonic-client.js'
@@ -233,9 +233,12 @@ describe('subsonic media', () => {
   it('reports songs it cannot stream as Subsonic errors', async () => {
     const response = await client.json('stream', { id: `tr-${flac.albumId}` })
     expect(response.error.code).toBe(70)
-    await db.update(mediaFiles).set({ relPath: 'Mira Vale/Blue Hour/gone.flac' }).where(eq(mediaFiles.relPath, 'Mira Vale/Blue Hour/02 Day.mp3'))
-    expect((await client.json('stream', { id: mp3.id })).error.code).toBe(70)
-    expect((await client.json('stream', { id: mp3.id, timeOffset: 2 })).error).toBeDefined()
+    const [mp3File] = await db.select({ rootId: mediaFiles.rootId }).from(mediaFiles)
+      .where(eq(mediaFiles.relPath, 'Mira Vale/Blue Hour/02 Day.mp3'))
+    const missing = await createAlbum({ title: 'Missing file', owned: true, rootId: mp3File!.rootId })
+    const id = `tr-${missing.tracks[0]!.recordingId}`
+    expect((await client.json('stream', { id })).error.code).toBe(70)
+    expect((await client.json('stream', { id, timeOffset: 2 })).error).toBeDefined()
   })
 
   it('serves cover art at the requested size, by cover, album or song id', async () => {
@@ -246,19 +249,36 @@ describe('subsonic media', () => {
 
     for (const [size, width] of [[300, 300], [500, 600], [2000, 1200], [40, 96]] as const) {
       const sized = await get('getCoverArt', { id: `ca-${coverId}`, size })
-      expect(sized.headers['content-type']).toBe('image/webp')
-      expect((await sharp(sized.rawPayload).metadata()).width).toBe(width)
+      expect(sized.headers).toMatchObject({ 'content-type': 'image/jpeg', vary: 'Accept' })
+      expect(await sharp(sized.rawPayload).metadata()).toMatchObject({ format: 'jpeg', width, height: width })
+      expect(await readFile(dataPath('art', coverId, `${width}.jpeg`))).toEqual(sized.rawPayload)
     }
     for (const id of [`al-${flac.albumId}`, flac.id]) {
-      const byEntity = await get('getCoverArt', { id, size: 300 })
-      expect(byEntity.headers['content-type']).toBe('image/webp')
+      const byEntity = await get('getCoverArt', { id, size: 300 }, { accept: 'image/avif, Image/WebP;q=0.8, */*' })
+      expect(byEntity.headers).toMatchObject({ 'content-type': 'image/webp', vary: 'Accept' })
+      expect(await sharp(byEntity.rawPayload).metadata()).toMatchObject({ format: 'webp', width: 300 })
       expect(byEntity.headers['cache-control']).toBe('public, max-age=3600')
     }
     expect((await client.json('getCoverArt', { id: `ar-${artistId}` })).error.code).toBe(70)
     await db.update(artists).set({ imageAssetId: coverId }).where(eq(artists.id, artistId))
-    expect((await get('getCoverArt', { id: `ar-${artistId}`, size: 96 })).headers['content-type']).toBe('image/webp')
+    expect((await get('getCoverArt', { id: `ar-${artistId}`, size: 96 }, { accept: 'image/webp;q=0, image/*' })).headers['content-type']).toBe('image/jpeg')
     expect((await client.json('getCoverArt', { id: `ca-${flac.albumId}` })).error.code).toBe(70)
     expect((await client.json('getCoverArt', { id: 'nonsense' })).error.code).toBe(70)
+  })
+
+  it('serves playlist artwork only to viewers who can see the playlist', async () => {
+    const other = await createUser({ username: 'other' })
+    const owned = await createAlbum({ title: 'Playlist Album', owned: true })
+    await db.update(albums).set({ artworkAssetId: coverId }).where(eq(albums.id, owned.albumId))
+    const playlist = await createPlaylist(other.id, { name: 'Private mix' })
+    await addPlaylistItems(other.id, playlist.id, [{ trackId: owned.tracks[0]!.recordingId, albumId: owned.albumId }])
+    const params = { id: `pl-${playlist.id}`, size: 96 }
+    expect(await client.error('getCoverArt', params)).toBe(70)
+    const owner = subsonicClient(app, { username: other.username, secret: (await createAppPassword(other.id, 'test')).secret! })
+    const cover = await owner.raw('getCoverArt', params)
+    expect(cover.headers).toMatchObject({ 'content-type': 'image/jpeg', 'cache-control': 'private, no-store' })
+    await owner.call('updatePlaylist', { playlistId: params.id, public: true })
+    expect((await get('getCoverArt', params)).headers['content-type']).toBe('image/jpeg')
   })
 
   it('never hands out a cover id the art route answers 404 for, and falls back to a song\'s own picture', async () => {
@@ -300,7 +320,7 @@ describe('subsonic media', () => {
     expect((await client.json('getCoverArt', { id: `al-${album.albumId}` })).error.code).toBe(70)
     expect((await client.json('getCoverArt', { id: `ar-${album.artist.id}` })).error.code).toBe(70)
     expect((await client.json('getCoverArt', { id: `pl-${playlist.id}` })).error.code).toBe(70)
-    expect((await get('getCoverArt', { id: song, size: 96 })).headers['content-type']).toBe('image/webp')
+    expect((await get('getCoverArt', { id: song, size: 96 })).headers['content-type']).toBe('image/jpeg')
 
     // Once the retry window has passed, the art route tries the download again: hand it out.
     await db.update(assets).set({ checkedAt: new Date(Date.now() - retryFailedAfterMs - 60_000) }).where(eq(assets.id, failed!.id))
@@ -323,6 +343,13 @@ describe('subsonic media', () => {
     const classic = (await client.call('getLyrics', { artist: artist!.name, title: 'night' })).lyrics
     expect(classic).toEqual({ artist: artist!.name, title: 'Night', value: 'First line\nTwice' })
     expect((await client.call('getLyrics', { artist: 'Someone Else', title: 'Night' })).lyrics).toEqual({ artist: 'Someone Else', title: 'Night' })
+  })
+
+  it('keeps lyrics for catalog-only songs out of the Subsonic API', async () => {
+    const album = await createAlbum({ title: 'Catalog only' })
+    const recordingId = album.tracks[0]!.recordingId
+    await db.insert(lyrics).values({ recordingId, plain: 'Only in the catalog', source: 'lrclib' })
+    expect(await client.error('getLyricsBySongId', { id: `tr-${recordingId}` })).toBe(70)
   })
 
   it('describes the real file in song objects', async () => {

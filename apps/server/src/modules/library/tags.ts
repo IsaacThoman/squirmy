@@ -1,3 +1,4 @@
+import { CreditRole } from '@squirmy/contracts'
 import type { ICommonTagsResult, IFormat } from 'music-metadata'
 import type { FileTags } from '../../database/schema.js'
 
@@ -10,18 +11,35 @@ import type { FileTags } from '../../database/schema.js'
 export type RawTags = Map<string, string[]>
 
 export function tagKey(id: string): string {
-  return id.replace(/^(txxx:|----:com\.apple\.itunes:|wm\/)/i, '').toLowerCase().replace(/[^a-z0-9]/g, '')
+  const name = id.replace(/^(txxx:|----:com\.apple\.itunes:|wm\/)/i, '')
+  const performer = /^performer:(.+)$/i.exec(name)
+  if (performer?.[1]) return `performer:${performer[1].trim().toLowerCase()}`
+  return name.toLowerCase().replace(/[^a-z0-9]/g, '')
 }
 
 /** Builds `RawTags` from music-metadata's native tags or ffprobe's tag objects. */
 export function rawTags(lists: Iterable<readonly { id: string; value: unknown }[]>): RawTags {
   const raw: RawTags = new Map()
+  const add = (key: string, value: unknown) => {
+    const text = typeof value === 'string' ? value : typeof value === 'number' ? String(value) : undefined
+    if (text?.trim()) raw.set(key, [...(raw.get(key) ?? []), text])
+  }
   for (const list of lists) {
     for (const { id, value } of list) {
-      const text = typeof value === 'string' ? value : typeof value === 'number' ? String(value) : undefined
-      if (text === undefined || !text.trim()) continue
       const key = tagKey(id)
-      raw.set(key, [...(raw.get(key) ?? []), text])
+      if (value && typeof value === 'object') {
+        if (key === 'popm' && 'rating' in value) add(key, value.rating)
+        if (key === 'tipl' || key === 'ipls' || key === 'tmcl') {
+          for (const [role, names] of Object.entries(value)) {
+            if (!Array.isArray(names)) continue
+            const normalized = tagKey(role)
+            const credit = normalized === 'mix' || normalized === 'djmix' ? 'mixer' : normalized
+            for (const name of names) add(key === 'tmcl' ? tagKey(`performer:${role}`) : credit, name)
+          }
+        }
+        continue
+      }
+      add(key, value)
     }
   }
   return raw
@@ -83,6 +101,9 @@ export function normalizeContainer(name: string | undefined, extension: string):
   if (value.includes('dsf')) return 'dsf'
   return containerFromExtension(extension)
 }
+
+const movementIndex = (value: number | undefined | null) =>
+  value && Number.isInteger(value) && value > 0 && value <= 2147483647 ? value : undefined
 
 const positive = (value: number | undefined | null) => (value && Number.isFinite(value) && value > 0 ? value : null)
 
@@ -150,7 +171,7 @@ const clean = (value: string | undefined | null) => {
 /** "5", "5/12" or "05 of 12" → [5, 12]. */
 function numberPair(value: string | undefined): [number | undefined, number | undefined] {
   const match = value ? /^\s*(\d+)\s*(?:(?:\/|of)\s*(\d+))?/i.exec(value) : null
-  const number = (text: string | undefined) => (text && Number(text) > 0 ? Number(text) : undefined)
+  const number = (text: string | undefined) => (text && Number(text) > 0 && Number(text) <= 2147483647 ? Number(text) : undefined)
   return [number(match?.[1]), number(match?.[2])]
 }
 
@@ -205,6 +226,47 @@ function artistList(raw: RawTags): string[] | undefined {
   return names && names.length > 0 ? names : undefined
 }
 
+const namesFrom = (values: readonly string[]) => values.flatMap((value) => value.split(/[;\0]/)).flatMap((value) => clean(value) ?? [])
+
+function tagCredits(common: Partial<ICommonTagsResult>, raw: RawTags): NonNullable<FileTags['credits']> {
+  const names = (role: string) => raw.get(role) ?? []
+  const credits = CreditRole.options.flatMap((role) => {
+    const mapped = role === 'ensemble' || role === 'performer' ? [] : common[role] ?? []
+    const extra = role === 'ensemble' ? names('orchestra') : role === 'performer' ? common['performer:instrument'] ?? [] : []
+    return namesFrom([...mapped, ...names(role), ...extra]).map((name) => {
+      const performer = role === 'performer' ? /^(.*?)\s+\(([^()]+)\)$/.exec(name) : null
+      return { role, name: performer?.[1] ?? name, instrument: performer?.[2]?.trim() }
+    })
+  })
+  for (const [key, values] of raw) {
+    if (!key.startsWith('performer:')) continue
+    const instrument = key.slice('performer:'.length)
+    for (const name of namesFrom(values)) credits.push({ role: 'performer', name, instrument })
+  }
+  return [...new Map(credits.map((credit) => [JSON.stringify([credit.role, credit.name, credit.instrument ?? '']), credit])).values()]
+}
+
+function advisory(raw: RawTags): boolean | undefined {
+  for (const key of ['rtng', 'itunesadvisory', 'explicit']) {
+    for (const value of raw.get(key) ?? []) {
+      const status = value.trim().toLowerCase()
+      if (status === '1' || (key === 'rtng' && status === '4') || /^(explicit|true|yes)$/.test(status)) return true
+      if (status === '2' || status === 'clean' || (key === 'explicit' && /^(0|false|no)$/.test(status))) return false
+    }
+  }
+  return undefined
+}
+
+function ratingHint(raw: RawTags): FileTags['ratingHint'] {
+  for (const [key, source, min, max] of [['popm', 'popm', 1, 255], ['fmpsrating', 'fmps', 0, 1], ['rating', 'rating', 0, 100]] as const) {
+    for (const value of raw.get(key) ?? []) {
+      const rating = Number(value)
+      if (Number.isFinite(rating) && rating >= min && rating <= max) return { source, value: rating }
+    }
+  }
+  return undefined
+}
+
 /**
  * Normalizes what a file says about itself. `common` is music-metadata's mapping;
  * `raw` fills the gaps, which matters for tags written under non-Picard names (ffmpeg
@@ -227,7 +289,16 @@ export function normalizeTags(common: Partial<ICommonTagsResult>, raw: RawTags):
   const [disc, discOf] = common.disk?.no ? [common.disk.no, common.disk.of ?? undefined] : numberPair(first('disc', 'discnumber', 'disk'))
   const date = normalizeDate(clean(common.date) ?? clean(common.releasedate) ?? first('date', 'year', 'originaldate'))
   const artists = artistList(raw)
+  const [movementNumber, movementTotal] = numberPair(first('movementnumber', 'movementindex', 'movementno', 'mvin'))
   const tags: FileTags = {
+    credits: tagCredits(common, raw),
+    work: clean(common.work) ?? first('work'),
+    movementName: clean(common.movement) ?? first('movementname', 'movement', 'mvnm'),
+    movementNumber: movementIndex(common.movementIndex?.no) ?? movementNumber,
+    movementTotal: movementIndex(common.movementTotal) ?? movementIndex(common.movementIndex?.of) ?? movementTotal ?? numberPair(first('movementtotal', 'movementcount'))[0],
+    explicit: advisory(raw),
+    ratingHint: ratingHint(raw),
+    comment: common.comment?.map((comment) => clean(comment.text)).find(Boolean) ?? first('comment'),
     title: clean(common.title) ?? first('title'),
     artist: clean(common.artist) ?? first('artist') ?? (artists ? artists.join(', ') : undefined),
     artists: artists && artists.length > 1 ? artists : undefined,

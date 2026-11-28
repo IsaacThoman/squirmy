@@ -9,6 +9,7 @@
 import path from 'node:path'
 import { sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
+import { trackCredits, trackExplicit, trackWorks } from '../catalog/credits.js'
 import { isoTime, uuidArray } from '../catalog/sql.js'
 import { resolveMerged } from '../catalog/redirects.js'
 import { normalizationValues } from '../loudness/normalization.js'
@@ -30,6 +31,7 @@ type SongRow = {
   primaryArtistId: string | null
   isrcs: string[]
   explicit: boolean | null
+  comment: string | null
   recordingDurationMs: number | null
   relPath: string
   size: number
@@ -115,7 +117,9 @@ export async function songs(userId: string, refs: readonly SongRef[]): Promise<P
 
   const rows = await db.execute<SongRow>(sql`
     select req.id as "requestId", req.album_id as "requestAlbumId",
-      r.id, r.mbid, r.title, r.artist_credit as "artistCredit", r.primary_artist_id as "primaryArtistId", r.isrcs, r.explicit,
+      r.id, r.mbid, r.title, r.artist_credit as "artistCredit", r.primary_artist_id as "primaryArtistId", r.isrcs,
+      coalesce((f.tags ->> 'explicit')::boolean, ${trackExplicit(sql`r.id`, sql`r.explicit`, sql`al.id`)}) as explicit,
+      f.tags ->> 'comment' as comment,
       r.duration_ms as "recordingDurationMs",
       f.rel_path as "relPath", f.size, f.lossless, f.bitrate, f.sample_rate as "sampleRate", f.bit_depth as "bitDepth",
       f.channels, f.duration_ms as "durationMs", ${isoTime('f.added_at')} as created,
@@ -147,9 +151,12 @@ export async function songs(userId: string, refs: readonly SongRef[]): Promise<P
       select count(*) as count, max(p.started_at) as last from plays p where p.recording_id = r.id and p.user_id = ${userId} and not p.skipped
     ) stats on true`)
 
-  const [trackArtists, albumArtists] = await Promise.all([
-    credits('recording_artists', rows.map((row) => row.id)),
+  const ids = [...new Set(rows.map((row) => row.id))]
+  const [trackArtists, albumArtists, contributors, works] = await Promise.all([
+    credits('recording_artists', ids),
     credits('album_artists', rows.flatMap((row) => row.albumId ? [row.albumId] : [])),
+    trackCredits(ids),
+    trackWorks(ids),
   ])
   const byPair = new Map(rows.map((row) => [`${row.requestId}|${row.requestAlbumId ?? ''}`, row]))
   return resolved.flatMap((ref) => {
@@ -160,6 +167,8 @@ export async function songs(userId: string, refs: readonly SongRef[]): Promise<P
       ? albumArtists.get(row.albumId) ?? (row.albumArtistId ? [{ id: row.albumArtistId, name: row.albumCredit! }] : [])
       : []
     const genres = row.genres ?? []
+    const credits = contributors.get(row.id) ?? []
+    const compositions = works.get(row.id) ?? []
     return [{
       id: trackId(row.id),
       parent: row.albumId ? albumId(row.albumId) : undefined,
@@ -198,6 +207,16 @@ export async function songs(userId: string, refs: readonly SongRef[]): Promise<P
       displayArtist: row.artistCredit,
       albumArtists: toArtists(albumCredits),
       displayAlbumArtist: row.albumCredit ?? undefined,
+      contributors: credits.map(({ role, artist, instrument }) => ({
+        role: role === 'ensemble' ? 'performer' : role,
+        subRole: role === 'ensemble' ? 'ensemble' : instrument,
+        artist: { id: artistId(artist.id), name: artist.name },
+      })),
+      displayComposer: [...new Set(credits.filter((credit) => credit.role === 'composer').map((credit) => credit.artist.name))].join(', '),
+      works: compositions.map((work) => ({ name: work.title, musicBrainzId: work.mbid ?? undefined })),
+      movements: compositions.flatMap((work) => work.movementName || work.movementNumber || work.movementTotal
+        ? [{ name: work.movementName ?? row.title, number: work.movementNumber, count: work.movementTotal }] : []),
+      comment: row.comment ?? '',
       replayGain: replayGain(row),
       explicitStatus: row.explicit === true ? 'explicit' : row.explicit === false ? 'clean' : '',
     }]

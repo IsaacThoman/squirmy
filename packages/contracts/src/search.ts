@@ -13,6 +13,8 @@ export const SearchQuery = z.object({
   type: SearchKind.optional(),
   /** Skips this many results of each kind: the next page of a `type` search. */
   offset: z.coerce.number().int().min(0).max(450).default(0),
+  /** Global search includes everything playable from files on the server. */
+  scope: z.enum(['library', 'server']).optional(),
 })
 export type SearchQuery = z.infer<typeof SearchQuery>
 

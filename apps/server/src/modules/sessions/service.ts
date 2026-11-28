@@ -1,10 +1,10 @@
 import {
-  type AnySessionCommand, bringSession, forkSession, positionAt, queueChanged, reduceSession, type Session, splitSession,
+  type AnySessionCommand, bringSession, forkSession, leftBehind, positionAt, queueChanged, reduceSession, type Session, splitSession,
 } from '@squirmy/client-core'
 import {
-  COMMAND_TRACK_LIMIT, CommandEnvelope, DEVICE_GRACE_MS, EngineReport, QUEUE_LIMIT, SessionAttach, SessionDetach,
+  COMMAND_TRACK_LIMIT, CommandEnvelope, DEVICE_GRACE_MS, EngineReport, QUEUE_LIMIT, SessionAttach, SessionDetach, SignalReport,
   type CommandAck, type EntryFailure, type DeviceInfo, type QueueEntry, type SessionCapability, type SessionCommand, type SessionHello, type SessionHelloAck,
-  type SessionMoveAck, type SessionSnapshot,
+  type SessionMoveAck, type SessionSnapshot, type SignalPath,
 } from '@squirmy/contracts'
 import { and, eq } from 'drizzle-orm'
 import { getConfig } from '../../config.js'
@@ -50,9 +50,11 @@ const UNAVAILABLE_BEFORE_PAUSE = 5
 const MAX_DETACHED = 8
 /** An own session is discarded once its device has not been seen for this long. */
 const DETACHED_KEEP_MS = 7 * 24 * 60 * 60_000
-const CAPABILITIES: SessionCapability[] = ['detach']
+const CAPABILITIES: SessionCapability[] = ['detach', 'signal', 'sleepTimer']
+/** Longest a sleep timer's wait is scheduled in one go; a longer one is scheduled again when this runs out. */
+const MAX_TIMER_MS = 2 ** 31 - 1
 
-/** Schedules and cancels the grace timers. */
+/** Schedules and cancels the grace and sleep timers. */
 export type SessionTimers = { set: (callback: () => void, ms: number) => unknown; clear: (handle: unknown) => void }
 
 const realTimers: SessionTimers = {
@@ -66,6 +68,8 @@ const graceTimers = new Map<string, unknown>()
  * the music was then. The session's clock stops meanwhile (see `startGrace`).
  */
 const awayClocks = new Map<string, { at: number; positionMs: number; entryId: string }>()
+/** The scheduled end of each session's `time` sleep timer, by session key (see `armSleepTimer`). */
+const sleepTimers = new Map<string, { endsAt: number; handle: unknown }>()
 /** The current entry whose tracks were last looked up again, by session key (see `refreshUpcoming`). */
 const refreshedFor = new Map<string, string>()
 /** Writes of closed plays still in flight, which shutdown waits for. */
@@ -76,8 +80,8 @@ let io: RealtimeServer | null = null
  * Overrides timing for tests. `deviceGraceMs`: how long an active device may be gone
  * before `deviceLost`. `now`: the session clock (server epoch milliseconds), which
  * anchors positions, answers `serverTime` in hellos and times plays. `timers`: what
- * schedules the grace period, so a test can fire it instead of waiting; `null` restores
- * the real ones.
+ * schedules the grace period and sleep timers, so a test can fire them instead of waiting;
+ * `null` restores the real ones.
  */
 export function configureSessions(options: Partial<Omit<typeof settings, 'timers'>> & { timers?: SessionTimers | null }): void {
   const { timers, ...rest } = options
@@ -120,6 +124,8 @@ async function recheck(record: SessionRecord): Promise<void> {
   }
   const active = record.session.activeDeviceId
   if (active && !connectedDevice(record.userId, active)) startGrace(record, active)
+  // A timer that ran out while the server was down stops playback straight away.
+  armSleepTimer(record)
   afterChange(record)
 }
 
@@ -170,7 +176,17 @@ export function noteSeen(userId: string, deviceId: string | null): void {
 
 /** A hello's answer for `deviceId`, a device in `record`'s session. */
 function helloAck(record: SessionRecord, deviceId: string): SessionHelloAck {
-  return { serverTime: settings.now(), snapshot: snapshotOf(record), devices: deviceList(record.userId, deviceId), capabilities: CAPABILITIES }
+  const signal = currentSignal(record)
+  return {
+    serverTime: settings.now(), snapshot: snapshotOf(record), devices: deviceList(record.userId, deviceId), capabilities: CAPABILITIES,
+    ...(signal ? { signal } : {}),
+  }
+}
+
+/** The session's signal path while it still describes the current entry on the active device. */
+function currentSignal(record: SessionRecord): SignalPath | null {
+  const { signal, session } = record
+  return signal && signal.entryId === session.current?.id && signal.deviceId === session.activeDeviceId ? signal : null
 }
 
 /**
@@ -218,10 +234,50 @@ function commit(record: SessionRecord, next: Session, now = settings.now()): Cha
   if (closed) keepSaving(record.userId, closed)
   if (record.deviceId !== null && connectedDevice(record.userId, record.deviceId)) record.lastSeenAt = now
   schedulePersist(record, report)
+  if (previous.sleepTimer !== next.sleepTimer) armSleepTimer(record)
   const devices = record.deviceId === null
     ? previous.activeDeviceId !== next.activeDeviceId
     : JSON.stringify(ownSummary(previous)) !== JSON.stringify(ownSummary(next))
   return { queue, devices }
+}
+
+/**
+ * Schedules the end of the session's `time` sleep timer, or cancels it when the session has
+ * none. The server holds the session's clock, so it enforces the timer: the session pauses
+ * on time whichever device set it, and whether or not that one is still there.
+ */
+function armSleepTimer(record: SessionRecord): void {
+  const timer = record.session.sleepTimer
+  const endsAt = timer?.kind === 'time' ? timer.endsAt : null
+  const armed = sleepTimers.get(record.key)
+  if (armed?.endsAt === endsAt) return
+  if (armed) settings.timers.clear(armed.handle)
+  sleepTimers.delete(record.key)
+  if (endsAt === null) return
+  const wait = Math.min(MAX_TIMER_MS, Math.max(0, endsAt - settings.now()))
+  sleepTimers.set(record.key, {
+    endsAt,
+    handle: settings.timers.set(() => {
+      if (sleepTimers.get(record.key)?.endsAt !== endsAt) return
+      sleepTimers.delete(record.key)
+      serial(record.userId, () => {
+        // Looked up again: the session may have been unloaded and loaded since.
+        const latest = recordOf(record.key)
+        const current = latest?.session.sleepTimer
+        if (!latest || current?.kind !== 'time' || current.endsAt !== endsAt) return
+        // Woken early (a long timer scheduled in parts, or a clock that moved): wait for the rest.
+        if (settings.now() < endsAt) return armSleepTimer(latest)
+        applyServer(latest, { type: 'endSleepTimer' })
+      }).catch(report)
+    }, wait),
+  })
+}
+
+/** Cancels a session's sleep timer when the session leaves memory. */
+function disarmSleepTimer(key: string): void {
+  const armed = sleepTimers.get(key)
+  if (armed) settings.timers.clear(armed.handle)
+  sleepTimers.delete(key)
 }
 
 /** Writes a closed play in the background; shutdown waits for it. */
@@ -576,6 +632,7 @@ function cancelGrace(userId: string, deviceId: string): void {
  */
 async function discard(record: SessionRecord): Promise<void> {
   await discardOwn(record)
+  disarmSleepTimer(record.key)
   cancelGrace(record.userId, record.deviceId!)
   closePlay(record)
 }
@@ -708,9 +765,12 @@ export function detach(userId: string, deviceId: string | null, socketId: string
       own.play = shared.play
       shared.play = null
     }
-    const change = wasActive ? commit(shared, reduceSession(shared.session, { command: { type: 'deviceLost', deviceId: device.id }, now, commandId: newId() })) : null
+    // The sleep timer goes with the device that plays on; what it leaves behind is paused.
+    const change = wasActive ? commit(shared, leftBehind(shared.session, device.id, { now, commandId: newId() })) : null
     // Written at once, so a restart never finds the shared session still playing on a detached device.
     if (change) void persist(shared).catch(report)
+    // A timer that came along with the device ends in its own session now.
+    armSleepTimer(own)
     moveDevice(own, device.id, socketId)
     ack({ ok: true, ...helloAck(own, device.id) })
     if (change) broadcast(shared, { ...change, devices: false })
@@ -771,6 +831,7 @@ export function attach(userId: string, deviceId: string | null, socketId: string
 
     // The row goes first: if it cannot, nothing has changed.
     await discardOwn(own)
+    disarmSleepTimer(own.key)
     cancelGrace(userId, device.id)
     let change: Change | null = null
     if (bring) {
@@ -922,6 +983,24 @@ export function applyReport(userId: string, deviceId: string | null, raw: unknow
     const stalled = engine.status === 'buffering' || engine.status === 'error'
     if (stalled === session.stalled && Math.abs(engine.positionMs - positionAt(session, at)) <= DRIFT_THRESHOLD_MS) return
     applyServer(record, { type: 'syncPosition', entryId: engine.entryId, positionMs: engine.positionMs, stalled }, at)
+  }).catch(report)
+}
+
+/**
+ * `session:signal` from `deviceId`: what it plays (see "Signal path" in the session
+ * contract). Only the active device's report about the current entry is kept and passed on
+ * to the sockets in the session, the sender's included.
+ */
+export function applySignal(userId: string, deviceId: string | null, raw: unknown): Promise<void> {
+  const parsed = SignalReport.safeParse(raw)
+  if (!parsed.success || !deviceId) return Promise.resolve()
+  return serial(userId, () => {
+    const record = loadedOwn(userId, deviceId) ?? loadedRecord(userId)
+    const session = record?.session
+    if (!record || !session || session.activeDeviceId !== deviceId || session.current?.id !== parsed.data.entryId) return
+    const signal: SignalPath = { ...parsed.data, deviceId }
+    record.signal = signal
+    io?.to(sessionRoom(record)).emit('session:signal', signal)
   }).catch(report)
 }
 
@@ -1077,6 +1156,8 @@ function awaitsOther(record: SessionRecord, recordingId: string): boolean {
 export async function stopSessions(): Promise<void> {
   for (const timer of graceTimers.values()) settings.timers.clear(timer)
   graceTimers.clear()
+  for (const { handle } of sleepTimers.values()) settings.timers.clear(handle)
+  sleepTimers.clear()
   awayClocks.clear()
   refreshedFor.clear()
   for (const record of loadedRecords()) {
