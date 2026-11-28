@@ -1,7 +1,7 @@
-import type { NormalizationMode, ScrobbleService, StreamQuality, UpdateUserSettings, UserSettings } from '@squirmy/contracts';
+import type { NormalizationMode, NormalizationTarget, ScrobbleService, StreamQuality, UpdateUserSettings, UserSettings } from '@squirmy/contracts';
 
 /** A setting chosen from a list, opened on its own page as the system's Settings does. */
-export type Choice = 'normalization' | 'quality';
+export type Choice = 'normalization' | 'target' | 'quality';
 
 type Option<T> = { value: T; label: string };
 
@@ -20,21 +20,36 @@ export type ChoiceSpec = {
  */
 export const tvQualityNote = 'Original streams the file as it is when Apple TV can play it. High is AAC at 256 kbps. Data Saver uses the least data. This is your Wi-Fi quality, so it changes on your phone too.';
 
-export function choiceSpec(
-  choice: Choice,
-  normalization: readonly Option<NormalizationMode>[],
-  quality: readonly Option<StreamQuality>[],
-  normalizationNote: string,
-): ChoiceSpec {
+/** The lists and words each choice shows, from the settings screen's own. */
+export type ChoiceContent = {
+  normalization: readonly Option<NormalizationMode>[];
+  target: readonly Option<NormalizationTarget>[];
+  quality: readonly Option<StreamQuality>[];
+  normalizationNote: string;
+  targetNote: string;
+};
+
+export function choiceSpec(choice: Choice, content: ChoiceContent): ChoiceSpec {
   if (choice === 'normalization') {
     return {
       title: 'Volume Normalization',
-      note: normalizationNote,
-      options: normalization,
+      note: content.normalizationNote,
+      options: content.normalization,
       current: settings => settings.normalization,
       change: value => ({ normalization: value as NormalizationMode }),
     };
   }
+  if (choice === 'target') {
+    // The rows' values are strings; the setting is a number of LUFS.
+    return {
+      title: 'Target Loudness',
+      note: content.targetNote,
+      options: content.target.map(option => ({ value: String(option.value), label: option.label })),
+      current: settings => String(settings.normalizationTarget ?? -18),
+      change: value => ({ normalizationTarget: Number(value) as NormalizationTarget }),
+    };
+  }
+  const quality = content.quality;
   return {
     title: 'Streaming Quality',
     note: tvQualityNote,
@@ -45,11 +60,11 @@ export function choiceSpec(
 }
 
 export function isChoice(value: unknown): value is Choice {
-  return value === 'normalization' || value === 'quality';
+  return value === 'normalization' || value === 'target' || value === 'quality';
 }
 
 /** The label of the chosen option, or nothing for a value this app doesn't know. */
-export function optionLabel(options: readonly Option<string>[], value: string): string {
+export function optionLabel<T extends string | number>(options: readonly Option<T>[], value: T): string {
   return options.find(option => option.value === value)?.label ?? '';
 }
 

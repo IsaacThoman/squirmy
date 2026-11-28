@@ -67,6 +67,7 @@ export function AccountSheet() {
       </SheetRows>
       <SheetRows>
         {/* Opened over this sheet, so closing them comes back here. */}
+        <SheetRow title="Replay" subtitle="What you’ve listened to most" icon="chart.bar" onPress={() => router.push('/replay')} />
         <SheetRow title="Settings" subtitle="Volume, streaming quality, scrobbling" icon="gearshape" onPress={() => router.push('/settings')} />
         <SheetRow title="Downloads" subtitle={kept ? keptLine : 'Music kept on this device'} icon="arrow.down.circle"
           onPress={() => router.push('/downloads')} />

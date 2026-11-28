@@ -1,5 +1,6 @@
 import {
-  isLastFmReturn, queryKeys, type NormalizationMode, type ScrobbleService, type ScrobblingStatus, type StreamQuality, type UpdateUserSettings,
+  isLastFmReturn, queryKeys, type NormalizationMode, type NormalizationTarget, type ScrobbleService, type ScrobblingStatus, type StreamQuality,
+  type UpdateUserSettings, type UserSettings,
 } from '@squirmy/contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
@@ -21,13 +22,44 @@ export const normalizationOptions: readonly { value: NormalizationMode; label: s
   { value: 'off', label: 'Off' },
 ];
 
+/** The loudness normalization brings songs to, loudest first. */
+export const targetOptions: readonly { value: NormalizationTarget; label: string }[] = [
+  { value: -14, label: 'Loud (−14 LUFS)' },
+  { value: -16, label: 'Medium (−16 LUFS)' },
+  { value: -18, label: 'Standard (−18 LUFS)' },
+  { value: -23, label: 'Quiet (−23 LUFS)' },
+];
+
+/** The user's target; settings kept from before there was one say nothing, which is Standard. */
+export function normalizationTarget(settings: Pick<UserSettings, 'normalizationTarget'>): NormalizationTarget {
+  return settings.normalizationTarget ?? -18;
+}
+
 export const qualityOptions: readonly { value: StreamQuality; label: string }[] = [
   { value: 'original', label: 'Original' },
   { value: 'high', label: 'High' },
   { value: 'data_saver', label: 'Data Saver' },
 ];
 
-export const normalizationNote = 'Plays every song at a similar volume. Automatic keeps an album’s own dynamics when you play it in order. Squirmy only turns songs down, never up.';
+/**
+ * What turning songs up comes to: `boosts` when the engine playing can (the native one, which
+ * has a limiter); the classic engine only turns songs down.
+ */
+function boostNote(boosts: boolean): string {
+  return boosts
+    ? 'Quiet songs are turned up to it, with a limiter so their loudest moments don’t distort.'
+    : 'Squirmy turns loud songs down to it but never turns quiet ones up.';
+}
+
+/** Under the normalization settings. */
+export function normalizationNote(boosts: boolean): string {
+  return `Plays every song at a similar volume. Automatic keeps an album’s own dynamics when you play it in order. Target Loudness sets that volume: Loud is about as loud as most streaming services. ${boostNote(boosts)}`;
+}
+
+/** The target's own word, where it has one (the TV's). */
+export function targetNote(boosts: boolean): string {
+  return `How loud songs play with volume normalization on. Loud is about as loud as most streaming services; Quiet leaves the most room for loud moments. ${boostNote(boosts)}`;
+}
 export const lastFmAdminNote = 'Last.fm scrobbling isn’t set up on this server. As an admin, you can add a Last.fm API key in the web app’s server settings.';
 
 /** Where a ListenBrainz user finds the token to paste. */
@@ -48,6 +80,9 @@ export const serverMusicLabel = 'Show all of this server’s music in your libra
 export const serverMusicNote = 'Your library is what you heart, with the music you upload. This adds every album on this server too. Everything on this server is on Home either way, and plays for everyone.';
 
 /** Explicit content (`allowExplicit`), worded as on web. An admin can turn it off for the user and keep it off. */
+export const ratingsLabel = 'Show star ratings';
+export const ratingsNote = 'Rate songs from one to five stars in their menus, and use ratings in smart playlists. The heart still decides what is in your library.';
+
 export const explicitLabel = 'Allow explicit content';
 export const explicitNote = 'Turn it off to gray out songs marked explicit and keep them out of search, radio and your queue. A clean version plays instead when there is one.';
 export const explicitRestrictedNote = 'An admin turned explicit content off for your account. Ask them to turn it back on.';
@@ -158,6 +193,8 @@ export function useSettingsScreen() {
     /** Whether the library holds all of the server's music, not only what the user saved. */
     setLibraryIncludesServerMusic: (libraryIncludesServerMusic: boolean) => save('library', { libraryIncludesServerMusic }),
     setShareNowPlaying: (shareNowPlaying: boolean) => save('privacy', { shareNowPlaying }),
+    /** Whether song menus offer 1 to 5 stars, as on web. */
+    setShowRatings: (showRatings: boolean) => save('library', { showRatings }),
     /** An admin turned explicit content off for this account; the switch is shown off and cannot be changed. */
     explicitRestricted: state.status === 'signedIn' && (state.user.explicitRestricted ?? false),
     /** Whether explicit songs play: the user's own switch, under an admin's restriction. */

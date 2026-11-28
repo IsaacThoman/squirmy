@@ -1,4 +1,4 @@
-import { plural, type SessionMoveResult } from '@squirmy/client-core';
+import { creditGroups, plural, type SessionMoveResult } from '@squirmy/client-core';
 import { PLAYLIST_NAME_MAX_LENGTH, type DeviceInfo, type PlaylistSummary, type TrackSummary as Track } from '@squirmy/contracts';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
@@ -11,10 +11,10 @@ import { useRealtime } from './data/realtime';
 import { useCanPlay, useViewer } from './downloads/DownloadsProvider';
 import { unavailableReason } from './downloads/model';
 import { awaitsTrackList } from './data/albums';
-import { useAlbum, useAllPlaylists } from './data/queries';
+import { useAlbum, useAllPlaylists, useTrackVersions } from './data/queries';
 import { usePageLinks } from './library/links';
 import { matches } from './library/shared';
-import { trackActionKey, useRunTrackAction, useTrackActions } from './library/trackActions';
+import { trackActionKey, useRunTrackAction, useTrackActionRunner, useTrackActions } from './library/trackActions';
 import { usePlaybackState } from './playback';
 import { whereItPlays } from './player/session';
 import { useVolumeSlider } from './player/volume';
@@ -22,11 +22,12 @@ import NowPlaying, { SystemVolumeSlider } from '../modules/now-playing';
 import {
   SheetAction, SheetFacts, SheetField, SheetFrame, SheetInfo, SheetNote, SheetRows, SheetRow, SheetScroll, SheetSlider, SheetSystemVolume, TrackSummary,
 } from './SheetUI';
-import { trackInfoNote, trackInfoSections } from './player/trackInfo';
+import { trackInfoNote, trackInfoSections, trackVersionRows, versionPickFailure, versionsNote, type VersionRow } from './player/trackInfo';
 import { DETACHED_SYMBOL, detachedHeader, hasQueueToBring, moveFailure, separateRows } from './player/detach';
 import { announce } from './inlineFeedback';
 import { playlistAddFailure } from './library/failures';
 import { repeatedAddPrompt } from './library/albumActions';
+import { useVersionPick } from './library/useVersionPick';
 import { useColors } from './theme';
 
 /** Up to this many playlists the sheet fits them all; beyond, they scroll under a search field. */
@@ -159,10 +160,34 @@ export function TrackActionSheet({ id, albumId, playlistId, itemId }: { id: stri
     <Sheet title="Track options">
       <TrackSummary track={track} subtitle={!playable ? `${track.artistCredit} · ${unavailableReason(track, offline, viewer)}` : undefined} />
       <SheetRows>
-        {actions.map(action => <SheetRow key={trackActionKey(action)} title={action.title} icon={action.icon} onPress={() => {
-          void Haptics.selectionAsync();
-          run(action);
-        }} />)}
+        {/* A submenu's entries are rows of their own here, named with it ("Rating: 4 stars"). */}
+        {actions.flatMap(action => action.children?.map(child => ({ ...child, title: `Rating: ${child.title}` })) ?? [action]).map(action =>
+          <SheetRow key={trackActionKey(action)} title={action.title} icon={action.icon} selected={action.checked} onPress={() => {
+            void Haptics.selectionAsync();
+            run(action);
+          }} />)}
+      </SheetRows>
+    </Sheet>
+  );
+}
+
+/**
+ * Who wrote, produced and played on a song, from its menu's Credits: each credited artist with
+ * their role (and instrument), opening their page. The web shows the same as a submenu.
+ */
+export function TrackCreditsSheet({ id, albumId }: { id: string; albumId?: string }) {
+  const track = useTrack(id, albumId || null);
+  const { open } = useTrackActionRunner(true);
+  const groups = creditGroups(track?.credits);
+  return (
+    <Sheet title="Credits">
+      <TrackSummary track={track} subtitle={track?.artistCredit} />
+      <SheetRows>
+        {groups.flatMap(group => group.credits.map(({ artist, name }) => <SheetRow key={`${group.role}:${artist.id}:${name}`} title={name}
+          subtitle={group.label} icon="music.mic" onPress={() => {
+            void Haptics.selectionAsync();
+            open({ id: 'artist', title: name, icon: 'music.mic', page: { page: 'artist', id: artist.id } });
+          }} />))}
       </SheetRows>
     </Sheet>
   );
@@ -170,11 +195,12 @@ export function TrackActionSheet({ id, albumId, playlistId, itemId }: { id: stri
 
 /**
  * Track info for the song playing: where it plays, its file, how it reaches that device (the
- * file as it is, or a transcode and why) and the normalization applied. The audio facts are the
- * playing device's own report, so a phone controlling a TV says what the TV plays.
+ * file as it is, or a transcode and why) and the normalization applied, then the versions of
+ * the song the server holds. The audio facts are the playing device's own report, so a phone
+ * controlling a TV says what the TV plays.
  */
 export function TrackInfoSheet() {
-  const { track, signal, output, session } = usePlaybackState();
+  const { track, signal, output, session, current } = usePlaybackState();
   const where = { signal, output: session.activeDeviceId ? output : null };
   const note = trackInfoNote(where);
   return (
@@ -182,8 +208,50 @@ export function TrackInfoSheet() {
       <TrackSummary track={track} subtitle={track ? [track.artistCredit, track.album?.title].filter(Boolean).join(' · ') : undefined} />
       {trackInfoSections(where).map(section => <SheetFacts key={section.title} title={section.title} rows={section.rows} />)}
       {note && <SheetNote>{note}</SheetNote>}
+      {current && <TrackVersionsSection trackId={current.trackId} albumId={current.albumId ?? null}
+        playing={signal?.trackId === current.trackId ? signal.source?.versionId : undefined} />}
     </Sheet>
   );
+}
+
+/**
+ * The versions of the song playing, when the server holds two or more: which one plays by
+ * default for this user, on every device, and which one plays now. A pick reaches the song the
+ * next time it starts; the play under way goes on. Nothing offline.
+ */
+function TrackVersionsSection({ trackId, albumId, playing }: { trackId: string; albumId: string | null; playing: string | undefined }) {
+  const { offline } = useRealtime();
+  const versions = useTrackVersions(trackId, albumId, { enabled: !offline });
+  const pickVersion = useVersionPick();
+  // The row being picked: it waits for the server with a spinner in place of its check mark.
+  const [picking, setPicking] = useState<string | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+  const open = useOpenRef();
+  // Another song started under the sheet: what failed was about the last one.
+  useEffect(() => setFailure(null), [trackId]);
+  const rows = trackVersionRows(versions.data, { albumId, playing });
+  if (offline || !rows.length) return null;
+  const choose = (row: VersionRow) => {
+    if (picking || row.picked) return;
+    void Haptics.selectionAsync();
+    setPicking(row.key);
+    setFailure(null);
+    pickVersion('track', trackId, row.versionId).then(() => {
+      if (open.current) setPicking(null);
+    }, () => {
+      if (!open.current) return;
+      setPicking(null);
+      setFailure(versionPickFailure);
+      announce(versionPickFailure);
+    });
+  };
+  return <>
+    <SheetRows title="Versions">
+      {rows.map(row => <SheetRow key={row.key} title={row.title} subtitle={row.subtitle} icon={row.icon} selected={row.picked}
+        busy={picking === row.key} onPress={() => choose(row)} />)}
+    </SheetRows>
+    <SheetNote error={Boolean(failure)}>{failure ?? versionsNote}</SheetNote>
+  </>;
 }
 
 /**
@@ -210,7 +278,7 @@ export function AddToPlaylistSheet({ trackId, albumId }: { trackId?: string; alb
   const userId = state.status === 'signedIn' ? state.user.id : null;
   const list = useAllPlaylists();
   // A smart playlist's songs come from its rules, so nothing is added to one.
-  const owned = list.items.filter(playlist => playlist.ownerId === userId && !playlist.smart);
+  const owned = list.items.filter(playlist => !playlist.smart && (playlist.ownerId === userId || playlist.collaboratorRole));
   const [query, setQuery] = useState('');
   const playlists = usePlaylistActions();
   // The playlist being added to: the sheet waits for the server with a spinner on its row.
@@ -359,6 +427,11 @@ export function NamePlaylistSheet({ mode, id, name, trackId, albumId }: {
       <SheetField label="Playlist name" value={value} onChange={setValue} onSubmit={save} autoFocus maxLength={PLAYLIST_NAME_MAX_LENGTH} />
       {failed && <SheetNote error>{failed}</SheetNote>}
       <SheetAction title={mode === 'rename' ? 'Save' : withSongs ? 'Create and add' : 'Create'} disabled={!ready} onPress={save} />
+      {/* Made from the Library, a playlist can be a smart one instead: its songs come from rules. */}
+      {mode === 'create' && !withSongs && <SheetRows>
+        <SheetRow title="New Smart Playlist" subtitle="Songs that match rules you choose" icon="gearshape.2"
+          onPress={() => router.replace('/smart-playlist')} />
+      </SheetRows>}
     </Sheet>
   );
 }

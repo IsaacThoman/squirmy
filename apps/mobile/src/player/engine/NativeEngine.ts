@@ -21,10 +21,12 @@ export type NativeEngineOptions = {
  * emitted from the feed loop, and the audio session's interruptions and route changes are
  * handled there too and arrive here only as what to tell the session.
  *
- * Gain is linear and the engine can boost, but without a limiter yet the app keeps
- * `canBoost: false`.
+ * Gain is linear and may boost: a true-peak limiter at the end of the engine's chain keeps
+ * what it turns up under -1 dBTP, so normalization is not held back to a song's peak.
  */
 export class NativeEngine implements PlayerEngine {
+  readonly canBoost = true;
+  readonly limiter = true;
   private readonly native: SquirmyAudio;
   private readonly listeners = new Set<(event: EngineEvent) => void>();
   private readonly subscriptions: { remove(): void }[];

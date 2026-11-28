@@ -2,7 +2,8 @@ import type { PlaybackQuery, StreamProfile, StreamQuality } from '@squirmy/contr
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { mediaFiles } from '../../database/schema.js'
-import { codecFamily, parseCodecs, profiles, type LegacyProfile, type MediaFile } from './profiles.js'
+import { filePreferences } from '../catalog/versions.js'
+import { codecFamily, outputBitDepth, outputSampleRate, parseCodecs, profiles, type LegacyProfile, type MediaFile } from './profiles.js'
 
 /** Transcode profiles in order of preference for each quality; the first the client decodes wins. */
 const preference: Record<StreamQuality, LegacyProfile[]> = {
@@ -65,23 +66,61 @@ function chooseFragmentedProfile(file: Source, quality: StreamQuality, codecs: R
   return target
 }
 
-export type FileSelection = { file: MediaFile; profile: StreamProfile }
+export type FileSelection = {
+  file: MediaFile
+  profile: StreamProfile
+  /** The version the file is of (`catalog/versions.ts`), when it is on an album. */
+  versionId: string | null
+}
+
+/** What reaches the client from `file` as `profile`: lossless or not, and how fine. */
+function delivered(file: MediaFile, profile: StreamProfile) {
+  if (profile === 'original') return { lossless: file.lossless, fineness: file.lossless ? (file.sampleRate ?? 0) * (file.bitDepth ?? 16) : file.bitrate ?? 0 }
+  const lossless = profile === 'flac_mp4' || (profile === 'copy_mp4' && file.lossless)
+  if (lossless) return { lossless, fineness: (outputSampleRate(file, profile) ?? 0) * (outputBitDepth(file, profile) ?? 16) }
+  const spec = profiles[profile]
+  return { lossless, fineness: 'bitrate' in spec && spec.bitrate ? spec.bitrate : file.bitrate ?? 0 }
+}
 
 /**
  * Picks the file to play for a recording and the profile to serve it with. Among present
- * files: those on `albumId` first, then lossless, then higher bitrate. Null when the
- * recording has no present file.
+ * files, in order: the one in the user's pick for the song; those on `albumId`; those in
+ * the user's pick for their own album; the best the client receives (lossless first, then
+ * finer, then the file as it is over a transcode); then lossless, higher bitrate, newest.
+ * The album comes before quality so a hi-res single never takes over a song mid-album.
+ * See docs/architecture.md, "Editions and versions". Null when the recording has no
+ * present file.
  */
-export async function selectFile(recordingId: string, options: { albumId?: string; codecs?: string; quality: StreamQuality } & Delivery): Promise<FileSelection | null> {
-  const [file] = await db.select().from(mediaFiles)
+export async function selectFile(
+  recordingId: string,
+  options: { albumId?: string; codecs?: string; quality: StreamQuality; userId?: string } & Delivery,
+): Promise<FileSelection | null> {
+  const files = await db.select().from(mediaFiles)
     .where(and(eq(mediaFiles.recordingId, recordingId), isNull(mediaFiles.missingSince)))
-    .orderBy(
-      ...(options.albumId ? [desc(sql`${mediaFiles.albumId} is not distinct from ${options.albumId}`)] : []),
-      desc(mediaFiles.lossless),
-      sql`${mediaFiles.bitrate} desc nulls last`,
-      desc(mediaFiles.addedAt),
-    )
-    .limit(1)
-  if (!file) return null
-  return { file, profile: chooseProfile(file, options.quality, parseCodecs(options.codecs), options) }
+    .orderBy(desc(mediaFiles.lossless), sql`${mediaFiles.bitrate} desc nulls last`, desc(mediaFiles.addedAt), mediaFiles.id)
+  if (files.length === 0) return null
+  const codecs = parseCodecs(options.codecs)
+  const preferences = await filePreferences(options.userId, recordingId, files.map((file) => file.id))
+  const ranked = files.map((file, order) => {
+    const profile = chooseProfile(file, options.quality, codecs, options)
+    const preference = preferences.get(file.id)
+    const reaches = delivered(file, profile)
+    const key = [
+      preference?.songPick ? 0 : 1,
+      options.albumId && file.albumId !== options.albumId ? 1 : 0,
+      preference?.albumPick ? 0 : 1,
+      reaches.lossless ? 0 : 1,
+      -reaches.fineness,
+      profile === 'original' ? 0 : 1,
+      // The query's order: lossless, higher bitrate, newest.
+      order,
+    ]
+    return { file, profile, key, versionId: preference?.versionId ?? null }
+  })
+  ranked.sort((a, b) => {
+    for (let index = 0; index < a.key.length; index++) if (a.key[index] !== b.key[index]) return a.key[index]! - b.key[index]!
+    return 0
+  })
+  const { file, profile, versionId } = ranked[0]!
+  return { file, profile, versionId }
 }

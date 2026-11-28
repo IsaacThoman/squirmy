@@ -45,6 +45,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 
 - [x] Metadata clients with cache and rate limits
 - [x] Album matching tiers, review queue, fix match, merges
+- [x] Album editions: each owned edition keeps its own release, a Versions control on web and iOS picks which edition and quality plays by default, and Track info switches one song's copy
 - [x] Enrichment: covers, artist images, bios, lyrics, external ids
 - [x] Managed roots: preview, apply, journal, undo (server and API)
 - [x] Admin screens (web): library folders, review queue, Fix match, Organize, users and invites, server settings, jobs
@@ -100,6 +101,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Detached playback: web and iOS devices can play their own queue and rejoin the shared session later ([detached-playback-ui.md](./detached-playback-ui.md))
 - [x] Local search index: importer, search and admin routes ([local-search-index.md](./local-search-index.md)), offered as the first search provider, and its admin screen
 - [x] Smart playlists: rules evaluated live on the server, a rule editor on the web, read-only in Subsonic and the iOS and Apple TV apps ([web.md](./use/web.md#smart-playlists))
+- [x] Collaborative playlists with edit or add-only access, personal folders, custom artwork, file import and export, and duplicate removal ([web.md](./use/web.md#organizing-and-sharing-playlists), [ios.md](./use/ios.md#using-it), [subsonic.md](./server/subsonic.md#how-it-maps-onto-squirmy))
 - [ ] Edit smart playlist rules in the iOS app
 - [x] Documentation site ([docs/](./index.md), built with VitePress)
 - [x] Docker health check on `/ready`, and the image reports its source version
@@ -132,7 +134,7 @@ Designed in [audio-engine.md](./audio-engine.md); each item is a pull request fr
 - [x] M1. The native iOS and tvOS engine, behind a setting
 - [x] M2. Streaming to the cache in one pass
 - [x] M3. Fragmented MP4 transcodes and live seeking on iOS
-- [ ] M4. Normalization with boost and a true-peak limiter, with a target setting
+- [x] M4. Normalization with boost and a true-peak limiter, with a target setting
 - [ ] M5. Equalizer
 - [ ] M6. Crossfade
 - [ ] M7. Playback speed, with the rate in the session
