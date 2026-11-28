@@ -3,7 +3,7 @@ import { positionAt } from '@squirmy/client-core'
 import {
   COMMAND_TRACK_LIMIT, QUEUE_LIMIT,
   type ClientToServerEvents, type CommandAck, type PlaybackContext, type QueueSeed, type ServerToClientEvents, type SessionCommand, type SessionHelloAck,
-  type ServerEvent, type SessionQueue, type SessionState,
+  type ServerEvent, type SessionQueue, type SessionState, type SignalReport,
 } from '@squirmy/contracts'
 import { eq, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
@@ -1138,7 +1138,7 @@ describe('sessions', () => {
     const b = await device('device-b-0017', { canPlay: false })
     await a.send(playAlbum(), 'sig')
     await b.state(1)
-    const report = {
+    const report: SignalReport = {
       entryId: 'sig.0',
       trackId: album.tracks[0]!.recordingId,
       source: { codec: 'flac', lossless: true, bitrate: 4_608_000, sampleRate: 96_000, bitDepth: 24, channels: 2, bytes: 1000 },
@@ -1148,7 +1148,7 @@ describe('sessions', () => {
     // Only the active device's report about the current entry counts.
     b.socket.emit('session:signal', report)
     a.socket.emit('session:signal', { ...report, entryId: 'sig.1' })
-    a.socket.emit('session:signal', { ...report, delivery: { ...report.delivery, profile: 'nonsense' } })
+    a.socket.emit('session:signal', { ...report, delivery: { ...report.delivery, profile: 'nonsense' } } as unknown as SignalReport)
     a.socket.emit('session:signal', report)
     await eventually(() => b.events('session:signal'), (events) => expect(events).toEqual([{ ...report, deviceId: 'device-a-0017' }]))
     expect(a.events('session:signal')).toHaveLength(1)
