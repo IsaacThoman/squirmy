@@ -64,7 +64,7 @@ async function albumListIds(userId: string, params: Params, rootId: string | und
     case 'recent':
       return ids(sql`
         select a.id from plays p join albums a on a.id = p.album_id
-        where p.user_id = ${userId} and ${owned}
+        where p.user_id = ${userId} and not p.skipped and ${owned}
         group by a.id order by ${sql.raw(type === 'frequent' ? 'count(*) desc, max(p.started_at) desc' : 'max(p.started_at) desc')}, a.id ${page}`)
     default:
       throw invalidParameter('type')
