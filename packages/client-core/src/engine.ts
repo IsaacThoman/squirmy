@@ -1,3 +1,5 @@
+import type { PlaybackDescriptor } from '@squirmy/contracts'
+
 /**
  * The audio output each platform implements: `HTMLAudioElement` plus Web Audio on the
  * web, `expo-audio` on mobile. `SessionClient` is its only caller and drives it only
@@ -82,6 +84,8 @@ export type EnginePreload = {
 export type EngineMedia = {
   /** A server transcode rather than the original file. */
   transcoded: boolean
+  /** The stream's exact length and priming, when the server knows them. */
+  gapless?: PlaybackDescriptor['gapless']
 }
 
 /**

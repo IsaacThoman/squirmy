@@ -116,8 +116,9 @@ describe('NativeEngine', () => {
       entryId: 'a', url: 'https://music.test/stream/a', startMs: 42_000, gain: 0.5, autoplay: true,
       cacheKey: null, gapless: null, decoder: 'file', albumRun: false,
     }]);
-    engine.preload({ entryId: 'b', url: 'https://music.test/stream/b', gain: 1, media: { transcoded: true } });
-    expect(native.preloaded).toMatchObject({ entryId: 'b', decoder: 'stream', startMs: 0 });
+    const gapless = { sampleRate: 48_000, primingFrames: 312, frames: 9_600_000 };
+    engine.preload({ entryId: 'b', url: 'https://music.test/stream/b', gain: 1, media: { transcoded: true, gapless } });
+    expect(native.preloaded).toMatchObject({ entryId: 'b', decoder: 'stream', startMs: 0, gapless });
     engine.preload(null);
     expect(native.preloaded).toBeNull();
     // From a client that does not say: the file reader, which reads today's transcodes too.
