@@ -35,7 +35,7 @@ Then pick one:
   npx expo run:ios --device --configuration Release
   ```
 
-  Expo generates the native project in `apps/mobile/ios/`. To sign with your own Apple developer team, open `ios/Squirmy.xcworkspace` and set your team and your own bundle identifier under **Signing & Capabilities**. The default bundle identifier in `app.json` is `com.isaacthoman.squirmy`.
+  Expo generates the native project in `apps/mobile/ios/`. To sign with your own Apple developer team, open `ios/Squirmy.xcworkspace` and set your team and your own bundle identifier under **Signing & Capabilities**. The default bundle identifier in `app.json` is `com.isaacthoman.squirmy`. The widgets' extension and App Group are named after it; see [Building with widgets](#building-with-widgets).
 
 For working on the app itself, the [README](https://github.com/IsaacThoman/squirmy#mobile-app) describes the **Squirmy Dev** development build, which installs next to the regular app and loads code from Metro.
 
@@ -114,12 +114,43 @@ Every device lists one playing like this under **Playing separately**, with the 
 
 When an admin has [connected a provider](../server/acquisition.md), songs that aren't on the server yet look and play like any other: nothing marks where a song's file is. Play one and the play button and its row show the same spinner as buffering while the server gets it, and the artist stays under the title; after eight seconds the current song's subtitle says **Still loading…**. Songs further up the queue show nothing special. If the source doesn't have the song playing or the next one, the mini-player and Now Playing say **Skipped “Title” — not available** where the artist would be (or **Skipped 3 songs — not available** when several go in a row), playback moves on to the next song it can play, and the song shows gray with **Not available**. When none of the songs left in the queue are available, playback stops and the player says **None of the remaining songs are available**. If five songs in a row aren't available, playback pauses with **Several songs in a row aren’t available**; press play to carry on. When the server can't fetch music at all right now (its source is down), it pauses at the first song, and the player says **Can’t load music right now** and why until you press play to try again. A song that fails for another reason says **Couldn’t play “Title”**, and after several of those in a row the server pauses the same way. A song you tapped by name is different: playback stays on it, paused, and the player says **Couldn’t play “Title”** (with **It isn’t available.** when the source doesn't have it) until you press play or move on. Members need **Can fetch missing music** for this; without it, those songs are gray (**Not available**), an album with some of them says how many songs are available, and their menu offers the wantlist instead when the server has it on. Offline, songs that would play with a connection say **Not downloaded**.
 
+## Widgets, Siri and Shortcuts
+
+Squirmy works from outside the app on iOS 17 or later. Every control acts on your shared session, like the app's own buttons, so it plays, pauses or skips on whichever device is playing. The app doesn't have to be open: iOS starts it in the background when you use one.
+
+**Widgets.** Long-press the Home Screen, choose **Edit** → **Add Widget**, and search for Squirmy.
+
+- **Now Playing** (small and medium on the Home Screen; circular, rectangular and inline on the Lock Screen) shows the song playing, on this iPhone or another device ("Living Room TV" above the title), in its cover's color. Play and pause work from the widget; the medium one also has previous and next. Tap the widget to open Now Playing.
+- **Jump Back In** (medium and large) shows the same items as Home's **Jump back in**, and is refreshed each time Home loads. Tap one to open its page in Squirmy.
+
+The widgets follow Light and Dark Mode and the tinted Home Screen. While another device plays and the phone sits in the background, the Now Playing widget can't see the next song; once the song it shows should have ended, it shows playback as stopped until you open Squirmy again.
+
+**Siri.** Say:
+
+- "Play music in Squirmy", and Siri asks what to play: answer with an album, artist, playlist or song, as you would type it in Search.
+- "Play *name* in Squirmy" plays something from Jump back in or that you played lately by name, in one go.
+- "Play my liked songs in Squirmy", "Shuffle my library in Squirmy", "Start radio in Squirmy" (music like the song playing), "Pause Squirmy", "Resume Squirmy" and "Skip this song in Squirmy".
+
+An artist plays their radio when the server can make one, otherwise their top songs; a song plays on its own and Autoplay goes on from it. **Shuffle my library** loads your library's songs for up to four seconds and shuffles what it has, so a very large library starts from part of it. Siri suggests what you play often, on the Lock Screen and in Search, at the times you usually play it. Siri says when it can't do something: you are signed out, the server can't be reached, or nothing in what you asked for can play.
+
+**Shortcuts and Spotlight.** The Shortcuts app lists Squirmy's actions: **Play Music** (pick anything from your server, with an optional **Shuffle**), **Play Liked Songs**, **Shuffle Library**, **Start Radio**, **Play or Pause**, **Pause**, **Resume**, **Next Song** and **Previous Song**. Search for Squirmy in Spotlight to run them from there.
+
+**Live Activity.** While an album, playlist or Liked Songs downloads (three songs or more), the Lock Screen and the Dynamic Island show how far it has come, and **Downloaded** for a few seconds at the end. Tap it to open **Downloads**. iOS can suspend Squirmy in the background, where it can't update the count: the activity then says **Downloading · open Squirmy for progress**, and the downloads carry on.
+
+If you build the app yourself, see [Building with widgets](#building-with-widgets).
+
+### Building with widgets
+
+The widgets and the Live Activity are an app extension (`<bundle id>.widgets`) that shares an App Group, `group.<bundle id>`, with the app. With automatic signing, Xcode registers both on your team. If it can't, register the App Group in the Apple Developer portal, turn on **App Groups** with it for both identifiers, and build again. Siri and Shortcuts need no extra capability. To build without the extension and its App Group, prebuild with `SQUIRMY_IOS_WIDGETS=0`; Siri and Shortcuts still work.
+
 ## Known limits
 
 - **Gapless playback is close but not sample-accurate** with the classic engine, which every build uses unless you choose another: the next track starts as the previous one ends, which can leave a tiny seam on continuous albums. The **Native** engine (TestFlight and development builds, under **Settings → Playback → Engine**) is gapless for FLAC, ALAC, AAC, MP3 and Opus files; songs the server transcodes for the phone (formats iOS can't play, or the **High** and **Data Saver** qualities) still have their encoder's short gap with either engine.
 - **Lock screen and Control Center controls** are implemented but have not yet been verified on a physical device.
 - **Volume normalization only turns loud tracks down with the classic engine.** The **Native** engine also turns quiet ones up to your target loudness, behind a limiter that keeps their peaks under -1 dBTP; **Track info** says how much the limiter does to the song playing.
 - **A paused phone drops off other devices' lists** once iOS suspends the app, and comes back when you open it.
+- **No Live Activity while another device plays.** Following another device's songs from the Lock Screen needs the server to push updates to the phone, which it doesn't yet; the Now Playing widget shows what was playing when you last opened the app.
+- **Widgets, Siri and Shortcuts need iOS 17.** On iOS 16 the app works without them.
 - **The streaming cache does not know about Low Data Mode.** It follows the kind of network and your **Cellular** quality only. Choose **Data Saver** for cellular, or set the cache to **Off**, to stop it using cellular data.
 - **Albums and artists stay gray offline unless something of theirs is downloaded**, even when the cache holds some of their songs. The songs themselves are lit wherever they are listed.
 - **Android** keeps compiling but is not a focus. On Android, use a [Subsonic client](../server/subsonic.md).

@@ -15,6 +15,7 @@ import { PlayerTransitionProvider } from '../src/player/transition';
 import { PlaybackProvider } from '../src/playback';
 import { noScrollEdgeEffects } from '../src/scrollEdgeEffects';
 import { StreamingCacheProvider } from '../src/streamingCache/StreamingCacheProvider';
+import { SystemSurfaces } from '../src/surfaces/SystemSurfaces';
 import { useAppearance, useColors } from '../src/theme';
 
 // Sheets opened by a link or a restored route still get the tabs beneath them.
@@ -44,6 +45,7 @@ export default function RootLayout() {
                     <StreamingCacheProvider>
                       <PlaybackProvider>
                         <StatusBar style={appearance === 'dark' ? 'light' : 'dark'} />
+                        <SystemSurfaces />
                         <Routes />
                       </PlaybackProvider>
                     </StreamingCacheProvider>

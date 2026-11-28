@@ -464,6 +464,7 @@ function createActions(runtime: Runtime | null, canPlay: (track: TrackSummary) =
   return {
     playPause: () => send({ type: session().playing ? 'pause' : 'play' }),
     play: () => send({ type: 'play' }),
+    pause: () => send({ type: 'pause' }),
     /** Seeks now, or once the server has fetched the current song (`PendingSeek`). */
     seek: (positionMs: number) => runtime?.seeks.seek(Math.max(0, positionMs)),
     next: () => send({ type: 'next' }),
@@ -596,6 +597,42 @@ export function usePlaybackState() {
     signal: snapshot.signal,
     actions,
   };
+}
+
+/**
+ * The session client for a request from outside the app (Siri, Shortcuts, a widget's button):
+ * null until it runs. `settled` resolves true once every command made has reached the server
+ * and, for `playback`, once the music sounds here or another device was told to play; false
+ * if that took longer than `timeoutMs`.
+ */
+export function useSessionRuntime() {
+  const runtime = useContext(RuntimeContext);
+  return useMemo(() => runtime && {
+    snapshot: () => runtime.client.getSnapshot(),
+    positionMs: () => runtime.seeks.position(),
+    settled: (wait: 'command' | 'playback', timeoutMs: number) => settled(runtime, wait, timeoutMs),
+  }, [runtime]);
+}
+
+function settled(runtime: Runtime, wait: 'command' | 'playback', timeoutMs: number): Promise<boolean> {
+  const done = () => {
+    const { connection, session, isActiveDevice } = runtime.client.getSnapshot();
+    if (connection !== 'online' || runtime.client.save().pending.some(pending => pending.ackVersion === null)) return false;
+    // Nothing to start (the server paused it), or another device plays it.
+    if (wait === 'command' || !session.playing || !isActiveDevice) return true;
+    return !session.stalled && runtime.loading.getSnapshot().phase === 'none';
+  };
+  return new Promise(resolve => {
+    const stops: (() => void)[] = [];
+    const finish = (value: boolean) => {
+      stops.forEach(stop => stop());
+      resolve(value);
+    };
+    const check = () => { if (done()) finish(true); };
+    const timer = setTimeout(() => finish(false), timeoutMs);
+    stops.push(() => clearTimeout(timer), runtime.client.subscribe(check), runtime.loading.subscribe(check));
+    check();
+  });
 }
 
 // One object, not a new one per read: `useSyncExternalStore` compares snapshots by identity.
