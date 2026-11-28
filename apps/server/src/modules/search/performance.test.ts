@@ -25,7 +25,7 @@ describe.skipIf(!process.env.SQUIRMY_PERF)('library search performance', () => {
 
   beforeAll(async () => {
     app = await buildApp()
-    user = await signIn()
+    user = await signIn({ settings: { libraryIncludesServerMusic: true } })
     await seedLargeLibrary({ albums: 10_000, tracksPerAlbum: 15, artists: 2_000, unownedEvery: 10, userId: user.id, plays: 50_000, likes: 2_000 })
   }, 300_000)
   afterAll(async () => {

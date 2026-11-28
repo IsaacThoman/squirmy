@@ -57,7 +57,7 @@ export async function sweepScrobbles(): Promise<void> {
       await db.execute(sql`
         insert into scrobble_deliveries (play_id, target, status)
         select p.id, ${target}, ${status} from plays p
-        where p.user_id = ${row.id} and p.completed and p.started_at >= ${connection.since.toISOString()}::timestamptz and p.started_at > now() - ${LOOKBACK}
+        where p.user_id = ${row.id} and p.completed and p.client <> 'history-import' and p.started_at >= ${connection.since.toISOString()}::timestamptz and p.started_at > now() - ${LOOKBACK}
           and not exists (select 1 from scrobble_deliveries d where d.play_id = p.id and d.target = ${target})
         on conflict do nothing`)
       if (!usable(scrobbling, target) || !(await targetAvailable(target))) continue

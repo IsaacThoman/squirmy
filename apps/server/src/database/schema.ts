@@ -27,6 +27,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
+import type { HistoryImport, HistoryImportSource } from '@squirmy/contracts'
 
 const id = () => uuid('id').primaryKey()
 const at = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' })
@@ -767,7 +768,7 @@ export const plays = pgTable('plays', {
   recordingId: uuid('recording_id').notNull().references(() => recordings.id, { onDelete: 'cascade' }),
   albumId: uuid('album_id').references(() => albums.id, { onDelete: 'set null' }),
   deviceId: text('device_id'),
-  /** app | subsonic */
+  /** app | subsonic | history-import */
   client: text('client').notNull().default('app'),
   startedAt: at('started_at').notNull().defaultNow(),
   msPlayed: integer('ms_played').notNull().default(0),
@@ -779,8 +780,45 @@ export const plays = pgTable('plays', {
   contextType: text('context_type'),
   contextId: text('context_id'),
 }, (t) => [
-  index('plays_user_recent').on(t.userId, t.startedAt),
+  index('plays_user_recent').on(t.userId, t.startedAt, t.id),
   index('plays_recording').on(t.recordingId),
+])
+
+export const historyImports = pgTable('history_imports', {
+  id: id(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  source: text('source').$type<HistoryImportSource>().notNull(),
+  jsonLines: boolean('json_lines').notNull().default(false),
+  status: text('status').$type<HistoryImport['status']>().notNull().default('queued'),
+  createdAt: createdAt(),
+  processed: integer('processed').notNull().default(0),
+  matched: integer('matched').notNull().default(0),
+  unmatched: integer('unmatched').notNull().default(0),
+  duplicates: integer('duplicates').notNull().default(0),
+  ignored: integer('ignored').notNull().default(0),
+  error: text('error'),
+}, (t) => [index('history_imports_user_recent').on(t.userId, t.createdAt)])
+
+export const historyImportedPlays = pgTable('history_imported_plays', {
+  id: id(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  source: text('source').$type<HistoryImportSource>().notNull(),
+  fingerprint: text('fingerprint').notNull(),
+  /** A private row remains in Replay even if the matched recording is later deleted. */
+  playId: uuid('play_id').references(() => plays.id, { onDelete: 'set null' }),
+  startedAt: at('started_at').notNull(),
+  msPlayed: integer('ms_played'),
+  skipped: boolean('skipped').notNull().default(false),
+  title: text('title').notNull(),
+  artist: text('artist').notNull(),
+  album: text('album'),
+  trackKey: text('track_key').notNull(),
+  artistKey: text('artist_key').notNull(),
+  albumKey: text('album_key'),
+}, (t) => [
+  uniqueIndex('history_imported_plays_fingerprint').on(t.userId, t.source, t.fingerprint),
+  index('history_imported_plays_link').on(t.playId).where(sql`${t.playId} is not null`),
+  index('history_imported_plays_unmatched_recent').on(t.userId, t.startedAt, t.id).where(sql`${t.playId} is null`),
 ])
 
 /**
