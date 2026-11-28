@@ -109,6 +109,8 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Passkeys on the web: add, rename, remove, and username-less sign-in
 - [x] OpenID Connect single sign-on (server, web, admin settings, iOS sign-in), linking accounts, and turning password sign-in off
 - [x] Explicit content controls: a per-user switch an admin can enforce, explicit songs gray and kept out of queues, radio, search, Home and Subsonic, and known clean versions in their place (server, web, iOS and Apple TV)
+- [x] iOS outside the app: Now Playing and Jump back in widgets on the Home and Lock Screen, Siri, Shortcuts and Spotlight through App Intents, Siri suggestions from what you play, and a downloads Live Activity ([ios.md](./use/ios.md#widgets-siri-and-shortcuts))
+- [ ] A Live Activity while another device plays, which needs the server to push updates
 - [x] Public share links to albums, playlists and songs: expiring and revocable, a public page with previews or whole songs as the admin allows, managed in Settings and Admin → Sharing (server, web, and Share on iOS)
 
 ## 9. Apple TV

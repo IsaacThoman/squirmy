@@ -20,6 +20,9 @@ export class BackgroundPresence {
   private closed = false;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private playing = false;
+  /** Requests from Siri, Shortcuts or a widget being answered, which need the server. */
+  private holds = 0;
+  private disposed = false;
 
   /** `foreground`: where the app is now. An app that starts in the background with nothing playing closes too. */
   constructor(private readonly socket: Socket, private foreground: boolean, private readonly delayMs = PARK_DELAY_MS) {
@@ -46,14 +49,34 @@ export class BackgroundPresence {
     this.follow();
   }
 
+  /**
+   * Keeps the socket open until the returned function is called, as playing does: a request
+   * from outside the app (Siri, a widget's button) can wake it in the background with nothing
+   * playing here, and its command has to reach the server.
+   */
+  hold(): () => void {
+    this.holds += 1;
+    this.follow();
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      this.holds -= 1;
+      this.follow();
+    };
+  }
+
   dispose(): void {
+    this.disposed = true;
     clearTimeout(this.timer);
   }
 
   private follow(): void {
+    // A hold released after the socket was replaced must not touch the old one.
+    if (this.disposed) return;
     clearTimeout(this.timer);
     this.timer = undefined;
-    if (this.foreground || this.playing) {
+    if (this.foreground || this.playing || this.holds > 0) {
       if (!this.closed) return;
       this.closed = false;
       this.socket.connect();

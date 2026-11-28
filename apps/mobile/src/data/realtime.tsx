@@ -43,6 +43,11 @@ type Realtime = {
    * while it does (see `BackgroundPresence`).
    */
   setPlayingHere: (playing: boolean) => void;
+  /**
+   * Keeps the socket open in the background until the returned function is called, for a
+   * request from Siri, Shortcuts or a widget (`BackgroundPresence.hold`).
+   */
+  holdOpen: () => () => void;
 };
 
 /** Retry delay after the server refused the handshake, which socket.io does not retry itself. */
@@ -52,6 +57,7 @@ const staleAfterMs = HEARTBEAT_INTERVAL_MS + HEARTBEAT_TIMEOUT_MS;
 
 const RealtimeContext = createContext<Realtime>({
   socket: null, offline: false, onInvalidate: () => () => undefined, onChanges: () => () => undefined, expectEcho: () => undefined, setPlayingHere: () => undefined,
+  holdOpen: () => () => undefined,
 });
 
 /** How long invalidations are collected, so a burst refetches each query once. */
@@ -87,6 +93,16 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
   const [setPlayingHere] = useState(() => (playing: boolean) => {
     playingHere.current = playing;
     presence.current?.setPlaying(playing);
+  });
+  // Holds outlive a new socket: each is taken on the one open when it was asked for, and on the next.
+  const holds = useRef(new Set<{ releases: (() => void)[] }>());
+  const [holdOpen] = useState(() => () => {
+    const hold = { releases: presence.current ? [presence.current.hold()] : [] };
+    holds.current.add(hold);
+    return () => {
+      holds.current.delete(hold);
+      hold.releases.forEach(release => release());
+    };
   });
 
   useEffect(() => {
@@ -124,6 +140,7 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
     };
     const parking = new BackgroundPresence(next, AppState.currentState !== 'background');
     parking.setPlaying(playingHere.current);
+    for (const hold of holds.current) hold.releases.push(parking.hold());
     presence.current = parking;
 
     next.on('connect', () => {
@@ -220,7 +237,8 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
     },
     expectEcho: echoes.expect,
     setPlayingHere,
-  }), [changeListeners, echoes, listeners, offline, setPlayingHere, socket]);
+    holdOpen,
+  }), [changeListeners, echoes, holdOpen, listeners, offline, setPlayingHere, socket]);
 
   return <RealtimeContext.Provider value={value}>{children}</RealtimeContext.Provider>;
 }

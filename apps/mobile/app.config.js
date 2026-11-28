@@ -42,6 +42,10 @@ module.exports = ({ config }) => {
     };
   }
 
+  // Siri, Shortcuts and Spotlight, the widgets and the Live Activity, on the phone only.
+  // SQUIRMY_IOS_WIDGETS=0 leaves out the widget extension and its App Group.
+  plugins.push(['./modules/app-intents/app.plugin.js', { widgets: process.env.SQUIRMY_IOS_WIDGETS !== '0' }]);
+
   if (!development) {
     return {
       ...config,
