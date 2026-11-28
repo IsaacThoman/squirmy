@@ -1,4 +1,6 @@
 import type { JamInfo, QueueEntry, SessionCommand } from '@squirmy/contracts'
+import { ApiError } from '../api/client.js'
+import type { PlaybackNotice } from './notices.js'
 import { positionAt, type Session } from './reducer.js'
 
 /**
@@ -92,4 +94,18 @@ export function memberMay(jam: JamInfo | undefined, command: SessionCommand['typ
   if (!jam || jam.role === 'host') return true
   if (command === 'enqueue') return jam.queuePolicy === 'everyone'
   return command === 'transfer' || command === 'setVolume' || command === 'trackEnded' || command === 'removeFromQueue'
+}
+
+/**
+ * What a member's device says when it cannot play the jam's current song: the server refused
+ * the stream (explicit content is off for the member, or the track is not theirs to play), or
+ * the device cannot play it. It sits the song out, silent, and plays along again from the next
+ * one the jam moves to; skipping or pausing is the host's, so it does neither.
+ */
+export function sitOutNotice(title: string | undefined, error?: unknown): PlaybackNotice {
+  const explicit = error instanceof ApiError && error.code === 'explicit_not_allowed'
+  return {
+    message: title ? `“${title}” isn’t playing for you` : 'This song isn’t playing for you',
+    detail: `${explicit ? 'Explicit content is off for you.' : 'It can’t play here.'} You’ll hear the next song with everyone.`,
+  }
 }
