@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router'
 import { useScrollContainer } from '@/components/layout/scroll-context'
 import { ExplicitBadge, Spinner } from '@/components/ui/feedback'
 import { DropdownMenu, type MenuEntry } from '@/components/ui/menu'
-import { isPlayable, UNAVAILABLE_LABEL } from '@/lib/catalog'
+import { isPlayable, UNAVAILABLE_LABEL, unavailableLabel } from '@/lib/catalog'
 import { draggedTracks, endTrackDrag, startTrackDrag } from '@/lib/drag'
 import { formatDuration, formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -164,6 +164,8 @@ export function TrackRow({ track, index, number, movementName, addedAt, variant 
   const playback = useTrackPlayback(track.id)
   const { liked } = track
   const unavailable = playback === 'failed' || !isPlayable(track, viewer)
+  // A song that failed to play says so; one gray for being explicit says that.
+  const unavailableText = playback === 'failed' ? UNAVAILABLE_LABEL : unavailableLabel(track, viewer)
   const current = playback !== null && playback !== 'failed'
   const playing = playback === 'playing' || playback === 'loading'
   const loading = playback === 'loading'
@@ -238,7 +240,7 @@ export function TrackRow({ track, index, number, movementName, addedAt, variant 
           trigger={<button type="button" aria-label={`Credits for ${track.title}`} className="shrink-0 rounded-sm px-1.5 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring pointer-coarse:min-h-11">Credits</button>}
         />
       )}
-      {unavailable && <span className="sr-only">({UNAVAILABLE_LABEL})</span>}
+      {unavailable && <span className="sr-only">({unavailableText})</span>}
     </div>
   )
   // Under the title. On an album page only where they are not the album's own (a featured artist):
@@ -263,7 +265,7 @@ export function TrackRow({ track, index, number, movementName, addedAt, variant 
       aria-current={current ? 'true' : undefined}
       // Only playing is unavailable, and the title says so to screen readers; the heart and the
       // menu still work, so the row is not marked disabled (that would disable them too).
-      title={unavailable ? UNAVAILABLE_LABEL : undefined}
+      title={unavailable ? unavailableText : undefined}
       onDoubleClick={event => { if (!unavailable && event.currentTarget.contains(event.target as Node)) play() }}
       onPointerDown={event => {
         pointer.current = event.pointerType
