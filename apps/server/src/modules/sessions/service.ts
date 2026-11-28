@@ -3,7 +3,7 @@ import {
 } from '@squirmy/client-core'
 import {
   COMMAND_TRACK_LIMIT, CommandEnvelope, DEVICE_GRACE_MS, EngineReport, QUEUE_LIMIT, SessionAttach, SessionDetach, SignalReport,
-  type CommandAck, type EntryFailure, type DeviceInfo, type QueueEntry, type SessionCapability, type SessionCommand, type SessionHello, type SessionHelloAck,
+  type PlaybackControl, type CommandAck, type EntryFailure, type DeviceInfo, type QueueEntry, type SessionCapability, type SessionCommand, type SessionHello, type SessionHelloAck,
   type SessionMoveAck, type SessionQueue, type SessionSnapshot, type SessionSyncAck, type SignalPath,
 } from '@squirmy/contracts'
 import { and, eq } from 'drizzle-orm'
@@ -13,6 +13,8 @@ import { devices } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import type { RealtimeServer } from '../../realtime/index.js'
 import { requestRecording } from '../acquisition/coverage.js'
+import { conflict } from '../../lib/errors.js'
+import { emitPlaybackWebhook } from '../integrations/playback.js'
 import { rememberDevice } from '../auth/service.js'
 import { suggestAutoplay } from '../radio/suggest.js'
 import { AUTOPLAY_BATCH, autoplayRequest } from './autoplay.js'
@@ -73,8 +75,9 @@ const awayClocks = new Map<string, { at: number; positionMs: number; entryId: st
 const sleepTimers = new Map<string, { endsAt: number; handle: unknown }>()
 /** The current entry whose tracks were last looked up again, by session key (see `refreshUpcoming`). */
 const refreshedFor = new Map<string, string>()
-/** Writes of closed plays still in flight, which shutdown waits for. */
-const savingPlays = new Set<Promise<void>>()
+/** Work started outside the per-user queues, which shutdown waits for. */
+const background = new Set<Promise<void>>()
+let stopping = false
 let io: RealtimeServer | null = null
 
 /**
@@ -234,6 +237,7 @@ function commit(record: SessionRecord, next: Session, now = settings.now()): Cha
   record.version += 1
   if (queue) record.queueVersion += 1
   record.session = next
+  emitPlaybackWebhook(record.userId, previous, next, now)
   if (next.current?.state === 'ready') {
     record.failedInARow = 0
     record.skippedTracks.clear()
@@ -291,12 +295,15 @@ function disarmSleepTimer(key: string): void {
 }
 
 /** Writes a closed play in the background; shutdown waits for it. */
-function keepSaving(userId: string, play: OpenPlay): void {
-  const saving = savePlay(userId, play).catch(report).finally(() => savingPlays.delete(saving))
-  savingPlays.add(saving)
+function trackBackground(task: Promise<unknown>): void {
+  const pending = task.then(() => undefined).catch(report).finally(() => background.delete(pending))
+  background.add(pending)
 }
 
-/** Counts a session's open play up to now and writes it. */
+function keepSaving(userId: string, play: OpenPlay): void {
+  trackBackground(savePlay(userId, play))
+}
+
 function closePlay(record: SessionRecord): void {
   const { play } = record
   if (!play) return
@@ -409,6 +416,7 @@ function toPrepare(session: Session): Wanted[] {
  * request joins the job already in flight.
  */
 function requestUpcoming(record: SessionRecord): void {
+  if (stopping) return
   const { userId } = record
   const asks: (() => Promise<void>)[] = []
   const currentId = record.session.current?.id ?? null
@@ -424,7 +432,7 @@ function requestUpcoming(record: SessionRecord): void {
     ) : []
     const request = { userId, recordingId, albumId: entry.albumId, origin, ...(upcoming.length ? { upcoming } : {}) }
     asks.push(async () => {
-      const wanted = recordOf(record.key) === record && toPrepare(record.session).some(({ entry }) => entry.trackId === recordingId)
+      const wanted = !stopping && recordOf(record.key) === record && toPrepare(record.session).some(({ entry }) => entry.trackId === recordingId)
       if (!wanted) {
         if (record.requested.get(recordingId) === origin) record.requested.delete(recordingId)
         return
@@ -440,7 +448,7 @@ function requestUpcoming(record: SessionRecord): void {
       }).catch(report)
     })
   }
-  if (asks.length) void asks.reduce((chain, ask) => chain.then(ask), Promise.resolve())
+  if (asks.length) trackBackground(asks.reduce((chain, ask) => chain.then(ask), Promise.resolve()))
 }
 
 /** Why a fetch failed, as acquisition tells it: see `EntryFailure`. `reason` goes with an outage. */
@@ -573,21 +581,21 @@ function finish(record: SessionRecord, next: Session, now: number): void {
  * may have preloaded.
  */
 function refillAutoplay(record: SessionRecord): void {
+  if (stopping) return
   const { userId, session } = record
   const { current } = session
   const request = autoplayRequest(session)
   if (!request || !current || record.autoplayAskedFor === current.id) return
   record.autoplayAskedFor = current.id
   const { seeds, exclude } = request
-  suggestAutoplay({ userId, seeds, exclude, limit: AUTOPLAY_BATCH })
+  trackBackground(suggestAutoplay({ userId, seeds, exclude, limit: AUTOPLAY_BATCH })
     .then(tracks => serial(userId, () => {
       const latest = recordOf(record.key)
       // Only the latest ask's answer is used: one for a queue played over since would follow the new one.
-      if (!tracks.length || latest !== record || latest.autoplayAskedFor !== current.id || latest.session.current?.id !== current.id
+      if (stopping || !tracks.length || latest !== record || latest.autoplayAskedFor !== current.id || latest.session.current?.id !== current.id
         || !latest.session.autoplay || latest.session.autoplayQueue.length) return
       applyServer(latest, { type: 'setAutoplayQueue', tracks })
-    }))
-    .catch(report)
+    })))
 }
 
 /**
@@ -973,7 +981,7 @@ export function runCommand(userId: string, deviceId: string | null, raw: unknown
     broadcast(record, change)
     afterChange(record)
     // Starting a collection is a play of it, for the Library's Recently played.
-    if (command.type === 'playTracks') void recordCollectionPlay(userId, command.context, settings.now()).catch(report)
+    if (command.type === 'playTracks') trackBackground(recordCollectionPlay(userId, command.context, settings.now()))
   }).catch(error => {
     report(error)
     ack({ ok: false, error: 'internal_error' })
@@ -1075,6 +1083,28 @@ export function applySignal(userId: string, deviceId: string | null, raw: unknow
 }
 
 // Service functions for other modules
+
+/** Sessions with a connected player, for the integrations bridge. */
+export function playingDevices() {
+  return [...loadedRecords()].flatMap(({ userId, session, deviceId }) => {
+    const active = session.activeDeviceId
+    return active && (deviceId === null || active === deviceId) && connectedDevice(userId, active)
+      ? [{ userId, deviceId: active, session }]
+      : []
+  })
+}
+
+export function controlPlayback(userId: string, command: PlaybackControl, deviceId?: string): Promise<SessionSnapshot> {
+  return serial(userId, async () => {
+    const record = (deviceId ? loadedOwn(userId, deviceId) : undefined) ?? await load(userId)
+    const active = record.session.activeDeviceId
+    if (!active || (deviceId && active !== deviceId) || !connectedDevice(userId, active)?.canPlay) {
+      throw conflict('There is no active playback device', 'device_unavailable')
+    }
+    applyServer(record, command.type === 'volume' ? { type: 'setVolume', deviceId: active, value: command.value } : command)
+    return snapshotOf(record)
+  })
+}
 
 /** The user's shared session as `GET /me/session` and Subsonic's `getPlayQueue` see it. */
 export function getSnapshot(userId: string): Promise<SessionSnapshot> {
@@ -1225,6 +1255,15 @@ function awaitsOther(record: SessionRecord, recordingId: string): boolean {
  * row, so a listen across the restart is one play.
  */
 export async function stopSessions(): Promise<void> {
+  stopping = true
+  try {
+    await finishSessions()
+  } finally {
+    stopping = false
+  }
+}
+
+async function finishSessions(): Promise<void> {
   for (const timer of graceTimers.values()) settings.timers.clear(timer)
   graceTimers.clear()
   for (const { handle } of sleepTimers.values()) settings.timers.clear(handle)
@@ -1243,5 +1282,5 @@ export async function stopSessions(): Promise<void> {
     countUntil(play, record.session, settings.now())
     await savePlay(record.userId, play, { closed: false }).catch(report)
   })
-  await Promise.all(savingPlays)
+  while (background.size) await Promise.all(background)
 }

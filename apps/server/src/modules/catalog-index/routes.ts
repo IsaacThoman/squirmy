@@ -4,7 +4,7 @@ import { enqueue } from '../../jobs/index.js'
 import { requireAdmin } from '../../lib/auth.js'
 import { conflict } from '../../lib/errors.js'
 import { invalidate } from '../../realtime/index.js'
-import { cancelImport, interruptedImports, markInterruptedImports } from './import.js'
+import { cancelImport, hasUnfinishedImport, interruptedImports, markInterruptedImports } from './import.js'
 import { dropCatalogIndex, getCatalogIndexStatus } from './status.js'
 
 /**
@@ -22,12 +22,14 @@ export type ImportJob = Partial<StartCatalogIndexImport> & { resume?: string }
  * itself: the next worker to look does.
  */
 export async function resumeInterruptedImports(options: { startAfter?: number } = {}) {
-  await markInterruptedImports()
-  for (const row of await interruptedImports()) {
+  const marked = await markInterruptedImports()
+  const interrupted = await interruptedImports()
+  for (const row of interrupted) {
     await enqueue<ImportJob>(importJob, { resume: row.id }, {
       singletonKey: `catalog-index:resume:${row.id}:${row.resumes}`, priority: -10, ...options,
     })
   }
+  return marked || interrupted.length > 0
 }
 
 export async function catalogIndexRoutes(app: FastifyInstance) {
@@ -40,9 +42,8 @@ export async function catalogIndexRoutes(app: FastifyInstance) {
   app.post('/admin/catalog-index/import', async (request, reply): Promise<Ok> => {
     const body: ImportJob = StartCatalogIndexImport.parse(request.body ?? {})
     // A row left running by a killed worker is resumed rather than refusing every import from now on.
-    await resumeInterruptedImports()
-    const latest = (await getCatalogIndexStatus()).latest?.state
-    if (latest === 'running' || latest === 'interrupted') throw conflict('A search index import is already running', 'catalog_index_import_running')
+    const recovering = await resumeInterruptedImports()
+    if (recovering || await hasUnfinishedImport()) throw conflict('A search index import is already running', 'catalog_index_import_running')
     const id = await enqueue(importJob, body, { singletonKey: 'catalog-index', priority: -10 })
     if (!id) throw conflict('A search index import is already queued', 'catalog_index_import_running')
     await invalidate('admins', [queryKeys.admin()])

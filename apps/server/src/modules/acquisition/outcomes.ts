@@ -16,7 +16,7 @@
 import type { EntryFailure } from '@squirmy/contracts'
 import { sql } from 'drizzle-orm'
 import { getConfig } from '../../config.js'
-import { db, getSql } from '../../database/client.js'
+import { db, getSql, type Executor, type Transaction } from '../../database/client.js'
 import { uuidArray } from '../catalog/sql.js'
 import { ownedRecordings } from './catalog.js'
 import { markRecordingFailed, markRecordingReady, markRecordingRestored } from '../sessions/index.js'
@@ -35,6 +35,7 @@ const maxPayloadBytes = 7900
 const timing = { reconcileMs: 30_000, windowMs: 10 * 60_000 }
 
 let listener: { unlisten: () => Promise<void> } | null = null
+let pending = Promise.resolve()
 let timer: ReturnType<typeof setInterval> | null = null
 
 function report(error: unknown) {
@@ -42,7 +43,10 @@ function report(error: unknown) {
 }
 
 /** Sends an outcome to the API process. Works from any process. */
-export async function announceOutcome(outcome: Partial<Outcome>) {
+export async function announceOutcome(outcome: Partial<Outcome>, tx?: Transaction) {
+  const notify = (payload: string) => tx
+    ? tx.execute(sql`select pg_notify(${channel}, ${payload})`)
+    : getSql()`select pg_notify(${channel}, ${payload})`
   const ids = [...(outcome.ready ?? []).map((id) => ({ id, ready: true })), ...(outcome.failed ?? []).map((id) => ({ id, ready: false }))]
   // A uuid takes 39 bytes in the payload, so 150 per notification stays under the limit.
   for (let start = 0; start < ids.length; start += 150) {
@@ -53,11 +57,11 @@ export async function announceOutcome(outcome: Partial<Outcome>) {
       ...(outcome.cause ? { cause: outcome.cause } : {}),
     })
     if (Buffer.byteLength(payload) > maxPayloadBytes) throw new Error('Acquisition outcome too large')
-    await getSql()`select pg_notify(${channel}, ${payload})`
+    await notify(payload)
   }
   const restored = outcome.restored ?? []
   for (let start = 0; start < restored.length; start += 150) {
-    await getSql()`select pg_notify(${channel}, ${JSON.stringify({ ready: [], failed: [], restored: restored.slice(start, start + 150) })})`
+    await notify(JSON.stringify({ ready: [], failed: [], restored: restored.slice(start, start + 150) }))
   }
 }
 
@@ -94,17 +98,14 @@ export async function recentOutcomes(now = Date.now()): Promise<Outcome[]> {
 export async function startOutcomes() {
   if (listener) return
   listener = await getSql().listen(channel, (payload) => {
-    try {
-      void applyOutcome(JSON.parse(payload) as Outcome).catch(report)
-    } catch (error) {
-      report(error)
-    }
+    // A restoration follows the provisional failure on this channel. Apply both in commit order.
+    pending = pending.then(() => applyOutcome(JSON.parse(payload) as Outcome)).catch(report)
   })
   timer = setInterval(() => {
-    void (async () => {
+    pending = pending.then(async () => {
       if ((await activeProviders()).length === 0) return
       for (const outcome of await recentOutcomes()) await applyOutcome(outcome)
-    })().catch(report)
+    }).catch(report)
   }, timing.reconcileMs)
   timer.unref()
 }
@@ -115,12 +116,13 @@ export async function stopOutcomes() {
   const current = listener
   listener = null
   await current?.unlisten()
+  await pending
 }
 
 /** Ids among `ids` that some unfinished job (other than `exceptJobId`) is still working on. */
-export async function stillWorking(ids: readonly string[], exceptJobId?: string): Promise<Set<string>> {
+export async function stillWorking(ids: readonly string[], exceptJobId?: string, executor: Executor = db): Promise<Set<string>> {
   if (ids.length === 0) return new Set()
-  const rows = await db.execute<{ id: string }>(sql`
+  const rows = await executor.execute<{ id: string }>(sql`
     select distinct unnest(recording_ids) as id from acquisition_jobs
     where completed_at is null and recording_ids && ${uuidArray(ids)} ${exceptJobId ? sql`and id <> ${exceptJobId}` : sql``}`)
   return new Set(rows.map((row) => row.id).filter((id) => ids.includes(id)))

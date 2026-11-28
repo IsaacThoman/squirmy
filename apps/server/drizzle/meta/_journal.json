@@ -257,8 +257,15 @@
     {
       "idx": 36,
       "version": "7",
-      "when": 1795853910753,
-      "tag": "0036_explicit_restriction",
+      "when": 1795853456375,
+      "tag": "0036_open_ecosystem",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1795855205683,
+      "tag": "0037_explicit_restriction",
       "breakpoints": true
     }
   ]

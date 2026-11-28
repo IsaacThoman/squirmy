@@ -10,6 +10,8 @@ export const UserSettings = z.object({
   downloadQuality: StreamQuality.default('original'),
   downloadOnWifiOnly: z.boolean().default(true),
   scrobbleListenBrainz: z.boolean().default(false),
+  syncListenBrainzHearts: z.boolean().optional(),
+  syncLastFmHearts: z.boolean().optional(),
   scrobbleLastFm: z.boolean().default(false),
   /**
    * Whether the user's library holds all of the server's music (its collection: scanned,
@@ -37,6 +39,8 @@ export const UpdateUserSettings = z.object({
   downloadQuality: StreamQuality,
   downloadOnWifiOnly: z.boolean(),
   scrobbleListenBrainz: z.boolean(),
+  syncListenBrainzHearts: z.boolean(),
+  syncLastFmHearts: z.boolean(),
   scrobbleLastFm: z.boolean(),
   libraryIncludesServerMusic: z.boolean(),
   shareNowPlaying: z.boolean(),
