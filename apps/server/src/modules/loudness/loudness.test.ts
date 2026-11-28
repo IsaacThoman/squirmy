@@ -13,7 +13,7 @@ import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createLibraryRoot } from '../../test/factories.js'
 import { loudnessModule } from './index.js'
 import { measureAlbumLoudness, measureLoudness, parseEbur128 } from './measure.js'
-import { normalizationFor, SILENT_LUFS } from './normalization.js'
+import { normalizationFor, normalizationValues, SILENT_LUFS } from './normalization.js'
 
 const run = promisify(execFile)
 
@@ -134,7 +134,10 @@ describe('loudness', () => {
     const libraryRoot = await createLibraryRoot({ path: brokenRoot })
     const { tracks, releaseId } = await createAlbum({ owned: true, rootId: libraryRoot.id, tracks: [{ title: 'Truncated' }] })
     const fileId = tracks[0]!.fileId!
-    await db.update(mediaFiles).set({ relPath: tone.path, loudnessLufs: -48, truePeakDb: -47 }).where(eq(mediaFiles.id, fileId))
+    await db.update(mediaFiles).set({
+      relPath: tone.path, loudnessLufs: -48, truePeakDb: -47,
+      decodedFrames: 44100, decodedRate: 44100, primingFrames: 0, paddingFrames: 0,
+    }).where(eq(mediaFiles.id, fileId))
     await db.insert(releaseLoudness).values({ releaseId, loudnessLufs: -48, truePeakDb: -47, fileCount: 1 })
     const readFile = async () => (await db.select().from(mediaFiles).where(eq(mediaFiles.id, fileId)))[0]!
     const attempts = () => db.execute(sql`
@@ -143,7 +146,10 @@ describe('loudness', () => {
     await enqueue('loudness.measure', { fileId }, { singletonKey: fileId })
     await drainJobs()
     const failed = await readFile()
-    expect(failed).toMatchObject({ loudnessLufs: null, truePeakDb: null, probeError: expect.stringMatching(/^Loudness measurement failed: .*(corrupt|invalid)/i) })
+    expect(failed).toMatchObject({
+      loudnessLufs: null, truePeakDb: null, decodedFrames: null, decodedRate: null, primingFrames: null, paddingFrames: null,
+      probeError: expect.stringMatching(/^Loudness measurement failed: .*(corrupt|invalid)/i),
+    })
     expect(await normalizationFor(failed)).toBeNull()
     expect(await attempts()).toEqual([{ state: 'failed', retry_count: 2 }])
 
@@ -208,7 +214,7 @@ describe('loudness', () => {
     const none = { releaseId: null, loudnessLufs: null, truePeakDb: null, tagTrackGainDb: null, tagTrackPeak: null, tagAlbumGainDb: null, tagAlbumPeak: null }
     const tagged = { ...none, tagTrackGainDb: -4.5, tagTrackPeak: 0.9, tagAlbumGainDb: -5.5, tagAlbumPeak: 0.95 }
 
-    expect(await normalizationFor(none)).toBeNull()
+    expect(normalizationValues(none, null)).toBeNull()
     expect(await normalizationFor(tagged)).toEqual({ trackGainDb: -4.5, trackPeak: 0.9, albumGainDb: -5.5, albumPeak: 0.95 })
     expect(await normalizationFor({ ...tagged, loudnessLufs: -12, truePeakDb: 0 }))
       .toEqual({ trackGainDb: -6, trackPeak: 1, albumGainDb: -5.5, albumPeak: 0.95 })
@@ -219,7 +225,49 @@ describe('loudness', () => {
     await db.insert(releaseLoudness).values({ releaseId, loudnessLufs: -14, truePeakDb: -6, fileCount: 1 })
     expect(await normalizationFor({ ...tagged, releaseId, loudnessLufs: -12, truePeakDb: 0 }))
       .toEqual({ trackGainDb: -6, trackPeak: 1, albumGainDb: -4, albumPeak: 0.501187 })
-    expect(await normalizationFor({ ...none, releaseId }))
-      .toEqual({ trackGainDb: null, trackPeak: null, albumGainDb: -4, albumPeak: 0.501187 })
+  })
+
+  it('backfills exact decoded lengths and source trim for every fixture format', async () => {
+    const specs = [
+      { path: 'exact.flac', rate: 44100, priming: 0 },
+      { path: 'alac.m4a', alac: true, rate: 44100, priming: 0 },
+      { path: 'aac.m4a', rate: 44100, priming: 1024 },
+      { path: 'gapless.mp3', rate: 44100, priming: 1105 },
+      { path: 'no-header.mp3', withoutXingHeader: true, rate: 44100, priming: 0 },
+      { path: 'exact.opus', rate: 48000, priming: 312 },
+      { path: 'exact.ogg', rate: 44100, priming: 0 },
+      { path: 'exact.wav', rate: 44100, priming: 0 },
+    ]
+    const fixtureRoot = path.join(root, 'exact')
+    const files = await Promise.all(specs.map((spec) => makeTone(fixtureRoot, { ...spec, durationSec: 1.357 })))
+    const libraryRoot = await createLibraryRoot({ path: fixtureRoot })
+    const { tracks } = await createAlbum({ owned: true, rootId: libraryRoot.id, tracks: specs.map(({ path }) => ({ title: path })) })
+    const ids = tracks.map((track) => track.fileId!)
+    for (const [index, id] of ids.entries()) {
+      // Old rows have gain data, so only a missing decoded length makes them eligible.
+      await db.update(mediaFiles).set({ relPath: specs[index]!.path, loudnessLufs: -48, truePeakDb: -47 })
+        .where(eq(mediaFiles.id, id))
+    }
+
+    await enqueue('loudness.sweep', {})
+    await drainJobs()
+    const rows = await db.select().from(mediaFiles).where(inArray(mediaFiles.id, ids))
+    for (const [index, spec] of specs.entries()) {
+      const file = files[index]!
+      const [{ stdout: pcm }, { stdout: packetJson }] = await Promise.all([
+        run(process.env.FFMPEG_PATH ?? 'ffmpeg', ['-v', 'error', '-i', file, '-map', '0:a:0', '-f', 's16le', '-'], { encoding: 'buffer' }),
+        run(process.env.FFPROBE_PATH ?? 'ffprobe', ['-v', 'error', '-select_streams', 'a:0', '-show_packets',
+          '-show_entries', 'packet_side_data=discard_padding', '-of', 'json', file]),
+      ])
+      const packets = JSON.parse(packetJson).packets as { side_data_list?: { discard_padding?: number }[] }[]
+      const padding = packets.flatMap((packet) => packet.side_data_list ?? [])
+        .reduce((sum, sideData) => sum + (sideData.discard_padding ?? 0), 0)
+      expect(rows.find((row) => row.id === ids[index]), spec.path).toMatchObject({
+        decodedFrames: pcm.length / 4, // Two channels, two bytes per sample.
+        decodedRate: spec.rate,
+        primingFrames: spec.priming,
+        paddingFrames: padding,
+      })
+    }
   })
 })

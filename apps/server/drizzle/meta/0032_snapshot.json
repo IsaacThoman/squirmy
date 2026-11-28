@@ -1,5 +1,5 @@
 {
-  "id": "64adc905-827b-4be1-9dc6-025b4c81ba04",
+  "id": "eeb3233a-dbe9-4ad6-97e7-521364f05db7",
   "prevId": "2c2427d1-a5cf-4324-bfc5-0d28538e667e",
   "version": "7",
   "dialect": "postgresql",
@@ -997,18 +997,6 @@
       "name": "app_passwords",
       "schema": "",
       "columns": {
-        "scopes": {
-          "name": "scopes",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
         "id": {
           "name": "id",
           "type": "uuid",
@@ -3352,13 +3340,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "imported_heart": {
-          "name": "imported_heart",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -3770,6 +3751,30 @@
         "true_peak_db": {
           "name": "true_peak_db",
           "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decoded_frames": {
+          "name": "decoded_frames",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decoded_rate": {
+          "name": "decoded_rate",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "priming_frames": {
+          "name": "priming_frames",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "padding_frames": {
+          "name": "padding_frames",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false
         },
@@ -6195,91 +6200,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.scrobble_hearts": {
-      "name": "scrobble_hearts",
-      "schema": "",
-      "columns": {
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "connection": {
-          "name": "connection",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "recording_id": {
-          "name": "recording_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "remote_at": {
-          "name": "remote_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "exported_heart_at": {
-          "name": "exported_heart_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "exported_at": {
-          "name": "exported_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "scrobble_hearts_user_id_users_id_fk": {
-          "name": "scrobble_hearts_user_id_users_id_fk",
-          "tableFrom": "scrobble_hearts",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "scrobble_hearts_recording_id_recordings_id_fk": {
-          "name": "scrobble_hearts_recording_id_recordings_id_fk",
-          "tableFrom": "scrobble_hearts",
-          "tableTo": "recordings",
-          "columnsFrom": [
-            "recording_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "scrobble_hearts_user_id_connection_recording_id_pk": {
-          "name": "scrobble_hearts_user_id_connection_recording_id_pk",
-          "columns": [
-            "user_id",
-            "connection",
-            "recording_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.server_settings": {
       "name": "server_settings",
       "schema": "",
@@ -6805,206 +6725,6 @@
           ]
         }
       },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.webhook_deliveries": {
-      "name": "webhook_deliveries",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "webhook_id": {
-          "name": "webhook_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "event_id": {
-          "name": "event_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "event": {
-          "name": "event",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "attempts": {
-          "name": "attempts",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'queued'"
-        },
-        "http_status": {
-          "name": "http_status",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "error": {
-          "name": "error",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "webhook_deliveries_event": {
-          "name": "webhook_deliveries_event",
-          "columns": [
-            {
-              "expression": "webhook_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "event_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "webhook_deliveries_recent": {
-          "name": "webhook_deliveries_recent",
-          "columns": [
-            {
-              "expression": "updated_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "webhook_deliveries_webhook_id_webhooks_id_fk": {
-          "name": "webhook_deliveries_webhook_id_webhooks_id_fk",
-          "tableFrom": "webhook_deliveries",
-          "tableTo": "webhooks",
-          "columnsFrom": [
-            "webhook_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.webhooks": {
-      "name": "webhooks",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "url": {
-          "name": "url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "events": {
-          "name": "events",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "secret_encrypted": {
-          "name": "secret_encrypted",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "webhooks_user": {
-          "name": "webhooks_user",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "webhooks_user_id_users_id_fk": {
-          "name": "webhooks_user_id_users_id_fk",
-          "tableFrom": "webhooks",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},

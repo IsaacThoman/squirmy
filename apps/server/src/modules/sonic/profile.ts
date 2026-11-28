@@ -95,15 +95,21 @@ function pointOf(recordingId: string, files: FileRow[], deezerBpm: number | null
   }
 }
 
+/**
+ * Deezer's tempos. A function of its own, like `fileRows`: building the query reaches `db`,
+ * which throws once the database is closed, and a throw while `Promise.all`'s array is still
+ * being built would leave the other query's rejection unhandled.
+ */
+async function deezerTempos(recordingIds: readonly string[]) {
+  return db.execute<{ id: string; bpm: number }>(sql`
+    select recording_id as id, deezer_bpm as bpm from sonic_hints
+    where recording_id = any(${uuidArray(recordingIds)}) and deezer_bpm is not null`)
+}
+
 /** Sonic facts of each recording that has a present file or a Deezer tempo; the rest are left out. */
 export async function sonicPoints(recordingIds: readonly string[]): Promise<Map<string, SonicPoint>> {
   if (recordingIds.length === 0) return new Map()
-  const [files, hints] = await Promise.all([
-    fileRows(recordingIds),
-    db.execute<{ id: string; bpm: number }>(sql`
-      select recording_id as id, deezer_bpm as bpm from sonic_hints
-      where recording_id = any(${uuidArray(recordingIds)}) and deezer_bpm is not null`),
-  ])
+  const [files, hints] = await Promise.all([fileRows(recordingIds), deezerTempos(recordingIds)])
   const byRecording = new Map<string, FileRow[]>()
   for (const file of files) byRecording.set(file.recordingId, [...(byRecording.get(file.recordingId) ?? []), file])
   const deezer = new Map(hints.map((hint) => [hint.id, hint.bpm]))
