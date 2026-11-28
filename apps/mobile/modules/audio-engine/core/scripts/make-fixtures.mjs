@@ -8,11 +8,11 @@
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { profiles } from '../../../../../server/src/modules/streaming/profiles.ts'
-import { makeSplitTone } from '../../../../../server/src/test/audio.ts'
+import { makeSplitTonePairs } from '../../../../../server/src/test/audio.ts'
 
 const directory = path.join(path.dirname(fileURLToPath(import.meta.url)), '../Tests/SquirmyAudioCoreTests/Fixtures')
 
-const { reference, pairs } = await makeSplitTone(directory, {
+const { reference, pairs } = await makeSplitTonePairs(directory, {
   durationSec: 3,
   splitFrame: 58_211,
   levelDb: -40,
