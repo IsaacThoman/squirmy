@@ -1,3 +1,4 @@
+export { IntegrationsAdmin as AdminIntegrationsPage } from '@/components/admin/IntegrationsAdmin'
 import {
   AcquisitionJobStatus, MatchReviewStatus, queryKeys,
   type AcquisitionPolicy, type AcquisitionProvider, type CatalogIndexStatus, type LibraryRoot, type MatchReview, type OrganizeBatchSummary, type ResolveReviewRequest,

@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "explicit_restricted" boolean DEFAULT false NOT NULL;

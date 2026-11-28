@@ -498,6 +498,9 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const tracks = useMemo(() => items?.map(item => item.track) ?? [], [items]);
   // The kept copy has no item ids, and edits need the server.
   const mine = Boolean(data) && state.status === 'signedIn' && data!.ownerId === state.user.id && Boolean(playlist.data) && !offline;
+  // A smart playlist's songs come from its rules (edited on the web): none are moved or removed here.
+  const smart = Boolean(data?.smart);
+  const editsItems = mine && !smart;
   const play = (shuffle?: boolean, start?: number) => {
     if (!data) return;
     tapFeedback();
@@ -507,8 +510,8 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const songListProps: SongListProps = {
     tracks,
     onPlay: start => play(undefined, start),
-    onTrackMenu: (track, index) => onTrackMenu(track, mine ? { id, itemId: itemIds[index]! } : undefined),
-    playlist: mine ? {
+    onTrackMenu: (track, index) => onTrackMenu(track, editsItems ? { id, itemId: itemIds[index]! } : undefined),
+    playlist: editsItems ? {
       id, itemIds, editing,
       onMove: (itemId, toIndex) => edits.move(id, itemId, toIndex),
       onRemove: itemId => edits.removeItem(id, itemId),
@@ -541,12 +544,12 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   ];
 
   return <DetailPage item={playlistCollection(data, link)} tint={data.artworks[0]?.color ?? null} title={data.name}
-    artist={state.status === 'signedIn' && data.ownerId === state.user.id ? undefined : data.ownerName} info="Playlist"
+    artist={state.status === 'signedIn' && data.ownerId === state.user.id ? undefined : data.ownerName} info={smart ? 'Smart Playlist' : 'Playlist'}
     description={data.description}
     status={<>{failure && <FailureLine message={failure} />}{control.status}</>}
     nav={[
       control.nav,
-      mine && Platform.OS === 'ios' && tracks.length > 1 && { icon: editing ? 'checkmark' : 'arrow.up.arrow.down',
+      editsItems && Platform.OS === 'ios' && tracks.length > 1 && { icon: editing ? 'checkmark' : 'arrow.up.arrow.down',
         label: editing ? 'Finish reordering' : 'Reorder songs', selected: editing, onPress: () => { tapFeedback(); setEditing(!editing); } },
       // While the playlist is deleted the button waits for the server, with nothing to choose.
       deleting ? { icon: 'ellipsis', label: `Deleting ${data.name}`, busy: true, onPress: () => undefined }
@@ -557,7 +560,8 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
     onBack={onBack} bottomInset={bottomInset} list={tracks.length && !editing ? songs : undefined}>
     {tracks.length ? <TrackSection title="Songs" detail={songCount(tracks, data.durationMs)}>
       {editing && <SongList {...songListProps} />}
-    </TrackSection> : <EmptyState icon="music.note.list" title="No songs yet"
+    </TrackSection> : smart ? <EmptyState icon="music.note.list" title="No songs match yet"
+      description="Songs show up here as soon as music that fits its rules arrives." /> : <EmptyState icon="music.note.list" title="No songs yet"
       description="Add songs from any song’s menu with Add to playlist." />}
   </DetailPage>;
 }

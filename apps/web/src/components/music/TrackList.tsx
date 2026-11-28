@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router'
 import { useScrollContainer } from '@/components/layout/scroll-context'
 import { ExplicitBadge, Spinner } from '@/components/ui/feedback'
 import { DropdownMenu, type MenuEntry } from '@/components/ui/menu'
-import { isPlayable, UNAVAILABLE_LABEL } from '@/lib/catalog'
+import { isPlayable, UNAVAILABLE_LABEL, unavailableLabel } from '@/lib/catalog'
 import { draggedTracks, endTrackDrag, startTrackDrag } from '@/lib/drag'
 import { TRACK_ROW_HEIGHT, useDensity } from '@/lib/density'
 import { formatDuration, formatRelative } from '@/lib/format'
@@ -26,7 +26,7 @@ import { useEndReached } from './use-end-reached'
  * `like` is the heart, which saves the track to the library or takes it out. `add-to:<playlist id>`
  * adds the track to a playlist; `add-to:new` starts one with it.
  */
-export type TrackAction = 'play-next' | 'enqueue' | 'like' | 'want' | 'radio' | 'sonic-radio' | 'remove' | 'move-up' | 'move-down' | `add-to:${string}`
+export type TrackAction = 'play-next' | 'enqueue' | 'like' | 'want' | 'radio' | 'sonic-radio' | 'remove' | 'move-up' | 'move-down' | `add-to:${string}` | `rate:${number}`
 
 export type PlaylistChoice = { id: string; name: string }
 
@@ -46,6 +46,8 @@ type SharedProps = {
   onAction?: (action: TrackAction, track: TrackSummary, index: number) => void | Promise<unknown>
   /** Playlists the track menu offers to add to. */
   playlists?: PlaylistChoice[]
+  /** The menu offers star ratings (the user turned them on). */
+  ratings?: boolean
   /** Makes the rows reorderable by dragging and from the menu (a playlist the user owns). */
   onMove?: (from: number, to: number) => void
   /** On an album page, the album's credit: a song credited the same says nothing under its title. */
@@ -151,7 +153,7 @@ type TrackRowProps = Omit<SharedProps, 'onPlay' | 'isWanted' | 'onMove'> & {
  * One song. A song that plays looks the same wherever its file is (on the server, or fetched
  * as it plays); one that does not is gray and says "Not available".
  */
-export function TrackRow({ track, index, number, movementName, addedAt, variant = 'album', wanted, onPlay, onAction, playlists, extraMenu, reorder, style, albumCredit, setSize, onFocusRow, onDragRow, onMenuRow }: TrackRowProps) {
+export function TrackRow({ track, index, number, movementName, addedAt, variant = 'album', wanted, onPlay, onAction, playlists, ratings, extraMenu, reorder, style, albumCredit, setSize, onFocusRow, onDragRow, onMenuRow }: TrackRowProps) {
   const navigate = useNavigate()
   const { rowProps, trigger, renderMenu, present } = useTrackRowMenu()
   useLayoutEffect(() => {
@@ -165,6 +167,8 @@ export function TrackRow({ track, index, number, movementName, addedAt, variant 
   const playback = useTrackPlayback(track.id)
   const { liked } = track
   const unavailable = playback === 'failed' || !isPlayable(track, viewer)
+  // A song that failed to play says so; one gray for being explicit says that.
+  const unavailableText = playback === 'failed' ? UNAVAILABLE_LABEL : unavailableLabel(track, viewer)
   const current = playback !== null && playback !== 'failed'
   const playing = playback === 'playing' || playback === 'loading'
   const loading = playback === 'loading'
@@ -183,7 +187,7 @@ export function TrackRow({ track, index, number, movementName, addedAt, variant 
   }
 
   // Album rows are on that album's page already.
-  const menu = () => trackMenuEntries(track, { unavailable, wanted, playlists, act, navigate, extraMenu, reorder: reorder && { index, count: reorder.count }, onAlbumPage: variant === 'album' })
+  const menu = () => trackMenuEntries(track, { unavailable, wanted, playlists, ratings, act, navigate, extraMenu, reorder: reorder && { index, count: reorder.count }, onAlbumPage: variant === 'album' })
 
   const onDragOver = (event: DragEvent) => {
     const drag = draggedTracks(event)
@@ -239,7 +243,7 @@ export function TrackRow({ track, index, number, movementName, addedAt, variant 
           trigger={<button type="button" aria-label={`Credits for ${track.title}`} className="shrink-0 rounded-sm px-1.5 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring pointer-coarse:min-h-11">Credits</button>}
         />
       )}
-      {unavailable && <span className="sr-only">({UNAVAILABLE_LABEL})</span>}
+      {unavailable && <span className="sr-only">({unavailableText})</span>}
     </div>
   )
   // Under the title. On an album page only where they are not the album's own (a featured artist):
@@ -264,7 +268,7 @@ export function TrackRow({ track, index, number, movementName, addedAt, variant 
       aria-current={current ? 'true' : undefined}
       // Only playing is unavailable, and the title says so to screen readers; the heart and the
       // menu still work, so the row is not marked disabled (that would disable them too).
-      title={unavailable ? UNAVAILABLE_LABEL : undefined}
+      title={unavailable ? unavailableText : undefined}
       onDoubleClick={event => { if (!unavailable && event.currentTarget.contains(event.target as Node)) play() }}
       onPointerDown={event => {
         pointer.current = event.pointerType

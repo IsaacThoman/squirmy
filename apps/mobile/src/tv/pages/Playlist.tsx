@@ -127,7 +127,9 @@ function UserPlaylistPage({ id }: { id: string }) {
   const context = useMemo((): PlaybackContext => ({ type: 'playlist', id, title: data?.name ?? '' }), [data?.name, id]);
   const play = useCallback((shuffle: boolean, start?: number) => actions.playTracks(tracks, { start, shuffle, context }), [actions, context, tracks]);
   const onPlay = useCallback((index: number) => play(false, index), [play]);
-  const rowMenu = useCallback((index: number) => (mine && keys?.[index] ? { playlist: { id, itemId: keys[index]! } } : undefined), [id, keys, mine]);
+  // A smart playlist's songs come from its rules: none are removed by hand.
+  const smart = Boolean(data?.smart);
+  const rowMenu = useCallback((index: number) => (mine && !smart && keys?.[index] ? { playlist: { id, itemId: keys[index]! } } : undefined), [id, keys, mine, smart]);
 
   if (!data) {
     if (isNotFound(playlist.error)) return <PageState message="This playlist was deleted." />;
@@ -158,7 +160,7 @@ function UserPlaylistPage({ id }: { id: string }) {
     tint={data.artworks[0]?.color}
     title={data.name}
     credit={state.status === 'signedIn' && data.ownerId === state.user.id ? undefined : data.ownerName}
-    facts={['Playlist', count].filter(Boolean).join(' · ')}
+    facts={[smart ? 'Smart Playlist' : 'Playlist', count].filter(Boolean).join(' · ')}
     buttons={<>
       {tracks.length > 0 && <SystemButton label="Play" icon="play.fill" prominent disabled={!playable} onPress={() => play(false)} />}
       {tracks.length > 0 && <SystemButton icon="shuffle" accessibilityLabel="Shuffle" disabled={!playable} onPress={() => play(true)} />}

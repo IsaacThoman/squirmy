@@ -16,6 +16,8 @@ const next = () => ++counter
 
 export async function createUser(input: Partial<{
   username: string; role: UserRole; canUpload: boolean; canAcquire: boolean; passwordHash: string
+  /** An admin turned explicit content off for the user. */
+  explicitRestricted: boolean
   /** Stored `UserSettings`, such as `{ libraryIncludesServerMusic: true }` for a library that holds the collection. */
   settings: Record<string, unknown>
 }> = {}) {
@@ -28,6 +30,7 @@ export async function createUser(input: Partial<{
     role: input.role ?? 'member',
     canUpload: input.canUpload ?? false,
     canAcquire: input.canAcquire ?? false,
+    explicitRestricted: input.explicitRestricted ?? false,
     ...input.settings ? { settings: input.settings } : {},
   }).returning()
   return row!
@@ -55,7 +58,8 @@ export type AlbumFactoryInput = {
   year?: number
   type?: string
   mbid?: string
-  tracks?: { title: string; durationMs?: number; mbid?: string; disc?: number }[]
+  /** `explicit` is the catalog's flag (Deezer's); a file's advisory tag is set on its `tags`. */
+  tracks?: { title: string; durationMs?: number; mbid?: string; disc?: number; explicit?: boolean }[]
   /**
    * When set, a media file is created for each track flagged here (all tracks when
    * `true`), which makes those tracks available.
@@ -114,6 +118,7 @@ export async function createAlbum(input: AlbumFactoryInput = {}) {
       durationMs,
       titleKey: matchKey(track.title),
       matchKey: creditKey(artist.name, track.title),
+      explicit: track.explicit,
     })
     await db.insert(recordingArtists).values({ recordingId, position: 0, artistId: artist.id, creditedName: artist.name })
     await db.insert(releaseTracks).values({ id: releaseTrackId, releaseId, disc, position, recordingId, title: track.title, durationMs })

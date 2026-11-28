@@ -28,7 +28,12 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
-import type { CreditRole, HistoryImport, HistoryImportSource } from '@squirmy/contracts'
+import type {
+  CreditRole,
+  HistoryImport,
+  HistoryImportSource,
+  SmartPlaylistRules,
+} from '@squirmy/contracts'
 
 const id = () => uuid('id').primaryKey()
 const at = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' })
@@ -107,6 +112,8 @@ export const users = pgTable('users', {
   role: text('role').$type<UserRole>().notNull().default('member'),
   canUpload: boolean('can_upload').notNull().default(false),
   canAcquire: boolean('can_acquire').notNull().default(false),
+  /** An admin turned explicit content off for the user, who cannot turn it back on (`User.explicitRestricted`). */
+  explicitRestricted: boolean('explicit_restricted').notNull().default(false),
   /** UserSettings from @squirmy/contracts, plus encrypted per-user secrets under `secrets`. */
   settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}),
   disabledAt: at('disabled_at'),
@@ -145,6 +152,8 @@ export const invites = pgTable('invites', {
 
 /** Credentials for Subsonic clients: one generated secret per client. */
 export const appPasswords = pgTable('app_passwords', {
+  scopes: text('scopes').array().$type<import('@squirmy/contracts').ApiTokenScope[]>(),
+  expiresAt: at('expires_at'),
   id: id(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
@@ -839,6 +848,7 @@ export const likes = pgTable('likes', {
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   entityType: text('entity_type').$type<LikeEntityType>().notNull(),
   entityId: uuid('entity_id').notNull(),
+  importedHeart: boolean('imported_heart').notNull().default(false),
   createdAt: createdAt(),
 }, (t) => [
   primaryKey({ columns: [t.userId, t.entityType, t.entityId] }),
@@ -863,6 +873,11 @@ export const playlists = pgTable('playlists', {
   name: text('name').notNull(),
   description: text('description'),
   isPublic: boolean('is_public').notNull().default(false),
+  /**
+   * A smart playlist's rules (`userdata/smart.ts` evaluates them on every read); null for a
+   * playlist of items. A smart playlist has no `playlist_items`.
+   */
+  rules: jsonb('rules').$type<SmartPlaylistRules>(),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 }, (t) => [index('playlists_owner').on(t.ownerId)])
@@ -1230,3 +1245,38 @@ export const catalogIndexImports = pgTable('catalog_index_imports', {
   startedAt: at('started_at').notNull().defaultNow(),
   finishedAt: at('finished_at'),
 }, (t) => [index('catalog_index_imports_state').on(t.state)])
+
+/** Last observed remote feedback and acknowledged local love, per account and track. */
+export const scrobbleHearts = pgTable('scrobble_hearts', {
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  connection: text('connection').notNull(),
+  recordingId: uuid('recording_id').notNull().references(() => recordings.id, { onDelete: 'cascade' }),
+  remoteAt: at('remote_at'),
+  exportedHeartAt: at('exported_heart_at'),
+  exportedAt: at('exported_at'),
+}, (t) => [primaryKey({ columns: [t.userId, t.connection, t.recordingId] })])
+
+export const webhooks = pgTable('webhooks', {
+  id: id(),
+  /** Null denotes an installation-wide subscription. */
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  url: text('url').notNull(),
+  events: text('events').array().$type<import('@squirmy/contracts').WebhookEventType[]>().notNull(),
+  secretEncrypted: text('secret_encrypted').notNull(),
+}, (t) => [index('webhooks_user').on(t.userId)])
+
+export const webhookDeliveries = pgTable('webhook_deliveries', {
+  id: id(),
+  webhookId: uuid('webhook_id').notNull().references(() => webhooks.id, { onDelete: 'cascade' }),
+  eventId: uuid('event_id').notNull(),
+  event: text('event').$type<import('@squirmy/contracts').WebhookEvent['type']>().notNull(),
+  attempts: integer('attempts').notNull().default(0),
+  status: text('status').$type<import('@squirmy/contracts').WebhookDelivery['status']>().notNull().default('queued'),
+  httpStatus: integer('http_status'),
+  error: text('error'),
+  updatedAt: updatedAt(),
+}, (t) => [
+  uniqueIndex('webhook_deliveries_event').on(t.webhookId, t.eventId),
+  index('webhook_deliveries_recent').on(t.updatedAt),
+])

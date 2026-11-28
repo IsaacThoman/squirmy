@@ -6,11 +6,12 @@ import { useNavigate } from 'react-router'
 import { applyChanges } from '@/realtime/apply-changes'
 import { failedStep } from '@/api/errors'
 import { patchEntity } from '@/api/patch'
-import { playlistQuery, usePlaylists, useWants } from '@/api/queries'
+import { playlistQuery, usePlaylists, useUserSettings, useWants } from '@/api/queries'
 import { useApi } from '@/api/services'
 import { useCurrentUser, useWantlistEnabled } from '@/auth/session'
 import { AlreadyInPlaylistDialog, type RepeatedAdd } from '@/components/layout/AlreadyInPlaylistDialog'
 import { PlaylistDialog } from '@/components/layout/PlaylistDialog'
+import { SmartPlaylistDialog } from '@/components/layout/SmartPlaylistDialog'
 import { plural } from '@/lib/format'
 import { LibraryContext, LibraryFailures, LibraryFailuresContext, type LibraryActions, type LibraryTarget, type WantTarget } from './library-context'
 
@@ -60,7 +61,9 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const wantlistEnabled = useWantlistEnabled()
   const wants = useWants(wantlistEnabled).data
   const allPlaylists = usePlaylists().data
+  const showRatings = useUserSettings().data?.showRatings ?? false
   const [draft, setDraft] = useState<{ tracks: TrackSummary[] } | null>(null)
+  const [smartDraft, setSmartDraft] = useState(false)
   const [repeatedAdd, setRepeatedAdd] = useState<RepeatedAdd | null>(null)
   const [failures] = useState(() => new LibraryFailures())
   const announced = useSyncExternalStore(failures.subscribe, failures.latest)
@@ -154,13 +157,28 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       if (!tracks.length) void navigate(`/playlist/${playlist.id}`)
     },
   })
+  // Stars show at once, as the heart does, and go back when the server refuses; the menu entry that set them says why.
+  const rate = useMutation({
+    mutationFn: ({ track, rating }: { track: TrackSummary; rating: number }) => api.userdata.rate('track', track.id, rating),
+    onMutate: ({ track, rating }) => applyChanges(queryClient, [{ kind: 'patch', entity: 'track', id: track.id, fields: { rating: rating || null } }]),
+    onError: (_error, { track }) => applyChanges(queryClient, [{ kind: 'patch', entity: 'track', id: track.id, fields: { rating: track.rating ?? null } }]),
+  })
+  const { mutateAsync: setRating } = rate
+  const createSmart = useMutation({
+    mutationFn: (request: CreatePlaylistRequest) => api.userdata.createPlaylist(request),
+    onSuccess: async (playlist) => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.playlists() })
+      void navigate(`/playlist/${playlist.id}`)
+    },
+  })
   const openDraft = useCallback((tracks: TrackSummary[]) => {
     made.current = null
     setDraft({ tracks })
   }, [])
 
   const wantedIds = useMemo(() => new Set(wants?.items.map(item => (item.type === 'album' ? item.album.id : item.track.id))), [wants])
-  const playlists = useMemo(() => allPlaylists?.items.filter(playlist => playlist.ownerId === user.id) ?? [], [allPlaylists, user.id])
+  const ownPlaylists = useMemo(() => allPlaylists?.items.filter(playlist => playlist.ownerId === user.id) ?? [], [allPlaylists, user.id])
+  const playlists = useMemo(() => ownPlaylists.filter(playlist => !playlist.smart), [ownPlaylists])
   const { mutateAsync: setSaved } = save
   const { mutateAsync: setWanted } = want
   const { mutateAsync: addTo } = add
@@ -190,9 +208,13 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     setSaved: (target, saved) => handled(setSaved({ target, saved }).then(() => {})),
     setWanted: (target, wanted) => handled(setWanted({ target, wanted }).then(() => {})),
     playlists,
+    ownPlaylists,
     addToPlaylist: (playlist, tracks) => handled(addToPlaylist(playlist, tracks)),
     newPlaylist: (tracks = []) => openDraft(tracks),
-  }), [wantlistEnabled, wantedIds, playlists, setSaved, setWanted, addToPlaylist, openDraft])
+    newSmartPlaylist: () => setSmartDraft(true),
+    showRatings,
+    setRating: (track, rating) => handled(setRating({ track, rating }).then(() => {})),
+  }), [wantlistEnabled, wantedIds, playlists, ownPlaylists, setSaved, setWanted, addToPlaylist, openDraft, showRatings, setRating])
 
   return (
     <LibraryContext value={actions}>
@@ -217,6 +239,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
         description={draft?.tracks.length ? `It starts with ${songs(draft.tracks)}.` : undefined}
         onSubmit={request => create.mutateAsync({ request, tracks: draft?.tracks ?? [] })}
       />
+      <SmartPlaylistDialog open={smartDraft} onOpenChange={setSmartDraft} showRatings={showRatings} onSubmit={request => createSmart.mutateAsync(request)} />
     </LibraryContext>
   )
 }

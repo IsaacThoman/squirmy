@@ -38,6 +38,8 @@ export function useTrackActions(tracks: TrackSummary[], context?: PlaybackContex
       options.onRemove?.(index)
     } else if (action === 'move-up' || action === 'move-down') {
       options.onMove?.(index, action === 'move-up' ? index - 1 : index + 1)
+    } else if (action.startsWith('rate:')) {
+      return library.setRating(track, Number(action.slice('rate:'.length)))
     } else {
       const playlistId = action.slice('add-to:'.length)
       const playlist = library.playlists.find(candidate => candidate.id === playlistId)
@@ -49,6 +51,7 @@ export function useTrackActions(tracks: TrackSummary[], context?: PlaybackContex
   return {
     isWanted: library.wantlistEnabled ? (track: TrackSummary) => library.isWanted(track.id) : undefined,
     playlists: library.playlists,
+    ratings: library.showRatings,
     onPlay: options.onPlay ?? ((index: number) => controls.playTracks(tracks, index, context)),
     onMove: options.onMove,
     onAction,

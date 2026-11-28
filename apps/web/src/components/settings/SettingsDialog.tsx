@@ -1,8 +1,8 @@
 import {
-  ChangePasswordRequest, ConnectListenBrainzRequest, CreateAppPasswordRequest, UpdateUserRequest,
+  ApiTokenScope, ChangePasswordRequest, ConnectListenBrainzRequest, CreateAppPasswordRequest, UpdateUserRequest,
   type AppPassword, type NormalizationMode, type NormalizationTarget, type ScrobbleService, type ScrobbleTarget, type ScrobblingStatus, type StreamQuality, type UpdateUserSettings, type User, type UserSettings,
 } from '@squirmy/contracts'
-import { AlertTriangle, AudioLines, Check, CircleCheck, FolderUp, Info, KeyRound, Library, LogOut, Palette, Pencil, Plus, Radio, ShieldCheck, User as UserIcon, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, AudioLines, Check, CircleCheck, FolderUp, Info, KeyRound, Library, LogOut, Palette, Pencil, Plus, Radio, Webhook, ShieldCheck, User as UserIcon, type LucideIcon } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { useFormSubmit } from '@/api/errors'
 import { Button } from '@/components/ui/button'
@@ -16,6 +16,7 @@ import { Switch } from '@/components/ui/switch'
 import { formatDate, formatRelative } from '@/lib/format'
 import { modKey } from '@/lib/platform'
 import { cn } from '@/lib/utils'
+import { WebhookSettings } from '../integrations/WebhookSettings'
 import { AppearanceSettings } from './AppearanceSettings'
 import type { SettingsSection } from './settings-dialog'
 
@@ -26,6 +27,7 @@ const sections: { id: SettingsSection; label: string; icon: LucideIcon }[] = [
   { id: 'account', label: 'Account', icon: UserIcon },
   { id: 'scrobbling', label: 'Scrobbling', icon: Radio },
   { id: 'app-passwords', label: 'App passwords', icon: KeyRound },
+  { id: 'webhooks', label: 'Webhooks', icon: Webhook },
   { id: 'about', label: 'About', icon: Info },
 ]
 
@@ -76,7 +78,7 @@ export type SettingsDialogProps = {
   onDeviceNameChange: (name: string | null) => void
   /** Undefined while loading. */
   scrobbling: ScrobblingStatus | undefined
-  onConnectListenBrainz: (token: string) => Promise<unknown>
+  onConnectListenBrainz: (token: string, apiUrl?: string) => Promise<unknown>
   /** Sends the browser to Last.fm, which returns to the settings. */
   onConnectLastFm: () => void
   onDisconnect: (target: ScrobbleTarget) => Promise<unknown>
@@ -217,18 +219,41 @@ export function SettingsDialog({
             {section === 'library' && (
               <Panel title="Library" description="Your library is what you heart, with the music you upload. Everything on this server is on Home, and plays for everyone.">
                 {settings ? (
-                  <Row
-                    htmlFor="library-server-music"
-                    label="Show all of this server’s music in your library"
-                    description="Adds every album on this server to your library, as well as what you heart. Turn it off to keep your library to your own picks."
-                  >
-                    <Switch
-                      id="library-server-music"
-                      checked={settings.libraryIncludesServerMusic}
-                      onCheckedChange={libraryIncludesServerMusic => onSettingsChange({ libraryIncludesServerMusic })}
-                    />
-                  </Row>
-                ) : failures?.settings ?? <LoadingRows rows={1} />}
+                  <>
+                    <Row
+                      htmlFor="library-server-music"
+                      label="Show all of this server’s music in your library"
+                      description="Adds every album on this server to your library, as well as what you heart. Turn it off to keep your library to your own picks."
+                    >
+                      <Switch
+                        id="library-server-music"
+                        checked={settings.libraryIncludesServerMusic}
+                        onCheckedChange={libraryIncludesServerMusic => onSettingsChange({ libraryIncludesServerMusic })}
+                      />
+                    </Row>
+                    <Row
+                      htmlFor="library-ratings"
+                      label="Show star ratings"
+                      description="Rate songs from one to five stars in their menus, and use ratings in smart playlists. The heart still decides what is in your library."
+                    >
+                      <Switch id="library-ratings" checked={settings.showRatings} onCheckedChange={showRatings => onSettingsChange({ showRatings })} />
+                    </Row>
+                    <Row
+                      htmlFor="allow-explicit"
+                      label="Allow explicit content"
+                      description={user.explicitRestricted
+                        ? 'An admin turned explicit content off for your account. Ask them to turn it back on.'
+                        : 'Turn it off to gray out songs marked explicit and keep them out of search, radio and your queue. A clean version plays instead when there is one.'}
+                    >
+                      <Switch
+                        id="allow-explicit"
+                        checked={settings.allowExplicit && !user.explicitRestricted}
+                        disabled={user.explicitRestricted}
+                        onCheckedChange={allowExplicit => onSettingsChange({ allowExplicit })}
+                      />
+                    </Row>
+                  </>
+                ) : failures?.settings ?? <LoadingRows rows={2} />}
                 <FormError message={errors?.library} />
                 {onOpenUploads && (
                   <>
@@ -296,6 +321,8 @@ export function SettingsDialog({
                       onToggle={enabled => onSettingsChange(service.target === 'listenbrainz' ? { scrobbleListenBrainz: enabled } : { scrobbleLastFm: enabled })}
                       onConnect={service.target === 'listenbrainz' ? () => setDialog('listenbrainz') : onConnectLastFm}
                       onDisconnect={() => setDisconnecting(service)}
+                      syncHearts={service.target === 'listenbrainz' ? settings?.syncListenBrainzHearts : settings?.syncLastFmHearts}
+                      onSyncHearts={enabled => onSettingsChange(service.target === 'listenbrainz' ? { syncListenBrainzHearts: enabled } : { syncLastFmHearts: enabled })}
                     />
                   ))
                   : failures?.scrobbling ?? <LoadingRows rows={2} />}
@@ -306,7 +333,7 @@ export function SettingsDialog({
             {section === 'app-passwords' && (
               <Panel
                 title="App passwords"
-                description="For Subsonic apps, which need a password of their own. Revoke one to sign that app out."
+                description="Create credentials for Subsonic clients and scoped tokens for the Squirmy API."
                 action={<Button size="sm" variant="outline" onClick={() => setDialog('app-password')}><Plus />Create</Button>}
               >
                 {!appPasswords && (failures?.appPasswords ?? <LoadingRows rows={1} />)}
@@ -315,13 +342,15 @@ export function SettingsDialog({
                   <Row
                     key={password.id}
                     label={<span className="flex items-center gap-2"><KeyRound className="size-4 text-muted-foreground" />{password.name}</span>}
-                    description={`Created ${formatDate(password.createdAt)} · ${password.lastUsedAt ? `last used ${formatRelative(password.lastUsedAt)}` : 'never used'}`}
+                    description={`${password.scopes ? password.scopes.map(scope => scopeLabels[scope]).join(', ') : 'Subsonic'}${password.expiresAt ? ` · Expires ${formatDate(password.expiresAt)}` : ''} · Created ${formatDate(password.createdAt)} · ${password.lastUsedAt ? `last used ${formatRelative(password.lastUsedAt)}` : 'never used'}`}
                   >
                     <Button size="sm" variant="outline" onClick={() => setRevoking(password)}>Revoke</Button>
                   </Row>
                 ))}
               </Panel>
             )}
+
+            {section === 'webhooks' && <WebhookSettings />}
 
             {section === 'about' && (
               <Panel title="About">
@@ -347,10 +376,10 @@ export function SettingsDialog({
           </div>
         </div>
 
-        <CreateAppPasswordDialog open={dialog === 'app-password'} onOpenChange={close} onCreate={onCreateAppPassword} />
+        <CreateAppPasswordDialog open={dialog === 'app-password'} onOpenChange={close} onCreate={onCreateAppPassword} admin={user.role === 'admin'} />
         <ChangePasswordDialog open={dialog === 'password'} onOpenChange={close} onChange={onChangePassword} />
         {onRename && <RenameDialog key={user.displayName ?? ''} open={dialog === 'rename'} onOpenChange={close} current={user.displayName} onRename={onRename} />}
-        <ListenBrainzDialog open={dialog === 'listenbrainz'} onOpenChange={close} onConnect={onConnectListenBrainz} />
+        <ListenBrainzDialog open={dialog === 'listenbrainz'} onOpenChange={close} onConnect={onConnectListenBrainz} currentUrl={scrobbling?.services.find(service => service.target === 'listenbrainz')?.apiUrl} />
         <ConfirmDialog
           open={!!disconnecting}
           onOpenChange={next => { if (!next) setDisconnecting(null) }}
@@ -389,15 +418,22 @@ function Panel({ title, description, action, children }: { title: string; descri
   )
 }
 
-function CreateAppPasswordDialog({ open, onOpenChange, onCreate }: { open: boolean; onOpenChange: (open: boolean) => void; onCreate: (request: CreateAppPasswordRequest) => Promise<AppPassword> }) {
+const scopeLabels: Record<ApiTokenScope, string> = {
+  'library:read': 'Read library', 'playback:control': 'Control playback', 'playlists:manage': 'Manage playlists', admin: 'Admin',
+}
+
+function CreateAppPasswordDialog({ open, onOpenChange, onCreate, admin }: { admin: boolean; open: boolean; onOpenChange: (open: boolean) => void; onCreate: (request: CreateAppPasswordRequest) => Promise<AppPassword> }) {
   const [name, setName] = useState('')
   const [currentPassword, setCurrentPassword] = useState('')
   const [created, setCreated] = useState<AppPassword | null>(null)
+  const [scoped, setScoped] = useState(false)
+  const [scopes, setScopes] = useState<ApiTokenScope[]>([])
+  const [expiry, setExpiry] = useState('')
   const form = useFormSubmit(CreateAppPasswordRequest, async (request) => setCreated(await onCreate(request)), { invalid_credentials: 'currentPassword' })
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    void form.submit({ name, currentPassword })
+    void form.submit({ name, currentPassword, ...(scoped && { scopes, ...(expiry && { expiresAt: new Date(expiry).toISOString() }) }) })
   }
   const close = (next: boolean) => {
     onOpenChange(next)
@@ -405,16 +441,19 @@ function CreateAppPasswordDialog({ open, onOpenChange, onCreate }: { open: boole
       setName('')
       setCurrentPassword('')
       setCreated(null)
+      setScoped(false)
+      setScopes([])
+      setExpiry('')
       form.reset()
     }
   }
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent title={created ? 'Copy your app password' : 'New app password'} description={created ? 'This is the only time it is shown. Paste it into your Subsonic app with your username.' : 'Name it after the app that will use it.'}>
+      <DialogContent title={created ? (scoped ? 'Copy your API token' : 'Copy your app password') : (scoped ? 'New API token' : 'New app password')} description={created ? (scoped ? 'Send this token as a Bearer credential. It is shown once.' : 'This is the only time it is shown. Paste it into your Subsonic app with your username.') : 'Name it after the app that will use it.'}>
         {created ? (
           <div className="flex flex-col gap-4">
-            <CopyField value={created.secret ?? ''} label="App password" />
+            <CopyField value={created.secret ?? ''} label={scoped ? "API token" : "App password"} />
             <DialogFooter><DialogClose asChild><Button>Done</Button></DialogClose></DialogFooter>
           </div>
         ) : (
@@ -422,13 +461,31 @@ function CreateAppPasswordDialog({ open, onOpenChange, onCreate }: { open: boole
             <Field label="Name" htmlFor="app-password-name" error={form.errors.name}>
               <Input id="app-password-name" value={name} onChange={event => setName(event.target.value)} placeholder="Car stereo" aria-invalid={!!form.errors.name} autoFocus />
             </Field>
+            <label className="flex items-center justify-between gap-4 text-sm">
+              Scoped API token
+              <Switch checked={scoped} onCheckedChange={setScoped} />
+            </label>
+            {scoped && (
+              <fieldset className="space-y-2 text-sm">
+                <legend className="mb-2 font-medium">Permissions</legend>
+                {ApiTokenScope.options.filter(scope => scope !== 'admin' || admin).map(scope => (
+                  <label key={scope} className="flex items-center gap-2">
+                    <input type="checkbox" checked={scopes.includes(scope)} onChange={event => setScopes(current => event.target.checked ? [...current, scope] : current.filter(value => value !== scope))} />
+                    {scopeLabels[scope]}
+                  </label>
+                ))}
+                <Field label="Expires (optional)" htmlFor="api-token-expiry" error={form.errors.expiresAt}>
+                  <Input id="api-token-expiry" type="date" value={expiry} onChange={event => setExpiry(event.target.value)} />
+                </Field>
+              </fieldset>
+            )}
             <Field label="Your password" htmlFor="app-password-current" error={form.errors.currentPassword}>
               <Input id="app-password-current" type="password" value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} autoComplete="current-password" aria-invalid={!!form.errors.currentPassword} />
             </Field>
             <FormError message={form.errors.form} />
             <DialogFooter>
               <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-              <Button type="submit" variant="primary" pending={form.pending} disabled={!name.trim() || !currentPassword}>Create</Button>
+              <Button type="submit" variant="primary" pending={form.pending} disabled={!name.trim() || !currentPassword || (scoped && !scopes.length)}>Create</Button>
             </DialogFooter>
           </form>
         )}
@@ -543,15 +600,17 @@ function scrobbleStatus(service: ScrobbleService): string {
   return parts.join(' · ')
 }
 
-function ScrobbleRow({ service, onToggle, onConnect, onDisconnect }: { service: ScrobbleService; onToggle: (enabled: boolean) => void; onConnect: () => void; onDisconnect: () => void }) {
+function ScrobbleRow({ service, onToggle, onConnect, onDisconnect, syncHearts, onSyncHearts }: { syncHearts?: boolean; onSyncHearts: (enabled: boolean) => void; service: ScrobbleService; onToggle: (enabled: boolean) => void; onConnect: () => void; onDisconnect: () => void }) {
   const name = serviceNames[service.target]
   const problem = service.needsAttention ? `${name} no longer accepts this connection. Connect again to keep scrobbling.` : service.lastError
   return (
+    <>
     <Row
       label={name}
       description={(
         <>
           {scrobbleStatus(service)}
+          {service.apiUrl && <span className="block break-all">{service.apiUrl}</span>}
           {service.connected && problem && (
             <span className="mt-1 flex items-start gap-1.5 text-destructive"><AlertTriangle className="mt-0.5 size-3.5 shrink-0" />{problem}</span>
           )}
@@ -560,7 +619,7 @@ function ScrobbleRow({ service, onToggle, onConnect, onDisconnect }: { service: 
     >
       {service.connected ? (
         <>
-          {service.needsAttention && <Button size="sm" variant="primary" onClick={onConnect}>Reconnect</Button>}
+          {(service.needsAttention || service.target === 'listenbrainz') && <Button size="sm" variant="outline" onClick={onConnect}>{service.needsAttention ? 'Reconnect' : 'Change connection'}</Button>}
           <Button size="sm" variant="outline" onClick={onDisconnect}>Disconnect</Button>
           <Switch aria-label={`Scrobble to ${name}`} checked={service.enabled} onCheckedChange={onToggle} />
         </>
@@ -568,22 +627,31 @@ function ScrobbleRow({ service, onToggle, onConnect, onDisconnect }: { service: 
         <Button size="sm" variant="outline" disabled={!service.available} onClick={onConnect}>Connect</Button>
       )}
     </Row>
+    {service.connected && (
+      <Row label={`Sync hearts with ${name}`} description="Import feedback and send hearts from Squirmy.">
+        <Switch aria-label={`Sync hearts with ${name}`} checked={syncHearts ?? false} onCheckedChange={onSyncHearts} />
+      </Row>
+    )}
+    </>
   )
 }
 
-function ListenBrainzDialog({ open, onOpenChange, onConnect }: { open: boolean; onOpenChange: (open: boolean) => void; onConnect: (token: string) => Promise<unknown> }) {
+function ListenBrainzDialog({ open, onOpenChange, onConnect, currentUrl }: { open: boolean; onOpenChange: (open: boolean) => void; onConnect: (token: string, apiUrl?: string) => Promise<unknown>; currentUrl?: string }) {
   const [token, setToken] = useState('')
-  const form = useFormSubmit(ConnectListenBrainzRequest, ({ token }) => onConnect(token), { invalid_token: 'token' })
+  const [url, setUrl] = useState<string | undefined>()
+  const apiUrl = url ?? currentUrl ?? ''
+  const form = useFormSubmit(ConnectListenBrainzRequest, ({ token, apiUrl }) => apiUrl ? onConnect(token, apiUrl) : onConnect(token), { invalid_token: 'token', invalid_api_url: 'apiUrl' })
   const close = (next: boolean) => {
     onOpenChange(next)
     if (!next) {
       setToken('')
+      setUrl(undefined)
       form.reset()
     }
   }
   const submit = async (event: FormEvent) => {
     event.preventDefault()
-    if (await form.submit({ token })) close(false)
+    if (await form.submit({ token, apiUrl: apiUrl.trim() || undefined })) close(false)
   }
   return (
     <Dialog open={open} onOpenChange={close}>
@@ -594,6 +662,9 @@ function ListenBrainzDialog({ open, onOpenChange, onConnect }: { open: boolean; 
         <form onSubmit={event => void submit(event)} className="flex flex-col gap-4" noValidate>
           <Field label="User token" htmlFor="listenbrainz-token" error={form.errors.token}>
             <Input id="listenbrainz-token" value={token} onChange={event => setToken(event.target.value)} autoComplete="off" spellCheck={false} aria-invalid={!!form.errors.token} autoFocus />
+          </Field>
+          <Field label="API URL (optional)" htmlFor="listenbrainz-api-url" error={form.errors.apiUrl}>
+            <Input id="listenbrainz-api-url" type="url" value={apiUrl} onChange={event => setUrl(event.target.value)} placeholder="https://api.listenbrainz.org/1/" />
           </Field>
           <FormError message={form.errors.form} />
           <DialogFooter>

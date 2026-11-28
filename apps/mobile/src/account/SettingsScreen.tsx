@@ -8,8 +8,9 @@ import { SheetFrame, SheetRow, SheetRows } from '../SheetUI';
 import { StorageSection } from '../streamingCache/StorageSection';
 import { createThemedStyles, useColors } from '../theme';
 import {
-  lastFmAdminNote, normalizationNote, normalizationOptions, normalizationTarget, openListenBrainzSettings, qualityNote, qualityOptions,
-  scrobbleDetail, scrobbleFooter, serverMusicLabel, serverMusicNote, shareNowPlayingLabel, shareNowPlayingNote, targetOptions, useSettingsScreen,
+  explicitLabel, explicitNote, explicitRestrictedNote, lastFmAdminNote, normalizationNote, normalizationOptions, normalizationTarget,
+  openListenBrainzSettings, qualityNote, qualityOptions, scrobbleDetail, scrobbleFooter, serverMusicLabel, serverMusicNote, shareNowPlayingLabel,
+  shareNowPlayingNote, targetOptions, useSettingsScreen,
 } from './settings';
 
 export function SettingsScreen() {
@@ -52,6 +53,12 @@ export function SettingsScreen() {
             onPress={() => screen.setLibraryIncludesServerMusic(!settings.libraryIncludesServerMusic)} />
         </SheetRows>
         <Text style={styles.note}>{serverMusicNote}</Text>
+        <SheetRows>
+          {/* Shown off and inert while an admin keeps explicit content off for the account. */}
+          <SheetRow title={explicitLabel} icon="e.square.fill" selected={screen.allowExplicit}
+            onPress={() => { if (!screen.explicitRestricted) screen.setAllowExplicit(!screen.allowExplicit); }} />
+        </SheetRows>
+        <Text style={styles.note}>{screen.explicitRestricted ? explicitRestrictedNote : explicitNote}</Text>
         {screen.errors.library && <Text style={[styles.note, styles.error]}>{screen.errors.library}</Text>}
       </> : screen.settingsFailure ? <SheetRows>
         <SheetRow title="Couldn’t load your settings" subtitle={screen.settingsFailure.description} icon="exclamationmark.circle"
