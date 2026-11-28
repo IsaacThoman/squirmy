@@ -178,6 +178,17 @@ export type SmartPlaylistRules = z.infer<typeof SmartPlaylistRules>
 export const SmartPlaylistPreview = z.object({ trackCount: z.number().int(), durationMs: z.number().int() })
 export type SmartPlaylistPreview = z.infer<typeof SmartPlaylistPreview>
 
+export const PlaylistCollaboratorRole = z.enum(['add', 'edit'])
+export type PlaylistCollaboratorRole = z.infer<typeof PlaylistCollaboratorRole>
+
+export const PlaylistPerson = z.object({ id: Id, name: z.string(), username: z.string() })
+export type PlaylistPerson = z.infer<typeof PlaylistPerson>
+export const PlaylistCollaborator = PlaylistPerson.extend({ role: PlaylistCollaboratorRole })
+export type PlaylistCollaborator = z.infer<typeof PlaylistCollaborator>
+
+export const PlaylistFolder = z.object({ id: Id, name: z.string() })
+export type PlaylistFolder = z.infer<typeof PlaylistFolder>
+
 export const PlaylistSummary = z.object({
   id: Id,
   name: z.string(),
@@ -190,6 +201,11 @@ export const PlaylistSummary = z.object({
   /** Up to four covers from the playlist's first tracks, for a mosaic. */
   artworks: z.array(Artwork),
   updatedAt: IsoDateTime,
+  /** The viewer's folder for this playlist, present only for its owner. */
+  folderId: Id.nullable().optional(),
+  customCover: z.boolean().optional(),
+  /** A non-owner's permission to change the songs. */
+  collaboratorRole: PlaylistCollaboratorRole.nullable().optional(),
   /** A smart playlist: its songs come from its rules, and nobody adds, moves or removes them. Missing from older servers. */
   smart: z.boolean().optional(),
 })
@@ -199,11 +215,12 @@ export type PlaylistSummary = z.infer<typeof PlaylistSummary>
  * One song of a playlist. In a smart playlist `itemId` is the track's id and `addedAt` when its
  * file arrived on the server.
  */
-export const PlaylistItem = z.object({ itemId: Id, addedAt: IsoDateTime, track: TrackSummary })
+export const PlaylistItem = z.object({ itemId: Id, addedAt: IsoDateTime, track: TrackSummary, addedByName: z.string().nullable().optional() })
 export type PlaylistItem = z.infer<typeof PlaylistItem>
 
 export const PlaylistDetail = PlaylistSummary.extend({
   items: z.array(PlaylistItem),
+  collaborative: z.boolean().optional(),
   /** A smart playlist's rules; null for one with items. Missing from older servers. */
   rules: SmartPlaylistRules.nullable().optional(),
 })
@@ -273,7 +290,10 @@ export const CreatePlaylistRequest = z.object({
   rules: SmartPlaylistRules.optional(),
 })
 export type CreatePlaylistRequest = z.infer<typeof CreatePlaylistRequest>
-export const UpdatePlaylistRequest = CreatePlaylistRequest.partial()
+export const PlaylistFolderRequest = CreatePlaylistRequest.pick({ name: true })
+export type PlaylistFolderRequest = z.infer<typeof PlaylistFolderRequest>
+
+export const UpdatePlaylistRequest = CreatePlaylistRequest.partial().extend({ folderId: Id.nullable().optional() })
 export type UpdatePlaylistRequest = z.infer<typeof UpdatePlaylistRequest>
 
 /**
@@ -286,8 +306,25 @@ export const AddPlaylistItemsRequest = z.object({
 })
 export type AddPlaylistItemsRequest = z.infer<typeof AddPlaylistItemsRequest>
 
-export const MovePlaylistItemRequest = z.object({ itemId: Id, toIndex: z.number().int().min(0) })
+export const MovePlaylistItemRequest = z.object({
+  itemId: Id, toIndex: z.number().int().min(0),
+  /** The item at the destination when the drag began. Keeps the intended neighbor after other edits. */
+  anchor: z.object({ itemId: Id, side: z.enum(['before', 'after']) }).optional(),
+})
 export type MovePlaylistItemRequest = z.infer<typeof MovePlaylistItemRequest>
+
+export const PlaylistDedupeRequest = z.object({ editions: z.boolean().optional() })
+export const PlaylistDedupeResult = z.object({ removed: z.number().int(), playlist: PlaylistDetail })
+export type PlaylistDedupeResult = z.infer<typeof PlaylistDedupeResult>
+
+export const PlaylistExportFormat = z.enum(['m3u8', 'xspf', 'json'])
+export type PlaylistExportFormat = z.infer<typeof PlaylistExportFormat>
+export const PlaylistImportResult = z.object({
+  playlist: PlaylistSummary,
+  matched: z.number().int(),
+  unmatched: z.array(z.object({ line: z.number().int(), text: z.string() })),
+})
+export type PlaylistImportResult = z.infer<typeof PlaylistImportResult>
 
 /** One play, newest first. Back-to-back plays of the same track are collapsed into the latest. */
 export const HistoryItem = z.object({ playedAt: IsoDateTime, track: TrackSummary })

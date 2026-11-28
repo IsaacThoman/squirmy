@@ -832,6 +832,7 @@ export const queryKeys = {
   likes: () => ['likes'] as const,
   playlists: () => ['playlists'] as const,
   playlist: (id: string) => ['playlists', id] as const,
+  playlistFolders: () => ['playlists', 'folders'] as const,
   history: () => ['history'] as const,
   replay: () => ['history', 'replay'] as const,
   wants: () => ['wants'] as const,

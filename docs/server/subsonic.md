@@ -92,6 +92,7 @@ A cover that cannot be served right now (its download failed within the last hou
 - **Additional OpenSubsonic extensions.** The server does not advertise `playbackReport` (playback timelines), `transcoding` (client profiles and transcode decisions), `sonicSimilarity` (audio similarity), `getPodcastEpisode` (podcast episode metadata), or `songLyrics` version 2 (word or syllable timing and lyric layers).
 - **Album and artist sort names, moods, BPM, comments and contributors** are not stored, so songs do not carry them.
 - **Smart playlists** (made in the web app) are listed with the songs their rules find for their owner, and marked `readonly`: adding, removing or renaming through an app answers error 50 and changes nothing, but the owner can delete one.
+- **Collaborative playlists** appear in an invited user’s playlist list, including when private. Add-only collaborators can add songs with `updatePlaylist`, and editors can also remove songs. Owners control metadata, visibility, full overwrite and deletion. Playlist covers are returned through `coverArt` as usual. Manage invitations, folders, import/export and duplicate removal in Squirmy’s web app.
 - **Playlist limits** are the web app's: names up to 120 characters, comments up to 2,000, 10,000 songs per playlist and 1,000 playlists per person. An app that goes past one gets an error, and the songs stay as they were.
 - **Clearing the play queue** from an app keeps the current song: a Squirmy session always has something it is on.
 

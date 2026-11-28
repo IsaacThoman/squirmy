@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAccount, useSignedInApi, useWantlistEnabled } from './account/AccountProvider';
 import { shade } from './data/color';
 import {
-  libraryMatchLimit, libraryMatchMinLength, useAllPlaylists, useGenreCovers, useGenres, useHome, useLibraryAlbumIds,
+  libraryMatchLimit, libraryMatchMinLength, useAllPlaylists, useGenreCovers, useGenres, useHome, useLibraryAlbumIds, usePlaylistFolders,
   useLibraryItems, useLibraryMatches, useServerAlbums,
 } from './data/queries';
 import { useLibraryActions, useLikeFailures } from './data/library';
@@ -181,6 +181,10 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, onBa
   const [grid, setGrid] = useState(true);
   const [showSearch, setShowSearch] = useState(false);
   const [query, setQuery] = useState('');
+  const [playlistScope, setPlaylistScope] = useState<string | null>(null);
+  const folders = usePlaylistFolders(!server && Boolean(playlistScope));
+  const currentFolder = folders.data?.find(folder => folder.id === playlistScope);
+  const folderIds = useMemo(() => new Set(folders.data?.map(folder => folder.id)), [folders.data]);
   const sort = sortOptions[sortName];
   const columns = gridColumns(width, fontScale);
   const size = Math.floor((width - gutter * 2 - (columns - 1) * 12) / columns);
@@ -193,7 +197,7 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, onBa
   const libraryFound = useLibraryMatches(offline ? '' : query);
   const localFound = useLocalSearch(query, server ? 'all' : 'library', searching && offline);
   // Every playlist, so one far down the list is found too.
-  const playlists = useAllPlaylists(searching && !server);
+  const playlists = useAllPlaylists((searching || Boolean(playlistScope)) && !server);
   // The search finds albums with any file on the server; the Albums list's own membership
   // decides which of them are in the library (`libraryAlbumMatches`). On this server keeps them all.
   const albumIds = useLibraryAlbumIds(searching && !server);
@@ -204,7 +208,7 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, onBa
     : libraryFound.data && shownMatches(libraryFound.data, server ? 'server' : 'library', membership),
   [libraryFound.data, localFound, membership, server]);
   // Offline, the saved list stands for the search: it has its answer already.
-  const active = searching && !offline ? libraryFound : library;
+  const active = playlistScope ? playlists : searching && !offline ? libraryFound : library;
 
   // Sorted by year, the year says why an album is where it is.
   const albumSubtitle = useCallback((album: AlbumSummary) => sort === 'year' && album.year ? `${album.artistCredit} · ${album.year}` : album.artistCredit, [sort]);
@@ -221,6 +225,12 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, onBa
       }
     }), [albumSubtitle, libraryItems.items, link, server, serverAlbums.items]);
   const items = useMemo(() => {
+    if (playlistScope) {
+      const nested = playlists.items.filter(playlist => currentFolder ? playlist.folderId === currentFolder.id
+        : !playlist.folderId || !folderIds.has(playlist.folderId));
+      return [...(currentFolder ? [] : [likedCollection(link)]), ...nested.map(playlist => playlistCollection(playlist, link))]
+        .filter(item => matches(query, item.title, item.subtitle)).map(collectionDim);
+    }
     if (!searching) return allItems.filter(item => matches(query, item.title, item.subtitle)).map(collectionDim);
     const matchingPlaylists = server ? [] : [likedCollection(link), ...playlists.items.map(playlist => playlistCollection(playlist, link))]
       .filter(item => matches(query, item.title, item.subtitle));
@@ -229,8 +239,8 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, onBa
       ...(matched?.albums ?? []).map(album => albumCollection(album, link)),
       ...(matched?.artists ?? []).map(artist => artistCollection(artist, link)),
     ].map(collectionDim);
-  }, [allItems, link, matched, collectionDim, playlists.items, query, searching, server]);
-  const tracks = useMemo(() => searching ? matched?.tracks ?? [] : [], [matched, searching]);
+  }, [allItems, link, matched, collectionDim, playlists.items, query, searching, server, playlistScope, currentFolder, folderIds]);
+  const tracks = useMemo(() => searching && !playlistScope ? matched?.tracks ?? [] : [], [matched, searching, playlistScope]);
   const songItems = useSongListItems({
     tracks, onTrackMenu: track => onTrackMenu(track),
     onPlay: start => actions.playTracks(tracks, { start, context: { type: 'other', id: null, title: 'Songs' } }),
@@ -263,7 +273,7 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, onBa
     { title: 'Browse this server', onPress: () => { tapFeedback(); onOpen(serverMusicHref('library')); } },
     { title: 'Find music', onPress: () => { tapFeedback(); router.navigate('/(tabs)/(search)'); } },
   ];
-  const title = server ? 'On this server' : 'Library';
+  const title = server ? 'On this server' : currentFolder?.name ?? (playlistScope ? 'Playlists' : 'Library');
   // A pushed page keeps the top for its floating back button, as the other pages do.
   const contentTop = top + (onBack ? backButtonSpace : contentGap);
 
@@ -276,7 +286,7 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, onBa
     <Animated.FlatList ref={list} data={rows} renderItem={renderRow} keyExtractor={libraryRowKey}
       initialNumToRender={libraryBatch} maxToRenderPerBatch={libraryBatch} windowSize={libraryWindow}
       keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
-      onEndReached={searching ? undefined : library.loadMore} onEndReachedThreshold={1.5}
+      onEndReached={playlistScope || searching ? undefined : library.loadMore} onEndReachedThreshold={1.5}
       contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false}
       contentContainerStyle={[styles.libraryBody, { paddingTop: contentTop, paddingBottom: bottomInset }]}
       ListHeaderComponent={<>
@@ -291,12 +301,24 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, onBa
             setShowSearch(!showSearch);
           }} />
         </View>
+        {!server && <View style={styles.sortRow}>
+          <BrowseButton label={playlistScope ? 'Back to Library' : 'Open Playlists'} title={playlistScope ? 'Library' : 'Playlists'}
+            icon={playlistScope ? 'chevron.left' : 'music.note.list'} onPress={() => {
+              setPlaylistScope(playlistScope ? null : 'root');
+              setQuery('');
+              list.current?.scrollToOffset({ offset: 0, animated: false });
+            }} />
+          {currentFolder && <BrowseButton label="All playlist folders" title="All folders" icon="folder" onPress={() => setPlaylistScope('root')} />}
+        </View>}
+        {playlistScope && !currentFolder && !query.trim() && folders.data?.map(folder =>
+          <View style={styles.sortRow} key={folder.id}><BrowseButton label={`Open folder ${folder.name}`} title={folder.name} icon="folder"
+            onPress={() => { setPlaylistScope(folder.id); list.current?.scrollToOffset({ offset: 0, animated: false }); }} /></View>)}
         {showSearch && <View style={styles.librarySearch}>
           <SearchField value={query} onChange={setQuery} placeholder={server ? 'Find on this server' : 'Find in your library'} autoFocus />
         </View>}
         <View style={styles.sortRow}>
           {/* Matches from the server come best first, whatever the sort. */}
-          {!searching && (server
+          {!playlistScope && !searching && (server
             ? <LibrarySort<ServerSortName> options={serverSortNames} value={sortName === 'Recently played' ? serverDefaultSort : sortName} onChange={setSortName} />
             : <LibrarySort options={sortNames} value={sortName} onChange={setSortName} />)}
           <View style={styles.libraryActions}>
@@ -306,13 +328,14 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, onBa
           </View>
         </View>
         {!active.data && <QueryState query={active} what={server ? 'this server’s music' : 'your library'} />}
-        {libraryEmpty && (server ? <EmptyState {...emptyServer} /> : <EmptyState {...emptyLibrary} actions={emptyActions} />)}
+        {!playlistScope && libraryEmpty && (server ? <EmptyState {...emptyServer} /> : <EmptyState {...emptyLibrary} actions={emptyActions} />)}
+        {currentFolder && !query && active.data && empty && <EmptyState icon="folder" title="This folder is empty" description="Move playlists into this folder on the web." />}
         {query && active.data && empty && !(searching && pending) && <EmptyState icon="magnifyingglass" title="Nothing found"
           description="Try another search." />}
       </>}
       ListFooterComponent={<>
-        {(searching ? pending && !empty : library.isFetchingNextPage) && <ActivityIndicator style={styles.more} />}
-        {capped && <Text style={styles.matchNote}>Showing the best {libraryMatchLimit} matches. Type more to narrow them down.</Text>}
+        {(!playlistScope && (searching ? pending && !empty : library.isFetchingNextPage)) && <ActivityIndicator style={styles.more} />}
+        {!playlistScope && capped && <Text style={styles.matchNote}>Showing the best {libraryMatchLimit} matches. Type more to narrow them down.</Text>}
       </>} />
     <ScrollEdge solid={top} fade={scrollEdgeFade} scrollOffset={scrollOffset} contentGap={contentTop - top} />
     {onBack && <View pointerEvents="box-none" style={[styles.nav, { top: top + 8 }]}><BrowseBackButton onPress={onBack} /></View>}

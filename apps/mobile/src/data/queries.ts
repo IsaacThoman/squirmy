@@ -209,6 +209,10 @@ export function useArtist(id: string, { enabled = true, poll = true }: { enabled
   });
 }
 
+export function usePlaylistFolders(enabled: boolean) {
+  return useApiQuery(queryKeys.playlistFolders(), api => api.userdata.playlistFolders(), { enabled });
+}
+
 export function usePlaylist(id: string) {
   const prime = usePrime();
   return useApiQuery(queryKeys.playlist(id), async api => prime(await api.userdata.playlist(id), playlist => playlist.items.map(item => item.track)));

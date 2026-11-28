@@ -30,6 +30,7 @@ const notForClients = new Set([
   'GET /art/:/:',
   // A browser attachment download streams directly to disk.
   'GET /me/history/export',
+  'GET /playlists/:/export',
   // Last.fm sends the browser here after the user approves the connection.
   'GET /scrobbling/lastfm/callback',
   // Acquisition providers deliver here with their job's token (docs/provider-protocol.md).

@@ -11,18 +11,23 @@
 import {
   PLAYLIST_ITEM_LIMIT, PLAYLIST_LIMIT, queryKeys,
   type Artwork, type CreatePlaylistRequest, type PageQuery, type PlaylistDetail, type PlaylistPage, type PlaylistSummary, type SmartPlaylistPreview,
-  type SmartPlaylistRules, type UpdatePlaylistRequest,
+  type MovePlaylistItemRequest, type PlaylistCollaborator, type PlaylistCollaboratorRole, type PlaylistDedupeResult,
+  type PlaylistFolder, type PlaylistPerson, type SmartPlaylistRules, type UpdatePlaylistRequest,
 } from '@squirmy/contracts'
 import { and, eq, sql } from 'drizzle-orm'
 import { db, type Transaction } from '../../database/client.js'
-import { playlistItems, playlists } from '../../database/schema.js'
+import { playlistCollaborators, playlistFolders, playlistItems, playlists, users } from '../../database/schema.js'
 import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js'
+import { matchKey } from '../../lib/text.js'
 import { newId } from '../../lib/ids.js'
 import { invalidate, publishChanges } from '../../realtime/index.js'
 import { after, cursorKeys, orderBy, toPage, type Ordering } from '../catalog/pagination.js'
 import { isoTime, uuidArray } from '../catalog/sql.js'
 import { alignedTrackSummaries, servable } from '../catalog/summaries.js'
 import { recordCollectionAdd } from '../sessions/collection-plays.js'
+import { storeImage } from '../artwork/index.js'
+import { editionFreeKey } from '../search/keys.js'
+import { playlistVisibleTo } from './playlist-access.js'
 import { dailySeed, smartTracks, type SmartTrackRow } from './smart.js'
 
 const playlistNotFound = () => notFound('No such playlist', 'playlist_not_found')
@@ -31,7 +36,7 @@ export const playlistFull = () => conflict(`A playlist holds at most ${PLAYLIST_
 /** Thrown by every path that would change the items of a smart playlist. */
 export const smartPlaylistItems = () => conflict('A smart playlist’s songs come from its rules', 'smart_playlist')
 
-type SummaryRow = Omit<PlaylistSummary, 'durationMs' | 'smart'> & { durationMs: number | string; rules: SmartPlaylistRules | null }
+type SummaryRow = Omit<PlaylistSummary, 'durationMs' | 'smart'> & { durationMs: number | string; rules: SmartPlaylistRules | null; cover: Artwork | null }
 
 /**
  * Summaries of playlists in input order, leaving out ids that do not exist, and those the
@@ -40,12 +45,19 @@ type SummaryRow = Omit<PlaylistSummary, 'durationMs' | 'smart'> & { durationMs: 
  */
 export async function playlistSummaries(ids: readonly string[], visibleTo?: string, evaluated: ReadonlyMap<string, SmartTrackRow[]> = new Map()): Promise<PlaylistSummary[]> {
   if (ids.length === 0) return []
+  const role = visibleTo ? sql`(select case when c.can_edit then 'edit' else 'add' end
+    from playlist_collaborators c where c.playlist_id = p.id and c.user_id = ${visibleTo})` : sql`null`
   const rows = await db.execute<SummaryRow>(sql`
     select p.id, p.name, p.description, p.owner_id as "ownerId", coalesce(u.display_name, u.username) as "ownerName",
       p.is_public as "isPublic", ${isoTime('p.updated_at')} as "updatedAt", p.rules,
-      stats."trackCount", stats."durationMs", covers.artworks
+      stats."trackCount", stats."durationMs", covers.artworks,
+      ${visibleTo ? sql`case when p.owner_id = ${visibleTo} then p.folder_id end` : sql`null`} as "folderId",
+      ${role} as "collaboratorRole",
+      (p.artwork_asset_id is not null) as "customCover",
+      case when custom.id is not null then json_build_object('id', custom.id, 'color', custom.color, 'thumbhash', custom.thumbhash) end as cover
     from playlists p
     join users u on u.id = p.owner_id
+    left join assets custom on custom.id = p.artwork_asset_id and ${servable('custom')}
     cross join lateral (
       select count(*)::int as "trackCount", coalesce(sum(r.duration_ms), 0)::int8 as "durationMs"
       from playlist_items i join recordings r on r.id = i.recording_id where i.playlist_id = p.id
@@ -69,11 +81,12 @@ export async function playlistSummaries(ids: readonly string[], visibleTo?: stri
       ) c
     ) covers
     where p.id = any(${uuidArray([...new Set(ids)])})
-      ${visibleTo ? sql`and (p.owner_id = ${visibleTo} or p.is_public)` : sql``}`)
-  const summaries = await Promise.all(rows.map(async ({ rules, ...row }): Promise<PlaylistSummary> => {
-    if (!rules) return { ...row, durationMs: Number(row.durationMs), smart: false }
+      ${visibleTo ? sql`and ${playlistVisibleTo(visibleTo)}` : sql``}`)
+  const summaries = await Promise.all(rows.map(async ({ rules, cover, ...row }): Promise<PlaylistSummary> => {
+    if (!rules) return { ...row, durationMs: Number(row.durationMs), artworks: cover ? [cover] : row.artworks, smart: false }
     const tracks = evaluated.get(row.id) ?? await smartTracks(row.ownerId, rules, dailySeed(row.id))
-    return { ...row, ...await smartStats(tracks), smart: true }
+    const stats = await smartStats(tracks)
+    return { ...row, ...stats, artworks: cover ? [cover] : stats.artworks, smart: true }
   }))
   const byId = new Map(summaries.map((summary) => [summary.id, summary]))
   return ids.flatMap((id) => byId.get(id) ?? [])
@@ -123,12 +136,12 @@ const playlistOrdering: Ordering = {
 
 /** One page of the playlists the user can see (theirs and other users' public ones), or only theirs. */
 export async function listPlaylists(userId: string, query: PageQuery, options: { ownOnly?: boolean } = {}): Promise<PlaylistPage> {
-  const visible = options.ownOnly ? sql`p.owner_id = ${userId}` : sql`(p.owner_id = ${userId} or p.is_public)`
+  const visible = options.ownOnly ? sql`p.owner_id = ${userId}` : playlistVisibleTo(userId)
   const rows = await db.execute<{ id: string; cursorKeys: string[] }>(sql`
     select p.id, ${cursorKeys(playlistOrdering)} from playlists p
     where ${visible} and ${after(playlistOrdering, query.cursor)}
     order by ${orderBy(playlistOrdering)} limit ${query.limit + 1}`)
-  return toPage(playlistOrdering, rows, query.limit, await playlistSummaries(rows.slice(0, query.limit).map((row) => row.id)))
+  return toPage(playlistOrdering, rows, query.limit, await playlistSummaries(rows.slice(0, query.limit).map((row) => row.id), userId))
 }
 
 /**
@@ -137,12 +150,15 @@ export async function listPlaylists(userId: string, query: PageQuery, options: {
  * the reader.
  */
 export async function getPlaylist(userId: string, id: string): Promise<PlaylistDetail> {
-  const [row] = await db.select({ ownerId: playlists.ownerId, isPublic: playlists.isPublic, rules: playlists.rules }).from(playlists).where(eq(playlists.id, id))
-  if (!row || (row.ownerId !== userId && !row.isPublic)) throw playlistNotFound()
+  const [row] = await db.execute<{ ownerId: string; rules: SmartPlaylistRules | null; collaborative: boolean }>(sql`
+    select p.owner_id as "ownerId", p.rules,
+      exists (select 1 from playlist_collaborators c where c.playlist_id = p.id) as collaborative
+    from playlists p where p.id = ${id} and ${playlistVisibleTo(userId)}`)
+  if (!row) throw playlistNotFound()
   if (row.rules) {
     const songs = await smartTracks(row.ownerId, row.rules, dailySeed(id))
     const [[summary], tracks] = await Promise.all([
-      playlistSummaries([id], undefined, new Map([[id, songs]])),
+      playlistSummaries([id], userId, new Map([[id, songs]])),
       alignedTrackSummaries(userId, songs.map((song) => ({ id: song.id, albumId: song.albumId }))),
     ])
     if (!summary) throw playlistNotFound()
@@ -155,18 +171,21 @@ export async function getPlaylist(userId: string, id: string): Promise<PlaylistD
       }),
     }
   }
-  const [summary] = await playlistSummaries([id])
+  const [summary] = await playlistSummaries([id], userId)
   if (!summary) throw playlistNotFound()
-  const items = await db.execute<{ id: string; recordingId: string; albumId: string | null; addedAt: string }>(sql`
-    select id, recording_id as "recordingId", album_id as "albumId", ${isoTime('added_at')} as "addedAt"
-    from playlist_items where playlist_id = ${id} order by position`)
+  const items = await db.execute<{ id: string; recordingId: string; albumId: string | null; addedAt: string; addedByName: string | null }>(sql`
+    select i.id, i.recording_id as "recordingId", i.album_id as "albumId", ${isoTime('i.added_at')} as "addedAt",
+      coalesce(u.display_name, u.username) as "addedByName"
+    from playlist_items i left join users u on u.id = i.added_by
+    where i.playlist_id = ${id} order by i.position, i.id`)
   const tracks = await alignedTrackSummaries(userId, items.map((item) => ({ id: item.recordingId, albumId: item.albumId })))
   return {
     ...summary,
     rules: null,
+    collaborative: row.collaborative,
     items: items.flatMap((item, index) => {
       const track = tracks[index]
-      return track ? [{ itemId: item.id, addedAt: item.addedAt, track }] : []
+      return track ? [{ itemId: item.id, addedAt: item.addedAt, addedByName: item.addedByName, track }] : []
     }),
   }
 }
@@ -177,45 +196,66 @@ export async function getPlaylist(userId: string, id: string): Promise<PlaylistD
  */
 async function lockOwned(tx: Transaction, userId: string, id: string) {
   const [row] = await tx.select().from(playlists).where(eq(playlists.id, id)).for('update')
-  return checkOwner(userId, row)
+  return checkAccess(tx, userId, row, 'owner')
 }
 
-function checkOwner(userId: string, row: typeof playlists.$inferSelect | undefined) {
-  if (!row || (row.ownerId !== userId && !row.isPublic)) throw playlistNotFound()
-  if (row.ownerId !== userId) throw forbidden('Only the owner can change this playlist')
+type ItemAccess = 'add' | 'edit' | 'owner'
+
+async function checkAccess(
+  client: Transaction | typeof db,
+  userId: string,
+  row: typeof playlists.$inferSelect | undefined,
+  access: ItemAccess,
+) {
+  if (!row) throw playlistNotFound()
+  if (row.ownerId === userId) return row
+  const [member] = await client.select({ canEdit: playlistCollaborators.canEdit }).from(playlistCollaborators)
+    .where(and(eq(playlistCollaborators.playlistId, row.id), eq(playlistCollaborators.userId, userId)))
+  if (!row.isPublic && !member) throw playlistNotFound()
+  if (access === 'owner') throw forbidden('Only the owner can change this playlist')
+  if (!member || (access === 'edit' && !member.canEdit)) throw forbidden('You do not have permission to change these songs')
   return row
 }
 
-/** `checkOwner` for a change to the items, which a smart playlist does not have. */
-function checkItemsOwner(userId: string, row: typeof playlists.$inferSelect | undefined) {
-  const owned = checkOwner(userId, row)
-  if (owned.rules) throw smartPlaylistItems()
-  return owned
-}
-
-async function lockItems(tx: Transaction, userId: string, id: string) {
+async function lockItems(tx: Transaction, userId: string, id: string, access: ItemAccess = 'edit') {
   const [row] = await tx.select().from(playlists).where(eq(playlists.id, id)).for('update')
-  return checkItemsOwner(userId, row)
+  const playlist = await checkAccess(tx, userId, row, access)
+  if (playlist.rules) throw smartPlaylistItems()
+  return playlist
 }
 
 async function touch(tx: Transaction, id: string) {
   await tx.update(playlists).set({ updatedAt: new Date() }).where(eq(playlists.id, id))
 }
 
-/** Refreshes the owner's devices, and everyone's playlist lists when the playlist is or was public. */
-async function invalidatePlaylist(ownerId: string, isPublic: boolean) {
-  if (!isPublic) {
-    await invalidate({ user: ownerId }, [queryKeys.playlists(), queryKeys.libraryItems(), queryKeys.home(), queryKeys.search()])
+async function collaboratorIds(client: Transaction | typeof db, id: string) {
+  const members = await client.select({ id: playlistCollaborators.userId }).from(playlistCollaborators)
+    .where(eq(playlistCollaborators.playlistId, id))
+  return members.map((member) => member.id)
+}
+
+function playlistTargets(ids: readonly string[]) {
+  return ids.length === 1 ? { user: ids[0]! } : ids.map((user) => ({ user }))
+}
+
+async function invalidatePlaylist(playlist: { id: string; ownerId: string; isPublic: boolean }, extra: string[] = []) {
+  const users = [...new Set([playlist.ownerId, ...extra, ...await collaboratorIds(db, playlist.id)])]
+  const targets = playlistTargets(users)
+  const lists = [queryKeys.playlists(), queryKeys.libraryItems(), queryKeys.search()]
+  if (!playlist.isPublic) {
+    await invalidate(targets, [queryKeys.playlists(), queryKeys.libraryItems(), queryKeys.home(), queryKeys.search()])
     return
   }
-  // One target list reaches each socket once; the owner is in 'all' as well and would
-  // otherwise refetch the playlists twice.
-  await invalidate([{ user: ownerId }, 'all'], [queryKeys.playlists(), queryKeys.libraryItems(), queryKeys.search()])
-  await invalidate({ user: ownerId }, [queryKeys.home()])
+  await invalidate([{ user: playlist.ownerId }, 'all'], lists)
+  await invalidate(targets, [queryKeys.home()])
 }
 
 /** Creates an empty playlist owned by the user, who may own at most `PLAYLIST_LIMIT`; with `rules`, a smart one. */
-export async function createPlaylist(userId: string, input: CreatePlaylistRequest): Promise<PlaylistSummary> {
+export async function createPlaylist(
+  userId: string,
+  input: CreatePlaylistRequest,
+  tracks: readonly { trackId: string; albumId: string | null }[] = [],
+): Promise<PlaylistSummary> {
   const row = await db.transaction(async (tx) => {
     // One user's creates take turns, so concurrent ones cannot all pass the count.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`squirmy:playlists:${userId}`}, 0))`)
@@ -230,20 +270,27 @@ export async function createPlaylist(userId: string, input: CreatePlaylistReques
       isPublic: input.isPublic ?? false,
       rules: input.rules ?? null,
     }).returning()
+    if (tracks.length) await insertItems(tx, userId, row!.id, 0, tracks)
     return row!
   })
   // A new playlist heads the Library's Recently played, as a play would.
   await recordCollectionAdd(userId, { type: 'playlist', id: row.id })
-  await invalidatePlaylist(userId, row.isPublic)
-  return (await playlistSummaries([row.id]))[0]!
+  await invalidatePlaylist(row)
+  return (await playlistSummaries([row.id], userId))[0]!
 }
 
 /** Renames, re-describes or publishes a playlist, or changes a smart playlist's rules. Owner only. */
 export async function updatePlaylist(userId: string, id: string, input: UpdatePlaylistRequest): Promise<PlaylistSummary> {
   const { before, after: updated } = await db.transaction(async (tx) => {
+    if (input.folderId) {
+      const [folder] = await tx.select({ id: playlistFolders.id }).from(playlistFolders)
+        .where(and(eq(playlistFolders.id, input.folderId), eq(playlistFolders.ownerId, userId))).for('key share')
+      if (!folder) throw notFound('No such playlist folder', 'playlist_folder_not_found')
+    }
     const before = await lockOwned(tx, userId, id)
     if (input.rules && !before.rules) throw conflict('A playlist of songs can’t take rules; make a smart playlist instead', 'not_smart_playlist')
     const [updated] = await tx.update(playlists).set({
+      folderId: input.folderId,
       name: input.name,
       description: input.description,
       isPublic: input.isPublic,
@@ -252,20 +299,21 @@ export async function updatePlaylist(userId: string, id: string, input: UpdatePl
     }).where(eq(playlists.id, id)).returning()
     return { before, after: updated! }
   })
-  await invalidatePlaylist(userId, before.isPublic || updated.isPublic)
-  return (await playlistSummaries([id]))[0]!
+  await invalidatePlaylist({ ...updated, isPublic: before.isPublic || updated.isPublic })
+  return (await playlistSummaries([id], userId))[0]!
 }
 
 /** Deletes a playlist and its items. Owner only. */
 export async function deletePlaylist(userId: string, id: string): Promise<void> {
-  const row = await db.transaction(async (tx) => {
+  const { row, members } = await db.transaction(async (tx) => {
     const row = await lockOwned(tx, userId, id)
+    const members = await collaboratorIds(tx, id)
     await tx.delete(playlists).where(eq(playlists.id, id))
-    return row
+    return { row, members }
   })
   // Before the lists: a page open on it closes rather than keep showing the old copy.
-  await publishChanges(row.isPublic ? [{ user: userId }, 'all'] : { user: userId }, [{ kind: 'deleted', entity: 'playlist', ids: [id] }])
-  await invalidatePlaylist(userId, row.isPublic)
+  await publishChanges(row.isPublic ? [{ user: userId }, 'all'] : playlistTargets([userId, ...members]), [{ kind: 'deleted', entity: 'playlist', ids: [id] }])
+  await invalidatePlaylist(row, members)
 }
 
 /**
@@ -273,7 +321,7 @@ export async function deletePlaylist(userId: string, id: string): Promise<void> 
  * `track_not_found`. Each item remembers the album it was added from: the one given, or
  * the album its summary would show. With `skipDuplicates`, tracks already in the
  * playlist or repeated in the request are left out. Fails with `playlist_full` when the
- * playlist would hold more than `PLAYLIST_ITEM_LIMIT`. Owner only.
+ * playlist would hold more than `PLAYLIST_ITEM_LIMIT`.
  */
 export async function addPlaylistItems(
   userId: string,
@@ -282,62 +330,75 @@ export async function addPlaylistItems(
   options: { skipDuplicates?: boolean } = {},
 ): Promise<PlaylistDetail> {
   // Permission first, so a caller learns nothing about tracks from a playlist they cannot change.
-  checkItemsOwner(userId, (await db.select().from(playlists).where(eq(playlists.id, id)))[0])
+  await checkItemAccess(userId, id, 'add')
   if (tracks.length > PLAYLIST_ITEM_LIMIT) throw playlistFull()
   const summaries = await alignedTrackSummaries(userId, tracks.map((track) => ({ id: track.trackId, albumId: track.albumId })))
   const unknown = tracks.filter((_, index) => !summaries[index]).map((track) => track.trackId)
   if (unknown.length > 0) throw badRequest('Some tracks do not exist', 'track_not_found', { ids: unknown })
 
   const playlist = await db.transaction(async (tx) => {
-    const playlist = await lockItems(tx, userId, id)
-    const present = await tx.select({ recordingId: playlistItems.recordingId }).from(playlistItems).where(eq(playlistItems.playlistId, id))
+    const playlist = await lockItems(tx, userId, id, 'add')
+    const present = await tx.select({ recordingId: playlistItems.recordingId, position: playlistItems.position }).from(playlistItems).where(eq(playlistItems.playlistId, id))
     const seen = new Set(options.skipDuplicates ? present.map((item) => item.recordingId) : [])
     const rows = summaries.flatMap((summary) => {
       if (!summary || seen.has(summary.id)) return []
       if (options.skipDuplicates) seen.add(summary.id)
       return [{ recordingId: summary.id, albumId: summary.album?.id ?? null }]
     })
-    const start = present.length
-    if (start + rows.length > PLAYLIST_ITEM_LIMIT) throw playlistFull()
+    if (present.length + rows.length > PLAYLIST_ITEM_LIMIT) throw playlistFull()
     if (rows.length > 0) {
-      await tx.insert(playlistItems).values(rows.map((row, index) => ({
-        id: newId(), playlistId: id, position: start + index, recordingId: row.recordingId, albumId: row.albumId, addedBy: userId,
-      })))
+      const start = present.reduce((max, item) => Math.max(max, item.position + 1), 0)
+      await insertItems(tx, userId, id, start, rows.map((row) => ({ trackId: row.recordingId, albumId: row.albumId })))
       await touch(tx, id)
     }
     return playlist
   })
-  await invalidatePlaylist(userId, playlist.isPublic)
+  await invalidatePlaylist(playlist)
   return getPlaylist(userId, id)
 }
 
-/** Moves an item to `toIndex` (clamped to the end), shifting the items between. Owner only. */
-export async function movePlaylistItem(userId: string, id: string, itemId: string, toIndex: number): Promise<PlaylistDetail> {
+async function checkItemAccess(userId: string, id: string, access: ItemAccess) {
+  const row = await checkAccess(db, userId, (await db.select().from(playlists).where(eq(playlists.id, id)))[0], access)
+  if (row.rules) throw smartPlaylistItems()
+}
+
+async function insertItems(tx: Transaction, userId: string, id: string, start: number, rows: readonly { trackId: string; albumId: string | null }[]) {
+  await tx.insert(playlistItems).values(rows.map((row, index) => ({
+    id: newId(), playlistId: id, position: start + index, recordingId: row.trackId, albumId: row.albumId, addedBy: userId,
+  })))
+}
+
+async function setPositions(tx: Transaction, id: string, ids: readonly string[]) {
+  // A catalog cascade can leave gaps; use ordinality to restore the dense order.
+  await tx.execute(sql`
+    update playlist_items i set position = moved.ordinality - 1
+    from unnest(${uuidArray([...ids])}) with ordinality as moved(id, ordinality)
+    where i.playlist_id = ${id} and i.id = moved.id and i.position <> moved.ordinality - 1`)
+}
+
+/** Resolves the destination against the currently locked order. */
+export async function movePlaylistItem(userId: string, id: string, itemId: string, toIndex: number, anchor?: MovePlaylistItemRequest['anchor']): Promise<PlaylistDetail> {
   const playlist = await db.transaction(async (tx) => {
     const playlist = await lockItems(tx, userId, id)
-    const [item] = await tx.select({ position: playlistItems.position }).from(playlistItems)
-      .where(and(eq(playlistItems.id, itemId), eq(playlistItems.playlistId, id)))
-    if (!item) throw notFound('No such playlist item', 'playlist_item_not_found')
-    const [counted] = await tx.select({ count: sql<number>`count(*)::int` }).from(playlistItems).where(eq(playlistItems.playlistId, id))
-    const from = item.position
-    const to = Math.min(toIndex, counted!.count - 1)
+    const order = (await tx.select({ id: playlistItems.id }).from(playlistItems)
+      .where(eq(playlistItems.playlistId, id)).orderBy(playlistItems.position, playlistItems.id)).map((item) => item.id)
+    const from = order.indexOf(itemId)
+    if (from < 0) throw notFound('No such playlist item', 'playlist_item_not_found')
+    order.splice(from, 1)
+    const neighbor = anchor ? order.indexOf(anchor.itemId) : -1
+    if (anchor && neighbor < 0) throw conflict('The destination song is gone. Try the move again.', 'playlist_changed')
+    const to = anchor ? neighbor + Number(anchor.side === 'after') : Math.min(toIndex, order.length)
     if (from === to) return playlist
-    await tx.update(playlistItems).set({
-      position: from < to ? sql`${playlistItems.position} - 1` : sql`${playlistItems.position} + 1`,
-    }).where(and(
-      eq(playlistItems.playlistId, id),
-      sql`${playlistItems.position} between ${Math.min(from, to)} and ${Math.max(from, to)}`,
-      sql`${playlistItems.id} <> ${itemId}`,
-    ))
-    await tx.update(playlistItems).set({ position: to }).where(eq(playlistItems.id, itemId))
+    order.splice(to, 0, itemId)
+    await setPositions(tx, id, order)
     await touch(tx, id)
     return playlist
   })
-  await invalidatePlaylist(userId, playlist.isPublic)
+  await invalidatePlaylist(playlist)
   return getPlaylist(userId, id)
 }
 
-/** Removes one item and closes the gap. Owner only. */
+/** Removes one item and closes the gap. */
 export async function removePlaylistItem(userId: string, id: string, itemId: string): Promise<PlaylistDetail> {
   const playlist = await db.transaction(async (tx) => {
     const playlist = await lockItems(tx, userId, id)
@@ -350,7 +411,7 @@ export async function removePlaylistItem(userId: string, id: string, itemId: str
     await touch(tx, id)
     return playlist
   })
-  await invalidatePlaylist(userId, playlist.isPublic)
+  await invalidatePlaylist(playlist)
   return getPlaylist(userId, id)
 }
 
@@ -362,10 +423,10 @@ export type PlaylistItemSlot = { itemId: string } | { trackId: string; albumId?:
  * item (and when it was added); one with `trackId` adds a track as `addPlaylistItems`
  * would. Items not named are removed. Unknown tracks fail with `track_not_found`, items
  * of another playlist with `playlist_item_not_found`, more than `PLAYLIST_ITEM_LIMIT`
- * slots with `playlist_full`. Owner only.
+ * slots with `playlist_full`. Refuses stale snapshots.
  */
-export async function replacePlaylistItems(userId: string, id: string, slots: readonly PlaylistItemSlot[]): Promise<void> {
-  checkItemsOwner(userId, (await db.select().from(playlists).where(eq(playlists.id, id)))[0])
+export async function replacePlaylistItems(userId: string, id: string, slots: readonly PlaylistItemSlot[], expectedIds: readonly string[], access: 'owner' | 'edit' = 'owner'): Promise<void> {
+  await checkItemAccess(userId, id, access)
   if (slots.length > PLAYLIST_ITEM_LIMIT) throw playlistFull()
   const added = slots.flatMap((slot) => 'trackId' in slot ? [slot] : [])
   const summaries = await alignedTrackSummaries(userId, added.map((slot) => ({ id: slot.trackId, albumId: slot.albumId })))
@@ -373,8 +434,13 @@ export async function replacePlaylistItems(userId: string, id: string, slots: re
   if (unknown.length > 0) throw badRequest('Some tracks do not exist', 'track_not_found', { ids: unknown })
 
   const playlist = await db.transaction(async (tx) => {
-    const playlist = await lockItems(tx, userId, id)
-    const existing = new Set((await tx.select({ id: playlistItems.id }).from(playlistItems).where(eq(playlistItems.playlistId, id))).map((row) => row.id))
+    const playlist = await lockItems(tx, userId, id, access)
+    const current = await tx.select({ id: playlistItems.id }).from(playlistItems)
+      .where(eq(playlistItems.playlistId, id)).orderBy(playlistItems.position, playlistItems.id)
+    if (current.length !== expectedIds.length || current.some((item, index) => item.id !== expectedIds[index])) {
+      throw conflict('The playlist changed. Reload it and try again.', 'playlist_changed')
+    }
+    const existing = new Set(expectedIds)
     const kept = slots.flatMap((slot, position) => 'itemId' in slot ? [{ id: slot.itemId, position }] : [])
     if (kept.some((item) => !existing.has(item.id)) || new Set(kept.map((item) => item.id)).size !== kept.length) {
       throw notFound('No such playlist item', 'playlist_item_not_found')
@@ -399,5 +465,121 @@ export async function replacePlaylistItems(userId: string, id: string, slots: re
     await touch(tx, id)
     return playlist
   })
-  await invalidatePlaylist(userId, playlist.isPublic)
+  await invalidatePlaylist(playlist)
+}
+
+export async function listPlaylistFolders(userId: string): Promise<PlaylistFolder[]> {
+  return db.select({ id: playlistFolders.id, name: playlistFolders.name }).from(playlistFolders)
+    .where(eq(playlistFolders.ownerId, userId)).orderBy(playlistFolders.name, playlistFolders.id)
+}
+
+export async function createPlaylistFolder(userId: string, name: string): Promise<PlaylistFolder> {
+  const folder = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`squirmy:playlist-folders:${userId}`}, 0))`)
+    if (await tx.$count(playlistFolders, eq(playlistFolders.ownerId, userId)) >= PLAYLIST_LIMIT) {
+      throw conflict('You have reached the playlist folder limit', 'too_many_playlist_folders')
+    }
+    const [row] = await tx.insert(playlistFolders).values({ id: newId(), ownerId: userId, name })
+      .returning({ id: playlistFolders.id, name: playlistFolders.name })
+    return row!
+  })
+  await invalidate({ user: userId }, [queryKeys.playlists()])
+  return folder
+}
+
+export async function deletePlaylistFolder(userId: string, id: string): Promise<void> {
+  const [folder] = await db.delete(playlistFolders)
+    .where(and(eq(playlistFolders.ownerId, userId), eq(playlistFolders.id, id))).returning({ id: playlistFolders.id })
+  if (!folder) throw notFound('No such playlist folder', 'playlist_folder_not_found')
+  await invalidate({ user: userId }, [queryKeys.playlists(), queryKeys.libraryItems(), queryKeys.home()])
+}
+
+/** The owner can invite existing accounts directly. Expose names and handles for the picker. */
+export async function playlistPeople(userId: string, id: string, search: string): Promise<PlaylistPerson[]> {
+  await requirePlaylistOwner(userId, id)
+  return db.execute<PlaylistPerson>(sql`
+    select id, username, coalesce(display_name, username) as name from users where id <> ${userId}
+      and (strpos(lower(username), lower(${search})) > 0 or strpos(lower(coalesce(display_name, '')), lower(${search})) > 0)
+    order by lower(username), id limit 50`)
+}
+
+export async function listPlaylistCollaborators(userId: string, id: string): Promise<PlaylistCollaborator[]> {
+  await requirePlaylistOwner(userId, id)
+  return db.execute<PlaylistCollaborator>(sql`
+    select u.id, u.username, coalesce(u.display_name, u.username) as name,
+      case when c.can_edit then 'edit' else 'add' end as role
+    from playlist_collaborators c join users u on u.id = c.user_id where c.playlist_id = ${id}
+    order by lower(u.username), u.id`)
+}
+
+async function requirePlaylistOwner(userId: string, id: string) {
+  return checkAccess(db, userId, (await db.select().from(playlists).where(eq(playlists.id, id)))[0], 'owner')
+}
+
+export async function setPlaylistCollaborator(userId: string, id: string, collaboratorId: string, role: PlaylistCollaboratorRole | null) {
+  const changed = await db.transaction(async (tx) => {
+    const playlist = await lockItems(tx, userId, id, 'owner')
+    if (userId === collaboratorId) throw badRequest('You already own this playlist', 'playlist_owner')
+    const key = and(eq(playlistCollaborators.playlistId, id), eq(playlistCollaborators.userId, collaboratorId))
+    const [before] = await tx.select().from(playlistCollaborators).where(key)
+    if (role === null) {
+      if (!before) return null
+      await tx.delete(playlistCollaborators).where(key)
+    } else {
+      const canEdit = role === 'edit'
+      if (before?.canEdit === canEdit) return null
+      const [user] = await tx.select({ id: users.id }).from(users).where(eq(users.id, collaboratorId)).for('key share')
+      if (!user) throw notFound('No such user', 'user_not_found')
+      await tx.insert(playlistCollaborators).values({ playlistId: id, userId: collaboratorId, canEdit })
+        .onConflictDoUpdate({ target: [playlistCollaborators.playlistId, playlistCollaborators.userId], set: { canEdit } })
+    }
+    return playlist
+  })
+  if (changed) {
+    if (role === null && !changed.isPublic) {
+      await publishChanges({ user: collaboratorId }, [{ kind: 'deleted', entity: 'playlist', ids: [id] }])
+    }
+    await invalidatePlaylist(changed, [collaboratorId])
+  }
+}
+
+export async function setPlaylistCover(userId: string, id: string, bytes: Uint8Array | null): Promise<PlaylistSummary> {
+  await requirePlaylistOwner(userId, id)
+  const artworkAssetId = bytes ? (await storeImage(bytes, { kind: 'cover', source: `upload:playlist:${id}` })).id : null
+  const playlist = await db.transaction(async (tx) => {
+    const playlist = await lockOwned(tx, userId, id)
+    await tx.update(playlists).set({ artworkAssetId, updatedAt: new Date() }).where(eq(playlists.id, id))
+    return playlist
+  })
+  await invalidatePlaylist(playlist)
+  return (await playlistSummaries([id], userId))[0]!
+}
+
+export async function dedupePlaylist(userId: string, id: string, editions: boolean): Promise<PlaylistDedupeResult> {
+  const { playlist, removed } = await db.transaction(async (tx) => {
+    const playlist = await lockItems(tx, userId, id)
+    const items = await tx.execute<{ id: string; recordingId: string; title: string; artist: string }>(sql`
+      select i.id, i.recording_id as "recordingId", r.title, r.artist_credit as artist
+      from playlist_items i join recordings r on r.id = i.recording_id
+      where i.playlist_id = ${id} order by i.position, i.id`)
+    const seen = new Set<string>()
+    const copies: string[] = []
+    const kept: string[] = []
+    for (const item of items) {
+      const title = editions && editionFreeKey(item.title)
+      const artist = editions && matchKey(item.artist)
+      const key = title && artist ? `${artist}|${title}` : item.recordingId
+      if (seen.has(key)) copies.push(item.id)
+      else kept.push(item.id)
+      seen.add(key)
+    }
+    if (copies.length) {
+      await tx.execute(sql`delete from playlist_items where playlist_id = ${id} and id = any(${uuidArray(copies)})`)
+      await setPositions(tx, id, kept)
+      await touch(tx, id)
+    }
+    return { playlist, removed: copies.length }
+  })
+  if (removed) await invalidatePlaylist(playlist)
+  return { removed, playlist: await getPlaylist(userId, id) }
 }

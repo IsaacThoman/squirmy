@@ -145,6 +145,7 @@ type TrackRowProps = Omit<SharedProps, 'onPlay' | 'isWanted' | 'onMove' | 'batch
   number?: number
   movementName?: string
   addedAt?: string
+  addedByName?: string | null
   wanted?: boolean
   onPlay: () => void
   /** Owners such as the queue add their own entries to the menu. */
@@ -161,7 +162,7 @@ type TrackRowProps = Omit<SharedProps, 'onPlay' | 'isWanted' | 'onMove' | 'batch
  * One song. A song that plays looks the same wherever its file is (on the server, or fetched
  * as it plays); one that does not is gray and says "Not available".
  */
-export function TrackRow({ track, index, selectionKey, number, movementName, addedAt, variant = 'album', wanted, onPlay, onAction, playlists, ratings, extraMenu, reorder, style, albumCredit, canShare, setSize, onFocusRow, onDragRow, onMenuRow }: TrackRowProps) {
+export function TrackRow({ track, index, selectionKey, number, movementName, addedAt, addedByName, variant = 'album', wanted, onPlay, onAction, playlists, ratings, extraMenu, reorder, style, albumCredit, canShare, setSize, onFocusRow, onDragRow, onMenuRow }: TrackRowProps) {
   const navigate = useNavigate()
   const { rowProps, trigger, renderMenu, present } = useTrackRowMenu()
   useLayoutEffect(() => {
@@ -268,8 +269,9 @@ export function TrackRow({ track, index, selectionKey, number, movementName, add
   const { creditLine, albumLine, wholeCredits, albumWhole } = useWholeLinks(track, showArtists, Boolean(albumColumn))
   // A link the ellipsis cuts leaves the Tab order (`useWholeLinks`); the tooltip has the whole credit.
   const artists = (
-    <div ref={creditLine} title={track.artistCredit} className={cn('min-w-0 truncate text-xs', unavailable ? 'text-faded-foreground' : 'text-muted-foreground')}>
+    <div ref={creditLine} title={addedByName ? `${track.artistCredit} · Added by ${addedByName}` : track.artistCredit} className={cn('min-w-0 truncate text-xs', unavailable ? 'text-faded-foreground' : 'text-muted-foreground')}>
       <ArtistLinks credit={track} plain={unavailable} focusable={index => index < wholeCredits} />
+      {addedByName && <span> · Added by {addedByName}</span>}
     </div>
   )
 
@@ -400,6 +402,7 @@ type TrackListProps = SharedProps & {
   discs?: AlbumDisc[]
   /** Parallel to `tracks`; the playlist variant shows it. */
   addedAt?: string[]
+  addedByNames?: (string | null | undefined)[]
   header?: boolean
   label: string
 }
@@ -416,7 +419,7 @@ function useSelectionKeys(tracks: TrackSummary[], getItemKey?: (index: number) =
   return useMemo(() => tracks.map((track, index) => getItemKey?.(index) ?? track.id), [tracks, getItemKey])
 }
 
-export function TrackList({ tracks, discs, addedAt, header = true, label, variant = 'album', isWanted, onPlay, onMove, batch, ...rest }: TrackListProps) {
+export function TrackList({ tracks, discs, addedAt, addedByNames, header = true, label, variant = 'album', isWanted, onPlay, onMove, batch, ...rest }: TrackListProps) {
   const reorder = useReorder(tracks.length, onMove)
   const list = useRef<HTMLOListElement>(null)
   const keys = useSelectionKeys(tracks)
@@ -451,6 +454,7 @@ export function TrackList({ tracks, discs, addedAt, header = true, label, varian
           number={variant === 'album' ? grouped?.movementNumber ?? track.position ?? start + i + 1 : undefined}
           movementName={grouped?.movementName}
           addedAt={addedAt?.[start + i]}
+          addedByName={addedByNames?.[start + i]}
           variant={variant}
           wanted={isWanted?.(track)}
           onPlay={() => onPlay(start + i)}
@@ -488,7 +492,7 @@ type VirtualTrackListProps = Omit<TrackListProps, 'variant' | 'discs' | 'header'
   onEndReached?: () => void
 }
 
-export function VirtualTrackList({ tracks, label, addedAt, variant = 'compact', isWanted, onPlay, onMove, onEndReached, getItemKey, batch, ...rest }: VirtualTrackListProps) {
+export function VirtualTrackList({ tracks, label, addedAt, addedByNames, variant = 'compact', isWanted, onPlay, onMove, onEndReached, getItemKey, batch, ...rest }: VirtualTrackListProps) {
   const scroller = useScrollContainer()
   const list = useRef<HTMLOListElement>(null)
   const reorder = useReorder(tracks.length, onMove)
@@ -532,6 +536,7 @@ export function VirtualTrackList({ tracks, label, addedAt, variant = 'compact', 
               y={item.start - virtualizer.options.scrollMargin}
               variant={variant}
               addedAt={addedAt?.[item.index]}
+              addedByName={addedByNames?.[item.index]}
               wanted={isWanted?.(track)}
               onPlayAt={onPlay}
               reorder={reorder}

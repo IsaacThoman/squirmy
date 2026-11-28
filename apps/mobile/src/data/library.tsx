@@ -1,6 +1,6 @@
 import { cachedInLibrary, heartFields, heartRollback, planChanges, TrackStore } from '@squirmy/client-core';
 import {
-  queryKeys, type AlbumDetail, type LikeEntityType, type Page, type PlaylistDetail, type PlaylistSummary, type TrackSummary,
+  queryKeys, type AlbumDetail, type LikeEntityType, type Page, type MovePlaylistItemRequest, type PlaylistDetail, type PlaylistSummary, type TrackSummary,
   type WantEntityType,
 } from '@squirmy/contracts';
 import { useMutation, useQuery, useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query';
@@ -384,9 +384,9 @@ export function usePlaylistActions() {
   });
   /** Moves and removals show at once; the server's answer replaces the guess, and a refusal puts it back. */
   const edit = useMutation({
-    mutationFn: (change: { id: string; itemId: string; toIndex?: number }) => run(api => change.toIndex === undefined
+    mutationFn: (change: { id: string; itemId: string; toIndex?: number; anchor?: MovePlaylistItemRequest['anchor'] }) => run(api => change.toIndex === undefined
       ? api.userdata.removePlaylistItem(change.id, change.itemId)
-      : api.userdata.movePlaylistItem(change.id, { itemId: change.itemId, toIndex: change.toIndex })),
+      : api.userdata.movePlaylistItem(change.id, { itemId: change.itemId, toIndex: change.toIndex, anchor: change.anchor })),
     onMutate: async ({ id, itemId, toIndex }) => {
       failPlaylist(id, null);
       await queryClient.cancelQueries({ queryKey: queryKeys.playlist(id) });
@@ -401,6 +401,7 @@ export function usePlaylistActions() {
     },
     onError: (_error, { id, toIndex }, context) => {
       if (context?.previous) queryClient.setQueryData(queryKeys.playlist(id), context.previous);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.playlist(id) });
       failPlaylist(id, playlistEditFailure(toIndex === undefined ? 'remove' : 'move'));
     },
     onSuccess: settle,
@@ -442,7 +443,7 @@ export function usePlaylistActions() {
       // The answer is the whole playlist, so fewer new items than songs sent is how a skipped duplicate shows.
       return { skipped: !options.anyway && before !== undefined && answer.items.length < before + tracks.length };
     },
-    move: (id: string, itemId: string, toIndex: number) => edit.mutate({ id, itemId, toIndex }),
+    move: (id: string, itemId: string, toIndex: number, anchor?: MovePlaylistItemRequest['anchor']) => edit.mutate({ id, itemId, toIndex, anchor }),
     /** Removes the item at once, with no Undo: the song can be added again from its menu. */
     removeItem: (id: string, itemId: string) => edit.mutate({ id, itemId }),
   };

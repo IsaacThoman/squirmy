@@ -34,6 +34,7 @@
     "node-taglib-sharp": "^6.0.3",
     "pg-boss": "^12.38.2",
     "postgres": "^3.4.7",
+    "saxes": "^6.0.0",
     "sharp": "^0.35.5",
     "socket.io": "^4.8.1",
     "thumbhash": "^0.1.1",

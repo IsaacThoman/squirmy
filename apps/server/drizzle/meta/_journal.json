@@ -281,6 +281,13 @@
       "when": 1795856371621,
       "tag": "0039_share_links",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1795858698445,
+      "tag": "0040_playlist_power",
+      "breakpoints": true
     }
   ]
 }

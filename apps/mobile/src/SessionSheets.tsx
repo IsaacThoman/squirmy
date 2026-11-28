@@ -203,7 +203,7 @@ export function AddToPlaylistSheet({ trackId, albumId }: { trackId?: string; alb
   const userId = state.status === 'signedIn' ? state.user.id : null;
   const list = useAllPlaylists();
   // A smart playlist's songs come from its rules, so nothing is added to one.
-  const owned = list.items.filter(playlist => playlist.ownerId === userId && !playlist.smart);
+  const owned = list.items.filter(playlist => !playlist.smart && (playlist.ownerId === userId || playlist.collaboratorRole));
   const [query, setQuery] = useState('');
   const playlists = usePlaylistActions();
   // The playlist being added to: the sheet waits for the server with a spinner on its row.

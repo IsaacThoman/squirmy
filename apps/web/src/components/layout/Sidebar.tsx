@@ -1,5 +1,5 @@
-import type { PlaylistSummary, TrackSummary, User } from '@squirmy/contracts'
-import { AudioLines, Bookmark, Check, CircleAlert, FolderUp, House, Library, ListMusic, LogOut, PanelLeftClose, PanelLeftOpen, Play, Plus, Search, Settings, ShieldCheck, Sparkles, Upload, type LucideIcon } from 'lucide-react'
+import type { PlaylistFolder, PlaylistSummary, TrackSummary, User } from '@squirmy/contracts'
+import { AudioLines, Bookmark, Check, ChevronDown, CircleAlert, Folder, FolderUp, Import, House, Library, ListMusic, LogOut, PanelLeftClose, PanelLeftOpen, Play, Plus, Search, Settings, ShieldCheck, Sparkles, Upload, type LucideIcon } from 'lucide-react'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router'
 import { errorMessage } from '@/api/errors'
@@ -8,17 +8,26 @@ import { Equalizer } from '@/components/music/Equalizer'
 import { Kbd, Spinner } from '@/components/ui/feedback'
 import { ContextMenu, DropdownMenu, type MenuEntry } from '@/components/ui/menu'
 import { canUploadMusic } from '@/lib/catalog'
-import { draggedMusic, type MusicDrag } from '@/lib/drag'
+import { draggedMusic, endTrackDrag, startCollectionDrag, type CollectionDrag, type MusicDrag } from '@/lib/drag'
 import { modKey } from '@/lib/platform'
 import { cn } from '@/lib/utils'
 import { FAILURE_MS, useLibrary } from '@/player/library-context'
 import { usePlayer } from '@/player/player-context'
 import { useDroppedMusic } from '@/player/use-dropped-music'
+import { FolderTarget } from './PlaylistTools'
 import { LogoMark } from './Logo'
+
+export type SidebarFolders = {
+  items: PlaylistFolder[]
+  onMove: (id: string, folderId: string | null) => Promise<unknown>
+  onCreate: () => void
+  onImport: () => void
+}
 
 type SidebarProps = {
   user: User
   playlists: PlaylistSummary[]
+  folders?: SidebarFolders
   /** "24 songs" beside Liked Songs. */
   likedCount: string
   /** Folded to a rail of icons. Never while it is a drawer. */
@@ -57,10 +66,14 @@ export function Sidebar(props: SidebarProps) {
 }
 
 const SidebarView = memo(function SidebarView({
-  user, playlists, likedCount, collapsed, mobile, mobileOpen, transitions = true, onToggle, onNavigate, onOpenSettings, onPlayPlaylist, onPlayLiked, onLogout, playing,
+  user, playlists, folders, likedCount, collapsed, mobile, mobileOpen, transitions = true, onToggle, onNavigate, onOpenSettings, onPlayPlaylist, onPlayLiked, onLogout, playing,
 }: SidebarProps & { playing: PlayingCollection | null }) {
   const library = useLibrary()
   const navigate = useNavigate()
+  const [closed, setClosed] = useState<Set<string>>(() => new Set())
+  const foldersById = useMemo(() => new Set(folders?.items.map(folder => folder.id)), [folders])
+  const own = useMemo(() => new Set(playlists.filter(playlist => playlist.ownerId === user.id).map(playlist => playlist.id)), [playlists, user.id])
+  const canMove = (id: string) => own.has(id)
   const name = user.displayName ?? user.username
   const runningIn = (type: PlayingCollection['type'], id: string | null) => (playing?.type === type && playing.id === id ? playing.running : null)
   // Songs dropped on Liked Songs are saved to the library; the row says when they all are.
@@ -72,7 +85,11 @@ const SidebarView = memo(function SidebarView({
   const newEntries = useMemo<MenuEntry[]>(() => [
     { label: 'Playlist', icon: <ListMusic />, onSelect: () => library.newPlaylist() },
     { label: 'Smart playlist', icon: <Sparkles />, onSelect: () => library.newSmartPlaylist() },
-  ], [library])
+    ...(folders ? [
+      { label: 'Playlist folder', icon: <Folder />, onSelect: folders.onCreate },
+      { label: 'Import playlist…', icon: <Import />, onSelect: folders.onImport },
+    ] : []),
+  ], [folders, library])
   const likedEntries = useMemo<MenuEntry[]>(() => [{ label: 'Play', icon: <Play />, onSelect: onPlayLiked }], [onPlayLiked])
 
   // Labels fade out a little before the sidebar finishes folding, and in after it opens.
@@ -138,6 +155,13 @@ const SidebarView = memo(function SidebarView({
     { kind: 'separator' },
     { label: 'Log out', icon: <LogOut />, onSelect: onLogout, danger: true },
   ]
+
+  const playlistRow = (playlist: PlaylistSummary) => (
+    <li key={playlist.id}>
+      <PlaylistItem playlist={playlist} playing={runningIn('playlist', playlist.id)} owned={canMove(playlist.id)}
+        collapsed={collapsed} labelClass={textTransition} onNavigate={onNavigate} onPlay={onPlayPlaylist} onDropTracks={addToPlaylist} />
+    </li>
+  )
 
   return (
     <aside
@@ -208,20 +232,28 @@ const SidebarView = memo(function SidebarView({
             <li>
               <LikedRow detail={likedCount} playing={runningIn('liked', null)} entries={likedEntries} collapsed={collapsed} labelClass={textTransition} onNavigate={onNavigate} onDropTracks={likeTracks} />
             </li>
-            {playlists.map(playlist => (
-              <li key={playlist.id}>
-                <PlaylistItem
-                  playlist={playlist}
-                  playing={runningIn('playlist', playlist.id)}
-                  owned={playlist.ownerId === user.id}
-                  collapsed={collapsed}
-                  labelClass={textTransition}
-                  onNavigate={onNavigate}
-                  onPlay={onPlayPlaylist}
-                  onDropTracks={addToPlaylist}
-                />
+            {!collapsed && folders?.items.map(folder => (
+              <li key={folder.id}>
+                <FolderTarget folderId={folder.id} canMove={canMove} onMove={async (id, folderId) => {
+                  await folders.onMove(id, folderId)
+                  setClosed(previous => new Set([...previous].filter(value => value !== folder.id)))
+                }} aria-expanded={!closed.has(folder.id)}
+                  className="flex min-h-9 w-full items-center gap-2 rounded-lg px-2 text-left text-sm text-sidebar-foreground/85 hover:bg-sidebar-accent/60 focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:min-h-11"
+                  onClick={() => setClosed(previous => {
+                    const next = new Set(previous)
+                    if (!next.delete(folder.id)) next.add(folder.id)
+                    return next
+                  })}>
+                  <Folder className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+                  <span className="min-w-0 flex-1 truncate">{folder.name}</span>
+                  <ChevronDown className={cn('size-3.5 shrink-0', closed.has(folder.id) && '-rotate-90')} aria-hidden />
+                </FolderTarget>
+                {!closed.has(folder.id) && <ul className="ml-3 border-l border-sidebar-border pl-1">
+                  {playlists.filter(playlist => playlist.folderId === folder.id).map(playlistRow)}
+                </ul>}
               </li>
             ))}
+            {playlists.filter(playlist => collapsed || !playlist.folderId || !foldersById.has(playlist.folderId)).map(playlistRow)}
           </ul>
         </div>
       </div>
@@ -267,7 +299,7 @@ const LikedRow = memo(function LikedRow({ detail, playing, entries, collapsed, l
 type PlaylistItemProps = {
   playlist: PlaylistSummary
   playing: boolean | null
-  /** Songs can be dropped only on the user's own playlists. */
+  /** Only the owner can move the playlist to a folder. */
   owned: boolean
   collapsed: boolean
   labelClass: string
@@ -290,7 +322,8 @@ const PlaylistItem = memo(function PlaylistItem({ playlist, playing, owned, coll
       collapsed={collapsed}
       labelClass={labelClass}
       onNavigate={onNavigate}
-      onDropTracks={owned && !playlist.smart ? tracks => onDropTracks(playlist, tracks) : undefined}
+      drag={owned ? { kind: 'playlist', id: playlist.id, title: playlist.name } : undefined}
+      onDropTracks={(owned || playlist.collaboratorRole) && !playlist.smart ? tracks => onDropTracks(playlist, tracks) : undefined}
     />
   )
 })
@@ -312,6 +345,7 @@ type PlaylistRowProps = {
   onDropTracks?: (tracks: TrackSummary[]) => Promise<unknown>
   /** A smart playlist: a small mark after the name. */
   smart?: boolean
+  drag?: CollectionDrag
 }
 
 /** How long a row says songs dropped on it went in. A failure stays as long as the heart's does. */
@@ -320,7 +354,7 @@ const DROPPED_MS = 2500
 /** What songs dropped on a row came to: still going in, in, or refused and why. */
 type Dropped = { state: 'pending' | 'done' } | { state: 'failed'; message: string }
 
-function PlaylistRow({ to, title, detail, art, playing, entries, collapsed, labelClass, onNavigate, onDropTracks, smart }: PlaylistRowProps) {
+function PlaylistRow({ to, title, detail, art, playing, entries, collapsed, labelClass, onNavigate, onDropTracks, smart, drag }: PlaylistRowProps) {
   const [over, setOver] = useState(false)
   const [dropped, setDropped] = useState<Dropped | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
@@ -346,6 +380,9 @@ function PlaylistRow({ to, title, detail, art, playing, entries, collapsed, labe
     <NavLink
       to={to}
       onClick={onNavigate}
+      draggable={Boolean(drag)}
+      onDragStart={drag && (event => startCollectionDrag(event, drag))}
+      onDragEnd={drag && endTrackDrag}
       onDragOver={event => {
         if (!accepts(event)) return
         event.preventDefault()

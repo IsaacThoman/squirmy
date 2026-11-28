@@ -2,6 +2,7 @@ import type { PlaylistSummary, TrackSummary } from '@squirmy/contracts'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
 import { playlistQuery } from '@/api/queries'
+import { useCurrentUser } from '@/auth/session'
 import { useApi } from '@/api/services'
 import { playlistMenuEntries } from '@/components/music/album-menu'
 import { isPlayable } from '@/lib/catalog'
@@ -17,6 +18,7 @@ import { usePlayCollections } from './use-play-collections'
  */
 export function usePlaylistMenu(playlist: PlaylistSummary, onPlay?: () => void) {
   const api = useApi()
+  const user = useCurrentUser()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const library = useLibrary()
@@ -44,7 +46,7 @@ export function usePlaylistMenu(playlist: PlaylistSummary, onPlay?: () => void) 
       return false
     }),
     onOpen: () => void navigate(`/playlist/${playlist.id}`),
-    onShare: library.sharingEnabled ? () => library.share({ kind: 'playlist', id: playlist.id, title: playlist.name }) : undefined,
+    onShare: library.sharingEnabled && (playlist.ownerId === user.id || playlist.isPublic) ? () => library.share({ kind: 'playlist', id: playlist.id, title: playlist.name }) : undefined,
   })
   return { entries }
 }

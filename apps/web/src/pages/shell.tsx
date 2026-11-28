@@ -1,3 +1,4 @@
+import { useMovePlaylistToFolder, usePlaylistFolders } from '@/api/playlist-folders'
 /**
  * The container of the app shell: the sidebar's playlists, the search dialog and the settings
  * dialog, each with the data it needs.
@@ -14,6 +15,7 @@ import { useApi } from '@/api/services'
 import { useMergedSearch } from '@/api/use-search'
 import { useLogout } from '@/auth/actions'
 import { useCurrentUser, useWantlistEnabled } from '@/auth/session'
+import { ImportPlaylistDialog, NewPlaylistFolderDialog } from '@/components/layout/PlaylistTools'
 import { AppShell, type SearchDialogState, type SettingsDialogState } from '@/components/layout/AppShell'
 import { ErrorBoundary, ErrorMessage } from '@/components/layout/ErrorBoundary'
 import { usePaletteCommands } from '@/components/layout/palette-commands'
@@ -46,6 +48,9 @@ export function ShellPage() {
   const controls = usePlayerControls()
   const { playPlaylist, playLoaded } = usePlayCollections()
   const playlists = usePlaylists().data?.items ?? noPlaylists
+  const folders = usePlaylistFolders().data
+  const moveFolder = useMovePlaylistToFolder()
+  const [playlistDialog, setPlaylistDialog] = useState<'folder' | 'import' | null>(null)
   const liked = useLikedTracks()
   const onPlayPlaylist = useEventCallback((playlist: PlaylistSummary) => void playPlaylist(playlist))
   const onPlayLiked = useEventCallback(() => {
@@ -66,16 +71,21 @@ export function ShellPage() {
   usePrefetchStartPages()
 
   return (
+    <>
     <AppShell
       user={user}
       onLogout={onLogout}
       playlists={playlists}
+      folders={folders && { items: folders, onMove: moveFolder, onCreate: () => setPlaylistDialog('folder'), onImport: () => setPlaylistDialog('import') }}
       likedCount={liked.data ? likedLabel(itemsOf(liked.data).length, liked.hasNextPage) : ''}
       onPlayPlaylist={onPlayPlaylist}
       onPlayLiked={onPlayLiked}
       renderSearch={renderSearch}
       renderSettings={renderSettings}
     />
+    {playlistDialog === 'folder' && <NewPlaylistFolderDialog onClose={() => setPlaylistDialog(null)} />}
+    {playlistDialog === 'import' && <ImportPlaylistDialog onClose={() => setPlaylistDialog(null)} />}
+    </>
   )
 }
 
