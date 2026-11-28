@@ -1,10 +1,10 @@
 import {
-  type AnySessionCommand, bringSession, forkSession, positionAt, queueChanged, reduceSession, type Session, splitSession,
+  type AnySessionCommand, bringSession, diffQueue, forkSession, positionAt, queueChanged, queueLengths, reduceSession, type Session, splitSession,
 } from '@squirmy/client-core'
 import {
   COMMAND_TRACK_LIMIT, CommandEnvelope, DEVICE_GRACE_MS, EngineReport, QUEUE_LIMIT, SessionAttach, SessionDetach,
   type CommandAck, type EntryFailure, type DeviceInfo, type QueueEntry, type SessionCapability, type SessionCommand, type SessionHello, type SessionHelloAck,
-  type SessionMoveAck, type SessionSnapshot,
+  type SessionMoveAck, type SessionQueue, type SessionSnapshot, type SessionSyncAck,
 } from '@squirmy/contracts'
 import { and, eq } from 'drizzle-orm'
 import { getConfig } from '../../config.js'
@@ -50,7 +50,7 @@ const UNAVAILABLE_BEFORE_PAUSE = 5
 const MAX_DETACHED = 8
 /** An own session is discarded once its device has not been seen for this long. */
 const DETACHED_KEEP_MS = 7 * 24 * 60 * 60_000
-const CAPABILITIES: SessionCapability[] = ['detach']
+const CAPABILITIES: SessionCapability[] = ['detach', 'queueOps']
 
 /** Schedules and cancels the grace timers. */
 export type SessionTimers = { set: (callback: () => void, ms: number) => unknown; clear: (handle: unknown) => void }
@@ -99,6 +99,10 @@ const userRoom = (userId: string) => `user:${userId}`
 const SESSION_ROOM = 'session:'
 /** The sockets in a session, which its updates go to: a detached device's own, or all the other ones of the user. */
 const sessionRoom = (record: SessionRecord) => `${SESSION_ROOM}${record.key}`
+/** The sockets of a session's room whose hello accepts `queueOps`: queue changes go to them as operations. */
+const opsRoom = (record: SessionRecord) => `${sessionRoom(record)}#ops`
+/** Sockets whose latest hello accepts `queueOps`. Rooms are joined by socket id, so this outlives a move. */
+const opsSockets = new Set<string>()
 
 function load(userId: string): Promise<SessionRecord> {
   return loadRecord(userId, recheck)
@@ -178,14 +182,14 @@ function helloAck(record: SessionRecord, deviceId: string): SessionHelloAck {
  * are local to this process, which the store assumes is the only one.
  */
 function joinSessionRoom(socketIds: readonly string[], record: SessionRecord): void {
-  const target = sessionRoom(record)
   for (const socketId of socketIds) {
     const socket = io?.of('/').sockets.get(socketId)
     if (!socket) continue
+    const targets = opsSockets.has(socketId) ? [sessionRoom(record), opsRoom(record)] : [sessionRoom(record)]
     for (const joined of socket.rooms) {
-      if (joined.startsWith(SESSION_ROOM) && joined !== target) void socket.leave(joined)
+      if (joined.startsWith(SESSION_ROOM) && !targets.includes(joined)) void socket.leave(joined)
     }
-    void socket.join(target)
+    void socket.join(targets)
   }
 }
 
@@ -193,7 +197,11 @@ function entriesOf(session: Session): QueueEntry[] {
   return [...(session.current ? [session.current] : []), ...session.queue, ...session.autoplayQueue, ...session.history, ...session.playedInCycle]
 }
 
-type Change = { queue: boolean; devices: boolean }
+/**
+ * What a committed change touched. `base`: the queue half before it, while the queue
+ * changed, with its `queueVersion`, for sending the change as operations.
+ */
+type Change = { queue: boolean; devices: boolean; base: { queue: SessionQueue; queueVersion: number } | null }
 
 /**
  * Makes `next` the session: bumps versions, follows the open play up to `now` (when the
@@ -205,6 +213,7 @@ function commit(record: SessionRecord, next: Session, now = settings.now()): Cha
   const previous = record.session
   if (next === previous) return null
   const queue = queueChanged(previous, next)
+  const base = queue ? { queue: splitSession(previous).queue, queueVersion: record.queueVersion } : null
   record.version += 1
   if (queue) record.queueVersion += 1
   record.session = next
@@ -221,7 +230,7 @@ function commit(record: SessionRecord, next: Session, now = settings.now()): Cha
   const devices = record.deviceId === null
     ? previous.activeDeviceId !== next.activeDeviceId
     : JSON.stringify(ownSummary(previous)) !== JSON.stringify(ownSummary(next))
-  return { queue, devices }
+  return { queue, devices, base }
 }
 
 /** Writes a closed play in the background; shutdown waits for it. */
@@ -239,13 +248,32 @@ function closePlay(record: SessionRecord): void {
   keepSaving(record.userId, play)
 }
 
-/** Sends a committed change to the sockets in the session: the queue half first, when it changed. */
+/**
+ * Sends a committed change to the sockets in the session: the queue half first, when it
+ * changed. Sockets that accept `queueOps` get it as operations on the queue before, unless
+ * they would be about as large as the queue (`diffQueue`'s limits): then every socket gets
+ * the whole queue, a checkpoint. The whole queue is only written out when a socket gets it.
+ */
 function broadcast(record: SessionRecord, change: Change): void {
   if (!io) return
-  const target = io.to(sessionRoom(record))
+  const room = sessionRoom(record)
   const { state, queue } = splitSession(record.session)
-  if (change.queue) target.emit('session:queue', { version: record.version, queueVersion: record.queueVersion, queue })
-  target.emit('session:state', { version: record.version, state })
+  if (change.queue) {
+    const rooms = io.of('/').adapter.rooms
+    const withOps = rooms.get(opsRoom(record))?.size ?? 0
+    const ops = withOps && change.base ? diffQueue(change.base.queue, queue) : null
+    const full = { version: record.version, queueVersion: record.queueVersion, queue }
+    if (ops) {
+      const { scope } = snapshotOf(record)
+      io.to(opsRoom(record)).emit('session:queueOps', {
+        version: record.version, queueVersion: record.queueVersion, baseQueueVersion: change.base!.queueVersion, scope: scope!, lengths: queueLengths(queue), ops,
+      })
+      if ((rooms.get(room)?.size ?? 0) > withOps) io.to(room).except(opsRoom(record)).emit('session:queue', full)
+    } else {
+      io.to(room).emit('session:queue', full)
+    }
+  }
+  io.to(room).emit('session:state', { version: record.version, state })
   if (change.devices) emitDevices(record.userId)
 }
 
@@ -620,6 +648,8 @@ async function placeReturning(userId: string, deviceId: string, believed: boolea
  */
 export function greet(userId: string, socketId: string, hello: SessionHello, reply: (ack: SessionHelloAck) => void): Promise<void> {
   const { device, canPlay } = hello
+  if (hello.accepts?.includes('queueOps')) opsSockets.add(socketId)
+  else opsSockets.delete(socketId)
   const returning = !connectedDevice(userId, device.id)
   joinDevice(userId, socketId, device, canPlay, settings.now())
   cancelGrace(userId, device.id)
@@ -647,6 +677,8 @@ export function greet(userId: string, socketId: string, hello: SessionHello, rep
  * the device was last seen.
  */
 export function leave(userId: string, socketId: string, deviceId: string): void {
+  // A socket saying hello again as another device leaves first and is added back by its hello.
+  opsSockets.delete(socketId)
   if (!leaveDevice(userId, socketId, deviceId)) return
   serial(userId, () => {
     const own = loadedOwn(userId, deviceId)
@@ -810,6 +842,22 @@ function moveDevice(record: SessionRecord, deviceId: string, socketId: string): 
   joinSessionRoom(sockets, record)
   const others = sockets.filter(id => id !== socketId)
   if (io && others.length) io.to(others).emit('session:moved', helloAck(record, deviceId))
+}
+
+/**
+ * `session:sync` from `deviceId`: the session it is in, whole, for a socket whose queue
+ * operations did not apply (see "Queue diffs" in the session contract). Answered in order
+ * with the session's updates, so operations after it build on the queue it carries.
+ */
+export function sync(userId: string, deviceId: string | null, ack: (reply: SessionSyncAck) => void): Promise<void> {
+  return serial(userId, async () => {
+    const device = deviceId ? connectedDevice(userId, deviceId) : undefined
+    if (!device) return ack({ ok: false, error: 'hello_required' })
+    ack({ ok: true, snapshot: snapshotOf(await sessionOf(userId, device.id)) })
+  }).catch(error => {
+    report(error)
+    ack({ ok: false, error: 'internal_error' })
+  })
 }
 
 /**
@@ -1079,6 +1127,7 @@ export async function stopSessions(): Promise<void> {
   graceTimers.clear()
   awayClocks.clear()
   refreshedFor.clear()
+  opsSockets.clear()
   for (const record of loadedRecords()) {
     if (record.deviceId === null || !connectedDevice(record.userId, record.deviceId)) continue
     record.lastSeenAt = settings.now()

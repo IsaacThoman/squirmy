@@ -32,6 +32,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Reconnect rule and device-lost handling
 - [x] Device presence: only devices that are open and answering the heartbeat are listed
 - [x] Live invalidations on web and mobile
+- [x] Queue changes as small diffs against a queue version, with the whole queue as a checkpoint
 
 ## 4. Identify and reorganize
 

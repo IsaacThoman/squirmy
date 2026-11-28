@@ -157,6 +157,86 @@ export const SessionSnapshot = z.object({
 })
 export type SessionSnapshot = z.infer<typeof SessionSnapshot>
 
+/**
+ * Queue diffs.
+ *
+ * A client that says `accepts: ['queueOps']` in its hello, on a server with the `queueOps`
+ * capability, gets most queue changes as `session:queueOps` instead of `session:queue`: a
+ * few operations on the queue it holds, rather than the whole queue again (a track end on
+ * a 10,000-entry queue is a few hundred bytes instead of megabytes). The full queue still
+ * comes as `session:queue`, a checkpoint, when the operations would be large (a new
+ * `playTracks`, a reshuffle), and in every hello and move answer. Every other client gets
+ * `session:queue` as before.
+ *
+ * Operations name the lists of `SessionQueue` and apply in order, each to the list as the
+ * operations before it left it. Lists they do not name are unchanged. An entry inserted or
+ * patched is either a whole entry or `{ ref: id }`: the entry with that id the client
+ * already holds (in any list of the base queue, or inlined by an earlier operation of the
+ * same message, which wins). `playOrder` holds ids, so its insertions are strings.
+ *
+ * - `splice`: at `at`, remove `remove` items and insert `insert`.
+ * - `removeIds`: remove every item whose id is in `ids`.
+ * - `permute`: reorder `from.length` items starting at `at`: the item now at `at + i` is the
+ *   one that was at `at + from[i]`.
+ * - `patch`: replace the entry at `at` (same id, another state or track).
+ *
+ * A client applies them to the queue of version `baseQueueVersion`. When it does not hold
+ * that version, the `scope` is not the session it holds, a ref is unknown, an operation
+ * does not fit the list, or the lengths afterwards differ from `lengths`, it asks for the
+ * whole queue with `session:sync` and keeps applying `session:state` meanwhile.
+ */
+export const QueueListName = z.enum(['queue', 'history', 'autoplayQueue', 'playOrder', 'playedInCycle'])
+export type QueueListName = z.infer<typeof QueueListName>
+
+/** An entry the client already holds, by id. */
+export const QueueEntryRef = z.object({ ref: z.string() })
+export type QueueEntryRef = z.infer<typeof QueueEntryRef>
+
+/** An item a queue operation inserts: an entry or a ref for the entry lists, an id for `playOrder`. */
+export const QueueOpItem = z.union([QueueEntry, QueueEntryRef, z.string()])
+export type QueueOpItem = z.infer<typeof QueueOpItem>
+
+const index = z.number().int().nonnegative()
+
+export const QueueOp = z.discriminatedUnion('op', [
+  z.object({ op: z.literal('splice'), list: QueueListName, at: index, remove: index, insert: z.array(QueueOpItem) }),
+  z.object({ op: z.literal('removeIds'), list: QueueListName, ids: z.array(z.string()) }),
+  z.object({ op: z.literal('permute'), list: QueueListName, at: index, from: z.array(index) }),
+  z.object({ op: z.literal('patch'), list: QueueListName, at: index, entry: z.union([QueueEntry, QueueEntryRef]) }),
+])
+export type QueueOp = z.infer<typeof QueueOp>
+
+/** The lengths of the five lists, for checking a diff. */
+export const QueueLengths = z.object({
+  queue: index,
+  history: index,
+  autoplayQueue: index,
+  playOrder: index,
+  playedInCycle: index,
+})
+export type QueueLengths = z.infer<typeof QueueLengths>
+
+/** `session:queueOps`: the queue of `queueVersion`, as operations on that of `baseQueueVersion`. See "Queue diffs". */
+export const SessionQueueOps = z.object({
+  version: z.number().int(),
+  queueVersion: z.number().int(),
+  baseQueueVersion: z.number().int(),
+  scope: SessionScope,
+  lengths: QueueLengths,
+  ops: z.array(QueueOp),
+})
+export type SessionQueueOps = z.infer<typeof SessionQueueOps>
+
+/**
+ * Answer to `session:sync`: the session as it is now, with the whole queue. Errors:
+ * `hello_required`, `rate_limited`, `internal_error`.
+ */
+export const SessionSyncAck = z.union([
+  z.object({ ok: z.literal(true), snapshot: SessionSnapshot }),
+  z.object({ ok: z.literal(false), error: z.string() }),
+])
+export type SessionSyncAck = z.infer<typeof SessionSyncAck>
+
 /** Most tracks one `playTracks` or `enqueue` carries. */
 export const COMMAND_TRACK_LIMIT = 5000
 
@@ -409,11 +489,21 @@ export const SessionHello = z.object({
    * the client last heard from the server. Older clients leave it out.
    */
   detached: z.boolean().optional(),
+  /**
+   * Messages beyond the base protocol this socket understands. `queueOps`: queue changes as
+   * `session:queueOps` (see "Queue diffs"). Servers that do not know a name ignore it; older
+   * clients leave the field out and get the base protocol.
+   */
+  accepts: z.array(z.string()).optional(),
 })
 export type SessionHello = z.infer<typeof SessionHello>
 
-/** What a server can do beyond the base protocol. `detach`: `session:detach`, `session:attach` and all they imply. */
-export const SessionCapability = z.enum(['detach'])
+/**
+ * What a server can do beyond the base protocol. `detach`: `session:detach`, `session:attach`
+ * and all they imply. `queueOps`: `session:queueOps` to sockets that accept it, and
+ * `session:sync` (see "Queue diffs").
+ */
+export const SessionCapability = z.enum(['detach', 'queueOps'])
 export type SessionCapability = z.infer<typeof SessionCapability>
 
 export const SessionHelloAck = z.object({
@@ -529,17 +619,22 @@ export interface ClientToServerEvents {
   /** Only on servers with the `detach` capability. See "Detaching". */
   'session:detach': (request: SessionDetach, ack: (reply: SessionMoveAck) => void) => void
   'session:attach': (request: SessionAttach, ack: (reply: SessionMoveAck) => void) => void
+  /** Only on servers with the `queueOps` capability: the session now, with the whole queue. See "Queue diffs". */
+  'session:sync': (request: Record<string, never>, ack: (reply: SessionSyncAck) => void) => void
 }
 
 /**
  * Every session change emits `session:state`. When the queue half also changed,
- * `session:queue` with the same `version` is emitted first; clients hold it until the
- * matching `session:state` arrives. Both go only to the sockets in that session: a
- * detached device's to that device, the shared session's to everyone else.
+ * `session:queue` (or, to a socket that accepts it, `session:queueOps`) with the same
+ * `version` is emitted first; clients hold it until the matching `session:state` arrives.
+ * All go only to the sockets in that session: a detached device's to that device, the
+ * shared session's to everyone else.
  */
 export interface ServerToClientEvents {
   'session:state': (update: { version: number; state: SessionState }) => void
   'session:queue': (update: { version: number; queueVersion: number; queue: SessionQueue }) => void
+  /** Instead of most `session:queue`s, to sockets whose hello accepts `queueOps`. See "Queue diffs". */
+  'session:queueOps': (update: SessionQueueOps) => void
   /**
    * This socket's device changed session without this socket asking: another socket of
    * the device detached or attached it. Handle it like the answer to a hello.
