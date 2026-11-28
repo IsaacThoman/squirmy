@@ -327,6 +327,11 @@ export function AdminUsersPage() {
   const deleteUser = useMutation({ mutationFn: api.admin.deleteUser, onSuccess: refresh(queryKeys.adminUsers()) })
   const createInvite = useMutation({ mutationFn: api.admin.createInvite, onSuccess: refresh(invitesKey) })
   const revokeInvite = useMutation({ mutationFn: api.admin.deleteInvite, onSuccess: refresh(invitesKey) })
+  // One user's sign-ins at a time, read while their dialog is open.
+  const [securityUserId, setSecurityUserId] = useState<string | null>(null)
+  const securityKey = [...queryKeys.adminUsers(), securityUserId, 'security'] as const
+  const security = useQuery({ queryKey: securityKey, queryFn: () => api.admin.userSecurity(securityUserId!), enabled: !!securityUserId })
+  const refreshSecurity = () => queryClient.invalidateQueries({ queryKey: securityKey })
   return (
     <UsersAdmin
       users={users.data?.items}
@@ -339,6 +344,11 @@ export function AdminUsersPage() {
       onCreateInvite={request => createInvite.mutateAsync(request)}
       onRevokeInvite={id => revokeInvite.mutateAsync(id)}
       failures={{ users: loadFailure(users, 'The users did not load'), invites: loadFailure(invites, 'The invites did not load') }}
+      security={securityUserId ? { userId: securityUserId, data: security.data, failure: loadFailure(security, 'Their sign-ins did not load') } : null}
+      onShowSecurity={setSecurityUserId}
+      onRevokeUserSession={(id, sessionId) => api.admin.revokeUserSession(id, sessionId).then(refreshSecurity)}
+      onRevokeUserSessions={id => api.admin.revokeUserSessions(id).then(refreshSecurity)}
+      onResetTwoFactor={id => api.admin.resetTwoFactor(id).then(refreshSecurity)}
     />
   )
 }
@@ -437,6 +447,7 @@ export function AdminSettingsPage() {
       managedRoots={managedOnly(roots.data)}
       onSave={patch => save.mutateAsync(patch)}
       status={save.isPending ? 'saving' : save.isSuccess ? 'saved' : 'idle'}
+      onTestSso={() => api.admin.testSso()}
     />
   )
 }

@@ -1,5 +1,5 @@
 import type {
-  AppPassword, DeviceInfo, Invite, JobQueueStats, PublicShare, ServerSettings, ShareLink, User, UserSettings,
+  AccountSecurity, AppPassword, AuthSession, DeviceInfo, Invite, JobQueueStats, PublicShare, ServerSettings, ShareLink, User, UserSettings,
 } from '@squirmy/contracts'
 
 const at = (iso: string) => `2026-11-${iso}:00.000Z`
@@ -96,6 +96,18 @@ export const serverSettings: ServerSettings = {
   importMaxActivePerUser: 3,
   wantlistEnabled: false,
   sonicAnalysisEnabled: true,
+  ssoEnabled: false,
+  ssoName: 'Single sign-on',
+  ssoIssuerUrl: null,
+  ssoClientId: null,
+  ssoClientSecretSet: false,
+  ssoScopes: 'openid profile email',
+  ssoUsernameClaim: 'preferred_username',
+  ssoGroupsClaim: 'groups',
+  ssoAllowedGroups: '',
+  ssoAutoCreateUsers: false,
+  passwordLoginDisabled: false,
+  ssoCallbackUrl: 'https://music.example.com/api/v1/auth/sso/callback',
   sharingEnabled: true,
   sharePlayback: 'previews',
 }
@@ -119,4 +131,28 @@ export const devices: DeviceInfo[] = [
   { id: 'studio-mac', name: 'Studio Mac', kind: 'desktop', canPlay: true, isActive: false, lastSeenAt: Date.now() - 3 * 3_600_000 },
   // Playing its own queue: listed apart, never a place to move playback to.
   { id: 'kitchen', name: 'Kitchen', kind: 'web', canPlay: false, isActive: false, detached: { playing: false, trackId: '00000000-0000-4000-8300-000000000001', albumId: null } },
+]
+
+export const accountSecurity: AccountSecurity = {
+  hasPassword: true,
+  twoFactor: { enabled: false, enabledAt: null, recoveryCodesRemaining: 0 },
+  passkeys: [
+    { id: '00000000-0000-4000-8900-000000000001', name: 'MacBook', backedUp: true, createdAt: at('14T10:00'), lastUsedAt: at('26T09:30') },
+  ],
+  ssoIdentities: [],
+}
+
+export const authSessions: AuthSession[] = [
+  {
+    id: '00000000-0000-4000-8800-000000000001', current: true, clientKind: 'web', deviceName: 'Firefox on macOS', userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14.5) Gecko/20100101 Firefox/140.0',
+    method: 'password', createdAt: at('20T08:00'), lastSeenAt: at('27T21:30'), expiresAt: '2027-05-26T21:30:00.000Z',
+  },
+  {
+    id: '00000000-0000-4000-8800-000000000002', current: false, clientKind: 'ios', deviceName: 'Alex’s iPhone', userAgent: 'Squirmy/1.0 CFNetwork',
+    method: 'two_factor', createdAt: at('12T19:45'), lastSeenAt: at('27T18:05'), expiresAt: '2027-05-26T18:05:00.000Z',
+  },
+  {
+    id: '00000000-0000-4000-8800-000000000003', current: false, clientKind: 'web', deviceName: null, userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36',
+    method: null, createdAt: at('03T10:20'), lastSeenAt: at('09T14:00'), expiresAt: '2027-05-08T14:00:00.000Z',
+  },
 ]

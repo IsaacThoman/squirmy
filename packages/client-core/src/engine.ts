@@ -79,14 +79,15 @@ export type EnginePreload = {
 
 /**
  * What the playback descriptor says about the stream, for engines that decode it themselves
- * (the iOS native engine). Engines that hand the URL to a player ignore it.
+ * (the iOS native engine) or demux and trim it (Media Source Extensions on the web). Engines
+ * that hand the URL to a player ignore it.
  */
 export type EngineMedia = {
   /** A server transcode rather than the original file. */
   transcoded: boolean
   /** The stream's exact length and priming, when the server knows them. */
   gapless?: PlaybackDescriptor['gapless']
-}
+} & Partial<Pick<PlaybackDescriptor, 'profile' | 'mime' | 'codec' | 'sampleRate' | 'durationMs'>>
 
 /**
  * - `idle`: nothing loaded.

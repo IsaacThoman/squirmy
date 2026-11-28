@@ -4,7 +4,7 @@
  * renders as XML or JSON, or sends a binary reply itself and returns `sent`.
  */
 import type { FastifyReply, FastifyRequest } from 'fastify'
-import type { AuthUser } from '../../lib/auth.js'
+import type { SubsonicUser } from './auth.js'
 
 /** The Subsonic API version this server speaks. */
 export const API_VERSION = '1.16.1'
@@ -96,7 +96,7 @@ export class Params {
 
 /** What a handler sees. `baseUrl` is the origin clients reach the server at. */
 export type Context = {
-  user: AuthUser
+  user: SubsonicUser
   params: Params
   /** The `c` parameter: the client's name. */
   client: string

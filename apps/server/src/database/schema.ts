@@ -43,6 +43,8 @@ const updatedAt = () => at('updated_at').notNull().defaultNow()
 const textArray = (name: string) => text(name).array().notNull().default(sql`'{}'::text[]`)
 
 export type UserRole = 'admin' | 'member'
+export type SignInMethod = 'password' | 'two_factor' | 'recovery_code' | 'passkey' | 'sso'
+export type AuthChallengeKind = 'two_factor' | 'passkey_register' | 'passkey_login' | 'sso' | 'sso_exchange'
 export type CatalogEntityType = 'artist' | 'album' | 'release' | 'recording'
 export type LikeEntityType = 'recording' | 'album' | 'artist'
 export type LibraryRootMode = 'read_only' | 'managed'
@@ -109,7 +111,12 @@ export const users = pgTable('users', {
   /** Lowercased username; the unique identity. */
   usernameKey: text('username_key').notNull(),
   displayName: text('display_name'),
-  passwordHash: text('password_hash').notNull(),
+  /** argon2id. Null for an account made by single sign-on that never had a password set. */
+  passwordHash: text('password_hash'),
+  /** Set by an admin, or by single sign-on from a verified address; links a provider account to this one. */
+  email: text('email'),
+  /** Lowercased email; unique when set. */
+  emailKey: text('email_key'),
   role: text('role').$type<UserRole>().notNull().default('member'),
   canUpload: boolean('can_upload').notNull().default(false),
   canAcquire: boolean('can_acquire').notNull().default(false),
@@ -120,7 +127,25 @@ export const users = pgTable('users', {
   disabledAt: at('disabled_at'),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
-}, (t) => [uniqueIndex('users_username_key').on(t.usernameKey)])
+}, (t) => [
+  uniqueIndex('users_username_key').on(t.usernameKey),
+  uniqueIndex('users_email_key').on(t.emailKey).where(sql`${t.emailKey} is not null`),
+])
+
+/** Accounts at the single sign-on provider linked to Squirmy users, by the provider's issuer and subject. */
+export const ssoIdentities = pgTable('sso_identities', {
+  id: id(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  issuer: text('issuer').notNull(),
+  subject: text('subject').notNull(),
+  /** The address the provider reported, for the settings list. */
+  email: text('email'),
+  createdAt: createdAt(),
+  lastUsedAt: at('last_used_at'),
+}, (t) => [
+  uniqueIndex('sso_identities_subject').on(t.issuer, t.subject),
+  index('sso_identities_user').on(t.userId),
+])
 
 export const authSessions = pgTable('auth_sessions', {
   id: id(),
@@ -130,12 +155,82 @@ export const authSessions = pgTable('auth_sessions', {
   deviceId: text('device_id'),
   clientKind: text('client_kind').notNull().default('other'),
   userAgent: text('user_agent'),
+  /** How the session was signed in. Null for sessions from before it was recorded. */
+  method: text('method').$type<SignInMethod>(),
   createdAt: createdAt(),
   lastSeenAt: at('last_seen_at').notNull().defaultNow(),
   expiresAt: at('expires_at').notNull(),
 }, (t) => [
   uniqueIndex('auth_sessions_token_hash').on(t.tokenHash),
   index('auth_sessions_user').on(t.userId),
+])
+
+/**
+ * A user's authenticator app secret (RFC 6238). `confirmedAt` is null while it is being set up:
+ * two-factor is on only once a code from the app has been checked against it.
+ */
+export const totpCredentials = pgTable('totp_credentials', {
+  userId: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  /** AES-GCM ciphertext of the base32 secret: checking a code needs the secret itself. */
+  secretEncrypted: text('secret_encrypted').notNull(),
+  /** The last time step a code was accepted for, so a code cannot be used twice. */
+  lastStep: bigint('last_step', { mode: 'number' }).notNull().default(0),
+  confirmedAt: at('confirmed_at'),
+  createdAt: createdAt(),
+})
+
+/** WebAuthn credentials: the public half of each passkey, found by its credential id at sign-in. */
+export const passkeys = pgTable('passkeys', {
+  id: id(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  /** base64url, as browsers send it. */
+  credentialId: text('credential_id').notNull(),
+  /** base64url of the COSE public key. */
+  publicKey: text('public_key').notNull(),
+  /** The authenticator's signature counter; synced passkeys keep it at 0. */
+  counter: bigint('counter', { mode: 'number' }).notNull().default(0),
+  /** WebAuthn transports (`internal`, `hybrid`, `usb`…), handed back to the browser as hints. */
+  transports: textArray('transports'),
+  deviceType: text('device_type').notNull(),
+  backedUp: boolean('backed_up').notNull().default(false),
+  createdAt: createdAt(),
+  lastUsedAt: at('last_used_at'),
+}, (t) => [
+  uniqueIndex('passkeys_credential_id').on(t.credentialId),
+  index('passkeys_user').on(t.userId),
+])
+
+/** One-time codes that stand in for an authenticator code. Only a keyed hash is kept. */
+export const recoveryCodes = pgTable('recovery_codes', {
+  id: id(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  codeHash: text('code_hash').notNull(),
+  usedAt: at('used_at'),
+  createdAt: createdAt(),
+}, (t) => [
+  uniqueIndex('recovery_codes_code_hash').on(t.codeHash),
+  index('recovery_codes_user').on(t.userId),
+])
+
+/**
+ * Short-lived, single-use steps of a sign-in: the second step after a right password, a passkey
+ * ceremony, a single sign-on round trip. Kept in the database rather than in memory so any API
+ * process can finish what another started. Only the token's hash is stored.
+ */
+export const authChallenges = pgTable('auth_challenges', {
+  id: id(),
+  tokenHash: text('token_hash').notNull(),
+  kind: text('kind').$type<AuthChallengeKind>().notNull(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  data: jsonb('data').$type<Record<string, unknown>>().notNull().default({}),
+  /** Wrong answers so far; the challenge is dropped after a few. */
+  attempts: integer('attempts').notNull().default(0),
+  createdAt: createdAt(),
+  expiresAt: at('expires_at').notNull(),
+}, (t) => [
+  uniqueIndex('auth_challenges_token_hash').on(t.tokenHash),
+  index('auth_challenges_expires').on(t.expiresAt),
 ])
 
 export const invites = pgTable('invites', {

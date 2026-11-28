@@ -1,14 +1,16 @@
-import { CreateInviteRequest, CreateUserRequest, Password, UpdateUserRequest, type Invite, type User, type UserRole } from '@squirmy/contracts'
-import { Check, Copy, KeyRound, MoreHorizontal, Pencil, Plus, Ticket, Trash2, UserCheck, UserPlus, UserX } from 'lucide-react'
+import { CreateInviteRequest, CreateUserRequest, Password, UpdateUserRequest, type Invite, type User, type UserRole, type UserSecurity } from '@squirmy/contracts'
+import { Check, Copy, KeyRound, MonitorSmartphone, MoreHorizontal, Pencil, Plus, ShieldCheck, ShieldOff, Ticket, Trash2, UserCheck, UserPlus, UserX } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { z } from 'zod'
 import { useFormSubmit } from '@/api/errors'
+import { SessionList } from '@/components/settings/SessionList'
 import { Button } from '@/components/ui/button'
 import { CopyField } from '@/components/ui/copy-field'
 import { ConfirmDialog, Dialog, DialogClose, DialogContent, DialogFooter } from '@/components/ui/dialog'
-import { Badge, EmptyState, Skeleton } from '@/components/ui/feedback'
+import { Badge, EmptyState, Separator, Skeleton } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
 import { Field, Input } from '@/components/ui/input'
+import { Row } from '@/components/ui/section'
 import { DropdownMenu } from '@/components/ui/menu'
 import { Select } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
@@ -31,13 +33,22 @@ type UsersAdminProps = {
   onRevokeInvite: (inviteId: string) => Promise<unknown>
   /** Said in place of each table's rows when its first read failed; the other table stays usable. */
   failures?: Partial<Record<'users' | 'invites', ReactNode>>
+  /** The user whose sign-ins are shown, and what the page read of them (undefined while loading). */
+  security: { userId: string; data: UserSecurity | undefined; failure?: ReactNode } | null
+  onShowSecurity: (userId: string | null) => void
+  onRevokeUserSession: (userId: string, sessionId: string) => Promise<unknown>
+  onRevokeUserSessions: (userId: string) => Promise<unknown>
+  onResetTwoFactor: (userId: string) => Promise<unknown>
 }
 
 type UserDialog = { kind: 'edit' | 'password' | 'disable' | 'delete'; user: User } | { kind: 'create' | 'invite' } | { kind: 'revoke'; invite: Invite }
 
 const roleOptions = [{ value: 'member', label: 'Member' }, { value: 'admin', label: 'Admin' }] as const
 
-export function UsersAdmin({ users, invites, currentUserId, inviteLink, onCreateUser, onUpdateUser, onDeleteUser, onCreateInvite, onRevokeInvite, failures }: UsersAdminProps) {
+export function UsersAdmin({
+  users, invites, currentUserId, inviteLink, onCreateUser, onUpdateUser, onDeleteUser, onCreateInvite, onRevokeInvite, failures,
+  security, onShowSecurity, onRevokeUserSession, onRevokeUserSessions, onResetTwoFactor,
+}: UsersAdminProps) {
   const [dialog, setDialog] = useState<UserDialog | null>(null)
   const close = (open: boolean) => { if (!open) setDialog(null) }
   const name = (user: User) => user.displayName ?? user.username
@@ -111,6 +122,7 @@ export function UsersAdmin({ users, invites, currentUserId, inviteLink, onCreate
                         entries={[
                           { label: 'Edit…', icon: <Pencil />, onSelect: () => setDialog({ kind: 'edit', user }) },
                           { label: 'Reset password…', icon: <KeyRound />, onSelect: () => setDialog({ kind: 'password', user }) },
+                          { label: 'Sign-ins and security…', icon: <MonitorSmartphone />, onSelect: () => onShowSecurity(user.id) },
                           { kind: 'separator' },
                           user.disabled
                             ? { label: 'Enable account', icon: <UserCheck />, onSelect: () => enable(user) }
@@ -195,6 +207,18 @@ export function UsersAdmin({ users, invites, currentUserId, inviteLink, onCreate
         confirmLabel="Delete"
         onConfirm={() => dialog?.kind === 'delete' ? onDeleteUser(dialog.user.id) : Promise.resolve()}
       />
+      {security && users?.some(user => user.id === security.userId) && (
+        <UserSecurityDialog
+          user={users.find(user => user.id === security.userId)!}
+          isSelf={security.userId === currentUserId}
+          security={security.data}
+          failure={security.failure}
+          onOpenChange={open => { if (!open) onShowSecurity(null) }}
+          onRevokeSession={sessionId => onRevokeUserSession(security.userId, sessionId)}
+          onRevokeAll={() => onRevokeUserSessions(security.userId)}
+          onResetTwoFactor={() => onResetTwoFactor(security.userId)}
+        />
+      )}
       <ConfirmDialog
         open={dialog?.kind === 'revoke'}
         onOpenChange={close}
@@ -204,6 +228,69 @@ export function UsersAdmin({ users, invites, currentUserId, inviteLink, onCreate
         onConfirm={() => dialog?.kind === 'revoke' ? onRevokeInvite(dialog.invite.id) : Promise.resolve()}
       />
     </div>
+  )
+}
+
+/** Someone's signed-in devices and second factor, for an admin helping them or locking a lost device out. */
+function UserSecurityDialog({ user, isSelf, security, failure, onOpenChange, onRevokeSession, onRevokeAll, onResetTwoFactor }: {
+  user: User
+  isSelf: boolean
+  security: UserSecurity | undefined
+  failure?: ReactNode
+  onOpenChange: (open: boolean) => void
+  onRevokeSession: (sessionId: string) => Promise<unknown>
+  onRevokeAll: () => Promise<unknown>
+  onResetTwoFactor: () => Promise<unknown>
+}) {
+  const [confirm, setConfirm] = useState<'all' | 'two-factor' | null>(null)
+  const sessions = security?.sessions
+  return (
+    <Dialog open onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-xl" title={`Sign-ins of @${user.username}`} description="Where they are signed in, and whether signing in with their password asks for a code.">
+        {security ? (
+          <div className="@container flex flex-col gap-4">
+            <Row
+              label={<span className="flex items-center gap-2">{security.twoFactorEnabled ? <ShieldCheck aria-hidden className="size-4 text-primary" /> : <ShieldOff aria-hidden className="size-4 text-muted-foreground" />}Two-factor authentication</span>}
+              description={security.twoFactorEnabled
+                ? isSelf ? 'On. Turn yours off in Settings → Security.' : 'On. Turn it off if they lost their authenticator and their recovery codes.'
+                : 'Off. Only they can turn it on, in their settings.'}
+            >
+              {security.twoFactorEnabled && !isSelf && <Button size="sm" variant="outline" onClick={() => setConfirm('two-factor')}>Turn off</Button>}
+            </Row>
+            <Row
+              label={<span className="flex items-center gap-2"><KeyRound aria-hidden className="size-4 text-muted-foreground" />Passkeys</span>}
+              description={security.passkeys.length
+                ? `${security.passkeys.map(passkey => passkey.name).join(', ')}. Resetting their password or disabling the account removes them.`
+                : 'None.'}
+            />
+            <Separator />
+            {sessions?.length === 0
+              ? <p className="text-sm text-muted-foreground">Not signed in anywhere.</p>
+              : <div className="max-h-80 overflow-y-auto"><SessionList sessions={sessions ?? []} onRevoke={session => onRevokeSession(session.id)} currentLabel="You, here" /></div>}
+            <DialogFooter>
+              {!!sessions?.some(session => !session.current) && <Button variant="outline" onClick={() => setConfirm('all')}>Sign out everywhere</Button>}
+              <DialogClose asChild><Button variant="primary">Done</Button></DialogClose>
+            </DialogFooter>
+          </div>
+        ) : failure ?? <div className="flex flex-col gap-2"><Skeleton className="h-5 w-40" /><Skeleton className="h-4 w-64 max-w-full" /></div>}
+        <ConfirmDialog
+          open={confirm === 'all'}
+          onOpenChange={open => { if (!open) setConfirm(null) }}
+          title={`Sign @${user.username} out everywhere?`}
+          description={isSelf ? 'Every browser and app but this one has to sign in again.' : 'Every browser and app they use has to sign in again. Their password and app passwords keep working.'}
+          confirmLabel="Sign out"
+          onConfirm={onRevokeAll}
+        />
+        <ConfirmDialog
+          open={confirm === 'two-factor'}
+          onOpenChange={open => { if (!open) setConfirm(null) }}
+          title={`Turn off two-factor authentication for @${user.username}?`}
+          description="Signing in with their password stops asking for a code, and their recovery codes stop working. They can turn it on again in their settings."
+          confirmLabel="Turn off"
+          onConfirm={onResetTwoFactor}
+        />
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -250,11 +337,11 @@ function ExplicitField({ value, onChange }: { value: boolean; onChange: (explici
   )
 }
 
-const newUser = { username: '', password: '', displayName: '', role: 'member' as UserRole, canUpload: false, canAcquire: false, explicitRestricted: false }
+const newUser = { username: '', password: '', displayName: '', role: 'member' as UserRole, canUpload: false, canAcquire: false, explicitRestricted: false, email: '' }
 
 function CreateUserDialog({ open, onOpenChange, onCreate }: { open: boolean; onOpenChange: (open: boolean) => void; onCreate: UsersAdminProps['onCreateUser'] }) {
   const [value, setValue] = useState(newUser)
-  const form = useFormSubmit(CreateUserRequest, onCreate, { username_taken: 'username' })
+  const form = useFormSubmit(CreateUserRequest, onCreate, { username_taken: 'username', email_taken: 'email' })
   const close = (next: boolean) => {
     onOpenChange(next)
     if (!next) {
@@ -263,7 +350,7 @@ function CreateUserDialog({ open, onOpenChange, onCreate }: { open: boolean; onO
     }
   }
   const submit = async () => {
-    if (await form.submit({ ...value, displayName: value.displayName.trim() || null })) close(false)
+    if (await form.submit({ ...value, displayName: value.displayName.trim() || null, email: value.email.trim() || null })) close(false)
   }
   return (
     <Dialog open={open} onOpenChange={close}>
@@ -274,6 +361,9 @@ function CreateUserDialog({ open, onOpenChange, onCreate }: { open: boolean; onO
           </Field>
           <Field label="Display name (optional)" htmlFor="new-display-name" error={form.errors.displayName}>
             <Input id="new-display-name" value={value.displayName} onChange={event => setValue({ ...value, displayName: event.target.value })} aria-invalid={!!form.errors.displayName} />
+          </Field>
+          <Field label="Email (optional)" htmlFor="new-email" error={form.errors.email} hint="For single sign-on: someone signing in with this verified address gets this account.">
+            <Input id="new-email" type="email" value={value.email} onChange={event => setValue({ ...value, email: event.target.value })} autoComplete="off" spellCheck={false} aria-invalid={!!form.errors.email} />
           </Field>
           <Field label="Password" htmlFor="new-password" error={form.errors.password} hint="At least 8 characters.">
             <Input id="new-password" type="password" autoComplete="new-password" value={value.password} onChange={event => setValue({ ...value, password: event.target.value })} aria-invalid={!!form.errors.password} />
@@ -289,10 +379,10 @@ function CreateUserDialog({ open, onOpenChange, onCreate }: { open: boolean; onO
 }
 
 function EditUserDialog({ user, isSelf, onOpenChange, onSave }: { user: User; isSelf: boolean; onOpenChange: (open: boolean) => void; onSave: (patch: UpdateUserRequest) => Promise<unknown> }) {
-  const [value, setValue] = useState({ displayName: user.displayName ?? '', role: user.role, canUpload: user.canUpload, canAcquire: user.canAcquire, explicitRestricted: user.explicitRestricted })
-  const form = useFormSubmit(UpdateUserRequest, onSave)
+  const [value, setValue] = useState({ displayName: user.displayName ?? '', email: user.email ?? '', role: user.role, canUpload: user.canUpload, canAcquire: user.canAcquire, explicitRestricted: user.explicitRestricted })
+  const form = useFormSubmit(UpdateUserRequest, onSave, { email_taken: 'email' })
   const submit = async () => {
-    if (await form.submit({ ...value, displayName: value.displayName.trim() || null })) onOpenChange(false)
+    if (await form.submit({ ...value, displayName: value.displayName.trim() || null, email: value.email.trim() || null })) onOpenChange(false)
   }
   return (
     <Dialog open onOpenChange={onOpenChange}>
@@ -300,6 +390,9 @@ function EditUserDialog({ user, isSelf, onOpenChange, onSave }: { user: User; is
         <DialogForm onSubmit={() => void submit()} errors={form.errors} pending={form.pending} submitLabel="Save">
           <Field label="Display name" htmlFor="edit-display-name" error={form.errors.displayName}>
             <Input id="edit-display-name" value={value.displayName} onChange={event => setValue({ ...value, displayName: event.target.value })} placeholder={user.username} aria-invalid={!!form.errors.displayName} autoFocus />
+          </Field>
+          <Field label="Email" htmlFor="edit-email" error={form.errors.email} hint="For single sign-on: someone signing in with this verified address gets this account.">
+            <Input id="edit-email" type="email" value={value.email} onChange={event => setValue({ ...value, email: event.target.value })} placeholder="Not set" spellCheck={false} aria-invalid={!!form.errors.email} />
           </Field>
           <OptionGroup>
             <AccessFields value={value} onChange={access => setValue({ ...value, ...access })} roleLocked={isSelf && value.role === 'member' ? 'You lose access to Admin when you save.' : undefined} />
