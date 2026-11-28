@@ -43,6 +43,12 @@ Albums are mastered at very different levels. Normalization evens them out so yo
 
 **How clients apply it.** The gain is applied on the device, never baked into the stream. A gain is limited so the track's peak does not clip. The web app can raise quiet tracks as well as lower loud ones. The iOS app can only lower: a track quieter than the target plays at its own level.
 
+## Listening history
+
+Squirmy records app plays with less than five seconds of listening as early skips when the play closes. They stay out of listening history, Home's Recently played and Most played, and scrobbles. Radio and Autoplay slightly lower a track's ranking if you skipped it early at least twice in the past 30 days.
+
+Home's **Most played** counts the past 90 days of plays that reached half the song or four minutes, whichever came first. Scrobbles use the same listening threshold.
+
 ## The queue
 
 The queue works as in other streaming apps:

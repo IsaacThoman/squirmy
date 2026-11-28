@@ -80,7 +80,7 @@ export async function albums(userId: string, ids: readonly string[], options: Al
         and ${options.reach === 'server' ? sql`(${inLibraryAlbum('a.id', userId)} or ${inLibraryAlbum('a.id', null)})` : inLibraryAlbum('a.id', userId)}`),
     db.execute<{ id: string; count: number; last: string }>(sql`
       select album_id as id, count(*)::int as count, ${isoTime('max(started_at)')} as last
-      from plays where user_id = ${userId} and album_id = any(${uuidArray(unique)})
+      from plays where user_id = ${userId} and not skipped and album_id = any(${uuidArray(unique)})
       group by album_id`),
     credits('album_artists', unique),
   ])
