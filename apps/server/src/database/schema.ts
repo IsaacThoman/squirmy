@@ -1095,9 +1095,7 @@ export const catalogIndex = pgTable('catalog_index', {
   index('catalog_index_album_head').using('gin', t.nameKey.op('gin_trgm_ops')).where(sql`kind = 'album' and head`),
   index('catalog_index_recording_head').using('gin', t.nameKey.op('gin_trgm_ops')).where(sql`kind = 'recording' and head`),
   index('catalog_index_prefix').on(t.kind, sql`(${t.nameKey} collate "C")`),
-  index('catalog_index_unicode').using('gin', sql`search_unicode_bigrams(${t.nameKey})`).where(sql`head`),
-  index('catalog_index_artist_title').on(t.kind, sql`search_name_key(${t.artistName}) collate "C"`, sql`${t.nameKey} collate "C"`).where(sql`artist_name is not null`),
-  index('catalog_index_album_title').on(t.kind, sql`search_name_key(${t.albumName}) collate "C"`, sql`${t.nameKey} collate "C"`).where(sql`album_name is not null`),
+  // Unicode and composite indexes are owned by the catalog-index importer and upgrade job.
 ])
 
 /**

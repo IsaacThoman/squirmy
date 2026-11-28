@@ -12,6 +12,7 @@ import { newId } from '../../lib/ids.js'
 import { matchKey } from '../../lib/text.js'
 import { parseCsv } from './csv.js'
 import { decompressZstd, dumpDateFromName, findLatestDump, openSource, type OpenedSource } from './dump.js'
+import { catalogSearchIndexes, catalogUpgradeLock, createCatalogSearchIndex } from './indexes.js'
 import { readTar } from './tar.js'
 
 export type ImportOptions = {
@@ -103,7 +104,7 @@ const staging = {
   artists: 'catalog_index_tmp_artists',
   credits: 'catalog_index_tmp_credits',
   next: 'catalog_index_next',
-}
+} as const
 const indexedKinds = ['artist', 'album', 'recording'] as const
 
 /** Escapes a value for Postgres COPY text format. */
@@ -290,9 +291,7 @@ function buildStatements(recordingsPerArtist: number | null): string[] {
     `create index ${next}_prefix on ${next} (kind, (name_key collate "C"))`,
     `analyze ${next}`,
     // Append to preserve the build step numbers in interrupted imports.
-    `create index ${next}_unicode on ${next} using gin (search_unicode_bigrams(name_key)) where head`,
-    `create index ${next}_artist_title on ${next} (kind, (search_name_key(artist_name) collate "C"), (name_key collate "C")) where artist_name is not null`,
-    `create index ${next}_album_title on ${next} (kind, (search_name_key(album_name) collate "C"), (name_key collate "C")) where album_name is not null`,
+    ...catalogSearchIndexes.map((index) => createCatalogSearchIndex(next, index)),
   ]
 }
 
@@ -677,14 +676,17 @@ async function execute(sql: postgres.ReservedSql, job: Job, options: Pick<Import
 
     progress.phase = 'swap'
     await report()
-    if (controller.signal.aborted) throw controller.signal.reason
+    // If an upgrade build is already running, wait outside the swap transaction so
+    // searches keep using the old table. The worker yields between index builds.
+    await run(`select pg_advisory_lock(hashtext('${catalogUpgradeLock}'))`)
+    controller.signal.throwIfAborted()
     const result = { id, artists: counts.artist ?? 0, albums: counts.album ?? 0, recordings: counts.recording ?? 0, dumpDate }
     await getSql().begin(async (tx) => {
       // Readers hold the old table briefly; waiting forever would also block every new search.
       await tx`set local lock_timeout = '30s'`
       await tx.unsafe(`drop table catalog_index`)
       await tx.unsafe(`alter table ${staging.next} rename to catalog_index`)
-      for (const suffix of [...indexedKinds.map((kind) => `${kind}_head`), 'prefix', 'unicode', 'artist_title', 'album_title']) {
+      for (const suffix of [...indexedKinds.map((kind) => `${kind}_head`), 'prefix', ...catalogSearchIndexes]) {
         await tx.unsafe(`alter index ${staging.next}_${suffix} rename to catalog_index_${suffix}`)
       }
       await tx`update catalog_index_imports set state = 'replaced' where state = 'active'`

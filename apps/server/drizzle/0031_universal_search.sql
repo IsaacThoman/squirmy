@@ -53,10 +53,29 @@ LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
     regexp_replace(coalesce(synced, ''), '\[[0-9]+:[0-9]+([.:][0-9]+)?\]', '', 'g'))
 $$;
 --> statement-breakpoint
-CREATE INDEX "albums_match_key_unicode" ON "albums" USING gin (search_unicode_bigrams("match_key"));--> statement-breakpoint
-CREATE INDEX "artists_name_key_unicode" ON "artists" USING gin (search_unicode_bigrams("name_key"));--> statement-breakpoint
-CREATE INDEX "catalog_index_unicode" ON "catalog_index" USING gin (search_unicode_bigrams("name_key")) WHERE head;--> statement-breakpoint
-CREATE INDEX "catalog_index_artist_title" ON "catalog_index" USING btree ("kind",search_name_key("artist_name") collate "C","name_key" collate "C") WHERE artist_name is not null;--> statement-breakpoint
-CREATE INDEX "catalog_index_album_title" ON "catalog_index" USING btree ("kind",search_name_key("album_name") collate "C","name_key" collate "C") WHERE album_name is not null;--> statement-breakpoint
-CREATE INDEX "lyrics_search" ON "lyrics" USING gin (to_tsvector('simple', search_lyric_text("plain", "synced"))) WHERE not "lyrics"."instrumental";--> statement-breakpoint
-CREATE INDEX "recordings_match_key_unicode" ON "recordings" USING gin (search_unicode_bigrams("match_key"));
+-- Empty tables are cheap to index. Leave populated or busy tables for the worker.
+DO $$
+DECLARE target record; populated boolean;
+BEGIN
+  FOR target IN SELECT * FROM (VALUES
+    ('albums', 'albums_match_key_unicode', '(search_unicode_bigrams(match_key))'),
+    ('artists', 'artists_name_key_unicode', '(search_unicode_bigrams(name_key))'),
+    ('lyrics', 'lyrics_search', '(to_tsvector(''simple'', search_lyric_text(plain, synced))) WHERE NOT instrumental'),
+    ('recordings', 'recordings_match_key_unicode', '(search_unicode_bigrams(match_key))')
+  ) AS indexes(table_name, index_name, definition)
+  LOOP
+    BEGIN
+      EXECUTE format('LOCK TABLE %I IN ACCESS SHARE MODE NOWAIT', target.table_name);
+      EXECUTE format('SELECT EXISTS (SELECT 1 FROM %I)', target.table_name) INTO populated;
+      IF populated THEN CONTINUE; END IF;
+      EXECUTE format('LOCK TABLE %I IN SHARE MODE NOWAIT', target.table_name);
+      -- An older server can still be writing during a rolling deploy.
+      EXECUTE format('SELECT EXISTS (SELECT 1 FROM %I)', target.table_name) INTO populated;
+      IF NOT populated THEN
+        EXECUTE format('CREATE INDEX %I ON %I USING gin %s', target.index_name, target.table_name, target.definition);
+      END IF;
+    EXCEPTION WHEN lock_not_available THEN
+      NULL;
+    END;
+  END LOOP;
+END $$;

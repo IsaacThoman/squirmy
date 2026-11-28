@@ -21,9 +21,15 @@ import { db } from '../../database/client.js'
 import { recordingOwned } from '../catalog/availability.js'
 import { albumIsMember, recordingIsMember } from '../catalog/library.js'
 import { searchFacetConditions } from './facets.js'
+import { searchIndexValidity } from './indexes.js'
 import { hasUnicode, prefixEnd, readings, textArray } from './keys.js'
 
 export type LibraryKind = 'artist' | 'album' | 'track'
+const unicodeIndexes = {
+  artist: 'artists_name_key_unicode',
+  album: 'albums_match_key_unicode',
+  track: 'recordings_match_key_unicode',
+} as const
 
 const prefixCandidates = 50
 const fuzzyCandidates = 200
@@ -107,11 +113,12 @@ function inGenre(kind: LibraryKind, alias: string, genre: string | undefined): S
  * candidates of that genre are kept, before the page is cut, so `offset` pages within it
  * (the Library's search inside a genre chip).
  */
-export function libraryQuery(kind: LibraryKind, userId: string, key: string, limit: number, offset = 0, genre?: string, scope: 'library' | 'server' = 'library', facets: SearchFacets = {}): SQL {
+export function libraryQuery(kind: LibraryKind, userId: string, key: string, limit: number, offset = 0, genre?: string, scope: 'library' | 'server' = 'library', facets: SearchFacets = {}, unicodeIndexed = true): SQL {
   const end = prefixEnd(key)
   // Apply facets inside each bounded lookup so unrelated hits cannot crowd out a page.
   const facet = hasSearchFacets(facets) ? sql`and ${searchFacetConditions(kind, kind === 'artist' ? 'a' : 't', userId, facets)}` : sql``
   const recent = sql`select recording_id, album_id from plays where user_id = ${userId} and not skipped order by started_at desc limit ${recentPlays}`
+  const fuzzy = (column: SQL) => unicodeIndexed ? fuzzyName(key, column) : sql`false`
 
   // Also walk saves directly so numerous similar catalog rows cannot crowd them out.
   const similar = (column: string) => hasUnicode(key) ? fuzzyName(key, sql.raw(column)) : key.length >= 3 ? sql`${key} <% ${sql.raw(column)}` : sql`false`
@@ -128,7 +135,7 @@ export function libraryQuery(kind: LibraryKind, userId: string, key: string, lim
             and (starts_with(a.name_key, ${key}) or ${similar('a.name_key')})
           limit ${prefixCandidates})
         union
-        (select a.id from artists a where ${fuzzyName(key, sql`a.name_key`)} and ${eligible} limit ${fuzzyCandidates})
+        (select a.id from artists a where ${fuzzy(sql`a.name_key`)} and ${eligible} limit ${fuzzyCandidates})
       ),
       played as (
         select ra.artist_id as id, count(*)::int as plays from (${recent}) p join recording_artists ra on ra.recording_id = p.recording_id group by 1
@@ -187,7 +194,7 @@ export function libraryQuery(kind: LibraryKind, userId: string, key: string, lim
       (select t.id from artists ar join ${table} t on t.primary_artist_id = ar.id
         where ar.name_key collate "C" >= ${key} and ar.name_key collate "C" < ${end} and ${eligible} limit ${fuzzyCandidates})
       union
-      (select t.id from ${table} t where ${fuzzyName(key, sql`t.match_key`)} and ${eligible} limit ${fuzzyCandidates})
+      (select t.id from ${table} t where ${fuzzy(sql`t.match_key`)} and ${eligible} limit ${fuzzyCandidates})
       union
       (select t.id from likes own join ${table} t on t.id = own.entity_id
         where own.user_id = ${userId} and own.entity_type = ${likeType} and t.merged_into_id is null ${facet}
@@ -220,11 +227,15 @@ export function libraryQuery(kind: LibraryKind, userId: string, key: string, lim
 export async function searchLibrary(userId: string, key: string, limit: number, page: { offset?: number; types?: readonly LibraryKind[]; genre?: string; scope?: 'library' | 'server'; facets?: SearchFacets } = {}):
   Promise<{ artists: string[]; albums: string[]; tracks: string[] }> {
   const offset = page.offset ?? 0
+  const unicode = hasUnicode(key)
+    ? await searchIndexValidity((page.types ?? (['artist', 'album', 'track'] as const)).map((kind) => unicodeIndexes[kind]))
+    : undefined
   const ids = async (kind: LibraryKind) => {
     if (page.types && !page.types.includes(kind)) return []
     return db.transaction(async (tx) => {
       await tx.execute(seqScanOff)
-      return (await tx.execute<{ id: string }>(libraryQuery(kind, userId, key, limit, offset, page.genre, page.scope, page.facets))).map((row) => row.id)
+      const unicodeIndexed = !unicode || unicode.get(unicodeIndexes[kind]) === true
+      return (await tx.execute<{ id: string }>(libraryQuery(kind, userId, key, limit, offset, page.genre, page.scope, page.facets, unicodeIndexed))).map((row) => row.id)
     })
   }
   const [artists, albums, tracks] = await Promise.all([ids('artist'), ids('album'), ids('track')])

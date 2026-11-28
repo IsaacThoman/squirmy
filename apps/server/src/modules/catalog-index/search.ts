@@ -2,6 +2,7 @@ import { getSql } from '../../database/client.js'
 import type { CatalogIndexKind } from '../../database/schema.js'
 import { matchKey } from '../../lib/text.js'
 import { hasUnicode, prefixEnd, readings } from '../search/keys.js'
+import { validCatalogSearchIndexes } from './indexes.js'
 
 export type CatalogIndexResult = {
   kind: CatalogIndexKind
@@ -71,6 +72,11 @@ export async function searchCatalogIndex(query: string, options: CatalogIndexSea
     await sql`select set_config('enable_seqscan', 'off', true), set_config('max_parallel_workers_per_gather', '0', true),
                      set_config('pg_trgm.word_similarity_threshold', ${String(wordSimilarityThreshold)}, true)`
     const unicode = hasUnicode(key)
+    const splits = readings(key).filter((reading) => reading.context !== null)
+    // Without these indexes the extra lookups can scan millions of rows.
+    const valid = unicode || (splits.length && kinds.some((kind) => kind !== 'artist'))
+      ? await validCatalogSearchIndexes(sql)
+      : undefined
     const similarity = unicode
       ? sql`search_unicode_score(search_unicode_bigrams(${key}), search_unicode_bigrams(name_key))`
       : sql`word_similarity(${key}, name_key)`
@@ -78,7 +84,6 @@ export async function searchCatalogIndex(query: string, options: CatalogIndexSea
       ? sql`search_unicode_bigrams(name_key) && search_unicode_bigrams(${key}) and ${similarity} >= 0.5`
       : sql`${key} <% name_key`
     const columns = sql`kind, mbid, name, artist_name, album_name, name_key, score`
-    const splits = readings(key).filter((reading) => reading.context !== null)
     const candidates = kinds.flatMap((kind) => {
       // The kind and head are literals so the planner can use the partial indexes.
       const kindSql = sql.unsafe(`'${kind}'`)
@@ -92,13 +97,15 @@ export async function searchCatalogIndex(query: string, options: CatalogIndexSea
           order by name_key collate "C" limit ${prefixCandidates})`
       })
       return [
-        sql`(select ${columns}, 0.0 as composite from catalog_index
-             where kind = ${kindSql} and head and ${fuzzy} limit ${fuzzyCandidates})`,
+        ...(!unicode || valid?.has('unicode') ? [
+          sql`(select ${columns}, 0.0 as composite from catalog_index
+               where kind = ${kindSql} and head and ${fuzzy} limit ${fuzzyCandidates})`,
+        ] : []),
         sql`(select ${columns}, 0.0 as composite from catalog_index
              where kind = ${kindSql} and name_key collate "C" >= ${key} and name_key collate "C" < ${end}
              order by kind, name_key collate "C" limit ${prefixCandidates})`,
-        ...(kind === 'artist' ? [] : byContext('artist_name')),
-        ...(kind === 'recording' ? byContext('album_name') : []),
+        ...(kind !== 'artist' && valid?.has('artist_title') ? byContext('artist_name') : []),
+        ...(kind === 'recording' && valid?.has('album_title') ? byContext('album_name') : []),
       ]
     })
     const union = candidates.reduce((all, part) => sql`${all} union all ${part}`)

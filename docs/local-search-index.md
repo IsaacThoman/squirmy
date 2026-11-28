@@ -89,7 +89,13 @@ Indexed lookups gather candidates before ranking.
 
 Candidates are ranked by text quality (word similarity, plus bonuses when a word starts with the query and when the name is the query, ignoring a leading "the"), scaled by popularity. A famous near match beats an obscure one; an exact name beats a fuzzy one of similar fame.
 
-Queries with non-ASCII characters use a GIN index of character bigrams for fuzzy candidates. This works under PostgreSQL's `C` locale, where `pg_trgm` can omit entire scripts. The bigrams fold katakana to hiragana and recompose Hangul syllables. ASCII queries keep the trigram path. The database migration adds the new indexes to the active dump, and future imports build them before swapping in the new table.
+Queries with non-ASCII characters use a GIN index of character bigrams for fuzzy candidates. This works under PostgreSQL's `C` locale, where `pg_trgm` can omit entire scripts. The bigrams fold katakana to hiragana and recompose Hangul syllables. ASCII queries keep the trigram path.
+
+### Upgrading an existing index
+
+A worker builds the Unicode and composite search indexes in the background after an upgrade. The server can listen while the builds run. Existing catalog prefix and ASCII trigram search remain available, and each new lookup starts working as soon as its index is valid. The admin API reports `searchUpgrade` as `pending`, `building` or `ready` for an active import. The worker uses the imported data in place. A fresh import builds the indexes before it swaps in the new table.
+
+The worker keeps finished indexes across restarts and rebuilds any invalid index left by an interruption. The builds read the existing catalog and need disk space for the new indexes and PostgreSQL's build work. A refresh can prepare its replacement alongside a build and waits for the current catalog index build before swapping. If removal returns a maintenance conflict, retry after the current build finishes.
 
 ### Why this design
 
@@ -134,7 +140,7 @@ Everything is behind admin routes under `/api/v1`:
 
 | Route | What it does |
 |---|---|
-| `GET /admin/catalog-index` | `CatalogIndexStatus`: ready, dump date, row counts, size on disk, the active import and the newest other import with its phase, progress and how often it was resumed (`resumes`, `resumedAt`) |
+| `GET /admin/catalog-index` | `CatalogIndexStatus` includes readiness, dump date, row counts, size on disk, upgrade state, and import phase, progress and resume history |
 | `POST /admin/catalog-index/import` | Queues the `catalog-index.import` job and answers 202. Body (all optional): `source`, a dump URL or a path on the server (default: the newest dump); `recordingsPerArtist` |
 | `DELETE /admin/catalog-index/import` | Cancels the running or interrupted import; the index in use stays. 409 when there is none |
 | `DELETE /admin/catalog-index` | Cancels a running import and empties the index |

@@ -6,6 +6,7 @@ import { recordingIsMember } from '../catalog/library.js'
 import { trackSummaries } from '../catalog/summaries.js'
 import { playlistSummaries } from '../userdata/playlists.js'
 import { searchFacetConditions } from './facets.js'
+import { searchIndexValidity } from './indexes.js'
 import { hasUnicode, prefixEnd } from './keys.js'
 import { fuzzyName, nameSimilarity } from './library.js'
 
@@ -30,6 +31,7 @@ export async function searchPlaylists(userId: string, key: string, limit: number
 export async function searchLyrics(
   userId: string, query: string, limit: number, offset: number, scope: 'library' | 'server', facets: SearchFacets,
 ): Promise<LyricSearchResult[]> {
+  if (!(await searchIndexValidity(['lyrics_search'])).get('lyrics_search')) return []
   const text = sql`search_lyric_text(l.plain, l.synced)`
   const document = sql`to_tsvector('simple', ${text})`
   const terms = sql`plainto_tsquery('simple', ${query})`
@@ -53,6 +55,8 @@ export async function searchLyrics(
 export async function searchCredits(
   userId: string, key: string, limit: number, offset: number, scope: 'library' | 'server', facets: SearchFacets,
 ): Promise<CreditSearchResult[]> {
+  const unicodeIndexed = !hasUnicode(key) || (await searchIndexValidity(['artists_name_key_unicode'])).get('artists_name_key_unicode')
+  const fuzzy = unicodeIndexed ? fuzzyName(key, sql`a.name_key`) : sql`false`
   const similarity = nameSimilarity(key, sql`a.name_key`)
   const eligible = scope === 'server' ? recordingOwned('t.id') : recordingIsMember('t.id', userId)
   const rows = await db.execute<{ id: string; matched: TrackCredit[] }>(sql`
@@ -60,7 +64,7 @@ export async function searchCredits(
       select a.id, a.name, a.name_key from artists a
       where a.merged_into_id is null and (
         (a.name_key collate "C" >= ${key} and a.name_key collate "C" < ${prefixEnd(key)})
-        or ${fuzzyName(key, sql`a.name_key`)})
+        or ${fuzzy})
       and exists (select 1 from recording_credits c where c.artist_id = a.id and c.role in ('composer', 'producer'))
     ), matches as (
       select coalesce(c.recording_id, f.recording_id) as recording_id,
