@@ -82,6 +82,7 @@ export const apiRoutes = {
   'userdata.unpin': 'DELETE /me/pins/:kind/:id',
   'userdata.playlists': 'GET /playlists',
   'userdata.createPlaylist': 'POST /playlists',
+  'userdata.previewSmartPlaylist': 'POST /playlists/smart/preview',
   'userdata.playlist': 'GET /playlists/:id',
   'userdata.updatePlaylist': 'PATCH /playlists/:id',
   'userdata.deletePlaylist': 'DELETE /playlists/:id',

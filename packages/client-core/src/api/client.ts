@@ -92,6 +92,8 @@ import {
   SearchResults,
   ScrobblingStatus,
   ServerSettings,
+  SmartPlaylistPreview,
+  type SmartPlaylistRules,
   SessionSnapshot,
   SetupStatus,
   type SetupRequest,
@@ -437,6 +439,8 @@ export function createApiClient(options: ApiClientOptions) {
       unpin: (kind: LibraryPinKind, entityId: string) => send('DELETE', `/me/pins/${kind}/${id(entityId)}`, Ok),
       playlists: (query: Partial<PageQuery> = {}) => get('/playlists', PlaylistPage, query),
       createPlaylist: (body: CreatePlaylistRequest) => send('POST', '/playlists', PlaylistSummary, body),
+      /** How many songs smart playlist rules find right now, for the rule editor. */
+      previewSmartPlaylist: (body: SmartPlaylistRules) => send('POST', '/playlists/smart/preview', SmartPlaylistPreview, body),
       playlist: (playlistId: string) => get(`/playlists/${id(playlistId)}`, PlaylistDetail),
       updatePlaylist: (playlistId: string, body: UpdatePlaylistRequest) => send('PATCH', `/playlists/${id(playlistId)}`, PlaylistSummary, body),
       deletePlaylist: (playlistId: string) => send('DELETE', `/playlists/${id(playlistId)}`, Ok),

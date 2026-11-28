@@ -17,7 +17,9 @@ const [afterDark, firstLight] = playlistSummaries
 const [, sam, robin] = users
 /** A playlist someone else shares with the server. */
 const roadTrip: PlaylistSummary = { ...firstLight, id: '00000000-0000-4000-8400-0000000000aa', name: 'Road Trip', ownerId: sam.id, ownerName: sam.username, isPublic: true }
-const playlists = [...playlistSummaries, roadTrip]
+/** A smart playlist of your own: its songs come from rules. */
+const jazz: PlaylistSummary = { ...afterDark, id: '00000000-0000-4000-8400-0000000000ab', name: 'Jazz', smart: true }
+const playlists = [...playlistSummaries, roadTrip, jazz]
 
 function Where() {
   const location = useLocation()
@@ -53,8 +55,10 @@ function renderSidebar({ route = '/', playingFrom, wantlistEnabled = true, toggl
     setSaved: vi.fn<LibraryActions['setSaved']>(async () => {}),
     setWanted: vi.fn<LibraryActions['setWanted']>(async () => {}),
     playlists: playlistSummaries,
+    ownPlaylists: playlistSummaries,
     addToPlaylist: vi.fn<LibraryActions['addToPlaylist']>(async () => true),
     newPlaylist: vi.fn<LibraryActions['newPlaylist']>(),
+    newSmartPlaylist: vi.fn<LibraryActions['newSmartPlaylist']>(),
   } satisfies LibraryActions
   const on = { onToggle: vi.fn(), onNavigate: vi.fn(), onOpenSettings: vi.fn(), onPlayPlaylist: vi.fn(), onPlayLiked: vi.fn(), onLogout: vi.fn() }
   renderWithApp(
@@ -210,7 +214,14 @@ describe('Sidebar', () => {
       const links = playlistLinks()
       expect(links.map(link => link.getAttribute('href'))).toEqual(['/liked', ...playlists.map(playlist => `/playlist/${playlist.id}`)])
       expect(links[0]).toHaveAccessibleName('Liked Songs 24 songs')
-      expect(links.slice(1).map(link => link.textContent)).toEqual(['After Dark', 'First Light', 'Late Train', 'Empty for now', 'Road Trip'])
+      expect(links.slice(1).map(link => link.textContent)).toEqual(['After Dark', 'First Light', 'Late Train', 'Empty for now', 'Road Trip', 'Jazz'])
+    })
+
+    it('marks a smart playlist beside its name, leaving its name as the link’s', () => {
+      renderSidebar()
+      const link = playlistLink('Jazz')
+      expect(link.querySelector('svg.lucide-sparkles')).not.toBeNull()
+      expect(playlistLink('After Dark').querySelector('svg.lucide-sparkles')).toBeNull()
     })
 
     it('opens a playlist and says a link was followed', async () => {
@@ -223,8 +234,18 @@ describe('Sidebar', () => {
     it('opens the new playlist dialog from New playlist', async () => {
       const { library } = renderSidebar()
       await userEvent.click(screen.getByRole('button', { name: 'New playlist' }))
+      await userEvent.click(await screen.findByRole('menuitem', { name: 'Playlist' }))
       expect(library.newPlaylist).toHaveBeenCalledTimes(1)
       expect(library.newPlaylist.mock.calls[0]).toEqual([])
+      expect(library.newSmartPlaylist).not.toHaveBeenCalled()
+    })
+
+    it('opens the new smart playlist dialog from New playlist', async () => {
+      const { library } = renderSidebar()
+      await userEvent.click(screen.getByRole('button', { name: 'New playlist' }))
+      await userEvent.click(await screen.findByRole('menuitem', { name: 'Smart playlist' }))
+      expect(library.newSmartPlaylist).toHaveBeenCalledTimes(1)
+      expect(library.newPlaylist).not.toHaveBeenCalled()
     })
 
     it('plays a playlist from its right-click menu', async () => {
@@ -288,6 +309,15 @@ describe('Sidebar', () => {
       fireEvent.drop(link, { dataTransfer: transfer })
       expect(await within(link).findByText('Couldn’t add')).toBeInTheDocument()
       expect(screen.getAllByRole('status').map(status => status.textContent)).toContain('Couldn’t add to After Dark. The server is busy.')
+    })
+
+    it('does not take songs on a smart playlist, whose songs come from its rules', () => {
+      const { library } = renderSidebar()
+      const { transfer } = dragTracks('amber')
+      const link = playlistLink('Jazz')
+      expect(fireEvent.dragOver(link, { dataTransfer: transfer })).toBe(true)
+      fireEvent.drop(link, { dataTransfer: transfer })
+      expect(library.addToPlaylist).not.toHaveBeenCalled()
     })
 
     it('does not take songs on someone else’s playlist', () => {

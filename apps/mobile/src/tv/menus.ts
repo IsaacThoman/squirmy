@@ -33,11 +33,12 @@ export function OwnPlaylistsProvider({ children }: { children: ReactNode }) {
   const { state } = useAccount();
   const viewer = state.status === 'signedIn' ? state.user.id : null;
   const list = useAllPlaylists(viewer !== null);
-  const own = useMemo(() => list.items.filter(playlist => playlist.ownerId === viewer), [list.items, viewer]);
+  // A smart playlist's songs come from its rules, so nothing is added to one.
+  const own = useMemo(() => list.items.filter(playlist => playlist.ownerId === viewer && !playlist.smart), [list.items, viewer]);
   return createElement(OwnPlaylistsContext.Provider, { value: own.length ? own : noPlaylists }, children);
 }
 
-/** The viewer's own playlists, which songs can be added to, newest first as the server lists them. */
+/** The viewer's own playlists of songs, which songs can be added to, newest first as the server lists them. */
 export function useOwnPlaylists(): PlaylistSummary[] {
   return useContext(OwnPlaylistsContext);
 }

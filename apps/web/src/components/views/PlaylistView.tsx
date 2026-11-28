@@ -1,5 +1,5 @@
 import type { PlaybackContext, PlaylistDetail, TrackSummary } from '@squirmy/contracts'
-import { Globe, Heart, ListMusic, Lock, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { Globe, Heart, ListMusic, Lock, MoreHorizontal, Pencil, Sparkles, Trash2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import type { MoreFailure } from '@/api/queries'
@@ -19,8 +19,9 @@ import { useTrackActions } from '@/player/use-track-actions'
 
 type PlaylistViewProps = {
   playlist: PlaylistDetail
-  /** The owner's controls: edit, delete, reorder, remove. */
+  /** The owner's controls: edit, delete, reorder, remove. A smart playlist's songs come from its rules, so they are never moved or removed. */
   owned: boolean
+  /** Edits the details, and a smart playlist's rules. */
   onEdit: () => void
   /** Its menu entry waits for the server, and says on itself when it refused. */
   onTogglePublic: () => Promise<unknown>
@@ -35,9 +36,11 @@ export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete
   const tracks = playlist.items.map(item => item.track)
   // A finger cannot drag a song onto the sidebar (on a phone it is a drawer over the songs), so touch screens are told the menu's way.
   const touch = useMediaQuery('(pointer: coarse)')
+  const smart = Boolean(playlist.rules)
+  const changesItems = owned && !smart
   return (
     <TrackCollection
-      kind={playlist.isPublic ? 'Public playlist' : 'Playlist'}
+      kind={smart ? (playlist.isPublic ? 'Public smart playlist' : 'Smart playlist') : playlist.isPublic ? 'Public playlist' : 'Playlist'}
       title={playlist.name}
       art={<PlaylistCover artworks={playlist.artworks} />}
       tint={playlist.artworks[0]?.color}
@@ -47,14 +50,14 @@ export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete
       addedAt={playlist.items.map(item => item.addedAt)}
       durationMs={playlist.durationMs}
       context={{ type: 'playlist', id: playlist.id, title: playlist.name }}
-      onMove={owned ? onMove : undefined}
-      onRemove={owned ? onRemove : undefined}
+      onMove={changesItems ? onMove : undefined}
+      onRemove={changesItems ? onRemove : undefined}
       failure={failure}
       menu={owned && (
         <DropdownMenu
           align="start"
           entries={[
-            { label: 'Edit details', icon: <Pencil />, onSelect: onEdit },
+            smart ? { label: 'Edit rules', icon: <Sparkles />, onSelect: onEdit } : { label: 'Edit details', icon: <Pencil />, onSelect: onEdit },
             playlist.isPublic
               ? { label: 'Make private', icon: <Lock />, onSelect: onTogglePublic }
               : { label: 'Make public', icon: <Globe />, onSelect: onTogglePublic },
@@ -64,7 +67,14 @@ export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete
           trigger={<IconButton label="More options" size="lg"><MoreHorizontal /></IconButton>}
         />
       )}
-      empty={(
+      empty={smart ? (
+        <EmptyState
+          icon={<Sparkles />}
+          title="No songs match yet"
+          description="Songs show up here as soon as music that fits the rules is in your library or on this server."
+          action={owned && <Button variant="primary" onClick={onEdit}>Edit rules</Button>}
+        />
+      ) : (
         <EmptyState
           icon={<ListMusic />}
           title="This playlist is empty"

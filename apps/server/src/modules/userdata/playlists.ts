@@ -4,10 +4,14 @@
  *
  * `playlist_items.position` is dense and 0-based. Every change to the items locks the
  * playlist row first, so concurrent adds, moves and removals serialize.
+ *
+ * A smart playlist has rules instead of items (`smart.ts`): its songs, counts and covers are
+ * found for its owner on every read, and its items cannot be changed.
  */
 import {
   PLAYLIST_ITEM_LIMIT, PLAYLIST_LIMIT, queryKeys,
-  type CreatePlaylistRequest, type PageQuery, type PlaylistDetail, type PlaylistPage, type PlaylistSummary, type UpdatePlaylistRequest,
+  type Artwork, type CreatePlaylistRequest, type PageQuery, type PlaylistDetail, type PlaylistPage, type PlaylistSummary, type SmartPlaylistPreview,
+  type SmartPlaylistRules, type UpdatePlaylistRequest,
 } from '@squirmy/contracts'
 import { and, eq, sql } from 'drizzle-orm'
 import { db, type Transaction } from '../../database/client.js'
@@ -19,17 +23,26 @@ import { after, cursorKeys, orderBy, toPage, type Ordering } from '../catalog/pa
 import { isoTime, uuidArray } from '../catalog/sql.js'
 import { alignedTrackSummaries, servable } from '../catalog/summaries.js'
 import { recordCollectionAdd } from '../sessions/collection-plays.js'
+import { dailySeed, smartTracks, type SmartTrackRow } from './smart.js'
 
 const playlistNotFound = () => notFound('No such playlist', 'playlist_not_found')
 /** Thrown by every path that would grow a playlist past `PLAYLIST_ITEM_LIMIT`. */
 export const playlistFull = () => conflict(`A playlist holds at most ${PLAYLIST_ITEM_LIMIT.toLocaleString('en')} tracks`, 'playlist_full')
+/** Thrown by every path that would change the items of a smart playlist. */
+export const smartPlaylistItems = () => conflict('A smart playlist’s songs come from its rules', 'smart_playlist')
 
-/** Summaries of playlists in input order, leaving out ids that do not exist. Does not check access. */
-export async function playlistSummaries(ids: readonly string[]): Promise<PlaylistSummary[]> {
+type SummaryRow = Omit<PlaylistSummary, 'durationMs' | 'smart'> & { durationMs: number | string; rules: SmartPlaylistRules | null }
+
+/**
+ * Summaries of playlists in input order, leaving out ids that do not exist. Does not check
+ * access. A smart playlist's numbers and covers come from its songs, evaluated here unless
+ * `evaluated` already holds them.
+ */
+export async function playlistSummaries(ids: readonly string[], evaluated: ReadonlyMap<string, SmartTrackRow[]> = new Map()): Promise<PlaylistSummary[]> {
   if (ids.length === 0) return []
-  const rows = await db.execute<Omit<PlaylistSummary, 'durationMs'> & { durationMs: number | string }>(sql`
+  const rows = await db.execute<SummaryRow>(sql`
     select p.id, p.name, p.description, p.owner_id as "ownerId", coalesce(u.display_name, u.username) as "ownerName",
-      p.is_public as "isPublic", ${isoTime('p.updated_at')} as "updatedAt",
+      p.is_public as "isPublic", ${isoTime('p.updated_at')} as "updatedAt", p.rules,
       stats."trackCount", stats."durationMs", covers.artworks
     from playlists p
     join users u on u.id = p.owner_id
@@ -56,8 +69,34 @@ export async function playlistSummaries(ids: readonly string[]): Promise<Playlis
       ) c
     ) covers
     where p.id = any(${uuidArray([...new Set(ids)])})`)
-  const byId = new Map(rows.map((row) => [row.id, { ...row, durationMs: Number(row.durationMs) }]))
+  const summaries = await Promise.all(rows.map(async ({ rules, ...row }): Promise<PlaylistSummary> => {
+    if (!rules) return { ...row, durationMs: Number(row.durationMs), smart: false }
+    const tracks = evaluated.get(row.id) ?? await smartTracks(row.ownerId, rules, dailySeed(row.id))
+    return { ...row, ...await smartStats(tracks), smart: true }
+  }))
+  const byId = new Map(summaries.map((summary) => [summary.id, summary]))
   return ids.flatMap((id) => byId.get(id) ?? [])
+}
+
+/** How many songs, how long, and up to four covers of the first albums with one, in song order. */
+async function smartStats(tracks: readonly SmartTrackRow[]): Promise<Pick<PlaylistSummary, 'trackCount' | 'durationMs' | 'artworks'>> {
+  const albums = [...new Set(tracks.flatMap((track) => track.albumId ? [track.albumId] : []))].slice(0, 40)
+  const covers = albums.length === 0 ? [] : await db.execute<Artwork & { albumId: string }>(sql`
+    select al.id as "albumId", art.id, art.color, art.thumbhash
+    from albums al join assets art on art.id = al.artwork_asset_id and ${servable('art')}
+    where al.id = any(${uuidArray(albums)})`)
+  const coverOf = new Map(covers.map(({ albumId, ...cover }) => [albumId, cover]))
+  return {
+    trackCount: tracks.length,
+    durationMs: tracks.reduce((sum, track) => sum + track.durationMs, 0),
+    artworks: albums.flatMap((album) => coverOf.get(album) ?? []).slice(0, 4),
+  }
+}
+
+/** The songs of smart rules for the user, without a playlist: what the rule editor shows as it changes. */
+export async function previewSmartPlaylist(userId: string, rules: SmartPlaylistRules): Promise<SmartPlaylistPreview> {
+  const tracks = await smartTracks(userId, rules, 'preview')
+  return { trackCount: tracks.length, durationMs: tracks.reduce((sum, track) => sum + track.durationMs, 0) }
 }
 
 const playlistOrdering: Ordering = {
@@ -78,16 +117,39 @@ export async function listPlaylists(userId: string, query: PageQuery, options: {
   return toPage(playlistOrdering, rows, query.limit, await playlistSummaries(rows.slice(0, query.limit).map((row) => row.id)))
 }
 
-/** A playlist with its items. Readable by its owner, and by anyone when public; 404 otherwise. */
+/**
+ * A playlist with its items. Readable by its owner, and by anyone when public; 404 otherwise.
+ * A smart playlist's items are its songs as its owner's rules find them now, summarized for
+ * the reader.
+ */
 export async function getPlaylist(userId: string, id: string): Promise<PlaylistDetail> {
+  const [row] = await db.select({ ownerId: playlists.ownerId, isPublic: playlists.isPublic, rules: playlists.rules }).from(playlists).where(eq(playlists.id, id))
+  if (!row || (row.ownerId !== userId && !row.isPublic)) throw playlistNotFound()
+  if (row.rules) {
+    const songs = await smartTracks(row.ownerId, row.rules, dailySeed(id))
+    const [[summary], tracks] = await Promise.all([
+      playlistSummaries([id], new Map([[id, songs]])),
+      alignedTrackSummaries(userId, songs.map((song) => ({ id: song.id, albumId: song.albumId }))),
+    ])
+    if (!summary) throw playlistNotFound()
+    return {
+      ...summary,
+      rules: row.rules,
+      items: songs.flatMap((song, index) => {
+        const track = tracks[index]
+        return track ? [{ itemId: song.id, addedAt: song.addedAt, track }] : []
+      }),
+    }
+  }
   const [summary] = await playlistSummaries([id])
-  if (!summary || (summary.ownerId !== userId && !summary.isPublic)) throw playlistNotFound()
+  if (!summary) throw playlistNotFound()
   const items = await db.execute<{ id: string; recordingId: string; albumId: string | null; addedAt: string }>(sql`
     select id, recording_id as "recordingId", album_id as "albumId", ${isoTime('added_at')} as "addedAt"
     from playlist_items where playlist_id = ${id} order by position`)
   const tracks = await alignedTrackSummaries(userId, items.map((item) => ({ id: item.recordingId, albumId: item.albumId })))
   return {
     ...summary,
+    rules: null,
     items: items.flatMap((item, index) => {
       const track = tracks[index]
       return track ? [{ itemId: item.id, addedAt: item.addedAt, track }] : []
@@ -110,6 +172,18 @@ function checkOwner(userId: string, row: typeof playlists.$inferSelect | undefin
   return row
 }
 
+/** `checkOwner` for a change to the items, which a smart playlist does not have. */
+function checkItemsOwner(userId: string, row: typeof playlists.$inferSelect | undefined) {
+  const owned = checkOwner(userId, row)
+  if (owned.rules) throw smartPlaylistItems()
+  return owned
+}
+
+async function lockItems(tx: Transaction, userId: string, id: string) {
+  const [row] = await tx.select().from(playlists).where(eq(playlists.id, id)).for('update')
+  return checkItemsOwner(userId, row)
+}
+
 async function touch(tx: Transaction, id: string) {
   await tx.update(playlists).set({ updatedAt: new Date() }).where(eq(playlists.id, id))
 }
@@ -126,7 +200,7 @@ async function invalidatePlaylist(ownerId: string, isPublic: boolean) {
   await invalidate({ user: ownerId }, [queryKeys.home()])
 }
 
-/** Creates an empty playlist owned by the user, who may own at most `PLAYLIST_LIMIT`. */
+/** Creates an empty playlist owned by the user, who may own at most `PLAYLIST_LIMIT`; with `rules`, a smart one. */
 export async function createPlaylist(userId: string, input: CreatePlaylistRequest): Promise<PlaylistSummary> {
   const row = await db.transaction(async (tx) => {
     // One user's creates take turns, so concurrent ones cannot all pass the count.
@@ -140,6 +214,7 @@ export async function createPlaylist(userId: string, input: CreatePlaylistReques
       name: input.name,
       description: input.description ?? null,
       isPublic: input.isPublic ?? false,
+      rules: input.rules ?? null,
     }).returning()
     return row!
   })
@@ -149,14 +224,16 @@ export async function createPlaylist(userId: string, input: CreatePlaylistReques
   return (await playlistSummaries([row.id]))[0]!
 }
 
-/** Renames, re-describes or publishes a playlist. Owner only. */
+/** Renames, re-describes or publishes a playlist, or changes a smart playlist's rules. Owner only. */
 export async function updatePlaylist(userId: string, id: string, input: UpdatePlaylistRequest): Promise<PlaylistSummary> {
   const { before, after: updated } = await db.transaction(async (tx) => {
     const before = await lockOwned(tx, userId, id)
+    if (input.rules && !before.rules) throw conflict('A playlist of songs can’t take rules; make a smart playlist instead', 'not_smart_playlist')
     const [updated] = await tx.update(playlists).set({
       name: input.name,
       description: input.description,
       isPublic: input.isPublic,
+      rules: input.rules,
       updatedAt: new Date(),
     }).where(eq(playlists.id, id)).returning()
     return { before, after: updated! }
@@ -191,14 +268,14 @@ export async function addPlaylistItems(
   options: { skipDuplicates?: boolean } = {},
 ): Promise<PlaylistDetail> {
   // Permission first, so a caller learns nothing about tracks from a playlist they cannot change.
-  checkOwner(userId, (await db.select().from(playlists).where(eq(playlists.id, id)))[0])
+  checkItemsOwner(userId, (await db.select().from(playlists).where(eq(playlists.id, id)))[0])
   if (tracks.length > PLAYLIST_ITEM_LIMIT) throw playlistFull()
   const summaries = await alignedTrackSummaries(userId, tracks.map((track) => ({ id: track.trackId, albumId: track.albumId })))
   const unknown = tracks.filter((_, index) => !summaries[index]).map((track) => track.trackId)
   if (unknown.length > 0) throw badRequest('Some tracks do not exist', 'track_not_found', { ids: unknown })
 
   const playlist = await db.transaction(async (tx) => {
-    const playlist = await lockOwned(tx, userId, id)
+    const playlist = await lockItems(tx, userId, id)
     const present = await tx.select({ recordingId: playlistItems.recordingId }).from(playlistItems).where(eq(playlistItems.playlistId, id))
     const seen = new Set(options.skipDuplicates ? present.map((item) => item.recordingId) : [])
     const rows = summaries.flatMap((summary) => {
@@ -223,7 +300,7 @@ export async function addPlaylistItems(
 /** Moves an item to `toIndex` (clamped to the end), shifting the items between. Owner only. */
 export async function movePlaylistItem(userId: string, id: string, itemId: string, toIndex: number): Promise<PlaylistDetail> {
   const playlist = await db.transaction(async (tx) => {
-    const playlist = await lockOwned(tx, userId, id)
+    const playlist = await lockItems(tx, userId, id)
     const [item] = await tx.select({ position: playlistItems.position }).from(playlistItems)
       .where(and(eq(playlistItems.id, itemId), eq(playlistItems.playlistId, id)))
     if (!item) throw notFound('No such playlist item', 'playlist_item_not_found')
@@ -249,7 +326,7 @@ export async function movePlaylistItem(userId: string, id: string, itemId: strin
 /** Removes one item and closes the gap. Owner only. */
 export async function removePlaylistItem(userId: string, id: string, itemId: string): Promise<PlaylistDetail> {
   const playlist = await db.transaction(async (tx) => {
-    const playlist = await lockOwned(tx, userId, id)
+    const playlist = await lockItems(tx, userId, id)
     const [removed] = await tx.delete(playlistItems)
       .where(and(eq(playlistItems.id, itemId), eq(playlistItems.playlistId, id)))
       .returning({ position: playlistItems.position })
@@ -274,7 +351,7 @@ export type PlaylistItemSlot = { itemId: string } | { trackId: string; albumId?:
  * slots with `playlist_full`. Owner only.
  */
 export async function replacePlaylistItems(userId: string, id: string, slots: readonly PlaylistItemSlot[]): Promise<void> {
-  checkOwner(userId, (await db.select().from(playlists).where(eq(playlists.id, id)))[0])
+  checkItemsOwner(userId, (await db.select().from(playlists).where(eq(playlists.id, id)))[0])
   if (slots.length > PLAYLIST_ITEM_LIMIT) throw playlistFull()
   const added = slots.flatMap((slot) => 'trackId' in slot ? [slot] : [])
   const summaries = await alignedTrackSummaries(userId, added.map((slot) => ({ id: slot.trackId, albumId: slot.albumId })))
@@ -282,7 +359,7 @@ export async function replacePlaylistItems(userId: string, id: string, slots: re
   if (unknown.length > 0) throw badRequest('Some tracks do not exist', 'track_not_found', { ids: unknown })
 
   const playlist = await db.transaction(async (tx) => {
-    const playlist = await lockOwned(tx, userId, id)
+    const playlist = await lockItems(tx, userId, id)
     const existing = new Set((await tx.select({ id: playlistItems.id }).from(playlistItems).where(eq(playlistItems.playlistId, id))).map((row) => row.id))
     const kept = slots.flatMap((slot, position) => 'itemId' in slot ? [{ id: slot.itemId, position }] : [])
     if (kept.some((item) => !existing.has(item.id)) || new Set(kept.map((item) => item.id)).size !== kept.length) {

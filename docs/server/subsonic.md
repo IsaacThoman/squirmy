@@ -89,6 +89,7 @@ A cover that cannot be served right now (its download failed within the last hou
 - **Downloading a whole album or artist** with `download`. Download songs one by one, or let the app do it.
 - **The `transcoding` extension** (`getTranscodeDecision`), **`playbackReport`**, **`sonicSimilarity`** and the karaoke timing of `songLyrics` version 2.
 - **Album and artist sort names, moods, BPM, comments and contributors** are not stored, so songs do not carry them.
+- **Smart playlists** (made in the web app) are listed with the songs their rules find for their owner, and marked `readonly`: adding, removing or renaming through an app answers error 50 and changes nothing, but the owner can delete one.
 - **Playlist limits** are the web app's: names up to 120 characters, comments up to 2,000, 10,000 songs per playlist and 1,000 playlists per person. An app that goes past one gets an error, and the songs stay as they were.
 - **Clearing the play queue** from an app keeps the current song: a Squirmy session always has something it is on.
 

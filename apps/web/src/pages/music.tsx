@@ -20,6 +20,7 @@ import { matchingPlaylists, useMergedSearch, useSearchPages } from '@/api/use-se
 import { useCurrentUser, useWantlistEnabled } from '@/auth/session'
 import { Page } from '@/components/layout/Page'
 import { PlaylistDialog } from '@/components/layout/PlaylistDialog'
+import { SmartPlaylistDialog } from '@/components/layout/SmartPlaylistDialog'
 import { CollectionSkeleton } from '@/components/music/Skeletons'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/dialog'
@@ -206,8 +207,10 @@ function EditablePlaylist({ playlist, onDeleting }: { playlist: PlaylistDetail; 
 
   const update = useMutation({
     mutationFn: (patch: Parameters<typeof api.userdata.updatePlaylist>[1]) => api.userdata.updatePlaylist(playlist.id, patch),
-    onSuccess: summary => {
+    onSuccess: (summary, patch) => {
       queryClient.setQueryData<PlaylistDetail>(key, detail => detail && { ...detail, ...summary })
+      // New rules find other songs.
+      if (patch.rules) void queryClient.invalidateQueries({ queryKey: key })
       return queryClient.invalidateQueries({ queryKey: queryKeys.playlists(), exact: true })
     },
   })
@@ -268,7 +271,9 @@ function EditablePlaylist({ playlist, onDeleting }: { playlist: PlaylistDetail; 
         }}
         failure={failure}
       />
-      <PlaylistDialog open={dialog === 'edit'} onOpenChange={open => setDialog(open ? 'edit' : null)} playlist={playlist} onSubmit={request => update.mutateAsync(request)} />
+      {playlist.rules
+        ? <SmartPlaylistDialog open={dialog === 'edit'} onOpenChange={open => setDialog(open ? 'edit' : null)} playlist={{ ...playlist, rules: playlist.rules }} onSubmit={request => update.mutateAsync(request)} />
+        : <PlaylistDialog open={dialog === 'edit'} onOpenChange={open => setDialog(open ? 'edit' : null)} playlist={playlist} onSubmit={request => update.mutateAsync(request)} />}
       <ConfirmDialog
         open={dialog === 'delete'}
         onOpenChange={open => setDialog(open ? 'delete' : null)}
@@ -335,7 +340,7 @@ export function SearchPage() {
   const filter = filterOf(params.get('type'))
   const [typed, setTyped] = useUrlDraft(query)
   const term = typed.trim()
-  const all = useMergedSearch(typed, { playlists: library.playlists })
+  const all = useMergedSearch(typed, { playlists: library.ownPlaylists })
   const pages = useSearchPages(typed, filterKind(filter))
   const recents = useRecentSearches(user.id)
   const show = (q: string, next: SearchFilter) => setParams({ ...(q ? { q } : {}), ...(next !== 'all' ? { type: next } : {}) }, { replace: true })
@@ -349,7 +354,7 @@ export function SearchPage() {
       }
     }
     if (filter === 'playlist') {
-      return { items: term ? matchingPlaylists(term, library.playlists) : [], stale: false, pending: false, failed: false, catalogFailed: false, unavailable: false, retry: () => {} }
+      return { items: term ? matchingPlaylists(term, library.ownPlaylists) : [], stale: false, pending: false, failed: false, catalogFailed: false, unavailable: false, retry: () => {} }
     }
     // Until the filter's own first page arrives, the mixed list's rows of that kind stand in.
     const standIn = pages.items === null && allItems && !all.stale ? allItems.filter(item => item.type === filter) : null
@@ -358,7 +363,7 @@ export function SearchPage() {
       failed: pages.failed, catalogFailed: pages.catalogFailed, unavailable: false, retry: pages.retry, retrying: pages.loading,
       hasMore: pages.hasMore, loadMore: pages.loadMore, moreFailed: pages.moreFailed, moreError: pages.error,
     }
-  }, [all, pages, filter, term, library.playlists])
+  }, [all, pages, filter, term, library.ownPlaylists])
 
   const choose = (item: SearchItem) => {
     recents.add(item)
@@ -606,6 +611,7 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
       onPlayLiked={() => void playLoaded(liked, 5000, list => controls.playTracks(list, 0, likedContext, { collection: true }))}
       onPlaySong={index => void playSong(index)}
       onNewPlaylist={() => library.newPlaylist()}
+      onNewSmartPlaylist={() => library.newSmartPlaylist()}
       onPin={pinItem}
     />
   )
@@ -721,6 +727,7 @@ function ServerMusic({ filter }: { filter: ServerFilter }) {
       onPlayLiked={() => {}}
       onPlaySong={index => void playSong(index)}
       onNewPlaylist={() => {}}
+      onNewSmartPlaylist={() => {}}
     />
   )
 }

@@ -27,6 +27,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
+import type { SmartPlaylistRules } from '@squirmy/contracts'
 
 const id = () => uuid('id').primaryKey()
 const at = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' })
@@ -745,6 +746,11 @@ export const playlists = pgTable('playlists', {
   name: text('name').notNull(),
   description: text('description'),
   isPublic: boolean('is_public').notNull().default(false),
+  /**
+   * A smart playlist's rules (`userdata/smart.ts` evaluates them on every read); null for a
+   * playlist of items. A smart playlist has no `playlist_items`.
+   */
+  rules: jsonb('rules').$type<SmartPlaylistRules>(),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 }, (t) => [index('playlists_owner').on(t.ownerId)])

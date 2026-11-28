@@ -1,5 +1,5 @@
 import type { Artwork } from '@squirmy/contracts'
-import { Heart, ListMusic } from 'lucide-react'
+import { Heart, ListMusic, Sparkles } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { Cover } from './Cover'
@@ -56,4 +56,9 @@ function GradientArt({ colors, className, children }: { colors: string; classNam
       <span aria-hidden className={edge} />
     </div>
   )
+}
+
+/** The mark of a smart playlist beside its name or kind: its songs come from rules. Words beside it say so to screen readers. */
+export function SmartMark({ className }: { className?: string }) {
+  return <Sparkles aria-hidden className={cn('shrink-0', className)} />
 }

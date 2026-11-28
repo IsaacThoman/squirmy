@@ -123,9 +123,11 @@ function useFixtureLibrary(): LibraryActions {
     setSaved: async () => {},
     setWanted: async (target, value) => setWanted(map => new Map(map).set(target.type === 'album' ? target.album.id : target.track.id, value)),
     playlists: playlistSummaries,
+    ownPlaylists: playlistSummaries,
     addToPlaylist: async () => true,
     // New playlists need the server.
     newPlaylist: () => {},
+    newSmartPlaylist: () => {},
   }), [wanted])
 }
 
