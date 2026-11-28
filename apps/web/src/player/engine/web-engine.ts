@@ -1,5 +1,8 @@
-import type { EngineEvent, EngineLoad, EnginePreload, EngineState, EngineStatus, PlayerEngine } from '@squirmy/client-core'
+import type { EngineEvent, EngineLoad, EnginePreload, EngineState, EngineStatus } from '@squirmy/client-core'
+import type { PlaybackQuery } from '@squirmy/contracts'
+import { playableCodecs } from '@/lib/codecs'
 import { AUDIO_BLOCKED_MESSAGE, clampPosition, mediaErrorMessage, playFailure } from './errors'
+import type { BrowserEngine } from './types'
 
 type Entry = { entryId: string; url: string; gain: number }
 
@@ -48,7 +51,7 @@ const HANDOFF_GRACE_MS = 250
  * with `AUDIO_BLOCKED_MESSAGE` and `isBlocked()` turns true until `unlock()` is called
  * from a user gesture, which starts the blocked playback.
  */
-export class WebPlayerEngine implements PlayerEngine {
+export class WebPlayerEngine implements BrowserEngine {
   readonly canBoost = true
   private readonly options: WebEngineOptions
   private context: AudioContext | null = null
@@ -78,6 +81,11 @@ export class WebPlayerEngine implements PlayerEngine {
     this.options = options
     this.current = this.createVoice()
     this.spare = this.createVoice()
+  }
+
+  /** The codecs the element plays, in the original containers: originals as they are, and today's transcodes. */
+  playbackQuery(): Pick<PlaybackQuery, 'codecs' | 'containers' | 'engine'> {
+    return { codecs: playableCodecs().join(',') }
   }
 
   load(request: EngineLoad): void {
