@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net'
 import { FakeEngine, SessionClient } from '@squirmy/client-core'
 import { createSocketTransport, type SquirmySocket } from '@squirmy/client-core/socket'
-import type { CommandAck, JamAck, JamRequest, PlaybackDescriptor, QueueEntry, ServerEvent, SessionCommand } from '@squirmy/contracts'
+import type { CommandAck, JamAck, JamRequest, PlaybackDescriptor, QueueEntry, ServerEvent, SessionCommand, SessionQueueOps } from '@squirmy/contracts'
 import { eq } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { io as connect } from 'socket.io-client'
@@ -348,6 +348,153 @@ describe('listen together', () => {
     const response = await app.inject({ method: 'GET', url: `/api/v1/jams/${jamId}`, headers: { authorization: `Bearer ${guest.token}` } })
     expect(response.statusCode).toBe(200)
     expect(response.json()).toMatchObject({ id: jamId, members: [{ userId: host.userId }, { userId: guest.userId }] })
+  })
+
+  it('sends members the jam\'s queue changes as diffs, and whole to clients that do not take them', async () => {
+    const a = await device(host, 'host-phone-10')
+    const b = await device(guest, 'guest-phone-10')
+    a.client.dispatch(playAlbum())
+    const jamId = await started(a)
+    await jam(b, { action: 'join', jamId })
+    await inStep(guest)
+    // An older app of the guest's, whose hello does not accept queue operations.
+    const old: SquirmySocket = connect(url, { path: '/socket.io', transports: ['websocket'], reconnection: false, auth: { token: guest.token } })
+    const oldLog: string[] = []
+    const opsLog: SessionQueueOps[] = []
+    try {
+      for (const event of ['session:queue', 'session:queueOps'] as const) old.on(event, () => oldLog.push(event))
+      b.socket.on('session:queueOps', (update) => opsLog.push(update))
+      const hello = await old.emitWithAck('session:hello', { device: { id: 'guest-old-10', name: 'old', kind: 'web' }, canPlay: false, detached: false })
+      expect(hello.capabilities).toContain('queueOps')
+
+      const track = album.tracks[2]!
+      a.client.dispatch({ type: 'enqueue', placement: 'next', tracks: [{ trackId: track.recordingId, albumId: album.albumId, durationMs: 0 }] })
+      await inStep(guest)
+      b.client.dispatch({ type: 'enqueue', placement: 'last', tracks: [{ trackId: track.recordingId, albumId: album.albumId, durationMs: 0 }] })
+      await eventually(async () => expect((await getSnapshot(host.userId)).queue.queue.at(-1)).toMatchObject({ addedBy: guest.userId }))
+      await inStep(guest)
+      const removed = (await getSnapshot(host.userId)).queue.queue[0]!.id
+      a.client.dispatch({ type: 'removeFromQueue', entryId: removed })
+      await eventually(async () => expect((await getSnapshot(guest.userId)).queue.queue.map((entry) => entry.id)).not.toContain(removed))
+      await inStep(guest)
+
+      // The guest's own queue versions, one change after another, and the same queue as the host's.
+      const guestSnapshot = await getSnapshot(guest.userId)
+      await eventually(() => expect(b.client.getSnapshot().queue).toEqual(guestSnapshot.queue))
+      expect(guestSnapshot.queue.queue).toEqual((await getSnapshot(host.userId)).queue.queue)
+      expect(opsLog.length).toBeGreaterThanOrEqual(3)
+      for (const [index, update] of opsLog.entries()) {
+        if (index > 0) expect(update.baseQueueVersion).toBe(opsLog[index - 1]!.queueVersion)
+      }
+      expect(opsLog.at(-1)!.queueVersion).toBe(guestSnapshot.queueVersion)
+      // The older app got each as the whole queue, and never operations.
+      await eventually(() => expect(oldLog.filter((event) => event === 'session:queue').length).toBeGreaterThanOrEqual(opsLog.length))
+      expect(oldLog).not.toContain('session:queueOps')
+      // A sync answers the guest's session, in step with the jam.
+      const synced = await b.socket.emitWithAck('session:sync', {})
+      expect(synced).toMatchObject({ ok: true, snapshot: { queueVersion: guestSnapshot.queueVersion, queue: guestSnapshot.queue } })
+    } finally {
+      old.disconnect()
+    }
+  })
+
+  it('undoes the host\'s queue edits for everyone and leaves undo to the host', async () => {
+    const a = await device(host, 'host-phone-11')
+    const b = await device(guest, 'guest-phone-11')
+    // Before joining, the guest has an edit of their own session to undo.
+    b.client.dispatch(playAlbum())
+    await eventually(async () => expect((await getSnapshot(guest.userId)).queue.queue).toHaveLength(2))
+    const ownRemoved = (await getSnapshot(guest.userId)).queue.queue[0]!
+    const ownEdit = b.client.dispatch({ type: 'removeFromQueue', entryId: ownRemoved.id })!
+    await eventually(async () => expect((await getSnapshot(guest.userId)).queue.queue).toHaveLength(1))
+
+    a.client.dispatch(playAlbum())
+    await eventually(async () => expect((await getSnapshot(host.userId)).queue.queue).toHaveLength(2))
+    const jamId = await started(a)
+    await jam(b, { action: 'join', jamId })
+    await inStep(guest)
+    await eventually(() => expect(a.client.getSnapshot().canUndo).toBe(true))
+    expect(b.client.getSnapshot().canUndo).toBe(false)
+
+    const removed = (await getSnapshot(host.userId)).queue.queue[0]!
+    const edit = a.client.dispatch({ type: 'removeFromQueue', entryId: removed.id })!
+    await eventually(async () => expect((await getSnapshot(guest.userId)).queue.queue.map((entry) => entry.id)).not.toContain(removed.id))
+    // Only the host undoes; the client does not even send a member's undo.
+    expect(await rawCommand(b, { type: 'undo', commandId: edit })).toEqual({ ok: false, error: 'jam_host_only' })
+    expect(b.client.dispatch({ type: 'undo', commandId: edit })).toBeNull()
+    a.client.dispatch({ type: 'undo', commandId: edit })
+    await eventually(async () => expect((await getSnapshot(guest.userId)).queue.queue[0]?.id).toBe(removed.id))
+    await inStep(guest)
+    await eventually(() => expect(b.client.getSnapshot().queue.queue[0]?.id).toBe(removed.id))
+
+    // A member's additions are not on the host's stack: the host removes them instead.
+    const track = album.tracks[2]!
+    const added = b.client.dispatch({ type: 'enqueue', placement: 'last', tracks: [{ trackId: track.recordingId, albumId: album.albumId, durationMs: 0 }] })!
+    await eventually(async () => expect((await getSnapshot(host.userId)).queue.queue.at(-1)).toMatchObject({ addedBy: guest.userId }))
+    expect(await rawCommand(a, { type: 'undo', commandId: added })).toEqual({ ok: false, error: 'nothing_to_undo' })
+
+    // Out of the jam, the guest's queue is the one the jam had: the edit made before joining is not undone into it.
+    expect(await jam(b, { action: 'leave' })).toEqual({ ok: true, jam: null })
+    await eventually(async () => expect((await getSnapshot(guest.userId)).state.jam).toBeUndefined())
+    const left = (await getSnapshot(guest.userId)).queue
+    expect(await rawCommand(b, { type: 'undo', commandId: ownEdit })).toEqual({ ok: false, error: 'nothing_to_undo' })
+    expect((await getSnapshot(guest.userId)).queue).toEqual(left)
+    await eventually(() => expect(b.client.getSnapshot().canUndo).toBe(true))
+  })
+
+  it('stops everyone when the host\'s sleep timer ends, and keeps a member\'s own timer out of the jam', async () => {
+    const a = await device(host, 'host-phone-12')
+    const b = await device(guest, 'guest-phone-12')
+    b.client.dispatch(playAlbum())
+    b.client.dispatch({ type: 'setSleepTimer', timer: { kind: 'queue' } })
+    await eventually(async () => expect((await getSnapshot(guest.userId)).state.sleepTimer).toEqual({ kind: 'queue' }))
+    a.client.dispatch(playAlbum())
+    const jamId = await started(a)
+    await jam(b, { action: 'join', jamId })
+    await inStep(guest)
+    expect((await getSnapshot(guest.userId)).state.sleepTimer).toBeUndefined()
+
+    a.client.dispatch({ type: 'setSleepTimer', timer: { kind: 'time', durationMs: 200 } })
+    await eventually(async () => expect((await getSnapshot(host.userId)).state.sleepTimer).toMatchObject({ kind: 'time' }))
+    // The timer is the host's: members see the jam play on without one, and cannot set their own.
+    expect((await getSnapshot(guest.userId)).state.sleepTimer).toBeUndefined()
+    expect(await rawCommand(b, { type: 'setSleepTimer', timer: null })).toEqual({ ok: false, error: 'jam_unsupported' })
+    time += 200
+    await eventually(async () => expect((await getSnapshot(host.userId)).state).toMatchObject({ playing: false }))
+    await inStep(guest)
+    expect((await getSnapshot(guest.userId)).state.playing).toBe(false)
+    await eventually(() => expect(b.engine.getStatus().state).toBe('paused'))
+  })
+
+  it('keeps each listener\'s signal path their own', async () => {
+    const a = await device(host, 'host-phone-13')
+    const b = await device(guest, 'guest-phone-13')
+    a.client.dispatch(playAlbum())
+    const jamId = await started(a)
+    await jam(b, { action: 'join', jamId })
+    await inStep(guest)
+    const hostSignals: string[] = []
+    const guestSignals: string[] = []
+    a.socket.on('session:signal', (signal) => hostSignals.push(signal.deviceId))
+    b.socket.on('session:signal', (signal) => guestSignals.push(signal.deviceId))
+    // Each device reports what it plays; a change of song has both report again.
+    a.client.dispatch({ type: 'next' })
+    await inStep(guest)
+    await eventually(() => {
+      expect(a.client.getSnapshot().signal?.deviceId).toBe('host-phone-13')
+      expect(b.client.getSnapshot().signal?.deviceId).toBe('guest-phone-13')
+    })
+    await eventually(() => expect(hostSignals.length * guestSignals.length).toBeGreaterThan(0))
+    expect(new Set(hostSignals)).toEqual(new Set(['host-phone-13']))
+    expect(new Set(guestSignals)).toEqual(new Set(['guest-phone-13']))
+    // A new device of the guest's is told the guest's, not the host's.
+    const other: SquirmySocket = connect(url, { path: '/socket.io', transports: ['websocket'], reconnection: false, auth: { token: guest.token } })
+    try {
+      const hello = await other.emitWithAck('session:hello', { device: { id: 'guest-other-13', name: 'other', kind: 'web' }, canPlay: false, detached: false })
+      expect(hello.signal?.deviceId).toBe('guest-phone-13')
+    } finally {
+      other.disconnect()
+    }
   })
 
   it('shows an invite link and whom to invite over HTTP', async () => {

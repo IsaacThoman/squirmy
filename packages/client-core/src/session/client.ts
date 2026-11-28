@@ -59,7 +59,10 @@ export type SessionClientSnapshot = {
   detached: boolean
   /** Detaching is possible: this device can play and the server said it supports it. False until a hello has. */
   canDetach: boolean
-  /** The server takes `undo` (see "Undo" in the session contract). False until a hello has said so. */
+  /**
+   * The server takes `undo` (see "Undo" in the session contract) for this session. False until
+   * a hello has said so, and while following someone's jam, where only the host undoes.
+   */
   canUndo: boolean
   /** The server takes `setSleepTimer` (the `sleepTimer` capability). False until a hello has said so. */
   canSetSleepTimer: boolean
@@ -1000,7 +1003,8 @@ export class SessionClient {
     const queueHalf = shallowEqual(previous.queue, queue) ? previous.queue : queue
     const isActiveDevice = this.isActive()
     const canDetach = this.canDetach()
-    const canUndo = this.serverUndoes
+    // A jam's edits are undone by its host alone, so a member is not offered undo.
+    const canUndo = this.serverUndoes && !followsJam(this.local)
     const outage = this.outage()
     const away = this.away(previous.away)
     const signal = this.signal(previous.signal)

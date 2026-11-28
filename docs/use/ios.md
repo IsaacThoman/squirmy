@@ -85,7 +85,7 @@ The app has Home, Library (playlists, albums, artists and songs: what you hearte
 
 To listen with someone else on your server, open **Playback device** and choose **Listen together**, then **Start listening together**. Share the invite link with **Share invite link**, or invite people one by one from the list below it; an invited person gets an alert with **Join**. To join from a link someone sent you, paste it into **Paste an invite link to join** in the same sheet (the web app opens links directly).
 
-In a session, the sheet lists who is listening, with the host marked; the host can remove people, choose **Who can add songs**, and **End for everyone**. A member sees **Leave**. As a member the host controls playback: the play and skip buttons are dimmed, and playing a song adds it to the queue for everyone when the host lets everyone add. The queue says who added each song. See [Listening together](../server/playback.md#listening-together).
+In a session, the sheet lists who is listening, with the host marked; the host can remove people, choose **Who can add songs**, and **End for everyone**. A member sees **Leave**. As a member the host controls playback: the play and skip buttons are dimmed, and playing a song adds it to the queue for everyone when the host lets everyone add. The queue says who added each song. Members' queue edits have no **Undo**; the host's changes the queue for everyone. See [Listening together](../server/playback.md#listening-together).
 
 ## Playing separately on one device
 

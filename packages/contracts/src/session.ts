@@ -151,7 +151,7 @@ export type SleepTimerRequest = z.infer<typeof SleepTimerRequest>
  * member listens on their own device, in step: the jam is the host's shared session, and
  * every member's shared session follows it. The server copies the host's session into each
  * member's (current entry, position anchor, queue, shuffle, repeat, autoplay, context),
- * keeping what is the member's own: their active device, volumes and sleep timer. Every
+ * keeping what is the member's own: their active device and volumes. Every
  * device plays locally from the same position anchor on the server clock, so they stay
  * together the way a device follows a seek; a member's device also corrects its own drift
  * against the anchor (`JAM_DRIFT_MS`). Plays are recorded for each listener from their own
@@ -161,8 +161,19 @@ export type SleepTimerRequest = z.infer<typeof SleepTimerRequest>
  *   (`playTracks`), shuffle, repeat, autoplay and the queue's order. With `queuePolicy`
  *   `everyone`, members may add to the queue (`enqueue`) and remove what they added; with
  *   `host`, only the host may. Members' other playback commands are refused `jam_host_only`;
- *   `transfer` and `setVolume` stay theirs, within their own devices. `setSleepTimer` is
- *   refused `jam_unsupported` for members; the host's pauses the jam.
+ *   `transfer` and `setVolume` stay theirs, within their own devices.
+ * - **Sleep timer.** The host's session holds it; when it ends the jam pauses, and with it
+ *   every member's session. Members' copies carry none (so their devices do not fade out;
+ *   they pause with the jam), a timer a member had set goes when they join, and their
+ *   `setSleepTimer` is refused `jam_unsupported`.
+ * - **Undo.** The host's undo stack holds the host's own queue edits, and undoing one changes
+ *   the jam for everyone. Members' edits are not kept on it, and a member's `undo` is refused
+ *   `jam_host_only`. Joining empties the member's own stack, whose edits were to the queue the
+ *   jam replaces.
+ * - **Queue diffs and signal path.** Each member's session counts its own versions, so
+ *   `session:queueOps` and `session:sync` work on it as on any session; a member's device that
+ *   does not accept queue operations gets the whole queue. Each listener's active device
+ *   reports its own signal path, kept on and shown in that listener's session alone.
  * - **Track ends.** Any listener's `trackEnded` near the end of the jam's current entry
  *   advances the jam, so the first device to finish moves everyone on.
  * - **Joining.** By the jam's `id`, which the invite link carries: any signed-in user of the
@@ -477,8 +488,8 @@ export type SessionCommand = z.infer<typeof SessionCommand>
  *
  * Undo works by ids, so later edits from any device do not break it. An undo is applied as
  * an ordinary change (versions move on, the queue goes out as usual) and removes its edit
- * from the stack. `playTracks`, Subsonic's `savePlayQueue` and attaching with `bringQueue`
- * empty the stack. Errors: `nothing_to_undo` (the edit is not kept, or nothing of it is
+ * from the stack. `playTracks`, Subsonic's `savePlayQueue`, attaching with `bringQueue` and
+ * joining a jam empty the stack. In a jam only the host undoes (see "Listen together"). Errors: `nothing_to_undo` (the edit is not kept, or nothing of it is
  * left to undo), `queue_full`.
  */
 export const UNDO_LIMIT = 20

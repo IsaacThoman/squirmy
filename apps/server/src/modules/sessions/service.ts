@@ -1397,6 +1397,8 @@ async function join(record: SessionRecord, deviceId: string, jamId: string, ack:
     if (latest.session.jam?.id !== jamId) {
       const device = connectedDevice(userId, deviceId)
       const activeDeviceId = device?.canPlay && !loadedOwn(userId, deviceId) ? deviceId : latest.session.activeDeviceId
+      // The member's queue becomes the jam's: the edits kept for undo were to the one it replaces.
+      latest.undo = []
       finish(latest, { ...latest.session, jam: joined, activeDeviceId }, settings.now())
     }
     ack({ ok: true, jam: latest.session.jam ?? joined })
