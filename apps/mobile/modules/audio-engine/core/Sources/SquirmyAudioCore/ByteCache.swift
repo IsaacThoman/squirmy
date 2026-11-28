@@ -9,6 +9,8 @@ struct ByteResponse {
   let total: Int64?
   let acceptsRanges: Bool
   let contentType: String?
+  /// `X-Squirmy-Start-Frame`, for a stream asked for from a time.
+  var startFrame: Int64? = nil
 }
 
 protocol ByteLoadTask: AnyObject {
@@ -36,6 +38,9 @@ protocol ByteLoader: AnyObject {
  * there nor about to arrive (the index at the end of an MP4, a trailing tag, the last Ogg
  * page, a seek) fetches that part with a Range request of its own, and waits for it. What
  * plays is what is cached: nothing is fetched twice.
+ *
+ * Several readers can share one cache (`StreamStore` hands each a `CacheReader`): cancelling
+ * a reader wakes only its own reads, and `cancel` stops the download for all of them.
  */
 final class ByteCache: ByteSource {
   /// Ranges are fetched to the end of a block of this many bytes, at least `holeMinimum` at a time.
@@ -49,8 +54,11 @@ final class ByteCache: ByteSource {
 
   private let url: URL
   private let loader: ByteLoader
-  private let file: URL
+  /// Where the bytes are. Once the stream is whole the file may be moved: reads go on
+  /// through the open descriptor.
+  let file: URL
   private let descriptor: Int32
+  private let onFinish: (Result<Int64, EngineError>) -> Void
   private let condition = NSCondition()
   private let log: (String) -> Void
   private let retryQueue = DispatchQueue(label: "squirmy.audio.cache.retry")
@@ -68,13 +76,17 @@ final class ByteCache: ByteSource {
   private var retries = 0
   private var holes: [(range: Range<Int64>, task: ByteLoadTask, attempts: Int)] = []
 
-  /// Starts downloading `url` into `file`, which is replaced.
-  init(url: URL, loader: ByteLoader, file: URL, nearWindow: Int64 = 256 * 1024, log: @escaping (String) -> Void = { _ in }) throws {
+  /// Starts downloading `url` into `file`, which is replaced. `onFinish` is called once, from
+  /// the network's queue, when the download has the whole stream (with its length) or has
+  /// failed for good; never after `cancel`.
+  init(url: URL, loader: ByteLoader, file: URL, nearWindow: Int64 = 256 * 1024, log: @escaping (String) -> Void = { _ in },
+       onFinish: @escaping (Result<Int64, EngineError>) -> Void = { _ in }) throws {
     self.url = url
     self.nearWindow = nearWindow
     self.loader = loader
     self.file = file
     self.log = log
+    self.onFinish = onFinish
     try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
     descriptor = open(file.path, O_RDWR | O_CREAT | O_TRUNC, 0o644)
     guard descriptor >= 0 else { throw EngineError(message: "Couldn’t create the stream’s cache file (errno \(errno))") }
@@ -100,31 +112,50 @@ final class ByteCache: ByteSource {
     return have.ranges
   }
 
-  func info() throws -> SourceInfo {
+  /// The download failed for good: reads of what has not arrived will fail.
+  var hasFailed: Bool {
+    condition.lock()
+    defer { condition.unlock() }
+    return failure != nil && sequential == nil
+  }
+
+  func info() throws -> SourceInfo { try info(for: nil) }
+  func length() throws -> Int64 { try length(for: nil) }
+  func read(at offset: Int64, count: Int, into buffer: UnsafeMutableRawPointer) throws -> Int {
+    try read(at: offset, count: count, into: buffer, for: nil)
+  }
+
+  func info(for reader: CacheReader?) throws -> SourceInfo {
     condition.lock()
     defer { condition.unlock() }
     while response == nil {
-      try checkUsable()
+      try checkUsable(reader)
       condition.wait()
     }
-    return SourceInfo(length: total, contentType: response?.contentType)
+    return SourceInfo(length: total, contentType: response?.contentType, startFrame: response?.startFrame)
   }
 
-  func length() throws -> Int64 {
+  func available(from offset: Int64) -> Int64 {
+    condition.lock()
+    defer { condition.unlock() }
+    return have.end(of: offset) ?? offset
+  }
+
+  func length(for reader: CacheReader?) throws -> Int64 {
     condition.lock()
     defer { condition.unlock() }
     while total == nil {
-      try checkUsable()
+      try checkUsable(reader)
       condition.wait()
     }
     return total!
   }
 
-  func read(at offset: Int64, count: Int, into buffer: UnsafeMutableRawPointer) throws -> Int {
+  func read(at offset: Int64, count: Int, into buffer: UnsafeMutableRawPointer, for reader: CacheReader?) throws -> Int {
     condition.lock()
     defer { condition.unlock() }
     while true {
-      if cancelled { throw EngineError.cancelled }
+      if cancelled || reader?.cancelled == true { throw EngineError.cancelled }
       let end: Int64
       if let total {
         if offset >= total { return 0 }
@@ -164,10 +195,19 @@ final class ByteCache: ByteSource {
     try? FileManager.default.removeItem(at: file)
   }
 
+  /// Wakes `reader`'s waiting reads with `EngineError.cancelled`, as its later reads fail too.
+  /// The download goes on for the others.
+  func cancel(reader: CacheReader) {
+    condition.lock()
+    reader.cancelled = true
+    condition.broadcast()
+    condition.unlock()
+  }
+
   // MARK: - Private, with `condition` locked
 
-  private func checkUsable() throws {
-    if cancelled { throw EngineError.cancelled }
+  private func checkUsable(_ reader: CacheReader?) throws {
+    if cancelled || reader?.cancelled == true { throw EngineError.cancelled }
     if let failure, sequential == nil { throw failure }
   }
 
@@ -231,20 +271,27 @@ final class ByteCache: ByteSource {
       },
       complete: { [weak self] error in
         guard let self else { return }
+        var outcome: Result<Int64, EngineError>?
         self.condition.lock()
-        defer { self.condition.unlock() }
-        guard serial == self.sequentialSerial, !self.cancelled else { return }
-        self.sequential = nil
-        if self.failure != nil {
-          // Refused by the server; said already.
-        } else if let error {
-          self.sequentialFailed(EngineError.wrapping(error))
-        } else {
-          self.complete = true
-          if self.total == nil { self.total = position }
-          self.log("downloaded \(position) bytes")
+        if serial == self.sequentialSerial, !self.cancelled {
+          self.sequential = nil
+          if let failure = self.failure {
+            // Refused by the server.
+            outcome = .failure(EngineError.wrapping(failure))
+          } else if let error {
+            self.sequentialFailed(EngineError.wrapping(error))
+            if let failure = self.failure { outcome = .failure(EngineError.wrapping(failure)) }
+          } else {
+            self.complete = true
+            if self.total == nil { self.total = position }
+            self.log("downloaded \(position) bytes")
+            outcome = .success(self.total!)
+          }
+          self.condition.broadcast()
         }
-        self.condition.broadcast()
+        self.condition.unlock()
+        // Outside the lock: whoever hears it may read the cache's state.
+        if let outcome { self.onFinish(outcome) }
       }))
   }
 
@@ -331,6 +378,29 @@ private final class PendingTask: ByteLoadTask {
   func cancel() {}
 }
 
+/// One reader of a shared `ByteCache`. Cancelling it wakes and fails only its own reads.
+final class CacheReader: ByteSource {
+  let cache: ByteCache
+  /// Guarded by the cache's lock.
+  fileprivate(set) var cancelled = false
+  /// What the reader belongs to, for `StreamStore`.
+  let owner: AnyObject?
+
+  init(cache: ByteCache, owner: AnyObject? = nil) {
+    self.cache = cache
+    self.owner = owner
+  }
+
+  func info() throws -> SourceInfo { try cache.info(for: self) }
+  func length() throws -> Int64 { try cache.length(for: self) }
+  func read(at offset: Int64, count: Int, into buffer: UnsafeMutableRawPointer) throws -> Int {
+    try cache.read(at: offset, count: count, into: buffer, for: self)
+  }
+  func cancel() { cache.cancel(reader: self) }
+  var isComplete: Bool { cache.isComplete }
+  func available(from offset: Int64) -> Int64 { cache.available(from: offset) }
+}
+
 /**
  * `ByteLoader` on one `URLSession`. Signed stream URLs need no headers. Responses come on
  * the session's own serial queue.
@@ -382,7 +452,9 @@ final class URLSessionByteLoader: NSObject, ByteLoader, URLSessionDataDelegate {
       total = parts.count > 1 ? Int64(parts[1]) : nil
     }
     let accepts = http?.value(forHTTPHeaderField: "Accept-Ranges")?.lowercased().contains("bytes") ?? false
-    let keep = handler(dataTask)?.response(ByteResponse(status: status, start: start, total: total, acceptsRanges: accepts, contentType: http?.mimeType)) ?? false
+    let startFrame = http?.value(forHTTPHeaderField: "X-Squirmy-Start-Frame").flatMap { Int64($0) }
+    let head = ByteResponse(status: status, start: start, total: total, acceptsRanges: accepts, contentType: http?.mimeType, startFrame: startFrame)
+    let keep = handler(dataTask)?.response(head) ?? false
     completionHandler(keep ? .allow : .cancel)
   }
 

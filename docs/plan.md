@@ -183,7 +183,7 @@ Purchasing (priced offers, caps, budgets) is deferred. The protocol reserves an 
 
 **Apple TV**
 
-- Typed server address and account sign-in with the tvOS keyboard.
+- Bonjour discovery and QR sign-in approved from a phone, with manual connection and password sign-in where supported.
 - Laid out and moving like the system's music app: the sidebar, shelves of covers that lift with focus, long-press menus, tvOS 17 and later.
 - Remote-first browsing, search and Now Playing with lyrics, queue and playback transfer.
 - Settings for the account, playback and the library; scrobbling services are connected from the phone or the web.

@@ -1,7 +1,7 @@
 import type { DeviceInfo, QueueEntry, TrackSummary } from '@squirmy/contracts';
 import { describe, expect, it } from 'vitest';
 import {
-  codecsFor, deviceRows, isPlayable, pendingQueueRow, queuedEntryActions, queuedEntryCommand, queueRow, isRemote, nextDownloaded, nextRepeat, outputDevice, playableSeeds, qualityFor,
+  codecsFor, deviceRows, playbackRequestFor, isPlayable, pendingQueueRow, queuedEntryActions, queuedEntryCommand, queueRow, isRemote, nextDownloaded, nextRepeat, outputDevice, playableSeeds, qualityFor,
   seedOf, upNextDetail, upNextTitle, whereItPlays,
 } from './session';
 
@@ -108,6 +108,13 @@ describe('qualityFor', () => {
     expect(codecsFor('ios').split(',')).not.toContain('opus');
     expect(codecsFor('ios').split(',')).toContain('flac');
     expect(codecsFor('android').split(',')).toContain('opus');
+  });
+
+  it('asks for fragmented MP4 with the native engine’s own codecs, and today’s profiles otherwise', () => {
+    expect(playbackRequestFor('ios', () => ['flac', 'aac', 'opus'])).toEqual({ codecs: 'flac,aac,opus', containers: 'fmp4', engine: 'native' });
+    // Without Opus it still says native, or the server would take it for a browser.
+    expect(playbackRequestFor('ios', () => ['flac', 'aac'])).toEqual({ codecs: 'flac,aac', containers: 'fmp4', engine: 'native' });
+    expect(playbackRequestFor('ios')).toEqual({ codecs: codecsFor('ios') });
   });
 });
 

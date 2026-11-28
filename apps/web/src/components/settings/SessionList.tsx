@@ -16,6 +16,7 @@ const methodNames: Record<SignInMethod, string> = {
   two_factor: 'with a password and an authenticator code',
   recovery_code: 'with a recovery code',
   passkey: 'with a passkey',
+  tv_pairing: 'by pairing an Apple TV',
   sso: 'with single sign-on',
 }
 

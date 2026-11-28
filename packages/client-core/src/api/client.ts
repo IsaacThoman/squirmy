@@ -40,6 +40,13 @@ import {
   ArtistSummary,
   type Artwork,
   AuthResponse,
+  type ApproveTvPairing,
+  type LookupTvPairing,
+  type PollTvPairing,
+  type StartTvPairing,
+  TvPairing,
+  TvPairingPoll,
+  TvPairingPreview,
   CatalogIndexStatus,
   ClearProviderMissesResponse,
   type AddPlaylistItemsRequest,
@@ -393,6 +400,12 @@ export function createApiClient(options: ApiClientOptions) {
     auth: {
       setupStatus: () => get('/setup/status', SetupStatus),
       setup: (body: SetupRequest) => send('POST', '/setup', AuthResponse, body),
+      startTvPairing: (body: Input<typeof StartTvPairing>, options?: CallOptions) =>
+        request('POST', '/auth/tv-pairing/start', { body, schema: TvPairing, signal: options?.signal }),
+      pollTvPairing: (body: Input<typeof PollTvPairing>, options?: CallOptions) =>
+        request('POST', '/auth/tv-pairing/poll', { body, schema: TvPairingPoll, signal: options?.signal }),
+      lookupTvPairing: (body: Input<typeof LookupTvPairing>) => send('POST', '/auth/tv-pairing/lookup', TvPairingPreview, body),
+      approveTvPairing: (body: Input<typeof ApproveTvPairing>) => send('POST', '/auth/tv-pairing/approve', Ok, body),
       login: (body: LoginRequest) => send('POST', '/auth/login', AuthResponse, body),
       logout: () => send('POST', '/auth/logout', Ok),
       register: (body: RegisterRequest) => send('POST', '/auth/register', AuthResponse, body),

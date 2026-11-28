@@ -24,6 +24,9 @@ enum EngineEvent {
   /// The interruption of `entryId` is over and the system says to carry on.
   case resumed(entryId: String)
   case log(String)
+  /// A stream with a cache key is whole, or was given up. From `StreamStore`, not the engine,
+  /// on the same path to JavaScript.
+  case cache(CacheReport)
 }
 
 /// The audio session, on iOS and tvOS (`AudioSessionController`).
@@ -84,6 +87,14 @@ private final class Slot {
   var entryId: String { pipeline.item.entryId }
 }
 
+/// Where the chain's state was before a run of frames was queued, to carry on from when
+/// rendering again part way.
+private struct Mark {
+  let frame: Int64
+  let limiterGain: Float
+  let equalizer: Equalizer
+}
+
 /// A run of queued output: timeline frames `start..<end` play `slot` from `itemStart`, or
 /// silence without a slot.
 private struct Segment {
@@ -127,11 +138,12 @@ final class Engine {
   /// The next timeline frame to queue, and what is queued.
   private var enqueued: Int64 = 0
   private var segments: [Segment] = []
-  /// The end of the chain: every entry not at unity gain plays through it.
+  /// Between the entries' gain and the limiter, for everything queued.
+  private var equalizer: Equalizer
+  /// The end of the chain: every entry not at unity gain, and everything the equalizer
+  /// changes, plays through it.
   private var limiter: Limiter
-  /// The limiter's gain before each run of frames queued, to carry on from when rendering
-  /// again part way.
-  private var limiterMarks: [(frame: Int64, gain: Float)] = []
+  private var marks: [Mark] = []
   /// The item frame shown while none of the loaded entry has played since a load or seek.
   private var anchor: Int64 = 0
   /// A seek waits for its first frames.
@@ -145,6 +157,7 @@ final class Engine {
     self.config = config
     self.queue = queue
     limiter = Limiter(sampleRate: output.sampleRate)
+    equalizer = Equalizer(sampleRate: output.sampleRate)
     output.onEvent = { [weak self] event in self?.outputEvent(event) }
   }
 
@@ -158,6 +171,8 @@ final class Engine {
   func setGain(_ gain: Float) { queue.async { self.current?.gain = gain } }
   func stop() { queue.async { self.doStop() } }
   func holdAudioSession(_ hold: Bool) { queue.async { self.doHold(hold) } }
+  /// The equalizer's curve, or `nil` for none. Heard after the lead, crossfaded over 10 ms.
+  func setEqualizer(_ curve: EqualizerCurve?) { queue.async { self.equalizer.set(curve) } }
 
   /// The status now, with the position read from the clock.
   func status() -> EngineStatus {
@@ -486,7 +501,8 @@ final class Engine {
       guard (waitingToSound || holdingOnly) && !systemInterrupted && enqueued < playhead + silenceLead else { break }
       let count = config.chunkFrames / 4
       limiter.reset()
-      limiterMarks.append((enqueued, 1))
+      equalizer.reset()
+      marks.append(Mark(frame: enqueued, limiterGain: 1, equalizer: equalizer))
       output.enqueue([Float](repeating: 0, count: count * 2)[...], at: enqueued)
       append(Segment(start: enqueued, end: enqueued + Int64(count), slot: nil, itemStart: 0))
       enqueued += Int64(count)
@@ -512,13 +528,14 @@ final class Engine {
   private func enqueue(_ slot: Slot, _ chunk: [Float]) {
     var samples = chunk
     let count = samples.count / 2
-    // At unity gain (normalization off) an entry plays as the file is; any other gain, a
-    // boost above all, goes through the limiter.
-    let limited = slot.gain != 1 || slot.heardGain != 1
+    // At unity gain (normalization off) and with no equalizer, an entry plays as the file is;
+    // any other gain, a boost above all, and any curve goes through the limiter.
+    let limited = slot.gain != 1 || slot.heardGain != 1 || equalizer.isActive
     shape(&samples, slot)
     let itemStart = slot.nextFrame
     slot.nextFrame += Int64(count)
-    limiterMarks.append((enqueued, limiter.gain))
+    marks.append(Mark(frame: enqueued, limiterGain: limiter.gain, equalizer: equalizer))
+    equalizer.process(&samples)
     if limited {
       limiter.process(&samples, ahead: upcoming(limiter.aheadFrames)[...])
     } else {
@@ -564,8 +581,9 @@ final class Engine {
     }
   }
 
-  /// Up to `count` frames that are queued after what was just taken, at their entries' gains:
-  /// what the limiter looks ahead into. Short where decoding has not got that far.
+  /// Up to `count` frames that are queued after what was just taken, at their entries' gains
+  /// and through the equalizer: what the limiter looks ahead into. Short where decoding has
+  /// not got that far.
   private func upcoming(_ count: Int) -> [Float] {
     guard let current else { return [] }
     var frames = scaled(current.pipeline.copy(from: current.nextFrame, count: count), current)
@@ -574,6 +592,9 @@ final class Engine {
     if short > 0, decoded.ended, current.nextFrame + Int64(frames.count / 2) >= decoded.end, !seeking, let next, next.pipeline.error == nil {
       frames += scaled(next.pipeline.copy(from: next.nextFrame, count: short), next)
     }
+    // Through a copy, which leaves the equalizer where the frames just taken left it.
+    var ahead = equalizer
+    ahead.process(&frames)
     return frames
   }
 
@@ -620,7 +641,7 @@ final class Engine {
     current.pipeline.forget(before: current.nextFrame - keep)
     let playhead = Int64(output.currentFrame())
     segments.removeAll { $0.end < playhead - keep }
-    limiterMarks.removeAll { $0.frame < playhead - keep }
+    marks.removeAll { $0.frame < playhead - keep }
   }
 
   // MARK: - Rendering again
@@ -633,7 +654,8 @@ final class Engine {
     enqueued = playhead
     segments.removeAll()
     limiter.reset()
-    limiterMarks.removeAll()
+    equalizer.reset()
+    marks.removeAll()
     next?.nextFrame = 0
   }
 
@@ -668,9 +690,17 @@ final class Engine {
     enqueued = frame
     segments.removeAll { $0.start >= frame }
     if let last = segments.last, last.end > frame { segments[segments.count - 1].end = frame }
-    // From about where the limiter was there: what it had looked ahead into is gone.
-    limiterMarks.removeAll { $0.frame > frame }
-    limiter.reset(gain: limiterMarks.last?.gain ?? 1)
+    // From about where the limiter and the equalizer were there: what the limiter had looked
+    // ahead into is gone. The equalizer keeps its curve, which may have changed since.
+    marks.removeAll { $0.frame > frame }
+    limiter.reset(gain: marks.last?.limiterGain ?? 1)
+    if let mark = marks.last {
+      let curve = equalizer.target
+      equalizer = mark.equalizer
+      equalizer.set(curve)
+    } else {
+      equalizer.reset()
+    }
     next?.nextFrame = 0
     if let current {
       if let position, position.slot === current {
@@ -709,7 +739,10 @@ final class Engine {
     enqueued = 0
     segments.removeAll()
     limiter = Limiter(sampleRate: rate)
-    limiterMarks.removeAll()
+    let curve = equalizer.target
+    equalizer = Equalizer(sampleRate: rate)
+    equalizer.set(curve)
+    marks.removeAll()
     guard let current else { return }
     let frame = Int64((seconds * rate).rounded())
     anchor = frame

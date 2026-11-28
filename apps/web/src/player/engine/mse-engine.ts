@@ -1,14 +1,22 @@
 import type { EngineEvent, EngineLoad, EngineMedia, EnginePreload, EngineState, EngineStatus } from '@squirmy/client-core'
 import type { PlaybackQuery, StreamIntent, StreamProfile } from '@squirmy/contracts'
 import { mseTypesFor } from '@/lib/codecs'
+import type { EqGains } from './equalizer'
 import { AUDIO_BLOCKED_MESSAGE, clampPosition, mediaErrorMessage, playFailure } from './errors'
+import { EngineOutput, supportsLimiter, type AttachOutput, type OutputOptions } from './output'
 import type { BrowserEngine } from './types'
 
 export type MseEngineOptions = {
   createAudio?: () => HTMLAudioElement
   createContext?: () => AudioContext
-  /** The node the element plays into. Defaults to the context's destination; the dev page inserts its instruments. */
+  /** The node the output chain plays into. Defaults to the context's destination; the dev page inserts its instruments. */
   output?: (context: AudioContext) => AudioNode
+  /** Whether the limiter can run here. Defaults to whether AudioWorklet exists (`supportsLimiter`). */
+  limiter?: boolean
+  /** Makes the limiter node (see `OutputOptions`). */
+  createLimiter?: OutputOptions['createLimiter']
+  /** Plays into a stage of another's graph instead of a chain of its own (`CrossfadeEngine`). */
+  attachOutput?: AttachOutput
   createMediaSource?: () => MediaSource
   createObjectUrl?: (source: MediaSource) => string
   fetch?: typeof fetch
@@ -144,16 +152,19 @@ type Pipeline = {
  * `timestampOffset` is its start less the encoder's priming, and the append window cuts it
  * to its real frames, so the next entry starts on the sample after the last one. Seeks
  * inside what is appended move `currentTime`; others fetch the stream again from there with
- * `start`, and `X-Squirmy-Start-Frame` places it. The element runs through a `GainNode`, so
- * normalization can boost; at a boundary the gain moves to the next entry's on the audio
- * clock. A 250 ms interval, `timeupdate` and a timer near the end report boundaries: in a
- * background tab the report can come late, the audio does not.
+ * `start`, and `X-Squirmy-Start-Frame` places it. The element runs through a `GainNode`,
+ * which at a boundary moves to the next entry's gain on the audio clock, and on through the
+ * `OutputChain` (equalizer, true-peak limiter, output device), which lets a boost through
+ * only with the limiter (`canBoost`). A 250 ms interval, `timeupdate` and a timer near the
+ * end report boundaries: in a background tab the report can come late, the audio does not.
  *
  * Blocked audio and `unlock()` work as in `WebPlayerEngine`.
  */
 export class MseEngine implements BrowserEngine {
-  readonly canBoost = true
+  readonly limiter: boolean
+  readonly canBoost: boolean
   private readonly options: MseEngineOptions
+  private readonly output = new EngineOutput()
   private readonly audio: HTMLAudioElement
   private readonly types: ReadonlyMap<string, string>
   private context: AudioContext | null = null
@@ -190,6 +201,8 @@ export class MseEngine implements BrowserEngine {
 
   constructor(options: MseEngineOptions = {}) {
     this.options = options
+    this.limiter = options.limiter ?? supportsLimiter()
+    this.canBoost = this.limiter
     this.types = options.types ?? mseTypesFor(type => MediaSource.isTypeSupported(type))
     this.audio = options.createAudio?.() ?? new Audio()
     this.audio.preload = 'auto'
@@ -356,9 +369,23 @@ export class MseEngine implements BrowserEngine {
     void this.ensureContext().resume().catch(() => {})
   }
 
+  setEqualizer(gains: EqGains | null): void {
+    this.output.setEqualizer(gains)
+  }
+
+  setOutputDevice(sinkId: string): Promise<void> {
+    return this.output.setSink(sinkId)
+  }
+
+  /** The loaded entry's length: exact from the descriptor's numbers, or the descriptor's estimate. */
+  entryDurationMs(): number | null {
+    return this.current?.durationMs || null
+  }
+
   dispose(): void {
     this.stop()
     for (const detach of this.detach.splice(0)) detach()
+    this.output.dispose()
     void this.context?.close().catch(() => {})
     this.context = null
   }
@@ -1107,10 +1134,14 @@ export class MseEngine implements BrowserEngine {
   private ensureContext(): AudioContext {
     if (this.context) return this.context
     const context = this.options.createContext?.() ?? new AudioContext()
-    const output = this.options.output?.(context) ?? context.destination
     this.context = context
+    // In the chain, the limiter lets a boost through; gone, it holds gains to 1 again.
+    const onLimiterChange = () => this.applyGain()
+    const chain = this.options.attachOutput?.(context, onLimiterChange)
+      ?? this.output.attach(context, this.options.output?.(context) ?? context.destination, { createLimiter: this.limiter ? this.options.createLimiter : null, onLimiterChange })
+    if (this.options.attachOutput) this.output.adopt(chain)
     this.gainNode = context.createGain()
-    context.createMediaElementSource(this.audio).connect(this.gainNode).connect(output)
+    context.createMediaElementSource(this.audio).connect(this.gainNode).connect(chain.input)
     this.applyGain()
     return context
   }
@@ -1128,7 +1159,8 @@ export class MseEngine implements BrowserEngine {
     const now = context.currentTime
     const next = this.next
     const crossed = this.crossed()
-    const value = crossed ? next!.gain : item.gain
+    const headroom = (gain: number) => this.output.headroom(gain)
+    const value = headroom(crossed ? next!.gain : item.gain)
     gain.cancelScheduledValues(now)
     // A jump in gain on a sounding signal clicks; an element that is not playing takes the value at once.
     if (this.audio.paused) {
@@ -1136,9 +1168,9 @@ export class MseEngine implements BrowserEngine {
       return
     }
     gain.setTargetAtTime(value, now, GAIN_RAMP_SECONDS / 3)
-    if (crossed || !next || next.start === null || next.gain === value) return
+    if (crossed || !next || next.start === null || headroom(next.gain) === value) return
     const until = (next.start - this.audio.currentTime) / (this.audio.playbackRate || 1)
-    if (until >= 0 && until <= BOUNDARY_WINDOW_SECONDS) gain.setTargetAtTime(next.gain, now + until, BOUNDARY_RAMP_SECONDS / 3)
+    if (until >= 0 && until <= BOUNDARY_WINDOW_SECONDS) gain.setTargetAtTime(headroom(next.gain), now + until, BOUNDARY_RAMP_SECONDS / 3)
   }
 
   /** While playing, a position that stops moving means a stall the element did not announce. */

@@ -1,10 +1,12 @@
 import type { PlayerEngine } from '@squirmy/client-core';
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
-import NativeAudio from '../../../modules/audio-engine';
+import { Platform } from 'react-native';
+import NativeAudio, { type NativeEqualizer } from '../../../modules/audio-engine';
 import NowPlaying, { type AudioOutput } from '../../../modules/now-playing';
+import { playbackRequestFor, type PlaybackRequest } from '../session';
 import { ExpoAudioEngine, type ExpoAudioEngineOptions } from './ExpoAudioEngine';
 import { NativeEngine } from './NativeEngine';
-import type { PlaybackEngineKind } from './setting';
+import { storedEngine, type PlaybackEngineKind } from './setting';
 
 export { ExpoAudioEngine } from './ExpoAudioEngine';
 export { NativeEngine } from './NativeEngine';
@@ -19,6 +21,9 @@ export type AppEngine = PlayerEngine & {
   holdAudioSession(hold: boolean): void;
   isTryingToPlay(): boolean;
   dispose?(): void;
+  /** The native engine's equalizer, where the build has it. */
+  readonly equalizer?: boolean;
+  setEqualizer?(curve: NativeEqualizer | null): void;
 };
 
 /** Native playback reports position this often, in milliseconds. */
@@ -44,6 +49,31 @@ function ensureAudioMode(): void {
     audioMode = undefined;
     console.warn('Couldn’t set the audio mode; trying again with the next track.', error);
   });
+}
+
+let running: PlaybackEngineKind | undefined;
+
+/**
+ * The engine this run of the app plays with, decided once: the setting applies from the next
+ * launch, and `native` only when this build has the native engine and it starts. The streaming
+ * cache follows it too, since the native engine keeps what it streams.
+ */
+export function runningEngine(): PlaybackEngineKind {
+  running ??= storedEngine() === 'native' && startNative() ? 'native' : 'classic';
+  return running;
+}
+
+let request: PlaybackRequest | undefined;
+
+/**
+ * What `/tracks/:id/playback` asks for while this run's engine plays (`playbackRequestFor`),
+ * decided once. A native module from before the fragmented profiles has no `probeCodecs` and
+ * cannot read them, so it asks as the classic engine does.
+ */
+export function playbackRequest(): PlaybackRequest {
+  const native = runningEngine() === 'native' ? NativeAudio : null;
+  request ??= playbackRequestFor(Platform.OS, native?.probeCodecs ? () => native.probeCodecs!() : undefined);
+  return request;
 }
 
 /**

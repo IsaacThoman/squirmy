@@ -2,7 +2,8 @@ import type { TrackSummary } from '@squirmy/contracts';
 import * as Haptics from 'expo-haptics';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
-import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedScrollHandler, useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import { memo, useCallback, useMemo } from 'react';
 import { useLiked, useLikeFailure } from '../data/library';
 import { heartButton, heartColor } from './heart';
@@ -12,7 +13,8 @@ import { downloadSymbol, unavailableReason } from '../downloads/model';
 import { useCurrentTrackState, usePlaybackActions, useTrackLoading } from '../playback';
 import { STILL_LOADING_LABEL } from '../player/loading';
 import {
-  pressVerb, sameRow, songRowKey, songRows, useSongRowHandlers, type SongListItems, type SongRowHandlers, type SongRowItem,
+  nearListEnd, pressVerb, sameRow, songRowKey, songRows, useSongRowHandlers, type LongSongListProps, type SongListItems, type SongRowHandlers,
+  type SongRowItem,
 } from './rows';
 import { useTrackActionRunner, type TrackAction } from './trackActions';
 import { spokenDuration, trackDuration } from './duration';
@@ -67,6 +69,27 @@ export function useSongListItems(props: SongListProps): SongListItems {
   const data = useMemo(() => songRows({ tracks, numbered, playlist, album, artist, kind, addedByNames, opens }), [album, artist, numbered, playlist, tracks, kind, addedByNames, opens]);
   const renderItem = useCallback(({ item }: { item: SongRowItem }) => <SongRow item={item} handlers={handlers} run={run} />, [handlers, run]);
   return { data, renderItem, keyExtractor: songRowKey, rowHeight };
+}
+
+/** Rows drawn per batch as a long list scrolls, and how many screens of them are kept. */
+const listBatch = 14;
+const listWindow = 7;
+
+/** A page that is mostly a long list of songs: the header scrolls above rows drawn as they come into view. */
+export function LongSongList({ songs, header, footer, onEndReached, scrollOffset, bottomInset, inset }: LongSongListProps) {
+  const items = useSongListItems(songs);
+  const renderRow = items.renderItem;
+  const renderItem = useCallback((info: { item: SongRowItem }) => <View style={{ marginHorizontal: inset }}>{renderRow(info)}</View>, [inset, renderRow]);
+  const onScroll = useAnimatedScrollHandler(event => {
+    scrollOffset.value = event.contentOffset.y;
+    if (onEndReached && nearListEnd(event.contentOffset.y, event.layoutMeasurement.height, event.contentSize.height)) scheduleOnRN(onEndReached);
+  });
+  // The native stack finds its content scroll view through the page's first child.
+  return <Animated.FlatList data={items.data} renderItem={renderItem} keyExtractor={items.keyExtractor}
+    ListHeaderComponent={header} ListFooterComponent={footer || undefined}
+    initialNumToRender={listBatch} maxToRenderPerBatch={listBatch} windowSize={listWindow}
+    contentInsetAdjustmentBehavior="never" onScroll={onScroll} scrollEventThrottle={16}
+    contentContainerStyle={{ paddingBottom: bottomInset }} showsVerticalScrollIndicator={false} />;
 }
 
 function tapFeedback() {

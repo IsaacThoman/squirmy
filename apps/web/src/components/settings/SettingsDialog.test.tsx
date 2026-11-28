@@ -8,6 +8,7 @@ import { accountSecurity, appPasswords, authSessions, currentUser, shareLinks, u
 import { APPEARANCE_STORAGE_KEY, setAppearanceMode, setColorTheme } from '@/lib/appearance'
 import { colorThemeStylesheet, findColorTheme } from '@/lib/color-themes'
 import { modKey } from '@/lib/platform'
+import { AUDIO_STORAGE_KEY, reloadAudioSettings } from '@/player/audio-settings'
 import { renderWithApp } from '@/test/render'
 import { SettingsDialog, type SettingsDialogProps } from './SettingsDialog'
 
@@ -97,6 +98,7 @@ afterEach(() => {
   setAppearanceMode('system')
   setColorTheme('squirmy')
   localStorage.clear()
+  reloadAudioSettings()
 })
 
 describe('SettingsDialog', () => {
@@ -229,8 +231,97 @@ describe('SettingsDialog', () => {
 
     it('holds the choices back until the settings have loaded', () => {
       renderSettings({ settings: undefined })
-      expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+      expect(screen.queryByRole('combobox', { name: 'Volume normalization' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('combobox', { name: 'Streaming quality' })).not.toBeInTheDocument()
+      // This browser's own settings are not the server's.
+      expect(screen.getByRole('combobox', { name: 'Equalizer' })).toBeInTheDocument()
       expect(screen.getByRole('textbox', { name: 'This browser’s name' })).toBeInTheDocument()
+    })
+
+    it('says whether quiet songs are turned up, which takes this browser\'s limiter', () => {
+      renderSettings()
+      expect(screen.getByText(/never turns quiet ones up/)).toBeInTheDocument()
+      renderSettings({ boosts: true })
+      expect(screen.getByText(/Quiet songs are turned up to it, with a limiter/)).toBeInTheDocument()
+    })
+
+    it('crossfades songs over the time chosen, kept in this browser', async () => {
+      renderSettings()
+      const crossfade = screen.getByRole('combobox', { name: 'Crossfade' })
+      expect(crossfade).toHaveTextContent('Off')
+      await userEvent.click(crossfade)
+      expect((await screen.findAllByRole('option')).map(option => option.textContent)).toEqual(['Off', ...[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(seconds => `${seconds} seconds`)])
+      await userEvent.click(screen.getByRole('option', { name: '6 seconds' }))
+      expect(JSON.parse(localStorage.getItem(AUDIO_STORAGE_KEY)!).crossfadeSeconds).toBe(6)
+      expect(crossfade).toHaveTextContent('6 seconds')
+    })
+
+    describe('equalizer', () => {
+      const stored = () => JSON.parse(localStorage.getItem(AUDIO_STORAGE_KEY) ?? 'null') as { equalizer: { preset: string; custom: number[] } } | null
+      const bands = () => screen.queryAllByRole('slider')
+
+      it('is off until a preset is chosen, and keeps the choice in this browser', async () => {
+        renderSettings()
+        const equalizer = screen.getByRole('combobox', { name: 'Equalizer' })
+        expect(equalizer).toHaveTextContent('Off')
+        expect(bands()).toEqual([])
+        await userEvent.click(equalizer)
+        expect((await screen.findAllByRole('option')).map(option => option.textContent)).toEqual(['Off', 'Bass boost', 'Bass reducer', 'Treble boost', 'Vocal', 'Late night', 'Custom'])
+        await userEvent.click(screen.getByRole('option', { name: 'Bass boost' }))
+        expect(stored()?.equalizer.preset).toBe('bassBoost')
+        expect(bands().map(band => band.getAttribute('aria-label'))).toEqual(['31 Hz', '62 Hz', '125 Hz', '250 Hz', '500 Hz', '1 kHz', '2 kHz', '4 kHz', '8 kHz', '16 kHz'])
+        expect(bands()[0]).toHaveAttribute('aria-valuetext', '+6 dB')
+      })
+
+      it('makes a moved band of a preset the user\'s own', async () => {
+        localStorage.setItem(AUDIO_STORAGE_KEY, JSON.stringify({ equalizer: { preset: 'treble', custom: Array(10).fill(0) } }))
+        reloadAudioSettings()
+        renderSettings()
+        const lowest = screen.getByRole('slider', { name: '31 Hz' })
+        lowest.focus()
+        await userEvent.keyboard('{ArrowUp}{ArrowUp}')
+        expect(stored()?.equalizer).toEqual({ preset: 'custom', custom: [1, 0, 0, 0, 0, 0.5, 1.5, 3, 4.5, 6] })
+        expect(screen.getByRole('combobox', { name: 'Equalizer' })).toHaveTextContent('Custom')
+        expect(lowest).toHaveAttribute('aria-valuetext', '+1 dB')
+      })
+    })
+
+    describe('output device', () => {
+      const device = (deviceId: string, label: string, kind: MediaDeviceKind = 'audiooutput') => ({ deviceId, label, kind, groupId: '' }) as MediaDeviceInfo
+      function chromium(devices: MediaDeviceInfo[][], getUserMedia = vi.fn(async () => ({ getTracks: () => [{ stop: vi.fn() }] }))) {
+        const enumerateDevices = vi.fn(async () => devices.length > 1 ? devices.shift()! : devices[0]!)
+        Object.defineProperty(navigator, 'mediaDevices', { value: { enumerateDevices, getUserMedia, addEventListener() {}, removeEventListener() {} }, configurable: true })
+        return { getUserMedia }
+      }
+      afterEach(() => { Reflect.deleteProperty(navigator, 'mediaDevices') })
+
+      it('is not offered where the browser cannot choose one', () => {
+        chromium([[device('dac', 'USB DAC')]])
+        renderSettings()
+        expect(screen.queryByText('Output')).not.toBeInTheDocument()
+      })
+
+      it('lists the outputs the browser names and keeps the choice in this browser', async () => {
+        chromium([[device('default', 'Default - Speakers'), device('mic', 'Microphone', 'audioinput'), device('dac', 'USB DAC'), device('phones', 'Headphones')]])
+        renderSettings({ choosesOutput: true })
+        const output = await screen.findByRole('combobox', { name: 'Output' })
+        expect(output).toHaveTextContent('System default')
+        await userEvent.click(output)
+        expect((await screen.findAllByRole('option')).map(option => option.textContent)).toEqual(['System default', 'USB DAC', 'Headphones'])
+        await userEvent.click(screen.getByRole('option', { name: 'USB DAC' }))
+        expect(JSON.parse(localStorage.getItem(AUDIO_STORAGE_KEY)!).outputDevice).toBe('dac')
+      })
+
+      it('asks for the permission the browser names its outputs behind, and lets the microphone go at once', async () => {
+        const stop = vi.fn()
+        const { getUserMedia } = chromium([[device('', '')], [device('dac', 'USB DAC')]], vi.fn(async () => ({ getTracks: () => [{ stop }] })))
+        renderSettings({ choosesOutput: true })
+        expect(await screen.findByText(/only to sites that may use the microphone/)).toBeInTheDocument()
+        await userEvent.click(screen.getByRole('button', { name: 'Choose a device' }))
+        expect(getUserMedia).toHaveBeenCalledWith({ audio: true })
+        expect(stop).toHaveBeenCalled()
+        expect(await screen.findByRole('combobox', { name: 'Output' })).toHaveTextContent('System default')
+      })
     })
 
     it('names this browser on Enter', async () => {

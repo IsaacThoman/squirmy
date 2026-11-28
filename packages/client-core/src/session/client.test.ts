@@ -18,7 +18,7 @@ import type {
   SignalReport,
 } from '@squirmy/contracts'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { FakeEngine } from '../engine.js'
+import { FakeEngine, type ResolvedPlayback } from '../engine.js'
 import { ApiError } from '../api/client.js'
 import { type SavedSession, SessionClient, type SessionPlayer } from './client.js'
 import { diffQueue, queueLengths } from './queue-ops.js'
@@ -349,7 +349,7 @@ function setup({ canPlay = true, connect = true, restore, server = new FakeServe
   const transport = new FakeTransport(server)
   const engine = new FakeEngine()
   engine.durationMs = 200_000
-  const resolvePlayback = vi.fn(async (entry: QueueEntry) => descriptor(entry))
+  const resolvePlayback = vi.fn(async (entry: QueueEntry): Promise<ResolvedPlayback> => descriptor(entry))
   const ended = vi.fn()
   const client = new SessionClient({
     transport,
@@ -818,7 +818,7 @@ describe('SessionClient engine', () => {
       startMs: 0,
       autoplay: true,
       gain: 1,
-      media: { transcoded: false, gapless: null, profile: 'original', mime: 'audio/flac', codec: 'flac', sampleRate: 44100, durationMs: session.current!.durationMs },
+      media: { transcoded: false, gapless: null, cacheKey: null, profile: 'original', mime: 'audio/flac', codec: 'flac', sampleRate: 44100, durationMs: session.current!.durationMs },
     }]])
     expect(engine.preloaded).toMatchObject({ entryId: queue.queue[0]!.id, url: `https://music.test/api/v1/stream/${track(2)}`, media: { codec: 'flac' } })
   })
@@ -834,6 +834,32 @@ describe('SessionClient engine', () => {
     await context.settle()
     expect(context.calls('load').at(-1)?.[1]).toMatchObject({ media: { transcoded: false } })
     expect(context.calls('preload').at(-1)?.[1]).toMatchObject({ media: { transcoded: true, gapless } })
+  })
+
+  it('says when the preloaded entry is the next song of the album playing, which an engine never crossfades into', async () => {
+    const context = setup()
+    await context.settle()
+    const ALBUM = '00000000-0000-4000-8000-0000000000a1'
+    const album = (...ns: number[]) => seeds(...ns).map(seed => ({ ...seed, albumId: ALBUM }))
+    context.client.dispatch({ type: 'playTracks', tracks: album(1, 2, 3), seed: 1, context: { type: 'album', id: ALBUM, title: 'One' } })
+    await context.settle()
+    expect(context.calls('preload').at(-1)?.[1]).toMatchObject({ continuesAlbum: true })
+    context.client.dispatch({ type: 'playTracks', tracks: album(1, 2, 3), seed: 1, shuffle: true, context: { type: 'album', id: ALBUM, title: 'One' } })
+    await context.settle()
+    expect(context.calls('preload').at(-1)?.[1]).toMatchObject({ continuesAlbum: false })
+    context.client.dispatch({ type: 'playTracks', tracks: album(1, 2, 3), seed: 1, context: { type: 'playlist', id: 'list-1', title: 'Mix' } })
+    await context.settle()
+    expect(context.calls('preload').at(-1)?.[1]).toMatchObject({ continuesAlbum: false })
+  })
+
+  it('passes the cache key the app gave a stream on to the engine', async () => {
+    const context = setup()
+    context.resolvePlayback.mockImplementation(async entry => ({ ...descriptor(entry), cacheKey: `${entry.trackId}:original` }))
+    await context.settle()
+    context.client.dispatch({ type: 'playTracks', tracks: seeds(1, 2), seed: 1 })
+    await context.settle()
+    expect(context.calls('load').at(-1)?.[1]).toMatchObject({ media: { cacheKey: `${track(1)}:original` } })
+    expect(context.calls('preload').at(-1)?.[1]).toMatchObject({ media: { cacheKey: `${track(2)}:original` } })
   })
 
   it('does nothing with the engine while another device is active', async () => {

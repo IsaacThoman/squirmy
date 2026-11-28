@@ -14,14 +14,17 @@ import {
 import { loadFailure } from '../data/errors';
 import { useUpdateSettings, useUserSettings } from '../data/queries';
 import { useAccountStorage } from '../account/storageUsage';
-import { useNormalizationBoosts } from '../playback';
+import { useEqualizerAvailable, useNormalizationBoosts } from '../playback';
+import { equalizerNote, equalizerOptions, tvEqualizerOptions } from '../player/engine/equalizer';
+import { useEqualizerSetting } from '../player/engine/output';
 import { engineNote, engineOptions, showsEngineSetting, useEngineSetting } from '../player/engine/setting';
 import { Icon } from '../ui';
 import { Focusable } from './Focusable';
 import { Menu, type MenuAction } from './Menu';
 import { Backdrop, PageState } from './Page';
 import {
-  appVersion, canToggleScrobbling, choiceSpec, isChoice, onOff, optionLabel, scrobbleValue, serverVersionValue, tvQualityNote, type Choice,
+  appVersion, canToggleScrobbling, choiceSpec, isChoice, isDeviceChoice, onOff, optionLabel, scrobbleValue, serverVersionValue, tvQualityNote,
+  type Choice, type DeviceChoice,
 } from './settingsModel';
 import { colors, tv, type } from './theme';
 import { TabRoot } from './Sidebar';
@@ -113,6 +116,8 @@ export function TvSettingsScreen() {
   const [note, setNote] = useState<string | null>(null);
   const [engine, setEngine] = useEngineSetting();
   const boosts = useNormalizationBoosts();
+  const equalizerAvailable = useEqualizerAvailable();
+  const [equalizer] = useEqualizerSetting();
   if (state.status !== 'signedIn') return null;
   const { server, user } = state;
   const { settings } = screen;
@@ -125,7 +130,7 @@ export function TvSettingsScreen() {
       { text: action, style: 'destructive', onPress: perform },
     ]);
   };
-  const open = (choice: Choice) => router.push(`/settings/${choice}`);
+  const open = (choice: Choice | DeviceChoice) => router.push(`/settings/${choice}`);
 
   return <SettingsLayout title="Settings" note={note} root>
     <Section title="Account" error={unsaved ? unsavedSignIn : null}>
@@ -158,6 +163,8 @@ export function TvSettingsScreen() {
           note={targetNote(boosts)} onNote={setNote} onPress={() => open('target')} />}
         <Row title="Streaming Quality" value={optionLabel(qualityOptions, settings.qualityWifi)} chevron
           note={tvQualityNote} onNote={setNote} onPress={() => open('quality')} />
+        {equalizerAvailable && <Row title="Equalizer" value={optionLabel(equalizerOptions, equalizer.preset)} chevron
+          note={equalizerNote} onNote={setNote} onPress={() => open('equalizer')} />}
         {/* Two values, so selecting the row switches between them, as a switch's row does. */}
         {showsEngineSetting() && <Row title="Engine" value={optionLabel(engineOptions, engine)} note={engineNote} onNote={setNote}
           onPress={() => setEngine(engine === 'native' ? 'classic' : 'native')} />}
@@ -233,6 +240,7 @@ export function TvSettingsChoiceScreen() {
   const update = useUpdateSettings();
   const [error, setError] = useState<string | null>(null);
   const boosts = useNormalizationBoosts();
+  if (isDeviceChoice(choice)) return <TvDeviceChoiceScreen choice={choice} />;
   if (!isChoice(choice)) return <PageState message="There’s no such setting." />;
   if (!settings.data) return settings.isError ? <PageState message={loadFailure(settings.error).description} onRetry={() => void settings.refetch()} /> : <PageState loading />;
   const spec = choiceSpec(choice, {
@@ -250,6 +258,27 @@ export function TvSettingsChoiceScreen() {
     <Section error={error}>
       {spec.options.map(option => <Row key={option.value} title={option.label} checked={option.value === current}
         hasTVPreferredFocus={option.value === current} onNote={() => undefined} onPress={() => choose(option.value)} />)}
+    </Section>
+  </SettingsLayout>;
+}
+
+/**
+ * A list of choices for a setting of this Apple TV's own: the equalizer's presets (the TV has
+ * no band editor). Choosing one applies it at once and goes back.
+ */
+function TvDeviceChoiceScreen({ choice }: { choice: DeviceChoice }) {
+  const router = useRouter();
+  const [equalizer, setEqualizer] = useEqualizerSetting();
+  // A custom curve set before (on a build that had the editor) still shows as chosen.
+  const options = equalizer.preset === 'custom' ? equalizerOptions : tvEqualizerOptions;
+  const choose = (preset: typeof equalizer.preset) => {
+    setEqualizer({ ...equalizer, preset });
+    router.back();
+  };
+  return <SettingsLayout title={choice === 'equalizer' ? 'Equalizer' : ''} note={equalizerNote}>
+    <Section>
+      {options.map(option => <Row key={option.value} title={option.label} checked={option.value === equalizer.preset}
+        hasTVPreferredFocus={option.value === equalizer.preset} onNote={() => undefined} onPress={() => choose(option.value)} />)}
     </Section>
   </SettingsLayout>;
 }

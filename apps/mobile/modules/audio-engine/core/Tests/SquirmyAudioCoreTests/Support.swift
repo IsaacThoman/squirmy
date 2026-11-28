@@ -18,6 +18,28 @@ enum Fixtures {
 
   /// The uncut sweep, decoded.
   static let reference: [Float] = decodeFile(url("ref.flac"))
+
+  /// The descriptor's numbers for each fragmented fixture (`scripts/make-fragmented-fixtures.mjs`).
+  static let fragmented: [String: FragmentedFixture] = {
+    do {
+      return try JSONDecoder().decode([String: FragmentedFixture].self, from: Data(contentsOf: url("fragmented.json")))
+    } catch {
+      fatalError("fragmented.json: \(error)")
+    }
+  }()
+}
+
+struct FragmentedFixture: Decodable {
+  struct Numbers: Decodable {
+    let sampleRate: Double
+    let primingFrames: Int64
+    let frames: Int64
+  }
+  let gapless: Numbers
+  let startMs: Double?
+  let startFrame: Int64?
+
+  var numbers: Gapless { Gapless(sampleRate: gapless.sampleRate, primingFrames: gapless.primingFrames, frames: gapless.frames) }
 }
 
 /// Every frame a decoder gives, interleaved stereo.
@@ -152,6 +174,12 @@ final class GatedSource: ByteSource {
   func info() throws -> SourceInfo { try file.info() }
   func length() throws -> Int64 { size }
   var isComplete: Bool { false }
+  func available(from offset: Int64) -> Int64 {
+    condition.lock()
+    defer { condition.unlock() }
+    if offset >= size - tail { return size }
+    return max(offset, min(size, allowed))
+  }
 
   func read(at offset: Int64, count: Int, into buffer: UnsafeMutableRawPointer) throws -> Int {
     condition.lock()
@@ -183,6 +211,8 @@ final class FakeLoader: ByteLoader {
   var ranges = true
   var sendsLength = true
   var status = 200
+  /// `X-Squirmy-Start-Frame`, for a stream sent from a time.
+  var startFrame: Int64?
   /// The first sequential download stops with a network error at this byte.
   var failAt: Int64?
   private let lock = NSLock()
@@ -211,7 +241,7 @@ final class FakeLoader: ByteLoader {
     DispatchQueue(label: "fake.loader.\(offset)").async { [self] in
       guard !task.cancelled else { return handler.complete(EngineError.cancelled) }
       let head = ByteResponse(status: status == 200 && ranged ? 206 : status, start: start, total: sendsLength || ranged ? total : nil,
-                              acceptsRanges: ranges, contentType: mimeType(forExtension: url.pathExtension))
+                              acceptsRanges: ranges, contentType: mimeType(forExtension: url.pathExtension), startFrame: startFrame)
       guard handler.response(head) else { return handler.complete(EngineError.cancelled) }
       var position = start
       while position < stop {
@@ -314,6 +344,84 @@ final class FakeOutput: AudioOutput {
   }
 }
 
+/// Several streams by the last part of their URL, each from its own `FakeLoader`, as one server.
+final class FakeServer: ByteLoader {
+  private(set) var files: [String: FakeLoader] = [:]
+  private(set) var seeks: [String: FakeLoader] = [:]
+  private let lock = NSLock()
+  private var asked: [String] = []
+
+  /// Serves `file` at every URL that ends in `name`, whatever its query.
+  func serve(_ name: String, _ file: URL) throws -> FakeLoader {
+    let loader = FakeLoader(data: try Data(contentsOf: file))
+    files[name] = loader
+    return loader
+  }
+
+  /// Serves `file` for `name` asked for from a time (`start`), as beginning at `startFrame`.
+  func serveSeek(_ name: String, _ file: URL, startFrame: Int64) throws -> FakeLoader {
+    let loader = FakeLoader(data: try Data(contentsOf: file))
+    loader.startFrame = startFrame
+    loader.ranges = false
+    loader.sendsLength = false
+    seeks[name] = loader
+    return loader
+  }
+
+  /// The `start` of each request that had one, in order.
+  var starts: [String] {
+    lock.lock()
+    defer { lock.unlock() }
+    return asked
+  }
+
+  func load(_ url: URL, from offset: Int64, to end: Int64?, handler: ByteLoadHandler) -> ByteLoadTask {
+    let start = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "start" }?.value
+    if let start {
+      lock.lock()
+      asked.append(start)
+      lock.unlock()
+    }
+    guard let loader = start == nil ? files[url.lastPathComponent] : seeks[url.lastPathComponent] else {
+      let task = FakeTask()
+      DispatchQueue.global().async {
+        _ = handler.response(ByteResponse(status: 404, start: 0, total: nil, acceptsRanges: false, contentType: nil))
+        handler.complete(EngineError.cancelled)
+      }
+      return task
+    }
+    return loader.load(url, from: offset, to: end, handler: handler)
+  }
+}
+
+/// What a `StreamStore` reported, from whichever thread it said it.
+final class ReportLog {
+  private let condition = NSCondition()
+  private var reports: [CacheReport] = []
+
+  func add(_ report: CacheReport) {
+    condition.lock()
+    reports.append(report)
+    condition.broadcast()
+    condition.unlock()
+  }
+
+  var all: [CacheReport] {
+    condition.lock()
+    defer { condition.unlock() }
+    return reports
+  }
+
+  /// Waits up to `timeout` seconds for `count` reports, and gives what there is.
+  func wait(for count: Int, timeout: TimeInterval = 5) -> [CacheReport] {
+    let deadline = Date().addingTimeInterval(timeout)
+    condition.lock()
+    defer { condition.unlock() }
+    while reports.count < count, condition.wait(until: deadline) {}
+    return reports
+  }
+}
+
 /// An engine on a `FakeOutput`, stepped by hand.
 final class Harness {
   let output: FakeOutput
@@ -324,12 +432,13 @@ final class Harness {
   /// Called on the feed queue with each event, before it is recorded.
   var onEvent: ((EngineEvent) -> Void)?
 
-  init(rate: Double = Fixtures.rate, fadeIn: Double = 0) {
+  /// `sources` replaces the fixture files of `factory`, such as a `StreamStore` on a fake server.
+  init(rate: Double = Fixtures.rate, fadeIn: Double = 0, sources: SourceFactory? = nil) {
     output = FakeOutput(sampleRate: rate)
     var config = EngineConfig()
     config.manualTicks = true
     config.fadeIn = fadeIn
-    engine = Engine(output: output, factory: factory, config: config)
+    engine = Engine(output: output, factory: sources ?? factory, config: config)
     engine.listener = { [weak self] event in
       guard let self else { return }
       self.onEvent?(event)
@@ -356,8 +465,9 @@ final class Harness {
     events.compactMap { if case .ended(let id) = $0 { return id } else { return nil } }
   }
 
-  func item(_ id: String, _ url: URL, startMs: Double = 0, gain: Float = 1, decoder: DecoderKind = .file) -> EngineItem {
-    EngineItem(entryId: id, url: url, startMs: startMs, gain: gain, decoder: decoder, gapless: nil, cacheKey: nil)
+  func item(_ id: String, _ url: URL, startMs: Double = 0, gain: Float = 1, decoder: DecoderKind = .file, gapless: Gapless? = nil,
+            cacheKey: String? = nil) -> EngineItem {
+    EngineItem(entryId: id, url: url, startMs: startMs, gain: gain, decoder: decoder, gapless: gapless, cacheKey: cacheKey)
   }
 
   /// Waits for the queued commands, then for the decoders.

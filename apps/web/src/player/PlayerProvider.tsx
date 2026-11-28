@@ -105,6 +105,7 @@ function createSession(api: ApiClient, socket: SquirmySocket, device: ClientDevi
       engine,
       baseUrl: '',
       canBoost: engine.canBoost,
+      limiter: engine.limiter,
       resolvePlayback: entry => api.streaming.playback(entry.trackId, { albumId: entry.albumId ?? undefined, quality, ...engine.playbackQuery() }),
       // A failure that may pass is retried by the client. A track the server refused to stream
       // (gone, or not allowed) is told once and skipped, as one the browser cannot play.

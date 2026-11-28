@@ -1,6 +1,9 @@
 // Checks the browser engines against the client-core PlayerEngine contract in a real browser,
 // on the /dev/engine page with the tones from scripts/dev-audio.mjs: `WebPlayerEngine` (two
-// elements) and `MseEngine` (one timeline through Media Source Extensions). With a fixture
+// elements) and `MseEngine` (one timeline through Media Source Extensions). It runs the output
+// chain's true-peak limiter (the AudioWorklet) and equalizer on the iOS engine's test values,
+// rendered offline, so silently and sample for sample, and records a crossfade between two
+// tones (the iOS engine's test values: power within 0.5 dB through a 4 s fade). With a fixture
 // library it also measures MseEngine through the server's own streams, recorded sample by
 // sample through an AudioWorklet: the boundary between the two halves of a split tone,
 // seeks inside and outside the buffer, and a background tab through three track changes.
@@ -150,12 +153,15 @@ function installHelpers(page) {
   })
 }
 
-const launchArgs = browserName === 'chromium' ? ['--autoplay-policy=no-user-gesture-required'] : []
+// Muted: the recordings are taken from the audio graph, and nothing needs to come out of the speakers.
+const launchArgs = browserName === 'chromium' ? ['--autoplay-policy=no-user-gesture-required', '--mute-audio'] : []
 const browser = await browserType.launch({ args: launchArgs })
 const kinds = []
 try {
   const probe = await openEngine(browser, 'engine=web')
   const mseSupported = await probe.page.evaluate(() => typeof MediaSource !== 'undefined' && MediaSource.isTypeSupported('audio/mp4; codecs="mp4a.40.2"'))
+  console.log(`\nThe output chain in ${browserName}`)
+  await outputChain(probe.page)
   await probe.context.close()
   for (const kind of ['web', 'mse']) {
     if (onlyEngine && onlyEngine !== kind) continue
@@ -173,6 +179,7 @@ try {
   await browser.close()
 }
 for (const kind of kinds) if (browserName === 'chromium') await blockedAutoplay(kind)
+if (browserName === 'chromium') for (const kind of kinds) await crossfade(kind)
 if (fixtures && kinds.includes('mse')) await measure(fixtures)
 
 console.log(`\n${results.length - failed} of ${results.length} checks passed`)
@@ -342,6 +349,111 @@ async function contract(page, kind) {
   check(name('stop goes idle and emits status'), result.status.entryId === null && result.status.state === 'idle' && result.events.length === 1)
 }
 
+/** Base64 channels from the page as Float32Arrays. */
+function floats(channels) {
+  return channels.map(text => {
+    const bytes = Buffer.from(text, 'base64')
+    return new Float32Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 4)
+  })
+}
+
+function besselI0(x) {
+  let sum = 1, term = 1
+  for (let k = 1; k < 40; k += 1) {
+    term *= (x / 2) * (x / 2) / (k * k)
+    sum += term
+  }
+  return sum
+}
+
+/** The true peak in dBTP, 4x oversampled as BS.1770 measures it, with an interpolator four times as long as the limiter's. */
+function truePeakDb(signal) {
+  const reach = 32
+  const kernels = [0.25, 0.5, 0.75].map(offset => {
+    const taps = Array.from({ length: reach * 2 }, (_, index) => {
+      const distance = index - (reach - 1) - offset
+      const edge = distance / reach
+      return Math.sin(Math.PI * distance) / (Math.PI * distance) * besselI0(9 * Math.sqrt(1 - edge * edge))
+    })
+    const total = taps.reduce((sum, tap) => sum + tap, 0)
+    return taps.map(tap => tap / total)
+  })
+  let peak = 0
+  for (const channel of signal) {
+    for (let frame = 0; frame < channel.length; frame += 1) {
+      peak = Math.max(peak, Math.abs(channel[frame]))
+      for (const taps of kernels) {
+        let point = 0
+        for (let tap = 0; tap < taps.length; tap += 1) point += (channel[frame - reach + tap] ?? 0) * taps[tap]
+        peak = Math.max(peak, Math.abs(point))
+      }
+    }
+  }
+  return 20 * Math.log10(peak)
+}
+
+function channelRms(channel, from, to) {
+  let sum = 0
+  for (let frame = from; frame < to; frame += 1) sum += channel[frame] * channel[frame]
+  return Math.sqrt(sum / (to - from))
+}
+
+/**
+ * The limiter in the browser's AudioWorklet, on the test values of the iOS engine's (M4): a
+ * full-scale tone boosted 12 dB comes out under -1 dBTP, and a signal under the ceiling comes
+ * out bit-identical, only later by the limiter's lookahead. Then each equalizer band, at its
+ * centre frequency, is within 0.5 dB of its setting.
+ */
+async function outputChain(page) {
+  const render = request => page.evaluate(async request => {
+    const { input, output } = await window.squirmyEngine.offline(request)
+    return { input, output }
+  }, request).then(({ input, output }) => ({ input: floats(input), output: floats(output) }))
+  // The limiter's lag: its 1.5 ms lookahead and its interpolator's reach (limiter-worklet.js).
+  const delayOf = rate => Math.round(0.0015 * rate) + 7
+  for (const rate of [44_100, 48_000]) {
+    for (const frequency of [60, 1000, 9000]) {
+      const { output } = await render({ signal: { kind: 'tone', frequency }, rate, seconds: 1.5, levelDb: 0, gain: 10 ** (12 / 20) })
+      const peak = truePeakDb(output)
+      check(`limiter: a full-scale ${frequency} Hz tone boosted 12 dB stays under -1 dBTP (${rate} Hz)`, peak < -1 && peak > -1.5, `${peak.toFixed(2)} dBTP`)
+    }
+  }
+  // A quarter of the sample rate, 45° off the samples: each sample is 3 dB under the wave's own peak.
+  const between = await render({ signal: { kind: 'tone', frequency: 11_025, phase: Math.PI / 4 }, rate: 44_100, seconds: 1, levelDb: 0, gain: 10 ** (1 / 20) })
+  const caught = truePeakDb(between.output)
+  check('limiter: catches the peaks between the samples', caught < -1, `${caught.toFixed(2)} dBTP`)
+  for (const [levelDb, gain] of [[-40, 1], [-40, 2], [-1.6, 1]]) {
+    const rate = 48_000
+    const { input, output } = await render({ signal: { kind: 'sweep' }, rate, seconds: 2, levelDb, gain })
+    const delay = delayOf(rate)
+    let wrong = 0
+    for (let channel = 0; channel < 2; channel += 1) {
+      for (let frame = 0; frame < input[channel].length; frame += 1) {
+        if (output[channel][delay + frame] !== Math.fround(input[channel][frame] * gain)) wrong += 1
+      }
+    }
+    const silentBefore = output.every(channel => channel.subarray(0, delay).every(sample => sample === 0))
+    check(`limiter: a sweep at ${levelDb} dB${gain === 1 ? '' : `, turned up ${(20 * Math.log10(gain)).toFixed(0)} dB,`} passes bit-identical`, wrong === 0 && silentBefore,
+      `${wrong} samples differ, ${delay} frames later (${(delay / rate * 1000).toFixed(2)} ms)`)
+  }
+  const bands = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16_000]
+  const responses = []
+  for (const [index, frequency] of bands.entries()) {
+    const rate = 48_000
+    const equalizer = bands.map((_, band) => (band === index ? -6 : 0))
+    const plain = await render({ signal: { kind: 'tone', frequency }, rate, seconds: 1, levelDb: -20, gain: 1 })
+    const shaped = await render({ signal: { kind: 'tone', frequency }, rate, seconds: 1, levelDb: -20, gain: 1, equalizer })
+    // After the filters settle and the 10 ms crossfade into them.
+    const from = rate / 2, to = rate - 1024
+    responses.push(20 * Math.log10(channelRms(shaped.output[0], from, to) / channelRms(plain.output[0], from, to)))
+  }
+  const worst = Math.max(...responses.map(response => Math.abs(response + 6)))
+  check('equalizer: each band at -6 dB measures within 0.5 dB of it at its centre', worst <= 0.5, responses.map((response, index) => `${bands[index]} Hz ${response.toFixed(2)}`).join(', '))
+  const boosted = await render({ signal: { kind: 'tone', frequency: 1000 }, rate: 48_000, seconds: 1, levelDb: -20, gain: 1, equalizer: bands.map(frequency => (frequency === 1000 ? 6 : 0)) })
+  const level = 20 * Math.log10(channelRms(boosted.output[0], 24_000, 46_976) / (0.1 / Math.SQRT2))
+  check('equalizer: a boost comes with a preamp of minus it', Math.abs(level) <= 0.5, `1 kHz at +6 dB plays at ${level.toFixed(2)} dB`)
+}
+
 /**
  * A browser that requires a gesture: play is refused, reported, and recovered by a click.
  * Playwright's evaluate counts as a gesture, so the page starts the tone itself (?autoplay=)
@@ -374,6 +486,69 @@ async function blockedAutoplay(kind) {
     check(`${kind}: the notice goes away`, !(await button.isVisible()))
   } finally {
     await strict.close()
+  }
+}
+
+/** The amplitude of a sine at `frequency` in `frames` frames of the left channel from `from`: a whole number of cycles. */
+function amplitudeAt(samples, from, frames, frequency, rate) {
+  let re = 0, im = 0
+  for (let frame = 0; frame < frames; frame += 1) {
+    const angle = 2 * Math.PI * frequency * frame / rate
+    const value = samples[2 * (from + frame)] ?? 0
+    re += value * Math.cos(angle)
+    im -= value * Math.sin(angle)
+  }
+  return 2 * Math.hypot(re, im) / frames
+}
+
+/**
+ * A 4 s crossfade between two tones of the same level (880 Hz from 2 s into its 8, then 330
+ * Hz), recorded from the graph: the level stays within 0.5 dB through the fade (equal power),
+ * the fade takes the setting and ends as the first tone does, and `ended` comes as the second
+ * one starts. Muted.
+ */
+async function crossfade(kind) {
+  const browser = await chromium.launch({ args: launchArgs })
+  try {
+    const { page } = await openEngine(browser, `engine=${kind}&rate=44100&muted=1&crossfade=4`)
+    const result = await page.evaluate(async () => {
+      const { engine, until, wait, source } = window.t
+      engine.warm()
+      await until(() => window.squirmyEngine.recorder, 5000)
+      const recording = window.squirmyEngine.recorder()
+      let atEnded = null
+      const off = engine.subscribe(event => { if (event.type === 'ended' && !atEnded) atEnded = engine.getStatus() })
+      engine.load({ entryId: 'd1', ...source('d'), startMs: 2000, autoplay: true, gain: 1 })
+      engine.preload({ entryId: 'e1', ...source('e'), gain: 1 })
+      await until(() => atEnded, 15_000)
+      await wait(5000)
+      off()
+      engine.stop()
+      await wait(100)
+      return { samples: await recording.stop(), atEnded }
+    })
+    const samples = channels(result.samples)
+    const rate = 44_100, window = 4410, hop = 2205, full = 0.02
+    const windows = []
+    for (let from = 0; from + window < samples.length / 2; from += hop) {
+      windows.push({ at: from / rate, rms: rms(samples, from, null, 0, window), outgoing: amplitudeAt(samples, from, window, 880, rate), incoming: amplitudeAt(samples, from, window, 330, rate) })
+    }
+    const sounding = windows.filter(({ rms: level }) => level > full / 10)
+    // Away from where the first tone starts and the second is stopped.
+    const steady = sounding.slice(4, -4)
+    const levels = steady.map(({ rms: level }) => 20 * Math.log10(level / (full / Math.SQRT2)))
+    // Each tone over -40 dB of its level: 98.7% of an equal-power fade.
+    const both = windows.filter(({ outgoing, incoming }) => outgoing > full / 100 && incoming > full / 100)
+    const fadeSeconds = both.length ? both.at(-1).at - both[0].at + window / rate : 0
+    const start = sounding[0]?.at ?? 0
+    const outgoingEnd = windows.filter(({ outgoing }) => outgoing > full / 100).at(-1)?.at ?? 0
+    check(`${kind}: a 4 s crossfade keeps the power within 0.5 dB`, levels.length > 100 && Math.max(...levels.map(Math.abs)) <= 0.5,
+      `${Math.min(...levels).toFixed(2)} to ${Math.max(...levels).toFixed(2)} dB over ${(steady.length * hop / rate).toFixed(1)} s`)
+    check(`${kind}: the fade takes the setting and ends with the first tone`, Math.abs(fadeSeconds - 4) < 0.35 && Math.abs(outgoingEnd + window / rate - start - 6) < 0.3,
+      `both tones heard for ${fadeSeconds.toFixed(2)} s, the first ending ${(outgoingEnd + window / rate - start).toFixed(2)} s after it started`)
+    check(`${kind}: ended comes as the second tone starts`, result.atEnded?.entryId === 'e1' && result.atEnded.state === 'playing' && result.atEnded.positionMs < 300, JSON.stringify(result.atEnded))
+  } finally {
+    await browser.close()
   }
 }
 
@@ -582,7 +757,19 @@ async function measure(dir) {
       const detail = `${descriptors[0].profile}, boundary ${second.gap} samples, ${wrong} samples wrong (largest difference ${largest})${first}`
       // Lossy: an entry's first frame is no further from the original than ffmpeg's decode of it (within 1 dB).
       const accurate = !settle || found.every(part => part.carried <= part.fresh * 1.12)
-      if (label === 'flac_mp4') check(`${label}: the halves meet at 0 samples with no sample wrong`, second.gap === 0 && wrong === 0, detail)
+      if (label === 'flac_mp4') {
+        check(`${label}: the halves meet at 0 samples with no sample wrong`, second.gap === 0 && wrong === 0, detail)
+        // The next song of an album never crossfades.
+        const faded = await openEngine(measureBrowser, 'engine=mse&rate=44100&muted=1&crossfade=4')
+        await faded.page.evaluate(async () => {
+          window.t.engine.warm()
+          await window.t.until(() => window.squirmyEngine.recorder, 5000)
+        })
+        const album = entries.map(item => ({ ...item, load: { ...item.load, continuesAlbum: true } }))
+        const [, joined] = boundaries(channels((await play(faded.page, album)).samples), album.map(item => item.reference)) ?? []
+        check(`${label}: with crossfade on, an album's halves still meet at 0 samples`, joined?.gap === 0 && joined.wrong === 0, `boundary ${joined?.gap} samples, ${joined?.wrong} wrong`)
+        await faded.context.close()
+      }
       else if (label === 'aac_mp4_256') check(`${label}: the halves meet at 0 samples, every sample after each first frame as decoded, those frames as accurate`, second.gap === 0 && wrong === 0 && accurate, detail)
       else console.log(`info  ${label}: ${detail}`)
     }

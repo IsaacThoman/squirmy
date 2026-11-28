@@ -1,5 +1,5 @@
 import { formatBytes, GIGABYTE, plural, reduceSession, type Session } from '@squirmy/client-core';
-import type { PlaybackDescriptor, QueueEntry, StreamQuality, TrackSummary } from '@squirmy/contracts';
+import type { PlaybackDescriptor, QueueEntry, StreamProfile, StreamQuality, TrackSummary } from '@squirmy/contracts';
 import { checkIntervalMs, type NetworkKind } from '../downloads/model';
 
 /**
@@ -47,6 +47,16 @@ export const minFreeBytes = 500 * 1024 ** 2;
 export const maxAttempts = 3;
 
 const order: readonly StreamQuality[] = ['data_saver', 'high', 'original'];
+
+const fragmentedProfiles: ReadonlySet<StreamProfile> = new Set(['flac_mp4', 'opus_mp4_192', 'opus_mp4_96', 'aac_mp4_256', 'aac_mp4_128', 'copy_mp4']);
+
+/**
+ * The copy is in fragmented MP4, which only the native engine asks for: it carries no edit
+ * list, so another player would play its priming, and older systems cannot play its Opus.
+ */
+export function needsNativeEngine(row: Pick<CacheRow, 'descriptor'>): boolean {
+  return fragmentedProfiles.has(row.descriptor.profile);
+}
 const rank = (quality: StreamQuality) => order.indexOf(quality);
 
 /**
@@ -167,16 +177,17 @@ export type Policy = { ahead: number; current: boolean; concurrency: number };
 const idle: Policy = { ahead: 0, current: false, concurrency: 0 };
 
 /**
- * Wi-Fi fetches the next two entries, two at a time, and fetches the playing stream a
- * second time to keep it: the player gives no access to the bytes it streams. Cellular
- * fetches ahead too, one at a time, since those bytes would be streamed anyway, but never
- * pays twice for the stream being played, and does nothing when the user chose Data Saver
- * there.
+ * Wi-Fi fetches the next two entries, two at a time. With the classic player it also
+ * fetches the playing stream a second time to keep it, since that player gives no access to
+ * the bytes it streams; the native engine keeps what it streams itself (`shared`), so the
+ * stream is fetched once, on any network. Cellular fetches ahead too, one at a time, since
+ * those bytes would be streamed anyway, but never pays twice for the stream being played,
+ * and fetches nothing ahead when the user chose Data Saver there.
  */
-export function policyFor(network: NetworkKind, cellularQuality: StreamQuality): Policy {
+export function policyFor(network: NetworkKind, cellularQuality: StreamQuality, shared = false): Policy {
   if (network === 'none') return idle;
   if (network === 'cellular') return cellularQuality === 'data_saver' ? idle : { ahead: aheadCount, current: false, concurrency: 1 };
-  return { ahead: aheadCount, current: true, concurrency: 2 };
+  return { ahead: aheadCount, current: !shared, concurrency: 2 };
 }
 
 /** A track to fetch, or with `check` only to ask the server whether its cached file is still current. */
@@ -203,6 +214,12 @@ export type PlanInput = {
   size: (trackId: string) => number | undefined;
   /** When a track whose fetch failed may be tried again. */
   retryAt: (trackId: string) => number | undefined;
+  /**
+   * The engine keeps what it streams (the native engine): a fetch reads the same download a
+   * load of that stream does. The stream being played is then never fetched again, and a
+   * fetch of it already running is left to finish, since it is the download being played.
+   */
+  shared?: boolean;
 };
 
 export type Plan = {
@@ -229,7 +246,7 @@ export function plan(input: PlanInput): Plan {
   let room = input.limitBytes;
   for (const trackId of keep) room -= bytesOf(trackId);
 
-  const policy = input.limitBytes > 0 ? policyFor(input.network, input.cellularQuality) : idle;
+  const policy = input.limitBytes > 0 ? policyFor(input.network, input.cellularQuality, input.shared) : idle;
   const ready = (entry: Near | null): entry is Near => entry?.state === 'ready';
   const ahead = upcoming.filter(ready);
   // With nothing playing the current entry is what play would start. While it plays, what follows matters more.
@@ -268,7 +285,8 @@ export function plan(input: PlanInput): Plan {
   }
 
   const wanted = new Map(targets.map(target => [target.trackId, target.quality]));
-  const stays = (trackId: string) => input.running.get(trackId) === wanted.get(trackId);
+  const playing = role === 'active' && input.shared ? current?.trackId : undefined;
+  const stays = (trackId: string) => input.running.get(trackId) === wanted.get(trackId) || trackId === playing;
   const cancel = [...input.running.keys()].filter(trackId => !stays(trackId));
   let free = input.online && input.freeBytes >= minFreeBytes ? policy.concurrency - (input.running.size - cancel.length) : 0;
   const start: Target[] = [];

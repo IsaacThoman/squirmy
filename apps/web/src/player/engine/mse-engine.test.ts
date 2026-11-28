@@ -206,19 +206,27 @@ class FakeContext {
   currentTime = 10
   destination = {}
   readonly ramps: { target: number; at: number }[] = []
-  readonly gain = {
-    value: 1,
-    setValueAtTime: (value: number) => { this.gain.value = value },
-    setTargetAtTime: (target: number, at: number) => {
-      this.ramps.push({ target, at })
-      this.gain.value = target
-    },
-    cancelScheduledValues: () => {},
-  }
+  private readonly nodes: { gain: { value: number } }[] = []
+  /** The engine's own gain: the last made, after the output chain's. */
+  get gain() { return this.nodes.at(-1)!.gain }
   resume = vi.fn(async () => {})
   close = vi.fn(async () => {})
-  createGain() { return { gain: this.gain, connect: (next: unknown) => next } }
-  createMediaElementSource() { return { connect: (next: unknown) => next } }
+  createGain() {
+    const gain = {
+      value: 1,
+      setValueAtTime: (value: number) => { gain.value = value },
+      setTargetAtTime: (target: number, at: number) => {
+        this.ramps.push({ target, at })
+        gain.value = target
+      },
+      linearRampToValueAtTime: (value: number) => { gain.value = value },
+      cancelScheduledValues: () => {},
+    }
+    const node = { gain, connect: (next: unknown) => next, disconnect: () => {} }
+    this.nodes.push(node)
+    return node
+  }
+  createMediaElementSource() { return { connect: (next: unknown) => next, disconnect: () => {} } }
 }
 
 type Served = { status?: number; frames?: number; chunks?: Uint8Array[]; startFrame?: number; hold?: boolean }
@@ -278,6 +286,8 @@ function createEngine(options: ConstructorParameters<typeof MseEngine>[0] = {}):
       return response(url.split('?')[0]!)
     }) as typeof fetch,
     types: new Map([['flac', 'audio/mp4; codecs="flac"'], ['aac', 'audio/mp4; codecs="mp4a.40.2"'], ['mp3', 'audio/mpeg']]),
+    limiter: true,
+    createLimiter: async () => ({ connect: (next: unknown) => next, disconnect: () => {} }) as unknown as AudioNode,
     ...options,
   })
   created.subscribe(event => events.push(event))

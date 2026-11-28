@@ -80,6 +80,9 @@ export const serverMusicLabel = 'Show all of this server’s music in your libra
 export const serverMusicNote = 'Your library is what you heart, with the music you upload. This adds every album on this server too. Everything on this server is on Home either way, and plays for everyone.';
 
 /** Explicit content (`allowExplicit`), worded as on web. An admin can turn it off for the user and keep it off. */
+export const ratingsLabel = 'Show star ratings';
+export const ratingsNote = 'Rate songs from one to five stars in their menus, and use ratings in smart playlists. The heart still decides what is in your library.';
+
 export const explicitLabel = 'Allow explicit content';
 export const explicitNote = 'Turn it off to gray out songs marked explicit and keep them out of search, radio and your queue. A clean version plays instead when there is one.';
 export const explicitRestrictedNote = 'An admin turned explicit content off for your account. Ask them to turn it back on.';
@@ -88,6 +91,8 @@ export const shareNowPlayingLabel = 'Share what I’m listening to with other us
 export const shareNowPlayingNote = 'Lets other users see your current song in Subsonic apps.';
 
 export const qualityNote = 'Original streams the file as it is when this device can play it. High is AAC at 256 kbps. Data Saver uses the least data.';
+/** With the native engine, which gets Opus where the device decodes it. */
+export const nativeQualityNote = 'Original streams the file as it is when this device can play it. High is Opus at 192 kbps, or AAC at 256 kbps where Opus can’t play. Data Saver uses the least data.';
 
 /** What the settings screen says under a section's controls when the server or the service refused. */
 export const scrobbleFailures = {
@@ -188,6 +193,8 @@ export function useSettingsScreen() {
     /** Whether the library holds all of the server's music, not only what the user saved. */
     setLibraryIncludesServerMusic: (libraryIncludesServerMusic: boolean) => save('library', { libraryIncludesServerMusic }),
     setShareNowPlaying: (shareNowPlaying: boolean) => save('privacy', { shareNowPlaying }),
+    /** Whether song menus offer 1 to 5 stars, as on web. */
+    setShowRatings: (showRatings: boolean) => save('library', { showRatings }),
     /** An admin turned explicit content off for this account; the switch is shown off and cannot be changed. */
     explicitRestricted: state.status === 'signedIn' && (state.user.explicitRestricted ?? false),
     /** Whether explicit songs play: the user's own switch, under an admin's restriction. */

@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils'
 import { WebhookSettings } from '../integrations/WebhookSettings'
 import { AppearanceSettings } from './AppearanceSettings'
 import { SecuritySettings, type SecuritySettingsProps } from './SecuritySettings'
+import { SoundSettings } from './SoundSettings'
 import type { SettingsSection } from './settings-dialog'
 
 const sections: { id: SettingsSection; label: string; icon: LucideIcon }[] = [
@@ -78,6 +79,10 @@ export type SettingsDialogProps = {
   /** Undefined while loading. */
   settings: UserSettings | undefined
   onSettingsChange: (patch: UpdateUserSettings) => void
+  /** This browser's engine turns quiet songs up to the target, with its limiter; without one it only turns songs down. */
+  boosts?: boolean
+  /** This browser can play through an output device the page picks (Chromium). */
+  choosesOutput?: boolean
   /** This browser's name in device lists, and the one it has without a custom name. */
   deviceName: string
   defaultDeviceName: string
@@ -123,7 +128,7 @@ const SAVED_MS = 2500
 
 /** The user's settings in a dialog: sections down the left, the chosen one on the right. */
 export function SettingsDialog({
-  open, onOpenChange, section, onSectionChange, user, serverName, version, settings, onSettingsChange, deviceName, defaultDeviceName, onDeviceNameChange,
+  open, onOpenChange, section, onSectionChange, user, serverName, version, settings, onSettingsChange, boosts = false, choosesOutput = false, deviceName, defaultDeviceName, onDeviceNameChange,
   scrobbling, onConnectListenBrainz, onConnectLastFm, onDisconnect, appPasswords, onCreateAppPassword, onRevokeAppPassword, shareLinks, sharingEnabled, onRevokeShareLink, onChangePassword, security, onRename, onLogout, onOpenAdmin, onOpenUploads, failures,
   errors, lastFm, passwordChanged,
 }: SettingsDialogProps) {
@@ -199,7 +204,13 @@ export function SettingsDialog({
                     </Row>
                     {/* Only normalization has a target: with it off, songs play as they are. */}
                     {settings.normalization !== 'off' && (
-                      <Row htmlFor="normalization-target" label="Target loudness" description="How loud songs play with normalization on. Loud is about as loud as most streaming services. A quiet song is turned up only as far as its peaks allow.">
+                      <Row
+                        htmlFor="normalization-target"
+                        label="Target loudness"
+                        description={`How loud songs play with normalization on. Loud is about as loud as most streaming services. ${boosts
+                          ? 'Quiet songs are turned up to it, with a limiter so their loudest moments don’t distort.'
+                          : 'This browser turns loud songs down to it but never turns quiet ones up.'}`}
+                      >
                         <Select id="normalization-target" label="Target loudness" value={`${settings.normalizationTarget ?? -18}`} options={targetOptions} onValueChange={target => onSettingsChange({ normalizationTarget: Number(target) as NormalizationTarget })} className="w-52" />
                       </Row>
                     )}
@@ -213,6 +224,7 @@ export function SettingsDialog({
                 ) : failures?.settings ?? <LoadingRows rows={3} />}
                 <FormError message={errors?.playback} />
                 <Separator />
+                <SoundSettings choosesOutput={choosesOutput} />
                 <Row htmlFor="device-name" label="This browser’s name" description="How your other devices list it when you move playback.">
                   <span role="status" className="flex items-center gap-1 text-xs text-muted-foreground">
                     {nameSaved && <><Check aria-hidden className="size-3.5 text-primary" />Saved</>}

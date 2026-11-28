@@ -38,6 +38,11 @@ export interface PlayerEngine {
    * entry), followed by `status` for the new one. The preload slot is then empty.
    * Without a preload, it emits `ended` and stays on the finished entry in state
    * `ended` at its end position.
+   *
+   * An engine that crossfades starts the preloaded entry up to the fade's length before the
+   * loaded one ends, and emits `ended` for the loaded one when the preloaded one's first
+   * sample plays; `getStatus()` reports the new entry from then on. It never crossfades into
+   * an entry that `continuesAlbum`.
    */
   preload(request: EnginePreload | null): void
   /** Starts or resumes the loaded entry. No-op without one or while `loading`/`playing`. */
@@ -75,6 +80,12 @@ export type EnginePreload = {
   /** Applied when the preloaded entry starts. */
   gain: number
   media?: EngineMedia
+  /**
+   * The preloaded entry is the next song of the album the loaded one plays from (the
+   * session's context is that album and shuffle is off: the test album gain uses), so it
+   * follows gaplessly, never crossfaded.
+   */
+  continuesAlbum?: boolean
 }
 
 /**
@@ -87,7 +98,18 @@ export type EngineMedia = {
   transcoded: boolean
   /** The stream's exact length and priming, when the server knows them. */
   gapless?: PlaybackDescriptor['gapless']
+  /**
+   * Names the stream in the app's streaming cache, for an engine that keeps what it streams
+   * (see `ResolvedPlayback`). Engines that do not ignore it.
+   */
+  cacheKey?: string | null
 } & Partial<Pick<PlaybackDescriptor, 'profile' | 'mime' | 'codec' | 'sampleRate' | 'durationMs'>>
+
+/**
+ * What `SessionPlayer.resolvePlayback` gives: the descriptor, and the key under which the
+ * app's streaming cache keeps the stream when the engine fills a file as it plays.
+ */
+export type ResolvedPlayback = PlaybackDescriptor & { cacheKey?: string | null }
 
 /**
  * - `idle`: nothing loaded.
