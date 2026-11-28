@@ -14,6 +14,8 @@ const admin = (name: keyof typeof import('@/pages/admin')) => lazy(() => import(
 const AdminLayout = admin('AdminLayout')
 const AdminLibraryPage = admin('AdminLibraryPage')
 const AdminReviewsPage = admin('AdminReviewsPage')
+const AdminDuplicatesPage = admin('AdminDuplicatesPage')
+const AdminFileHealthPage = admin('AdminFileHealthPage')
 const AdminOrganizePage = admin('AdminOrganizePage')
 const AdminSearchIndexPage = admin('AdminSearchIndexPage')
 const AdminUsersPage = admin('AdminUsersPage')
@@ -82,6 +84,8 @@ export function AppRoutes() {
                   <Route path="library" element={<Loading><AdminLibraryPage /></Loading>} />
                   <Route path="uploads" element={<Loading><AdminUploadsPage /></Loading>} />
                   <Route path="reviews" element={<Loading><AdminReviewsPage /></Loading>} />
+                  <Route path="duplicates" element={<Loading><AdminDuplicatesPage /></Loading>} />
+                  <Route path="file-health" element={<Loading><AdminFileHealthPage /></Loading>} />
                   <Route path="organize" element={<Loading><AdminOrganizePage /></Loading>} />
                   <Route path="search-index" element={<Loading><AdminSearchIndexPage /></Loading>} />
                   <Route path="users" element={<Loading><AdminUsersPage /></Loading>} />

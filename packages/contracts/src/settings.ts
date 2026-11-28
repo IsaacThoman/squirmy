@@ -62,6 +62,7 @@ export const ServerSettings = z.object({
   /** Matches at or above this score are accepted without review. */
   matchAutoAcceptScore: z.number().min(0).max(1).default(0.9),
   /** Days a vanished file is kept before it is unlinked from the library. */
+  fileHealthIntervalDays: z.number().int().min(0).max(365).default(7),
   missingFileGraceDays: z.number().int().min(0).max(365).default(14),
   transcodeCacheMaxBytes: z.number().int().min(0).default(10 * 1024 ** 3),
   registrationRequiresInvite: z.boolean().default(true),
@@ -109,6 +110,7 @@ export const UpdateServerSettings = z.object({
   wikidataEnabled: z.boolean(),
   lrclibEnabled: z.boolean(),
   matchAutoAcceptScore: z.number().min(0).max(1),
+  fileHealthIntervalDays: z.number().int().min(0).max(365),
   missingFileGraceDays: z.number().int().min(0).max(365),
   transcodeCacheMaxBytes: z.number().int().min(0),
   registrationRequiresInvite: z.boolean(),

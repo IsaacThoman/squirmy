@@ -185,7 +185,9 @@ export async function mergeAlbum(fromId: string, intoId: string, executor: Execu
     await moveLibraryPins(tx, 'album', fromId, into)
     await tx.execute(sql`
       update ${albums} a set
-        artwork_asset_id = coalesce(a.artwork_asset_id, f.artwork_asset_id),
+        artwork_asset_id = case when f.artwork_locked and not a.artwork_locked then f.artwork_asset_id
+          else coalesce(a.artwork_asset_id, f.artwork_asset_id) end,
+        artwork_locked = a.artwork_locked or f.artwork_locked,
         canonical_release_id = coalesce(a.canonical_release_id, f.canonical_release_id),
         year = coalesce(a.year, f.year),
         release_date = coalesce(a.release_date, f.release_date)

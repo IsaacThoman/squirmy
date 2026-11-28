@@ -445,3 +445,5 @@ export function AdminJobsPage() {
   const jobs = useQuery({ queryKey: queryKeys.adminJobs(), queryFn: () => api.admin.jobs(), refetchInterval: JOBS_REFRESH_MS })
   return <JobsAdmin jobs={jobs.data} updatedAt={jobs.dataUpdatedAt} onRefresh={() => void jobs.refetch()} failure={loadFailure(jobs, 'The queues did not load')} />
 }
+
+export { DuplicatesAdmin as AdminDuplicatesPage, FileHealthAdmin as AdminFileHealthPage } from '@/components/admin/LibraryHygiene'
