@@ -9,7 +9,10 @@ import {
   ProviderAcquireResponse, ProviderCapabilities, ProviderJobStatus, ProviderResolveResponse,
   type ProviderAcquireRequest, type ProviderResolveRequest,
 } from '@squirmy/contracts'
+import { eq, sql } from 'drizzle-orm'
 import type { z } from 'zod'
+import { db } from '../../database/client.js'
+import { rateLimits } from '../../database/schema.js'
 import { AppError } from '../../lib/errors.js'
 import { userAgent } from '../../lib/http.js'
 
@@ -152,8 +155,23 @@ export function fetchCapabilities(endpoint: ProviderEndpoint): Promise<ProviderC
 }
 
 /** `POST /resolve` with up to 100 items. */
-export function resolveItems(endpoint: ProviderEndpoint, request: ProviderResolveRequest): Promise<ProviderResolveResponse> {
-  return call(endpoint, '/resolve', ProviderResolveResponse, { method: 'POST', body: request, timeoutMs: timeouts.resolve })
+export async function resolveItems(endpoint: ProviderEndpoint & { id: string }, request: ProviderResolveRequest): Promise<ProviderResolveResponse> {
+  const key = `acquisition:resolve:${endpoint.id}`
+  // Another worker may have received Retry-After. Let callers requeue and free their job slot.
+  const [cooldown] = await db.select({
+    seconds: sql<number>`ceil(extract(epoch from ${rateLimits.nextAt} - now()))::int`,
+  }).from(rateLimits).where(eq(rateLimits.key, key))
+  if (cooldown && cooldown.seconds > 0) throw new ProviderCallError('The provider asked to wait before resolving again', true, cooldown.seconds)
+  try {
+    return await call(endpoint, '/resolve', ProviderResolveResponse, { method: 'POST', body: request, timeoutMs: timeouts.resolve })
+  } catch (error) {
+    if (error instanceof ProviderCallError && error.busy) {
+      const seconds = busyWaitSeconds(0, error.retryAfterSeconds)
+      await db.insert(rateLimits).values({ key, nextAt: sql`now() + ${seconds} * interval '1 second'` })
+        .onConflictDoUpdate({ target: rateLimits.key, set: { nextAt: sql`greatest(${rateLimits.nextAt}, excluded.next_at)` } })
+    }
+    throw error
+  }
 }
 
 /** `POST /acquire`. */

@@ -119,8 +119,8 @@ describe('AppShell', () => {
       await userEvent.type(await searchField(), 'blue hour')
       const options = within(await screen.findByRole('listbox', { name: 'Results' }))
       expect(await options.findByRole('option', { name: 'Blue Hour Album · Mira Vale' })).toBeInTheDocument()
-      expect(api.search.library).toHaveBeenLastCalledWith({ q: 'blue hour', limit: 20 }, expect.anything())
-      await waitFor(() => expect(api.search.catalog).toHaveBeenLastCalledWith({ q: 'blue hour', limit: 20 }, expect.anything()))
+      expect(api.search.library).toHaveBeenLastCalledWith({ q: 'blue hour', limit: 20, scope: 'server' }, expect.anything())
+      await waitFor(() => expect(api.search.catalog).toHaveBeenLastCalledWith({ q: 'blue hour', limit: 20, scope: 'server' }, expect.anything()))
       expect(options.getAllByRole('option')[0]).toHaveAccessibleName('Blue Hour Album · Mira Vale')
       expect(options.getAllByRole('option').at(-1)).toHaveAccessibleName('See all results for “blue hour”')
 
@@ -195,7 +195,7 @@ describe('AppShell', () => {
       api.search.catalog.mockReturnValue(new Promise<never>(() => {}))
       await press('k')
       await userEvent.type(await searchField(), 'amber')
-      await waitFor(() => expect(api.search.library).toHaveBeenLastCalledWith({ q: 'amber', limit: 20 }, expect.anything()))
+      await waitFor(() => expect(api.search.library).toHaveBeenLastCalledWith({ q: 'amber', limit: 20, scope: 'server' }, expect.anything()))
       expect(screen.getByRole('status', { name: 'Searching' })).toBeInTheDocument()
       expect(screen.getAllByRole('option')).toHaveLength(1)
       // Enter before the answer is in searches for what was typed.
@@ -214,7 +214,7 @@ describe('AppShell', () => {
       api.search.catalog.mockReturnValue(new Promise<never>(() => {}))
       await userEvent.clear(field)
       await userEvent.type(field, 'amber')
-      await waitFor(() => expect(api.search.library).toHaveBeenLastCalledWith({ q: 'amber', limit: 20 }, expect.anything()))
+      await waitFor(() => expect(api.search.library).toHaveBeenLastCalledWith({ q: 'amber', limit: 20, scope: 'server' }, expect.anything()))
       await userEvent.keyboard('{Enter}')
       expect(where()).toBe('/search?q=amber')
     })

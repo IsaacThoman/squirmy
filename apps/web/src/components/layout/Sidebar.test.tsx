@@ -110,7 +110,7 @@ afterEach(endTrackDrag)
 describe('Sidebar', () => {
   it('links to every main page, with one Library for albums, artists and songs', () => {
     renderSidebar()
-    const pages = [['Home', '/'], ['Search', '/search'], ['Library', '/library'], ['Wantlist', '/wantlist'], ['Add music', '/imports']]
+    const pages = [['Home', '/'], ['Search', '/search'], ['Library', '/library'], ['Replay', '/replay'], ['Wantlist', '/wantlist'], ['Add music', '/imports']]
     for (const [name, to] of pages) expect(mainNav().getByRole('link', { name })).toHaveAttribute('href', to)
     expect(mainNav().getAllByRole('link')).toHaveLength(pages.length)
     for (const name of ['Albums', 'Artists', 'Songs']) expect(within(sidebar()).queryByRole('link', { name })).toBeNull()

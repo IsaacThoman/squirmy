@@ -76,6 +76,7 @@ export function useTrackMenu(track: TrackSummary | undefined, options: TrackActi
   const playlists = useOwnPlaylists();
   const open = useOpenPage();
   const add = useAddToPlaylist();
+  const router = useRouter();
   // Keyed with the page too: a song by two artists has a Go to artist for each.
   const actions: MenuAction[] = base.map(action => action.id === 'playlist'
     ? playlistSubmenu(playlists)
@@ -88,6 +89,8 @@ export function useTrackMenu(track: TrackSummary | undefined, options: TrackActi
     if (!action) return;
     action.run?.();
     if (action.page) open(action.page.page, action.page.id);
+    // Track info is a panel of the TV's own, at the same route as the phone's sheet.
+    else if (action.id === 'info' && action.href) router.push(action.href);
   };
   return { actions, onAction };
 }

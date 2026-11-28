@@ -1,6 +1,6 @@
 /**
  * The album matcher behind `matching.match-album`: gathers candidate releases in tiers
- * (MusicBrainz ids in the tags, a release search, AcoustID fingerprints), scores them
+ * (MusicBrainz ids, barcodes and ISRCs from tags, a release search, AcoustID fingerprints), scores them
  * and applies the best, opens a review, or leaves the files local-only.
  */
 import path from 'node:path'
@@ -31,7 +31,7 @@ const reviewFloor = 0.5
 const fetchLimit = 3
 /** Candidates kept on a review. */
 const reviewCandidates = 5
-/** Fingerprinted files whose recordings are looked up to vote for releases. */
+/** Maximum recording lookups to select releases from ISRCs or fingerprints. */
 const voters = 5
 /** AcoustID matches below this are ignored. */
 const minFingerprintScore = 0.5
@@ -165,20 +165,60 @@ async function releasesFromIds(evidence: GroupEvidence, text: string, source: Ma
   return true
 }
 
-/** Tier 1: the release id the files share, else the best releases of their release group. */
-async function fromTagIds(evidence: GroupEvidence, files: GroupFile[], found: Map<string, Found>) {
-  const half = files.length / 2
-  const shared = (values: (string | undefined)[]) => {
-    const value = majority(values.map((item) => item?.toLowerCase()))
-    return value && values.filter((item) => item?.toLowerCase() === value).length >= half ? value : null
-  }
-  const releaseId = shared(files.map((file) => file.tags.mbReleaseId))
-  if (releaseId) return fetchAndScore(evidence, [releaseId], 'tags-mbid', found)
-  const groupId = shared(files.map((file) => file.tags.mbReleaseGroupId))
-  if (groupId) await releasesFromIds(evidence, `release-group/${groupId}`, 'tags-mbid', found)
+/** Ignore an edition or group id that appears only on a minority of the files. */
+function sharedId(files: GroupFile[], field: 'mbReleaseId' | 'mbReleaseGroupId') {
+  const ids = files.map((file) => file.tags[field]?.toLowerCase())
+  const id = majority(ids)
+  return id && ids.filter((value) => value === id).length >= files.length / 2 ? id : null
 }
 
-/** Tier 2: a release search on album artist, title and track count. */
+async function fromTagRelease(evidence: GroupEvidence, files: GroupFile[], found: Map<string, Found>) {
+  const id = sharedId(files, 'mbReleaseId')
+  if (id) await fetchAndScore(evidence, [id], 'tags-mbid', found)
+}
+
+async function fromTagReleaseGroup(evidence: GroupEvidence, files: GroupFile[], found: Map<string, Found>) {
+  const id = sharedId(files, 'mbReleaseGroupId')
+  if (id) await releasesFromIds(evidence, `release-group/${id}`, 'tags-mbid', found)
+}
+
+async function fromBarcode(evidence: GroupEvidence, files: GroupFile[], found: Map<string, Found>) {
+  const barcode = majority(files.map((file) => file.tags.barcode?.trim()))
+  if (!barcode || !/^\d+$/.test(barcode) || !/[1-9]/.test(barcode)) return
+  const releases = await musicbrainz.findReleasesByBarcode(barcode)
+  await fetchAndScore(evidence, preselect(releases, evidence), 'tags-barcode', found)
+}
+
+/**
+ * An ISRC identifies a recording. Use a few distinct codes to find editions that fit the group.
+ * Runs after the search: it costs up to `voters` rate-limited requests, and the search
+ * settles most albums in one.
+ */
+async function fromIsrcs(evidence: GroupEvidence, files: GroupFile[], found: Map<string, Found>) {
+  const codes = new Set(files.flatMap((file) => file.tags.isrcs ?? []))
+  if (codes.size === 0) return
+  const recordingsByCode = new Map<string, string[]>()
+  const votes = new Map<string, number>()
+  const releases = new Map<string, MbReleaseSummary>()
+  for (const code of [...codes].slice(0, voters)) {
+    const recordings = await musicbrainz.findRecordingsByIsrc(code)
+    recordingsByCode.set(code, recordings.map((recording) => recording.mbid))
+    const editions = new Map(recordings.flatMap((recording) => recording.releases.map((release) => [release.mbid, release] as const)))
+    for (const release of editions.values()) {
+      if (evidence.mode === 'album' && release.trackCount !== files.length) continue
+      votes.set(release.mbid, (votes.get(release.mbid) ?? 0) + 1)
+      releases.set(release.mbid, release)
+    }
+  }
+  for (const [index, file] of files.entries()) {
+    const recordingMbids = file.tags.isrcs?.flatMap((code) => recordingsByCode.get(code) ?? []) ?? []
+    evidence.files[index]!.recordingMbids.push(...recordingMbids)
+  }
+  for (const entry of found.values()) entry.evaluation = evaluate(evidence, entry.release)
+  await fetchAndScore(evidence, preselect([...releases.values()], evidence, fetchLimit, votes), 'tags-isrc', found)
+}
+
+/** A release search on album artist, title and track count. */
 async function searchAlbum(evidence: GroupEvidence, files: GroupFile[], found: Map<string, Found>, query?: { artist: string; release: string }) {
   const artist = query?.artist ?? evidence.artist
   const release = query?.release ?? evidence.album
@@ -196,7 +236,7 @@ async function searchAlbum(evidence: GroupEvidence, files: GroupFile[], found: M
 }
 
 /**
- * Tier 3: fingerprints the files, records the recordings AcoustID knows them as (strong
+ * Fingerprints the files, records the recordings AcoustID knows them as (strong
  * evidence for scoring), and votes for the releases a few of those recordings appear on.
  */
 async function fromFingerprints(evidence: GroupEvidence, files: GroupFile[], found: Map<string, Found>) {
@@ -228,29 +268,33 @@ async function fromFingerprints(evidence: GroupEvidence, files: GroupFile[], fou
 /** Every candidate for one album or loose track, best first. */
 async function findCandidates(evidence: GroupEvidence, files: GroupFile[], settings: ServerSettings): Promise<Found[]> {
   const found = new Map<string, Found>()
-  await fromTagIds(evidence, files, found)
-  const tagged = rank([...found.values()])[0]
-  if (tagged && tagged.evaluation.score >= settings.matchAutoAcceptScore) return [tagged]
-
-  // Searching needs an album artist and title; loose tracks and untagged albums have neither.
-  if (evidence.mode === 'album' && evidence.artist && evidence.album) await searchAlbum(evidence, files, found)
-  else if (settings.acoustIdKeySet) {
+  for (const tier of [fromTagRelease, fromTagReleaseGroup, fromBarcode, searchAlbum, fromIsrcs]) {
+    await tier(evidence, files, found)
+    const accepted = rank([...found.values()]).find(({ evaluation }) => isPlausible(evaluation) && evaluation.score >= settings.matchAutoAcceptScore)
+    if (accepted) return [accepted]
+  }
+  if (settings.acoustIdKeySet) {
     await fromFingerprints(evidence, files, found)
-    // Fingerprints are new evidence for the releases found from tags too.
+    // Fingerprints are new evidence for releases found at any earlier tier.
     for (const entry of found.values()) entry.evaluation = evaluate(evidence, entry.release)
   }
   return rank([...found.values()])
 }
 
+function isPlausible(evaluation: Evaluation) {
+  return evaluation.score >= reviewFloor && evaluation.pairs.length > 0
+}
+
 /**
  * Candidates for "Fix match": from a query (a release or release-group link or MBID,
- * "Artist - Album", or a title by the album's own artist), else from the tags' ids and a
- * search. Never fingerprints, so it answers quickly.
+ * "Artist - Album", or a title by the album's own artist), else from the tags' MusicBrainz
+ * ids and a search. Never fingerprints, so it answers quickly.
  */
 export async function albumCandidates(evidence: GroupEvidence, files: GroupFile[], query?: string): Promise<Found[]> {
   const found = new Map<string, Found>()
   if (!query) {
-    await fromTagIds(evidence, files, found)
+    if (sharedId(files, 'mbReleaseId')) await fromTagRelease(evidence, files, found)
+    else await fromTagReleaseGroup(evidence, files, found)
     await searchAlbum(evidence, files, found)
   } else if (!(await releasesFromIds(evidence, query, 'manual', found))) {
     const [artist, ...rest] = query.split(/\s+[-–—]\s+/)
@@ -377,7 +421,7 @@ async function matchRound(rootId: string, groupKey: string): Promise<string[] | 
       const fileIds = unit.files.map((file) => file.id).filter((id) => open.has(id))
       if (fileIds.length === 0) continue
       const score = unit.best?.evaluation.score ?? 0
-      const plausible = unit.best && score >= reviewFloor && unit.best.evaluation.pairs.length > 0
+      const plausible = unit.best && isPlausible(unit.best.evaluation)
       if (unit.best && plausible && score >= settings.matchAutoAcceptScore) {
         applied.push(await applyMatch(tx, { ...unit.best, fileIds, locked: false, attachExtras: unit.attachExtras }))
       } else if (plausible && units.length === 1 && !unit.files.every((file) => file.cached)) {

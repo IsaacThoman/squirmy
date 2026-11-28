@@ -13,6 +13,7 @@
 import {
   bigint,
   boolean,
+  check,
   foreignKey,
   index,
   integer,
@@ -27,7 +28,12 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
-import type { SmartPlaylistRules } from '@squirmy/contracts'
+import type {
+  CreditRole,
+  HistoryImport,
+  HistoryImportSource,
+  SmartPlaylistRules,
+} from '@squirmy/contracts'
 
 const id = () => uuid('id').primaryKey()
 const at = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' })
@@ -41,7 +47,7 @@ export type LikeEntityType = 'recording' | 'album' | 'artist'
 export type LibraryRootMode = 'read_only' | 'managed'
 export type MatchStatus = 'pending' | 'matched' | 'review' | 'unmatched'
 /** How a file's links were decided. `request`: the file was delivered for an acquisition request that named them. */
-export type MatchSource = 'tags' | 'tags-mbid' | 'search' | 'acoustid' | 'manual' | 'request'
+export type MatchSource = 'tags' | 'tags-mbid' | 'tags-barcode' | 'tags-isrc' | 'search' | 'acoustid' | 'manual' | 'request'
 export type ImportKind = 'upload' | 'inbox' | 'acquisition'
 export type AcquisitionOrigin = 'play' | 'prefetch' | 'download' | 'library'
 export type ImportStatus = 'receiving' | 'processing' | 'completed' | 'failed'
@@ -75,6 +81,21 @@ export type FileTags = {
   mbArtistIds?: string[]
   mbAlbumArtistIds?: string[]
   hasLyrics?: boolean
+  /** Tempo a tagger or DJ software wrote (`TBPM`, `BPM`, MP4 `tmpo`). */
+  bpm?: number
+  /** Musical key as written (`TKEY`, `INITIALKEY`): "Am", "F#", "8A" or "1m". `sonic/keys.ts` reads it. */
+  key?: string
+  /** Mood tags (`TMOO`, `MOOD`), as written. */
+  moods?: string[]
+  credits?: { name: string; role: CreditRole; instrument?: string }[]
+  work?: string
+  movementName?: string
+  movementNumber?: number
+  movementTotal?: number
+  explicit?: boolean
+  comment?: string
+  /** A file's rating, in the original tag's units. */
+  ratingHint?: { source: 'popm' | 'fmps' | 'rating'; value: number }
 }
 
 // ---------------------------------------------------------------------------
@@ -505,6 +526,11 @@ export const mediaFiles = pgTable('media_files', {
   // Measured loudness (EBU R128). Null until the loudness job has run.
   loudnessLufs: real('loudness_lufs'),
   truePeakDb: real('true_peak_db'),
+  // Frames per channel after source trimming, at the decoder's sample rate.
+  decodedFrames: bigint('decoded_frames', { mode: 'number' }),
+  decodedRate: integer('decoded_rate'),
+  primingFrames: integer('priming_frames'),
+  paddingFrames: integer('padding_frames'),
   // ReplayGain values read from the file's own tags, when present.
   tagTrackGainDb: real('tag_track_gain_db'),
   tagTrackPeak: real('tag_track_peak'),
@@ -536,6 +562,7 @@ export const mediaFiles = pgTable('media_files', {
   importId: uuid('import_id'),
   /** 0 discovered, 1 tags read (playable), 2 audio hash and loudness done. */
   probeStage: smallint('probe_stage').notNull().default(0),
+  tagVersion: smallint('tag_version').notNull().default(0),
   /**
    * Why the last probe or analysis of this file failed. Set instead of retrying; a scan
    * clears it when the file's size or mtime changes.
@@ -568,6 +595,45 @@ export const mediaFiles = pgTable('media_files', {
   index('media_files_import').on(t.importId),
 ])
 
+/** File credits follow the file's current recording, including after a manual rematch. */
+export const recordingCredits = pgTable('recording_credits', {
+  recordingId: uuid('recording_id').references(() => recordings.id, { onDelete: 'cascade' }),
+  fileId: uuid('file_id').references(() => mediaFiles.id, { onDelete: 'cascade' }),
+  artistId: uuid('artist_id').notNull().references(() => artists.id, { onDelete: 'cascade' }),
+  role: text('role').$type<CreditRole>().notNull(),
+  instrument: text('instrument').notNull().default(''),
+}, (t) => [
+  check('recording_credits_owner', sql`num_nonnulls(${t.recordingId}, ${t.fileId}) = 1`),
+  uniqueIndex('recording_credits_recording').on(t.recordingId, t.artistId, t.role, t.instrument).where(sql`${t.recordingId} is not null`),
+  uniqueIndex('recording_credits_file').on(t.fileId, t.artistId, t.role, t.instrument).where(sql`${t.fileId} is not null`),
+  index('recording_credits_artist_role').on(t.artistId, t.role),
+])
+
+export const works = pgTable('works', {
+  id: id(),
+  mbid: uuid('mbid'),
+  tagKey: text('tag_key'),
+  title: text('title').notNull(),
+}, (t) => [
+  uniqueIndex('works_mbid').on(t.mbid),
+  uniqueIndex('works_tag_key').on(t.tagKey),
+  check('works_identity', sql`num_nonnulls(${t.mbid}, ${t.tagKey}) = 1`),
+])
+
+export const recordingWorks = pgTable('recording_works', {
+  recordingId: uuid('recording_id').references(() => recordings.id, { onDelete: 'cascade' }),
+  fileId: uuid('file_id').references(() => mediaFiles.id, { onDelete: 'cascade' }),
+  workId: uuid('work_id').notNull().references(() => works.id, { onDelete: 'cascade' }),
+  movementName: text('movement_name'),
+  movementNumber: integer('movement_number'),
+  movementTotal: integer('movement_total'),
+}, (t) => [
+  check('recording_works_owner', sql`num_nonnulls(${t.recordingId}, ${t.fileId}) = 1`),
+  uniqueIndex('recording_works_recording').on(t.recordingId, t.workId).where(sql`${t.recordingId} is not null`),
+  uniqueIndex('recording_works_file').on(t.fileId, t.workId).where(sql`${t.fileId} is not null`),
+  index('recording_works_work').on(t.workId),
+])
+
 /** Album loudness, measured across the owned files of one release. */
 export const releaseLoudness = pgTable('release_loudness', {
   releaseId: uuid('release_id').primaryKey().references(() => releases.id, { onDelete: 'cascade' }),
@@ -575,6 +641,51 @@ export const releaseLoudness = pgTable('release_loudness', {
   truePeakDb: real('true_peak_db').notNull(),
   fileCount: integer('file_count').notNull(),
   computedAt: at('computed_at').notNull().defaultNow(),
+})
+
+/**
+ * Sonic analysis of one file (`modules/sonic`): tempo, key, energy and the timbre vector
+ * radio compares tracks with. A row also records that the file's tempo, key and mood tags
+ * were read (`version` null: tags only, analysis off). Redone when the file's audio hash
+ * or the analysis version changes.
+ */
+export const sonicAnalyses = pgTable('sonic_analyses', {
+  fileId: uuid('file_id').primaryKey().references(() => mediaFiles.id, { onDelete: 'cascade' }),
+  /** The file's audio hash when it was analysed. */
+  audioHash: text('audio_hash'),
+  /** `ANALYSIS_VERSION` of the code that analysed it; null when only its tags were read. */
+  version: smallint('version'),
+  /** Why the analysis failed. Not retried until the version changes or the audio does. */
+  error: text('error'),
+  analyzedMs: integer('analyzed_ms'),
+  bpm: real('bpm'),
+  bpmConfidence: real('bpm_confidence'),
+  beatOffsetMs: integer('beat_offset_ms'),
+  /** Pitch class of the tonic, 0 = C. */
+  key: smallint('key'),
+  mode: text('mode').$type<'major' | 'minor'>(),
+  keyStrength: real('key_strength'),
+  tuningCents: smallint('tuning_cents'),
+  levelDb: real('level_db'),
+  dynamicRangeDb: real('dynamic_range_db'),
+  onsetRate: real('onset_rate'),
+  centroidHz: real('centroid_hz'),
+  energy: real('energy'),
+  danceability: real('danceability'),
+  audibleStartMs: integer('audible_start_ms'),
+  audibleEndMs: integer('audible_end_ms'),
+  introEndMs: integer('intro_end_ms'),
+  outroStartMs: integer('outro_start_ms'),
+  /** Raw timbre descriptors in `VECTOR_LAYOUT` order; similarity standardizes them over the library. */
+  vector: real('vector').array(),
+  analyzedAt: at('analyzed_at').notNull().defaultNow(),
+})
+
+/** What other sources say about a recording's sound: Deezer's tempo, for files nothing else describes. */
+export const sonicHints = pgTable('sonic_hints', {
+  recordingId: uuid('recording_id').primaryKey().references(() => recordings.id, { onDelete: 'cascade' }),
+  deezerBpm: real('deezer_bpm'),
+  deezerCheckedAt: at('deezer_checked_at'),
 })
 
 /** Albums whose best match scored below the auto-accept threshold. */
@@ -773,15 +884,57 @@ export const plays = pgTable('plays', {
   recordingId: uuid('recording_id').notNull().references(() => recordings.id, { onDelete: 'cascade' }),
   albumId: uuid('album_id').references(() => albums.id, { onDelete: 'set null' }),
   deviceId: text('device_id'),
-  /** app | subsonic */
+  /** app | subsonic | history-import */
   client: text('client').notNull().default('app'),
   startedAt: at('started_at').notNull().defaultNow(),
   msPlayed: integer('ms_played').notNull().default(0),
   /** True once the play passed the scrobble threshold (half the track or four minutes). */
   completed: boolean('completed').notNull().default(false),
+  /** A closed app play with less than five seconds listened. */
+  skipped: boolean('skipped').notNull().default(false),
+  /** Session context when the play started. Radio context ids are not UUIDs. */
+  contextType: text('context_type'),
+  contextId: text('context_id'),
 }, (t) => [
-  index('plays_user_recent').on(t.userId, t.startedAt),
+  index('plays_user_recent').on(t.userId, t.startedAt, t.id),
   index('plays_recording').on(t.recordingId),
+])
+
+export const historyImports = pgTable('history_imports', {
+  id: id(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  source: text('source').$type<HistoryImportSource>().notNull(),
+  jsonLines: boolean('json_lines').notNull().default(false),
+  status: text('status').$type<HistoryImport['status']>().notNull().default('queued'),
+  createdAt: createdAt(),
+  processed: integer('processed').notNull().default(0),
+  matched: integer('matched').notNull().default(0),
+  unmatched: integer('unmatched').notNull().default(0),
+  duplicates: integer('duplicates').notNull().default(0),
+  ignored: integer('ignored').notNull().default(0),
+  error: text('error'),
+}, (t) => [index('history_imports_user_recent').on(t.userId, t.createdAt)])
+
+export const historyImportedPlays = pgTable('history_imported_plays', {
+  id: id(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  source: text('source').$type<HistoryImportSource>().notNull(),
+  fingerprint: text('fingerprint').notNull(),
+  /** A private row remains in Replay even if the matched recording is later deleted. */
+  playId: uuid('play_id').references(() => plays.id, { onDelete: 'set null' }),
+  startedAt: at('started_at').notNull(),
+  msPlayed: integer('ms_played'),
+  skipped: boolean('skipped').notNull().default(false),
+  title: text('title').notNull(),
+  artist: text('artist').notNull(),
+  album: text('album'),
+  trackKey: text('track_key').notNull(),
+  artistKey: text('artist_key').notNull(),
+  albumKey: text('album_key'),
+}, (t) => [
+  uniqueIndex('history_imported_plays_fingerprint').on(t.userId, t.source, t.fingerprint),
+  index('history_imported_plays_link').on(t.playId).where(sql`${t.playId} is not null`),
+  index('history_imported_plays_unmatched_recent').on(t.userId, t.startedAt, t.id).where(sql`${t.playId} is null`),
 ])
 
 /**

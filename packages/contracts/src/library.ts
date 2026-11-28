@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { Id, IsoDateTime, page } from './common.js'
+import { SonicProgress } from './sonic.js'
 
 /** `read_only`: scanned in place, never modified. `managed`: the server may rename, move and tag files. */
 export const LibraryRootMode = z.enum(['read_only', 'managed'])
@@ -97,6 +98,8 @@ export const LibraryStats = z.object({
   inReview: z.number().int(),
   pending: z.number().int(),
   missing: z.number().int(),
+  /** How far sonic analysis has got over the same files. */
+  sonic: SonicProgress.optional(),
 })
 export type LibraryStats = z.infer<typeof LibraryStats>
 

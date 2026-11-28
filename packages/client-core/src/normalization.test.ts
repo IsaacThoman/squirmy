@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { gainFor } from './normalization.js'
+import { appliedGain, gainFor } from './normalization.js'
 
 const data = { trackGainDb: -6, albumGainDb: -3, trackPeak: 0.9, albumPeak: 0.95 }
 const db = (value: number) => 10 ** (value / 20)
@@ -41,5 +41,14 @@ describe('gainFor', () => {
   it('ignores a missing or zero peak', () => {
     expect(gainFor('track', { ...data, trackGainDb: 3, trackPeak: null }, { albumContext: false, canBoost: true })).toBeCloseTo(db(3))
     expect(gainFor('track', { ...data, trackGainDb: 3, trackPeak: 0 }, { albumContext: false, canBoost: true })).toBeCloseTo(db(3))
+  })
+})
+
+describe('appliedGain', () => {
+  it('names the gain it applies', () => {
+    expect(appliedGain('auto', data, inAlbum).applied).toBe('album')
+    expect(appliedGain('album', { ...data, albumGainDb: null }, alone).applied).toBe('track')
+    expect(appliedGain('off', data, alone)).toEqual({ gain: 1, applied: null })
+    expect(appliedGain('track', { trackGainDb: null, albumGainDb: null, trackPeak: null, albumPeak: null }, alone)).toEqual({ gain: 1, applied: null })
   })
 })

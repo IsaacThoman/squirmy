@@ -1,11 +1,13 @@
 import { mergeSearch } from '@squirmy/client-core'
-import { SearchResults } from '@squirmy/contracts'
+import { AlbumDetail, AlbumPage, SearchResults } from '@squirmy/contracts'
 import { and, eq, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { buildApp } from '../../app.js'
+import { resetConfig } from '../../config.js'
 import { db } from '../../database/client.js'
 import { albumArtists, albums, artists, assets, externalIds, recordingArtists, recordings, releases } from '../../database/schema.js'
+import { clearReadCache } from '../../lib/read-cache.js'
 import { updateServerSettings } from '../../lib/settings.js'
 import { body, errorCode, signIn } from '../../test/api.js'
 import { useTestDatabase } from '../../test/database.js'
@@ -57,7 +59,7 @@ describe('GET /search/catalog', () => {
 
   beforeAll(async () => {
     app = await buildApp()
-    user = await signIn()
+    user = await signIn({ settings: { libraryIncludesServerMusic: true } })
     // The user's copy of OK Computer, tagged without any ids.
     owned = await createAlbum({
       title: 'OK Computer', artist: await createArtist({ name: 'Radiohead' }), year: 1997, owned: true,
@@ -67,6 +69,28 @@ describe('GET /search/catalog', () => {
   afterEach(() => updateServerSettings({ deezerEnabled: true, musicBrainzEnabled: true }))
   afterAll(async () => {
     await app.close()
+  })
+
+  it('refreshes a changed discography and leaves unrelated cached reads in place', async () => {
+    const other = await signIn()
+    const unrelated = await createAlbum({ title: 'Unrelated cached album' })
+    const get = (url: string, as = user) => app.inject({ url: `/api/v1${url}`, headers: as.headers })
+    const unrelatedUrl = `/albums/${unrelated.albumId}`
+    const releasesUrl = `/artists/${owned.artist.id}/releases?section=album`
+    process.env.SQUIRMY_READ_CACHE_MB = '16'
+    resetConfig()
+    try {
+      expect(body(await get(unrelatedUrl, other), AlbumDetail).title).toBe(unrelated.title)
+      const before = body(await get(releasesUrl), AlbumPage).items
+      await db.update(albums).set({ title: 'Changed without invalidation' }).where(eq(albums.id, unrelated.albumId))
+      expect((await search('Radiohead OK Computer', 5)).provider).toBe('deezer')
+      expect(body(await get(unrelatedUrl, other), AlbumDetail).title).toBe(unrelated.title)
+      expect(body(await get(releasesUrl), AlbumPage).items.length).toBeGreaterThan(before.length)
+    } finally {
+      delete process.env.SQUIRMY_READ_CACHE_MB
+      resetConfig()
+      clearReadCache()
+    }
   })
 
   it('stores Deezer results as stubs, matched to owned music', async () => {
@@ -203,6 +227,33 @@ describe('GET /search/catalog', () => {
       ...before,
       artists: before.artists + 1, albums: before.albums + 1, recordings: before.recordings + 1, externalIds: before.externalIds + 3,
       albumArtists: before.albumArtists + 1, recordingArtists: before.recordingArtists + 1,
+    })
+  })
+
+  it('deduplicates overlapping responses whose album and track provider ids differ', async () => {
+    // Plain-text credits exercise the title locks without sharing an artist identity lock.
+    const band = { id: 'overlap-artist', name: 'Overlap Band' }
+    const response = (edition: string, extra: string): ProviderResults => {
+      const shared = album(`overlap-album-${edition}`, 'Overlapping Lines', band, { artists: [] })
+      return {
+        artists: [],
+        albums: [shared, album(extra, extra, band, { artists: [] })],
+        tracks: [{
+          id: `overlap-track-${edition}`, mbid: null, title: 'Overlapping Song', artistCredit: band.name, artists: shared.artists,
+          durationMs: 200_000, explicit: null, popularity: null, isrcs: [], album: shared,
+        }],
+      }
+    }
+    const before = await counts()
+    const [first, second] = await Promise.all([
+      materialize('deezer', response('one', 'First Exclusive')),
+      materialize('deezer', response('two', 'Second Exclusive')),
+    ])
+    expect(first.albums[0]).toBe(second.albums[0])
+    expect(first.albums[1]).not.toBe(second.albums[1])
+    expect(first.tracks).toEqual(second.tracks)
+    expect(await counts()).toEqual({
+      ...before, albums: before.albums + 3, recordings: before.recordings + 1, externalIds: before.externalIds + 6,
     })
   })
 

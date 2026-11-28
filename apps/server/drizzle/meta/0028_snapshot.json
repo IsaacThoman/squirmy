@@ -1,5 +1,5 @@
 {
-  "id": "5a5e4dae-ff44-4b63-8ddf-a1ed1961c616",
+  "id": "f5cf505b-271d-4a65-b2c9-28a58c982b9e",
   "prevId": "7decda19-3b7d-4e29-854b-d68699a0b704",
   "version": "7",
   "dialect": "postgresql",
@@ -4314,12 +4314,6 @@
           "notNull": true,
           "default": false
         },
-        "rules": {
-          "name": "rules",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -4434,6 +4428,25 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "skipped": {
+          "name": "skipped",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "context_type": {
+          "name": "context_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "context_id": {
+          "name": "context_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {

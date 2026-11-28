@@ -64,7 +64,7 @@ async function albumListIds(userId: string, params: Params, rootId: string | und
     case 'recent':
       return ids(sql`
         select a.id from plays p join albums a on a.id = p.album_id
-        where p.user_id = ${userId} and ${owned}
+        where p.user_id = ${userId} and not p.skipped and ${owned}
         group by a.id order by ${sql.raw(type === 'frequent' ? 'count(*) desc, max(p.started_at) desc' : 'max(p.started_at) desc')}, a.id ${page}`)
     default:
       throw invalidParameter('type')
@@ -141,5 +141,8 @@ export const listEndpoints: Record<string, Handler> = {
   getSongsByGenre,
   getStarred2: async (context) => ({ starred2: await starred(context, true) }),
   getStarred: async (context) => ({ starred: await starred(context, false) }),
-  getNowPlaying: async ({ user }) => ({ nowPlaying: { entry: await nowPlaying(user.id) } }),
+  getNowPlaying: async ({ user, reply }) => {
+    reply.header('cache-control', 'private, no-store')
+    return { nowPlaying: { entry: await nowPlaying(user.id) } }
+  },
 }

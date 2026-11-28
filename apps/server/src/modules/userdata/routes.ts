@@ -1,6 +1,7 @@
+import { Readable } from 'node:stream'
 import {
-  AddPlaylistItemsRequest, CreatePlaylistRequest, Id, LibraryEntityType, LibraryPinKind, LikeEntityType, LikeQuery, MovePlaylistItemRequest, PageQuery,
-  SmartPlaylistRules, UpdatePlaylistRequest, UpdateUserSettings, WantEntityType,
+  AddPlaylistItemsRequest, CreatePlaylistRequest, HistoryExportQuery, HistoryImportQuery, Id, LibraryEntityType, LibraryPinKind, LikeEntityType, LikeQuery, MovePlaylistItemRequest, PageQuery, UpdatePlaylistRequest,
+  ReplayQuery, SmartPlaylistRules, UpdateUserSettings, WantEntityType,
   type AlbumSummary, type ArtistSummary, type HistoryPage, type Ok, type Page, type PlaylistDetail, type PlaylistPage, type PlaylistSummary,
   type SmartPlaylistPreview, type TrackSummary, type UnlikeResponse, type UserSettings, type WantPage,
 } from '@squirmy/contracts'
@@ -10,6 +11,9 @@ import { requireUser } from '../../lib/auth.js'
 import { notFound } from '../../lib/errors.js'
 import { cachedRead, type CacheTag } from '../../lib/read-cache.js'
 import { getServerSettings } from '../../lib/settings.js'
+import { exportHistory } from './history-export.js'
+import { listHistoryImports, uploadHistory } from './history-import.js'
+import { getReplay } from './replay.js'
 import { listHistory } from './history.js'
 import { pinLibraryItem, unpinLibraryItem } from './library-pins.js'
 import { likeEntity, listLikes, unlikeEntity } from './likes.js'
@@ -116,6 +120,28 @@ export async function userdataRoutes(app: FastifyInstance) {
   })
 
   app.get('/me/history', async (request): Promise<HistoryPage> => listHistory(requireUser(request).id, PageQuery.parse(request.query)))
+
+  app.get('/me/replay', async (request, reply) => {
+    reply.header('Cache-Control', 'private, no-store')
+    return getReplay(requireUser(request).id, ReplayQuery.parse(request.query))
+  })
+  app.get('/me/history/export', async (request, reply) => {
+    const { format } = HistoryExportQuery.parse(request.query)
+    return reply
+      .type(format === 'json' ? 'application/json' : 'text/csv; charset=utf-8')
+      .header('Cache-Control', 'private, no-store')
+      .header('Content-Disposition', `attachment; filename="squirmy-history.${format}"`)
+      .send(Readable.from(exportHistory(requireUser(request).id, format)))
+  })
+  app.get('/me/history/imports', async (request, reply) => {
+    reply.header('Cache-Control', 'private, no-store')
+    return listHistoryImports(requireUser(request).id)
+  })
+  app.post('/me/history/imports', async (request, reply) => {
+    const { source } = HistoryImportQuery.parse(request.query)
+    const job = await uploadHistory(requireUser(request).id, source, request)
+    return reply.code(202).send(job)
+  })
 
   // With the wantlist switched off it reads as empty and refuses changes, leaving the stored
   // wants as they were so switching it back on brings them back.

@@ -76,7 +76,8 @@ describe('a read that fails says so where its content would be, with a retry', (
     expect(within(dialog).getByLabelText('This browser’s name')).toBeInTheDocument()
 
     await userEvent.click(within(dialog).getByRole('button', { name: 'Scrobbling' }))
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Your scrobbling connections did not load')
+    expect(await within(dialog).findByText('Your now-playing sharing setting did not load')).toBeInTheDocument()
+    expect(await within(dialog).findByText('Your scrobbling connections did not load')).toBeInTheDocument()
     await userEvent.click(within(dialog).getByRole('button', { name: 'App passwords' }))
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('Your app passwords did not load')
   })

@@ -196,7 +196,7 @@ describe('the route manifest', () => {
     })
     const xhr = (): XhrLike => {
       const request: XhrLike = {
-        open: (method, url) => calls.push(`${method} ${url}`), setRequestHeader: () => {}, withCredentials: false, upload: { onprogress: null },
+        open: (method, url) => calls.push(`${method} ${url.split('?')[0]}`), setRequestHeader: () => {}, withCredentials: false, upload: { onprogress: null },
         onload: null, onerror: null, onabort: null, status: 200, statusText: 'OK', responseText: '{}', send: () => request.onload?.(), abort: () => {},
       }
       return request
@@ -205,7 +205,8 @@ describe('the route manifest', () => {
     for (const [name, method] of methodsOf(api)) {
       calls.length = 0
       // Every path parameter becomes "p", and bodies and queries are left out.
-      await method('p', 'p')
+      if (name === 'userdata.importHistory') await method('lastfm', { name: 'history.csv', data: 'scrobbles' })
+      else await method('p', 'p')
       const [verb, pattern] = apiRoutes[name as keyof typeof apiRoutes].split(' ') as [string, string]
       expect(calls, name).toEqual([`${verb} /api/v1${pattern.replace(/:\w+/g, 'p')}`])
     }
