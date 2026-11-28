@@ -3,6 +3,7 @@ import type { SquirmySocket } from '@squirmy/client-core/socket'
 import {
   DEFAULT_ORGANIZE_TEMPLATE, ORGANIZE_TEMPLATE_TOKENS,
   type AcquisitionPolicy, type AlbumPage, type CommandEnvelope, type DeviceInfo, type Import, type LibraryItemPage, type LibraryRoot, type LibraryStats, type OrganizeTemplateInfo, type PlaylistSummary,
+  type DuplicatePage, type HealthPage, type QualityPage, type RemoveDuplicate, type TagEdit, type TagEditResult, type TagEditor,
   type ScrobblingStatus, type SearchKind, type SessionHello, type SetupStatus, type TrackSummariesRequest, type UploadAlbum, type UploadFile, type User, type WantItem,
 } from '@squirmy/contracts'
 import { vi } from 'vitest'
@@ -211,6 +212,14 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
       deleteAppPassword: vi.fn(async () => ({ ok: true as const })),
     },
     admin: {
+      duplicates: vi.fn(async (): Promise<DuplicatePage> => list([])),
+      removeDuplicate: vi.fn(async (_id: string, _body: RemoveDuplicate) => ({ ok: true as const })),
+      lowQuality: vi.fn(async (): Promise<QualityPage> => list([])),
+      fileHealth: vi.fn(async (): Promise<HealthPage> => list([])),
+      recheckFile: vi.fn(async (_id: string) => ({ ok: true as const })),
+      albumTags: vi.fn(async (_id: string): Promise<TagEditor> => ({ tracks: [], covers: [] })),
+      tagCovers: vi.fn(async (): Promise<TagEditor['covers']> => []),
+      editAlbumTags: vi.fn(async (_id: string, _edit: TagEdit): Promise<TagEditResult> => ({ written: [], errors: [] })),
       users: vi.fn(async () => list(users)),
       createUser: vi.fn(async () => users[1]),
       updateUser: vi.fn(async (id: string, patch: Partial<User>) => ({ ...users.find(candidate => candidate.id === id)!, ...patch })),

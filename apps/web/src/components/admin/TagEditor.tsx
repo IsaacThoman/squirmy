@@ -1,6 +1,6 @@
 import { API_PREFIX, editableCreditRoles, queryKeys, TagEdit, type TagEditor as Editor, type TrackTagPatch } from '@squirmy/contracts'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useId, useState, type FormEvent } from 'react'
+import { useId, useRef, useState, type FormEvent } from 'react'
 import { errorMessage } from '@/api/errors'
 import { useApi } from '@/api/services'
 import { Button } from '@/components/ui/button'
@@ -58,6 +58,7 @@ function TagForm({ albumId, data, onClose, setSaving }: { albumId: string; data:
   const api = useApi()
   const cache = useQueryClient()
   const fieldId = useId()
+  const fileInput = useRef<HTMLInputElement>(null)
   const editable = data.tracks.filter(row => !row.reason)
   const [album, setAlbum] = useState<Partial<Record<keyof typeof albumFields, string>>>({})
   const [compilation, setCompilation] = useState<'unchanged' | 'yes' | 'no'>('unchanged')
@@ -204,13 +205,13 @@ function TagForm({ albumId, data, onClose, setSaving }: { albumId: string; data:
               onClick={() => { if (looking) void candidates.refetch(); else setLooking(true) }}>Find covers</Button>}>
               <div className="flex flex-wrap items-end gap-3">
                 <Field label="Upload cover" htmlFor={fieldId + 'cover'}>
-                  <Input key={image && 'assetId' in image ? image.assetId : 'file'} id={fieldId + 'cover'} type="file" accept="image/*"
+                  <Input ref={fileInput} id={fieldId + 'cover'} type="file" accept="image/*"
                     onChange={event => { setUpload(event.target.files?.[0]); setImage(undefined) }} />
                 </Field>
                 <Field label="Write cover to" htmlFor={fieldId + 'cover-mode'}>
                   <Select id={fieldId + 'cover-mode'} label="Write cover to" options={coverModes} value={mode} onValueChange={setMode} />
                 </Field>
-                {(upload || image) && <Button variant="ghost" type="button" onClick={() => { setUpload(undefined); setImage(undefined) }}>Clear selection</Button>}
+                {(upload || image) && <Button variant="ghost" type="button" onClick={() => { setUpload(undefined); setImage(undefined); if (fileInput.current) fileInput.current.value = '' }}>Clear selection</Button>}
               </div>
               {looking && (loadFailure(candidates, 'Cover search failed') ?? (candidates.isFetching
                 ? <p role="status" className="text-xs text-muted-foreground">Finding covers…</p>
@@ -220,7 +221,7 @@ function TagForm({ albumId, data, onClose, setSaving }: { albumId: string; data:
                   <Button key={cover.id} type="button" variant={image && 'assetId' in image && image.assetId === cover.id ? 'primary' : 'outline'}
                     className="size-20 p-1" aria-label={`Use cover ${index + 1}${cover.width ? `, ${cover.width} pixels wide` : ''}`}
                     aria-pressed={!!image && 'assetId' in image && image.assetId === cover.id}
-                    onClick={() => { setUpload(undefined); setImage({ assetId: cover.id }) }}>
+                    onClick={() => { setUpload(undefined); setImage({ assetId: cover.id }); if (fileInput.current) fileInput.current.value = '' }}>
                     <img alt="" className="size-full rounded-sm object-cover" src={`${API_PREFIX}/art/${cover.id}/96.webp`} />
                   </Button>
                 ))}
