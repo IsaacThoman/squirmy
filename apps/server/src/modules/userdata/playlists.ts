@@ -34,11 +34,11 @@ export const smartPlaylistItems = () => conflict('A smart playlist’s songs com
 type SummaryRow = Omit<PlaylistSummary, 'durationMs' | 'smart'> & { durationMs: number | string; rules: SmartPlaylistRules | null }
 
 /**
- * Summaries of playlists in input order, leaving out ids that do not exist. Does not check
- * access. A smart playlist's numbers and covers come from its songs, evaluated here unless
- * `evaluated` already holds them.
+ * Summaries of playlists in input order, leaving out ids that do not exist, and those the
+ * viewer cannot read when `visibleTo` is given. A smart playlist's numbers and covers come
+ * from its songs, evaluated here unless `evaluated` already holds them.
  */
-export async function playlistSummaries(ids: readonly string[], evaluated: ReadonlyMap<string, SmartTrackRow[]> = new Map()): Promise<PlaylistSummary[]> {
+export async function playlistSummaries(ids: readonly string[], visibleTo?: string, evaluated: ReadonlyMap<string, SmartTrackRow[]> = new Map()): Promise<PlaylistSummary[]> {
   if (ids.length === 0) return []
   const rows = await db.execute<SummaryRow>(sql`
     select p.id, p.name, p.description, p.owner_id as "ownerId", coalesce(u.display_name, u.username) as "ownerName",
@@ -68,7 +68,8 @@ export async function playlistSummaries(ids: readonly string[], evaluated: Reado
         order by firsts.first limit 4
       ) c
     ) covers
-    where p.id = any(${uuidArray([...new Set(ids)])})`)
+    where p.id = any(${uuidArray([...new Set(ids)])})
+      ${visibleTo ? sql`and (p.owner_id = ${visibleTo} or p.is_public)` : sql``}`)
   const summaries = await Promise.all(rows.map(async ({ rules, ...row }): Promise<PlaylistSummary> => {
     if (!rules) return { ...row, durationMs: Number(row.durationMs), smart: false }
     const tracks = evaluated.get(row.id) ?? await smartTracks(row.ownerId, rules, dailySeed(row.id))
@@ -128,7 +129,7 @@ export async function getPlaylist(userId: string, id: string): Promise<PlaylistD
   if (row.rules) {
     const songs = await smartTracks(row.ownerId, row.rules, dailySeed(id))
     const [[summary], tracks] = await Promise.all([
-      playlistSummaries([id], new Map([[id, songs]])),
+      playlistSummaries([id], undefined, new Map([[id, songs]])),
       alignedTrackSummaries(userId, songs.map((song) => ({ id: song.id, albumId: song.albumId }))),
     ])
     if (!summary) throw playlistNotFound()
@@ -191,12 +192,12 @@ async function touch(tx: Transaction, id: string) {
 /** Refreshes the owner's devices, and everyone's playlist lists when the playlist is or was public. */
 async function invalidatePlaylist(ownerId: string, isPublic: boolean) {
   if (!isPublic) {
-    await invalidate({ user: ownerId }, [queryKeys.playlists(), queryKeys.libraryItems(), queryKeys.home()])
+    await invalidate({ user: ownerId }, [queryKeys.playlists(), queryKeys.libraryItems(), queryKeys.home(), queryKeys.search()])
     return
   }
   // One target list reaches each socket once; the owner is in 'all' as well and would
   // otherwise refetch the playlists twice.
-  await invalidate([{ user: ownerId }, 'all'], [queryKeys.playlists(), queryKeys.libraryItems()])
+  await invalidate([{ user: ownerId }, 'all'], [queryKeys.playlists(), queryKeys.libraryItems(), queryKeys.search()])
   await invalidate({ user: ownerId }, [queryKeys.home()])
 }
 

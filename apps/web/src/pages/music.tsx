@@ -2,9 +2,9 @@
  * Route containers for the music pages. Each one gathers its data with TanStack Query and
  * hands it to a view in components/views.
  */
-import { filterKind, searchContext, searchFilters, type SearchFilter, type SearchItem } from '@squirmy/client-core'
+import { ApiError, filterKind, searchContext, searchFilters, searchItemsOfKind, type SearchFilter, type SearchItem } from '@squirmy/client-core'
 import type { HomeSection, Page as ListPage, PlaylistDetail } from '@squirmy/contracts'
-import { queryKeys } from '@squirmy/contracts'
+import { SearchFacets, queryKeys } from '@squirmy/contracts'
 import { useMutation, useQueryClient, type InfiniteData, type UseQueryResult } from '@tanstack/react-query'
 import { Compass } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
@@ -13,7 +13,7 @@ import { moveItem } from '@/lib/reorder'
 import { useCachedSummary } from '@/api/prefetch'
 import {
   isNotFound, itemsOf, LIBRARY_MATCH_LIMIT, searchesServer, useNextPage, useAlbum, useArtist, useArtistReleases, useCollectionList, useGenres, useHome, useLibraryList, useLibraryMatches,
-  useLikedTracks, usePlaylist, usePlaylists, useWants,
+  useLikedTracks, useMix, usePlaylist, usePlaylists, useWants,
 } from '@/api/queries'
 import { useApi } from '@/api/services'
 import { matchingPlaylists, useMergedSearch, useSearchPages } from '@/api/use-search'
@@ -34,7 +34,8 @@ import {
   defaultSort, isLibraryFilter, isLibrarySort, matches, pinTarget, readLibraryFilter, readLibraryLayout, sortFor, sortsFor, writeLibraryFilter, writeLibraryLayout,
   type LibraryFilterName,
 } from '@/components/views/library-state'
-import { LikedView, PlaylistView } from '@/components/views/PlaylistView'
+import { mixMenuEntries } from '@/components/music/mix-menu'
+import { LikedView, MixView, PlaylistView } from '@/components/views/PlaylistView'
 import { AlbumPreview, ArtistPreview } from '@/components/views/Previews'
 import { SearchView, type SearchList } from '@/components/views/SearchView'
 import { WantlistView } from '@/components/views/WantlistView'
@@ -94,7 +95,11 @@ function useScanProgress(): ScanProgress | null {
 }
 
 export function HomePage() {
-  const { playAlbum, playPlaylist } = usePlayCollections()
+  const { playAlbum, playPlaylist, playMix, playLoaded } = usePlayCollections()
+  const controls = usePlayerControls()
+  // The sidebar's Liked Songs keeps this list loaded already.
+  const liked = useLikedTracks()
+  const playLiked = () => void playLoaded(liked, 5000, tracks => controls.playTracks(tracks, 0, { type: 'liked', id: null, title: 'Liked Songs' }, { collection: true }))
   const user = useCurrentUser()
   const home = useHome()
   const scan = useScanProgress()
@@ -109,16 +114,51 @@ export function HomePage() {
       scan={scan}
       onPlayAlbum={album => void playAlbum(album)}
       onPlayPlaylist={playlist => void playPlaylist(playlist)}
+      onPlayMix={mix => void playMix(mix)}
+      onPlayLiked={playLiked}
+      onStartRadio={radio => controls.startRadio({ type: radio.seed, id: radio.id })}
     />
   )
 }
 
-const isEmptySection = (section: HomeSection) => (
-  section.kind === 'albums' ? !section.albums.length
-    : section.kind === 'artists' ? !section.artists.length
-      : section.kind === 'playlists' ? !section.playlists.length
-        : !section.tracks.length
-)
+const isEmptySection = (section: HomeSection) => {
+  switch (section.kind) {
+    case 'albums': return !section.albums.length
+    case 'artists': return !section.artists.length
+    case 'playlists': return !section.playlists.length
+    case 'tracks': return !section.tracks.length
+    case 'items': return !section.items.length
+    // A kind from a newer server than this app shows nothing.
+    default: return true
+  }
+}
+
+/** `/mix/:id`: a mix made for the user, read-only, from Home's Made for you. */
+export function MixPage() {
+  const id = useParams().id ?? ''
+  const query = useMix(id)
+  const controls = usePlayerControls()
+  const library = useLibrary()
+  const viewer = useViewer()
+  return (
+    <Loaded query={query} skeleton={<CollectionSkeleton />}>
+      {mix => {
+        const playable = mix.tracks.filter(track => isPlayable(track, viewer))
+        return (
+          <MixView
+            key={mix.id}
+            mix={mix}
+            menu={mixMenuEntries({
+              onEnqueue: placement => controls.enqueue(playable, placement),
+              playlists: library.playlists,
+              onAddToPlaylist: playlist => (playlist ? library.addToPlaylist(playlist, mix.tracks) : library.newPlaylist(mix.tracks)),
+            })}
+          />
+        )
+      }}
+    </Loaded>
+  )
+}
 
 export function AlbumPage() {
   const { playAlbum } = usePlayCollections()
@@ -340,24 +380,35 @@ export function SearchPage() {
   const filter = filterOf(params.get('type'))
   const [typed, setTyped] = useUrlDraft(query)
   const term = typed.trim()
-  const all = useMergedSearch(typed, { playlists: library.ownPlaylists })
-  const pages = useSearchPages(typed, filterKind(filter))
+  const parsed = SearchFacets.safeParse(Object.fromEntries(params))
+  const facets = parsed.success ? parsed.data : {}
+  const all = useMergedSearch(typed, { playlists: library.ownPlaylists, facets })
+  const pages = useSearchPages(typed, filterKind(filter), filter === 'playlist' ? {} : facets)
   const recents = useRecentSearches(user.id)
-  const show = (q: string, next: SearchFilter) => setParams({ ...(q ? { q } : {}), ...(next !== 'all' ? { type: next } : {}) }, { replace: true })
+  const show = (q: string, next: SearchFilter, selected = facets) => {
+    const nextParams = new URLSearchParams()
+    if (q) nextParams.set('q', q)
+    if (next !== 'all') nextParams.set('type', next)
+    if (selected.quality) nextParams.set('quality', selected.quality)
+    if (selected.decade) nextParams.set('decade', String(selected.decade))
+    if (selected.liked) nextParams.set('liked', 'true')
+    setParams(nextParams, { replace: true })
+  }
 
   const list = useMemo<SearchList>(() => {
     const allItems = all.results?.items ?? null
     if (filter === 'all') {
       return {
-        items: allItems, stale: all.stale, pending: Boolean(allItems) && !all.stale && all.catalogPending,
+        items: allItems, lyricItems: all.results?.lyricItems, creditItems: all.results?.creditItems, stale: all.stale, pending: Boolean(allItems) && !all.stale && all.catalogPending,
         failed: all.failed, catalogFailed: all.catalogFailed, unavailable: all.unavailable, retry: all.retry, retrying: all.retrying,
       }
     }
-    if (filter === 'playlist') {
+    const olderServer = pages.error instanceof ApiError && (pages.error.status === 400 || pages.error.status === 404)
+    if (filter === 'playlist' && !pages.playlistSearchSupported && (pages.items || olderServer)) {
       return { items: term ? matchingPlaylists(term, library.ownPlaylists) : [], stale: false, pending: false, failed: false, catalogFailed: false, unavailable: false, retry: () => {} }
     }
     // Until the filter's own first page arrives, the mixed list's rows of that kind stand in.
-    const standIn = pages.items === null && allItems && !all.stale ? allItems.filter(item => item.type === filter) : null
+    const standIn = pages.items === null && all.results && !all.stale ? searchItemsOfKind(all.results, filter) : null
     return {
       items: pages.items ?? standIn, stale: pages.items !== null && pages.stale, pending: pages.loadingMore || (standIn !== null && pages.loading),
       failed: pages.failed, catalogFailed: pages.catalogFailed, unavailable: false, retry: pages.retry, retrying: pages.loading,
@@ -388,6 +439,8 @@ export function SearchPage() {
       }}
       filter={filter}
       onFilterChange={next => show(typed, next)}
+      facets={facets}
+      onFacetsChange={next => show(typed, filter, next)}
       list={list}
       recents={recents.list}
       onRemoveRecent={recents.remove}
