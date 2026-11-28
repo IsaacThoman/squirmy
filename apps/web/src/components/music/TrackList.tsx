@@ -1,12 +1,10 @@
 import type { AlbumDisc, TrackSummary } from '@squirmy/contracts'
-import { useVirtualizer } from '@tanstack/react-virtual'
-import { Clock3, Disc3, MoreHorizontal, Pause, Play } from 'lucide-react'
-import { Fragment, memo, useContext, useId, useLayoutEffect, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent, type RefObject } from 'react'
+import { Clock3, Disc3, Music2, Pause, Play } from 'lucide-react'
+import { Fragment, memo, useContext, useId, useLayoutEffect, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router'
 import { useScrollContainer } from '@/components/layout/scroll-context'
 import { ExplicitBadge, Spinner } from '@/components/ui/feedback'
-import { IconButton } from '@/components/ui/icon-button'
-import { ContextMenu, DropdownMenu, type MenuEntry } from '@/components/ui/menu'
+import { DropdownMenu, type MenuEntry } from '@/components/ui/menu'
 import { isPlayable, UNAVAILABLE_LABEL } from '@/lib/catalog'
 import { draggedTracks, endTrackDrag, startTrackDrag } from '@/lib/drag'
 import { formatDuration, formatRelative } from '@/lib/format'
@@ -18,14 +16,16 @@ import { Cover } from './Cover'
 import { Equalizer } from './Equalizer'
 import { SaveHeart } from './LibrarySave'
 import { PrefetchLink } from './PrefetchLink'
-import { trackMenuEntries } from './track-menu'
+import { trackCreditEntries, trackMenuEntries } from './track-menu'
+import { useTrackRowMenu } from './TrackRowMenu'
+import { useVirtualRows } from './use-virtual-rows'
 import { useEndReached } from './use-end-reached'
 
 /**
  * `like` is the heart, which saves the track to the library or takes it out. `add-to:<playlist id>`
  * adds the track to a playlist; `add-to:new` starts one with it.
  */
-export type TrackAction = 'play-next' | 'enqueue' | 'like' | 'want' | 'radio' | 'remove' | 'move-up' | 'move-down' | `add-to:${string}` | `rate:${number}`
+export type TrackAction = 'play-next' | 'enqueue' | 'like' | 'want' | 'radio' | 'sonic-radio' | 'remove' | 'move-up' | 'move-down' | `add-to:${string}` | `rate:${number}`
 
 export type PlaylistChoice = { id: string; name: string }
 
@@ -97,29 +97,32 @@ const rowAction = 'pointer-coarse:size-11'
  * change with the window, the sidebar and the queue) and its words (`text`). The row's menu goes
  * to the album and each artist whatever is cut.
  */
-function useWholeLinks(box: RefObject<HTMLElement | null>, text: string): number {
-  const [whole, setWhole] = useState(Number.POSITIVE_INFINITY)
+function useWholeLinks(track: TrackSummary, showArtists: boolean, showAlbum: boolean) {
+  const creditLine = useRef<HTMLDivElement>(null)
+  const albumLine = useRef<HTMLDivElement>(null)
+  const [wholeCredits, setWholeCredits] = useState(Number.POSITIVE_INFINITY)
+  const [albumWhole, setAlbumWhole] = useState(true)
   useLayoutEffect(() => {
-    const element = box.current
-    if (!element) return
-    const measure = () => {
-      const edge = element.getBoundingClientRect().right
-      let count = 0
-      // A half pixel of slack: a link that ends at the edge is whole, however its width rounds.
-      for (const link of element.querySelectorAll('a')) {
-        if (link.getBoundingClientRect().right > edge + 0.5) break
-        count += 1
+    const credit = creditLine.current
+    const album = albumLine.current
+    if (!credit && !album) return
+    const observer = new ResizeObserver(entries => {
+      for (const { target } of entries) {
+        const edge = target.getBoundingClientRect().right + 0.5
+        let whole = 0
+        for (const link of target.querySelectorAll('a')) {
+          if (link.getBoundingClientRect().right > edge) break
+          whole += 1
+        }
+        if (target === credit) setWholeCredits(whole)
+        else setAlbumWhole(whole > 0)
       }
-      setWhole(count)
-    }
-    // Measured when the observer first reports, after the frame's own layout, rather than here,
-    // which would lay the page out again for each row a scrolling list mounts. Until then every
-    // link stays in the Tab order.
-    const observer = new ResizeObserver(measure)
-    observer.observe(element)
+    })
+    if (credit) observer.observe(credit)
+    if (album) observer.observe(album)
     return () => observer.disconnect()
-  }, [box, text])
-  return whole
+  }, [track.artistCredit, track.artists, track.album?.title, showArtists, showAlbum])
+  return { creditLine, albumLine, wholeCredits, albumWhole }
 }
 
 /** Where a row dragged within its list would land: before or after the row under the pointer. */
@@ -131,6 +134,7 @@ type TrackRowProps = Omit<SharedProps, 'onPlay' | 'isWanted' | 'onMove'> & {
   index: number
   /** The number in the first column; defaults to the row's position. */
   number?: number
+  movementName?: string
   addedAt?: string
   wanted?: boolean
   onPlay: () => void
@@ -138,14 +142,24 @@ type TrackRowProps = Omit<SharedProps, 'onPlay' | 'isWanted' | 'onMove'> & {
   extraMenu?: MenuEntry[]
   reorder?: Reorder
   style?: CSSProperties
+  setSize?: number
+  onFocusRow?: (index: number) => void
+  onDragRow?: (index: number | undefined) => void
+  onMenuRow?: (index: number | undefined) => void
 }
 
 /**
  * One song. A song that plays looks the same wherever its file is (on the server, or fetched
  * as it plays); one that does not is gray and says "Not available".
  */
-export function TrackRow({ track, index, number, addedAt, variant = 'album', wanted, onPlay, onAction, playlists, ratings, extraMenu, reorder, style, albumCredit }: TrackRowProps) {
+export function TrackRow({ track, index, number, movementName, addedAt, variant = 'album', wanted, onPlay, onAction, playlists, ratings, extraMenu, reorder, style, albumCredit, setSize, onFocusRow, onDragRow, onMenuRow }: TrackRowProps) {
   const navigate = useNavigate()
+  const { rowProps, trigger, renderMenu, present } = useTrackRowMenu()
+  useLayoutEffect(() => {
+    if (!present || !onMenuRow) return
+    onMenuRow(index)
+    return () => onMenuRow(undefined)
+  }, [present, index, onMenuRow])
   const viewer = useViewer()
   const controls = useContext(PlayerControlsContext)
   // Only this row's part of the session: it renders again when it becomes or stops being the current track, or that track plays, pauses or waits.
@@ -164,13 +178,13 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', wan
    */
   const pointer = useRef<string | null>(null)
   const onRowClick = (event: MouseEvent) => {
-    if (unavailable || pointer.current !== 'touch') return
+    if (unavailable || present || pointer.current !== 'touch' || !event.currentTarget.contains(event.target as Node)) return
     if ((event.target as Element).closest('a, button, [role=menuitem]')) return
     play()
   }
 
   // Album rows are on that album's page already.
-  const menu = trackMenuEntries(track, { unavailable, wanted, playlists, ratings, act, navigate, extraMenu, reorder: reorder && { index, count: reorder.count }, onAlbumPage: variant === 'album' })
+  const menu = () => trackMenuEntries(track, { unavailable, wanted, playlists, ratings, act, navigate, extraMenu, reorder: reorder && { index, count: reorder.count }, onAlbumPage: variant === 'album' })
 
   const onDragOver = (event: DragEvent) => {
     const drag = draggedTracks(event)
@@ -191,6 +205,7 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', wan
   const dropSide = reorder?.target?.index === index ? reorder.target.side : undefined
 
   const album = variant === 'album'
+  const credits = album ? trackCreditEntries(track, navigate) : []
   // Over artwork the button and the markers are white; in the number column they take the text's colors.
   const playButton = (overArt: boolean) => !unavailable && (
     <button
@@ -215,20 +230,24 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', wan
    */
   const resting = cn('pointer-events-none transition-opacity', !unavailable && 'group-hover/row:opacity-0 group-data-[state=open]/row:opacity-0 peer-focus-visible:opacity-0')
 
-  const creditLine = useRef<HTMLDivElement>(null)
-  const wholeCredits = useWholeLinks(creditLine, track.artistCredit)
-  const albumLine = useRef<HTMLDivElement>(null)
-  const albumWhole = useWholeLinks(albumLine, track.album?.title ?? '') > 0
   const title = (
     <div className="flex min-w-0 items-center gap-1.5">
-      <span title={track.title} className={cn('truncate text-sm font-medium', unavailable && 'text-faded-foreground')}>{track.title}</span>
+      <span title={track.title} className={cn('truncate text-sm font-medium', unavailable && 'text-faded-foreground')}>{movementName ?? track.title}</span>
       {track.explicit && <ExplicitBadge />}
+      {credits.length > 0 && (
+        <DropdownMenu
+          entries={credits}
+          trigger={<button type="button" aria-label={`Credits for ${track.title}`} className="shrink-0 rounded-sm px-1.5 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring pointer-coarse:min-h-11">Credits</button>}
+        />
+      )}
       {unavailable && <span className="sr-only">({UNAVAILABLE_LABEL})</span>}
     </div>
   )
   // Under the title. On an album page only where they are not the album's own (a featured artist):
   // a column repeating the album's artist on every row says nothing.
   const showArtists = !album || albumCredit === undefined || track.artistCredit !== albumCredit
+  const albumColumn = albumColumnOf(variant, addedAt !== undefined)
+  const { creditLine, albumLine, wholeCredits, albumWhole } = useWholeLinks(track, showArtists, Boolean(albumColumn))
   // A link the ellipsis cuts leaves the Tab order (`useWholeLinks`); the tooltip has the whole credit.
   const artists = (
     <div ref={creditLine} title={track.artistCredit} className={cn('min-w-0 truncate text-xs', unavailable ? 'text-faded-foreground' : 'text-muted-foreground')}>
@@ -237,84 +256,87 @@ export function TrackRow({ track, index, number, addedAt, variant = 'album', wan
   )
 
   return (
-    <ContextMenu entries={menu}>
-      <li
-        data-slot="track-row"
-        aria-current={current ? 'true' : undefined}
-        // Only playing is unavailable, and the title says so to screen readers; the heart and the
-        // menu still work, so the row is not marked disabled (that would disable them too).
-        title={unavailable ? UNAVAILABLE_LABEL : undefined}
-        onDoubleClick={unavailable ? undefined : play}
-        onPointerDown={event => { pointer.current = event.pointerType }}
-        onClick={onRowClick}
-        draggable
-        onDragStart={event => startTrackDrag(event, { tracks: [track], list: reorder?.list ?? null, index })}
-        onDragEnd={() => {
-          endTrackDrag()
-          reorder?.setTarget(null)
-        }}
-        onDragOver={reorder && onDragOver}
-        onDrop={reorder && onDrop}
-        data-drop={dropSide}
-        style={style}
-        className={cn(
-          'group/row @container select-none rounded-md px-2 transition-colors data-[state=open]:bg-accent/60',
-          'data-[drop=after]:shadow-[inset_0_-2px_0_var(--primary)] data-[drop=before]:shadow-[inset_0_2px_0_var(--primary)]',
-          // Gray, but at 3:1 or more in every theme (`color-themes.test.ts`), so the song can still be read.
-          unavailable ? 'text-faded-foreground' : 'hover:bg-accent/60 has-[:focus-visible]:bg-accent/60 has-[[data-state=open]]:bg-accent/60 pointer-coarse:active:bg-accent/60',
-          // The playing song also has a quiet fill: in themes whose action color is close to the
-          // text (Pulpo's near-white or near-black) its title's color alone does not stand out.
-          current && 'bg-accent/40',
-        )}
-      >
-        <div className={cn('grid h-11 content-center items-center gap-x-3', columnsOf(variant, addedAt !== undefined))}>
-          {variant === 'compact' ? null : (
-            <div className={cn('relative flex h-8 items-center justify-center text-sm tabular', unavailable ? 'text-faded-foreground' : 'text-muted-foreground')}>
-              {playButton(false)}
-              <span className={resting}>{marker(false) ?? number ?? index + 1}</span>
-            </div>
-          )}
-
-          {album ? <div className="min-w-0">{title}{showArtists && artists}</div> : (
-            <div className="flex min-w-0 items-center gap-3">
-              <div className="relative size-8 shrink-0">
-                <Cover artwork={track.album?.artwork ?? null} size={96} dimmed={unavailable} className="size-8 rounded-[5px]" />
-                {variant === 'compact' && (
-                  <div className={cn('absolute inset-0 flex items-center justify-center rounded-[5px] transition-colors', current ? 'bg-black/50' : !unavailable && 'group-hover/row:bg-black/50 group-data-[state=open]/row:bg-black/50 has-[:focus-visible]:bg-black/50')}>
-                    {playButton(true)}
-                    <span className={resting}>{marker(true)}</span>
-                  </div>
-                )}
-              </div>
-              <div className="min-w-0">
-                {title}
-                {artists}
-              </div>
-            </div>
-          )}
-
-          {albumColumnOf(variant, addedAt !== undefined) && (
-            <div ref={albumLine} className={cn('min-w-0 truncate text-sm', unavailable ? 'text-faded-foreground' : 'text-muted-foreground', albumColumnOf(variant, addedAt !== undefined))}>
-              {track.album && <PrefetchLink kind="album" id={track.album.id} to={`/album/${track.album.id}`} title={track.album.title} tabIndex={albumWhole ? undefined : -1} className={cn('hover:underline', !unavailable && 'hover:text-foreground')}>{track.album.title}</PrefetchLink>}
-            </div>
-          )}
-          {variant === 'playlist' && addedAt !== undefined && <div className="hidden truncate text-sm text-muted-foreground @2xl:block">{formatRelative(addedAt)}</div>}
-
-          <div className={actionsColumn}>
-            {onAction && <SaveHeart id={track.id} liked={liked} onToggle={() => act('like')} title={track.title} tooltip={false} size="sm" className={cn(rowAction, !liked && revealed)} />}
-            <span className={cn('hidden min-w-10 shrink-0 whitespace-nowrap text-right text-xs tabular @xs:block', unavailable ? 'text-faded-foreground' : 'text-muted-foreground')}>{track.durationMs ? formatDuration(track.durationMs) : '–'}</span>
-            <DropdownMenu
-              entries={menu}
-              trigger={(
-                <IconButton label={`More options for ${track.title}`} tooltip={false} size="sm" className={cn(rowAction, revealed)}>
-                  <MoreHorizontal />
-                </IconButton>
-              )}
-            />
+    <li
+      {...rowProps}
+      data-slot="track-row"
+      aria-posinset={setSize === undefined ? undefined : index + 1}
+      aria-setsize={setSize}
+      onFocus={() => onFocusRow?.(index)}
+      aria-current={current ? 'true' : undefined}
+      // Only playing is unavailable, and the title says so to screen readers; the heart and the
+      // menu still work, so the row is not marked disabled (that would disable them too).
+      title={unavailable ? UNAVAILABLE_LABEL : undefined}
+      onDoubleClick={event => { if (!unavailable && event.currentTarget.contains(event.target as Node)) play() }}
+      onPointerDown={event => {
+        pointer.current = event.pointerType
+        rowProps.onPointerDown(event)
+      }}
+      onClick={onRowClick}
+      draggable
+      onDragStart={event => {
+        onDragRow?.(index)
+        startTrackDrag(event, { tracks: [track], list: reorder?.list ?? null, index })
+      }}
+      onDragEnd={() => {
+        onDragRow?.(undefined)
+        endTrackDrag()
+        reorder?.setTarget(null)
+      }}
+      onDragOver={reorder && onDragOver}
+      onDrop={reorder && onDrop}
+      data-drop={dropSide}
+      style={style}
+      className={cn(
+        'group/row @container select-none [-webkit-touch-callout:none] rounded-md px-2 transition-colors data-[state=open]:bg-accent/60',
+        'data-[drop=after]:shadow-[inset_0_-2px_0_var(--primary)] data-[drop=before]:shadow-[inset_0_2px_0_var(--primary)]',
+        // Gray, but at 3:1 or more in every theme (`color-themes.test.ts`), so the song can still be read.
+        unavailable ? 'text-faded-foreground' : 'hover:bg-accent/60 has-[:focus-visible]:bg-accent/60 has-[[data-state=open]]:bg-accent/60 pointer-coarse:active:bg-accent/60',
+        // The playing song also has a quiet fill: in themes whose action color is close to the
+        // text (Pulpo's near-white or near-black) its title's color alone does not stand out.
+        current && 'bg-accent/40',
+      )}
+    >
+      <div className={cn('grid h-11 content-center items-center gap-x-3', columnsOf(variant, addedAt !== undefined))}>
+        {variant === 'compact' ? null : (
+          <div className={cn('relative flex h-8 items-center justify-center text-sm tabular', unavailable ? 'text-faded-foreground' : 'text-muted-foreground')}>
+            {playButton(false)}
+            <span className={resting}>{marker(false) ?? number ?? index + 1}</span>
           </div>
+        )}
+
+        {album ? <div className="min-w-0">{title}{showArtists && artists}</div> : (
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="relative size-8 shrink-0">
+              <Cover artwork={track.album?.artwork ?? null} size={96} dimmed={unavailable} className="size-8 rounded-[5px]" />
+              {variant === 'compact' && (
+                <div className={cn('absolute inset-0 flex items-center justify-center rounded-[5px] transition-colors', current ? 'bg-black/50' : !unavailable && 'group-hover/row:bg-black/50 group-data-[state=open]/row:bg-black/50 has-[:focus-visible]:bg-black/50')}>
+                  {playButton(true)}
+                  <span className={resting}>{marker(true)}</span>
+                </div>
+              )}
+            </div>
+            <div className="min-w-0">
+              {title}
+              {artists}
+            </div>
+          </div>
+        )}
+
+        {albumColumn && (
+          <div ref={albumLine} className={cn('min-w-0 truncate text-sm', unavailable ? 'text-faded-foreground' : 'text-muted-foreground', albumColumn)}>
+            {track.album && <PrefetchLink kind="album" id={track.album.id} to={`/album/${track.album.id}`} title={track.album.title} tabIndex={albumWhole ? undefined : -1} className={cn('hover:underline', !unavailable && 'hover:text-foreground')}>{track.album.title}</PrefetchLink>}
+          </div>
+        )}
+        {variant === 'playlist' && addedAt !== undefined && <div className="hidden truncate text-sm text-muted-foreground @2xl:block">{formatRelative(addedAt)}</div>}
+
+        <div className={actionsColumn}>
+          {onAction && <SaveHeart id={track.id} liked={liked} onToggle={() => act('like')} title={track.title} tooltip={false} size="sm" className={cn(rowAction, !liked && revealed)} />}
+          <span className={cn('hidden min-w-10 shrink-0 whitespace-nowrap text-right text-xs tabular @xs:block', unavailable ? 'text-faded-foreground' : 'text-muted-foreground')}>{track.durationMs ? formatDuration(track.durationMs) : '–'}</span>
+          {trigger(track.title, cn(rowAction, revealed))}
+          {renderMenu(menu)}
         </div>
-      </li>
-    </ContextMenu>
+      </div>
+    </li>
   )
 }
 
@@ -364,20 +386,42 @@ export function TrackList({ tracks, discs, addedAt, header = true, label, varian
   const reorder = useReorder(tracks.length, onMove)
   const showDiscs = discs && discs.length > 1
   const starts = discs?.map((_, index) => discs.slice(0, index).reduce((sum, disc) => sum + disc.tracks.length, 0)) ?? []
-  const rows = (items: TrackSummary[], start: number) => items.map((track, i) => (
-    <TrackRow
-      key={`${track.id}-${start + i}`}
-      track={track}
-      index={start + i}
-      number={variant === 'album' ? track.position ?? start + i + 1 : undefined}
-      addedAt={addedAt?.[start + i]}
-      variant={variant}
-      wanted={isWanted?.(track)}
-      onPlay={() => onPlay(start + i)}
-      reorder={reorder}
-      {...rest}
-    />
-  ))
+  const workCounts = new Map<string, number>()
+  if (variant === 'album') {
+    for (const track of tracks) {
+      if (track.works?.length !== 1) continue
+      const id = track.works[0]!.id
+      workCounts.set(id, (workCounts.get(id) ?? 0) + 1)
+    }
+  }
+  const rows = (items: TrackSummary[], start: number) => items.map((track, i) => {
+    const work = track.works?.length === 1 ? track.works[0] : undefined
+    const grouped = work && (workCounts.get(work.id) ?? 0) > 1 ? work : undefined
+    const previous = items[i - 1]?.works
+    const heading = grouped && !(previous?.length === 1 && previous[0]?.id === grouped.id)
+    return (
+      <Fragment key={`${track.id}-${start + i}`}>
+        {heading && (
+          <li className="flex items-center gap-3 px-2 pb-2 pt-4 text-sm font-medium text-muted-foreground">
+            <span className="flex w-8 shrink-0 justify-center"><Music2 aria-hidden className="size-3.5" /></span>
+            <h3>{grouped.title}</h3>
+          </li>
+        )}
+        <TrackRow
+          track={track}
+          index={start + i}
+          number={variant === 'album' ? grouped?.movementNumber ?? track.position ?? start + i + 1 : undefined}
+          movementName={grouped?.movementName}
+          addedAt={addedAt?.[start + i]}
+          variant={variant}
+          wanted={isWanted?.(track)}
+          onPlay={() => onPlay(start + i)}
+          reorder={reorder}
+          {...rest}
+        />
+      </Fragment>
+    )
+  })
   return (
     <div>
       {header && <ListHeader variant={variant} dated={addedAt !== undefined} />}
@@ -398,55 +442,60 @@ export function TrackList({ tracks, discs, addedAt, header = true, label, varian
 /** The height of a row with artwork, `h-11`. */
 const rowHeight = 44
 
-/** The same rows, rendered only near the viewport. For the whole library's songs. */
-type VirtualTrackListProps = Omit<TrackListProps, 'variant' | 'discs' | 'addedAt' | 'header' | 'onMove'> & {
+/** The same rows, rendered only near the viewport. */
+type VirtualTrackListProps = Omit<TrackListProps, 'variant' | 'discs' | 'header'> & {
   /** The variants whose rows are one height at every width. */
   variant?: Exclude<TrackListVariant, 'album'>
+  getItemKey?: (index: number) => string
   /** Called as the last rows come into view, to load the next page. */
   onEndReached?: () => void
 }
 
-export function VirtualTrackList({ tracks, label, variant = 'compact', isWanted, onPlay, onEndReached, ...rest }: VirtualTrackListProps) {
+export function VirtualTrackList({ tracks, label, addedAt, variant = 'compact', isWanted, onPlay, onMove, onEndReached, getItemKey, ...rest }: VirtualTrackListProps) {
   const scroller = useScrollContainer()
   const list = useRef<HTMLOListElement>(null)
-  const [margin, setMargin] = useState(0)
-
-  useLayoutEffect(() => {
-    if (!scroller || !list.current) return
-    setMargin(list.current.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop)
-  }, [scroller])
-
-  // oxlint-disable-next-line react/incompatible-library -- the virtualizer re-renders on scroll by design
-  const virtualizer = useVirtualizer({
-    count: tracks.length,
-    getScrollElement: () => scroller,
-    estimateSize: () => rowHeight,
-    overscan: 8,
-    scrollMargin: margin,
-    initialRect: { width: 1024, height: 900 },
-
-    // Where the page is now: left at 0, the virtualizer scrolls the page back to the top as it
-    // mounts, undoing Back's scroll restoration.
-    initialOffset: () => scroller?.scrollTop ?? 0,
+  const reorder = useReorder(tracks.length, onMove)
+  const [focused, setFocused] = useState<number>()
+  const [dragged, setDragged] = useState<number>()
+  const [menuRow, setMenuRow] = useState<number>()
+  const virtualizer = useVirtualRows({
+    list, scroller, count: tracks.length, rowHeight, focused, pinned: dragged ?? menuRow, getItemKey,
   })
-  const last = virtualizer.getVirtualItems().at(-1)?.index ?? -1
-  useEndReached(last, tracks.length, onEndReached)
+  const items = virtualizer.getVirtualItems()
+  const range = virtualizer.range
+  // Fetch ahead with overscan, ignoring rows kept mounted for focus, menus and dragging.
+  useEndReached(range ? range.endIndex + virtualizer.options.overscan : -1, tracks.length, onEndReached)
 
   return (
     <div>
-      <ListHeader variant={variant} dated={false} />
-      <ol ref={list} aria-label={label} className="relative" style={{ height: virtualizer.getTotalSize() }}>
-        {virtualizer.getVirtualItems().map(item => {
+      <ListHeader variant={variant} dated={addedAt !== undefined} />
+      <ol
+        ref={list}
+        aria-label={label}
+        className="relative"
+        style={{ height: virtualizer.getTotalSize() }}
+        onBlur={event => {
+          // The browser dispatches blur before focusing the next row. Keep it mounted in between.
+          if (!event.currentTarget.contains(event.relatedTarget)) setFocused(undefined)
+        }}
+      >
+        {items.map(item => {
           const track = tracks[item.index]
           return (
             <VirtualTrackRow
               key={item.key}
               track={track}
               index={item.index}
-              y={item.start - margin}
+              y={item.start - virtualizer.options.scrollMargin}
               variant={variant}
+              addedAt={addedAt?.[item.index]}
               wanted={isWanted?.(track)}
               onPlayAt={onPlay}
+              reorder={reorder}
+              setSize={tracks.length}
+              onFocusRow={setFocused}
+              onDragRow={setDragged}
+              onMenuRow={setMenuRow}
               {...rest}
             />
           )

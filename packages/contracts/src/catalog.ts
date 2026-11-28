@@ -100,6 +100,24 @@ export type AlbumSummary = z.infer<typeof AlbumSummary>
 export const TrackLibrary = z.enum(['collection', 'album', 'saved'])
 export type TrackLibrary = z.infer<typeof TrackLibrary>
 
+export const CreditRole = z.enum([
+  'composer', 'lyricist', 'conductor', 'arranger', 'producer', 'engineer', 'mixer', 'remixer', 'performer', 'ensemble',
+])
+export type CreditRole = z.infer<typeof CreditRole>
+
+export const TrackCredit = z.object({ artist: ArtistRef, role: CreditRole, instrument: z.string().optional() })
+export type TrackCredit = z.infer<typeof TrackCredit>
+
+export const TrackWork = z.object({
+  id: Id,
+  mbid: z.string().nullable(),
+  title: z.string(),
+  movementName: z.string().optional(),
+  movementNumber: z.number().int().positive().optional(),
+  movementTotal: z.number().int().positive().optional(),
+})
+export type TrackWork = z.infer<typeof TrackWork>
+
 /**
  * A track is a recording. `id` is the recording id; `album` is the album it is being
  * shown in, which decides the artwork and which file is preferred for playback.
@@ -122,6 +140,8 @@ export const TrackSummary = z.object({
    */
   liked: z.boolean(),
   explicit: z.boolean().nullable(),
+  credits: z.array(TrackCredit).optional(),
+  works: z.array(TrackWork).optional(),
   hasLyrics: z.boolean(),
   /**
    * True when the track is in the viewer's library: a collection file links it, the viewer
@@ -232,6 +252,7 @@ export const ArtistDetail = ArtistSummary.extend({
   /** The heart: the viewer saved (follows) this artist, which puts it in their library. */
   liked: z.boolean(),
   topTracks: z.array(TrackSummary),
+  composedOrProduced: z.array(TrackSummary).optional(),
   /**
    * The artist's own releases (led by the artist), newest first, each release once: rows
    * of one release (editions, store copies) show as the one that stands for it. Only the

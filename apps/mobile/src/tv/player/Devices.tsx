@@ -4,6 +4,7 @@ import { BlurView } from 'expo-blur';
 import { useIsFocused, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, ScrollView, StyleSheet, Text, View } from 'react-native';
+import NowPlaying from '../../../modules/now-playing';
 import { useTrack } from '../../data/library';
 import { usePlaybackState } from '../../playback';
 import { DETACHED_SYMBOL, detachedHeader, hasQueueToBring, moveFailure, separateRows } from '../../player/detach';
@@ -21,6 +22,8 @@ const panelWidth = 760;
  * picker opens: this Apple TV first, then the user's other devices that can play, the one
  * playing marked. Selecting one moves the music there; it carries on from where it was. From
  * here this Apple TV can also play on its own, apart from the other devices, and rejoin them.
+ * While it plays, AirPlay sends its own sound to speakers, in the system's picker, as the
+ * system's music app offers in Now Playing.
  */
 export function DevicesScreen() {
   const { track, devices, output, volume, session, queue, actions, detached, canDetach, allDevices, thisDeviceId, connection } = usePlaybackState();
@@ -78,6 +81,13 @@ export function DevicesScreen() {
               icon={DETACHED_SYMBOL} busy={moving === 'detach'} disabled={!online} onPress={() => move(() => actions.detach(), 'detach')} />}
           </>}
         </View>
+        {/* Squirmy's list chooses which device plays; AirPlay chooses where this Apple TV's sound goes. */}
+        {output.isThisDevice && !output.reconnecting && NowPlaying?.showRoutePicker && <View style={styles.airplay}>
+          <View style={styles.airplayRows}>
+            <Row title="AirPlay" subtitle="Choose speakers for this Apple TV’s sound" icon="airplay.audio"
+              onPress={() => void NowPlaying?.showRoutePicker?.()} />
+          </View>
+        </View>}
         {remoteVolume && <View style={styles.volume}>
           <View style={styles.volumeWords}>
             <Text style={styles.rowTitle}>Volume</Text>
@@ -156,6 +166,8 @@ const styles = StyleSheet.create({
   title: { ...type.title2 },
   subtitle: { ...type.body, color: colors.secondary, marginTop: 6 },
   rows: { marginTop: 34, marginHorizontal: -20, gap: 6 },
+  airplay: { marginTop: 24, paddingTop: 18, borderTopWidth: 1, borderColor: colors.hairline },
+  airplayRows: { marginHorizontal: -20 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 24, paddingHorizontal: 20, paddingVertical: 16, borderRadius: 22 },
   rowFocused: { backgroundColor: colors.focused },
   icon: { width: 68, height: 68, borderRadius: 34, backgroundColor: colors.platter, alignItems: 'center', justifyContent: 'center' },

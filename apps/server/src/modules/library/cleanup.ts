@@ -111,12 +111,17 @@ export async function removeOrphans(tx: Executor, scope?: OrphanCandidates) {
     await tx.execute(sql`delete from recordings where id in ${recordings}`)
   }
 
+  if (sweep) {
+    await tx.execute(sql`delete from works w where not exists (select 1 from recording_works rw where rw.work_id = w.id)`)
+  }
+
   await tx.execute(sql`
     delete from artists ar
     where ar.mbid is null and ar.merged_into_id is null and ar.detail_level > 0
       and ${sweep ? sql`true` : within(sql`ar.id`, ids([...artistIds!, ...freedArtists]))}
       and not exists (select 1 from album_artists aa where aa.artist_id = ar.id)
       and not exists (select 1 from recording_artists ra where ra.artist_id = ar.id)
+      and not exists (select 1 from recording_credits rc where rc.artist_id = ar.id)
       and not exists (select 1 from albums a where a.primary_artist_id = ar.id)
       and not exists (select 1 from recordings rec where rec.primary_artist_id = ar.id)
       and ${noUserData('artist', sql`ar.id`)}`)

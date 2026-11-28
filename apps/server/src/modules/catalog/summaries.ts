@@ -1,3 +1,4 @@
+import { trackCredits, trackExplicit, trackWorks } from './credits.js'
 /**
  * Batch builders for the summaries every list and page is made of. Search, sessions,
  * Subsonic and userdata build their responses with these too.
@@ -129,11 +130,11 @@ export async function alignedTrackSummaries(userId: string, refs: readonly Track
 
   const pairs = [...new Map(known.map((ref) => [`${ref.id}|${ref.albumId ?? ''}`, ref])).values()]
   const ids = [...new Set(pairs.map((pair) => pair.id))]
-  const [rows, artists, liked, availability, inLibrary, rated] = await Promise.all([
+  const [rows, artists, liked, availability, inLibrary, contributors, works, rated] = await Promise.all([
     db.execute<TrackRow>(sql`
       select req.id, req.album_id as "albumContext", r.mbid, r.title, r.artist_credit as "artistCredit",
         r.primary_artist_id as "primaryArtistId", coalesce(r.duration_ms, place.duration_ms, 0) as "durationMs",
-        r.explicit,
+        ${trackExplicit(sql`r.id`, sql`r.explicit`, sql`al.id`)} as explicit,
         exists (select 1 from lyrics l where l.recording_id = r.id and (l.synced is not null or l.plain is not null)) as "hasLyrics",
         al.id as "albumId", al.title as "albumTitle", place.disc, place.position,
         coalesce(own.id, other.id) as "artworkId", coalesce(own.color, other.color) as "artworkColor",
@@ -167,6 +168,8 @@ export async function alignedTrackSummaries(userId: string, refs: readonly Track
       select member.id, member.library from (
         select candidate.id, ${recordingLibrary('candidate.id', userId)} as library from unnest(${uuidArray(ids)}) as candidate(id)
       ) member where member.library is not null`),
+    trackCredits(ids),
+    trackWorks(ids),
     db.execute<{ id: string; rating: number }>(sql`
       select entity_id as id, rating from ratings
       where user_id = ${userId} and entity_type = 'recording' and entity_id = any(${uuidArray(ids)})`),
@@ -194,6 +197,8 @@ export async function alignedTrackSummaries(userId: string, refs: readonly Track
       inLibrary: libraryOf.has(row.id),
       library: libraryOf.get(row.id) ?? null,
       explicit: row.explicit,
+      credits: contributors.get(row.id),
+      works: works.get(row.id),
       hasLyrics: row.hasLyrics,
       rating: ratingOf.get(row.id) ?? null,
     }

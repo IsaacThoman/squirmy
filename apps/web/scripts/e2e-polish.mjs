@@ -212,8 +212,8 @@ await step('Organize names the template a preview used', async () => {
 
 await step('search leads with the best match', async () => {
   // The scan must have read the album's tags before the library can find it.
-  await until(() => get('/search/library?q=OK%20Computer&limit=20'), results => results.top?.type === 'album', minutes(2), 1000)
-  const expected = await get('/search/library?q=OK%20Computer&limit=20')
+  await until(() => get('/search/library?q=OK%20Computer&limit=20&scope=server'), results => results.top?.type === 'album', minutes(2), 1000)
+  const expected = await get('/search/library?q=OK%20Computer&limit=20&scope=server')
   await page.goto(`${base}/search`)
   await heading('Search').waitFor()
   const search = page.getByRole('searchbox', { name: 'Search' })

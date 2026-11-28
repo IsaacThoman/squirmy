@@ -9,16 +9,25 @@
  *    artists, by similar artists, Deezer's radio, on albums sharing a genre, on albums from
  *    the same years, played near the seeds in the user's history, liked tracks, tracks by
  *    liked artists, and a few random albums so the pool is never empty.
+ *    With sonic analysis, the owned tracks that sound most like the seeds are a pool too
+ *    (`sonic.ts`).
  * 3. Score each candidate (see `weights`), plus noise so runs differ. A candidate is
  *    related to the seeds when it is by a seed or similar artist, in Deezer's radio, shares
- *    their genres, or the user played it near a seed on several days. Likes and popularity
- *    only order candidates; they never make one related.
+ *    their genres, sounds like them (one of the nearest in the library), or the user played
+ *    it near a seed on several days. Likes and popularity only order candidates; they never
+ *    make one related.
  * 4. Pick greedily under variety rules over a sliding window of `WINDOW` tracks that
  *    includes the seeds: at most two tracks per artist, one per album and three by seed
  *    artists, never the same artist twice in a row. Related candidates go first, under the
  *    strict rules and then relaxed ones. Unrelated ones (the random albums, a liked track
  *    of another genre) only fill a batch up to one window (`FILL_UP_TO`); past that a
- *    batch ends early rather than play them. The rules drop last.
+ *    batch ends early rather than play them. The rules drop last. Each pick is the best
+ *    score less what following the previous track costs (`transitionCost`: a tempo jump, a
+ *    clashing key, a jump in energy), so the order flows where the analysis knows enough.
+ *
+ * A sonic radio (`mode: 'sonic'`) is the same with the sound weighing far more
+ * (`SONIC_RADIO_WEIGHT`) and more of the nearest tracks gathered. Without analysis of the
+ * seeds it is an ordinary radio.
  *
  * For a user who may have tracks fetched (an admin, or `canAcquire`), tracks an acquisition
  * provider can supply (`on_demand`) from the artist, similar-artist, radio and liked pools
@@ -39,6 +48,8 @@ import { users } from '../../database/schema.js'
 import { onDemandRecordings } from '../acquisition/coverage.js'
 import { uuidArray } from '../catalog/sql.js'
 import { artistRadioTracks } from '../enrichment/detail.js'
+import { sonicPoints, type SonicPoint } from '../sonic/index.js'
+import { seedSound, similarity, transitionCost, type SeedSound } from './sonic.js'
 import { similarArtists } from './similar.js'
 
 export type SuggestRequest = {
@@ -47,6 +58,8 @@ export type SuggestRequest = {
   seeds: readonly string[]
   exclude: readonly string[]
   limit: number
+  /** `sonic`: tracks that sound like the seeds above all (the sonic radio). */
+  mode?: 'default' | 'sonic'
 }
 
 export type SuggestOptions = {
@@ -71,7 +84,19 @@ export type SuggestOptions = {
  * - `liked`, `likedArtist`, `likedAlbum`: the user liked the track, its artist, its album.
  * - `popularity`: the recording's popularity, when a source provided one.
  * - `recentlyPlayed`: the user played it in the last `RECENT_HOURS` hours.
+ * - `repeatedlySkipped`: the user skipped it early at least twice in the last 30 days.
+ * - `sonic`: how close it sounds to the seeds, by rank in the library (`sonic.ts`). A
+ *   candidate that is not analysed gets the average of those that are, so analysis never
+ *   favours owned tracks over ones a provider would fetch.
  * - `noise`: uniform random, so two runs differ and equal candidates take turns.
+ *
+ * Applied at each pick, for following the previous track (`transitionCost`):
+ * - `tempoJump`: tempos more than 3% apart, fully at 15% (double or half time is no jump).
+ * - `keyClash`: keys two steps apart on the Camelot wheel count half, three or more fully.
+ * - `energyJump`: energy changing by more than 0.15, fully at 0.5.
+ *
+ * They are small next to the noise on purpose: the analysis reorders near equals, it does
+ * not overrule who and what the seeds are.
  */
 export const weights = {
   sameArtist: 2,
@@ -85,8 +110,16 @@ export const weights = {
   likedAlbum: 0.5,
   popularity: 0.5,
   recentlyPlayed: -4,
+  repeatedlySkipped: -0.75,
+  sonic: 1.5,
   noise: 1,
+  tempoJump: -0.5,
+  keyClash: -0.4,
+  energyJump: -0.5,
 }
+
+/** The `sonic` weight of a sonic radio, where sounding alike is the point. */
+export const SONIC_RADIO_WEIGHT = 6
 
 /** Variety rules apply to any run of this many tracks. */
 export const WINDOW = 10
@@ -122,7 +155,10 @@ type Candidate = Seed & {
   likedAlbum: boolean
   popularity: number
   recentlyPlayed: boolean
+  repeatedlySkipped: boolean
   coListened: number
+  /** 0..1, see `weights.sonic`. */
+  sonic: number
   score: number
 }
 
@@ -136,6 +172,10 @@ type Profile = {
   similar: Map<string, number>
   /** Recording → place in Deezer's radio of a seed artist (1 first, 0.5 last). */
   radio: Map<string, number>
+  sound: SeedSound
+  /** Sonic facts of the seeds and candidates, once gathered. */
+  points: Map<string, SonicPoint>
+  sonicWeight: number
 }
 
 const genreKey = (genre: string) => genre.trim().toLowerCase()
@@ -221,7 +261,7 @@ async function artistsOf(ids: readonly string[]): Promise<string[]> {
   return rows.map((row) => row.id)
 }
 
-function profileOf(seeds: Seed[], similar: Map<string, number>, radio: Map<string, number>, radioArtists: readonly string[]): Profile {
+function profileOf(seeds: Seed[], similar: Map<string, number>, radio: Map<string, number>, radioArtists: readonly string[], sound: SeedSound, sonicWeight: number): Profile {
   for (const id of radioArtists) similar.set(id, Math.max(similar.get(id) ?? 0, RADIO_ARTIST_SIMILARITY))
   const genres = new Map<string, number>()
   seeds.forEach((seed, index) => {
@@ -238,6 +278,9 @@ function profileOf(seeds: Seed[], similar: Map<string, number>, radio: Map<strin
     years: seeds.flatMap((seed) => (seed.year ? [seed.year] : [])),
     similar,
     radio,
+    sound,
+    points: new Map(),
+    sonicWeight,
   }
 }
 
@@ -276,6 +319,8 @@ async function gather(userId: string, profile: Profile, owned: boolean, salt: nu
   ]
   if (owned) {
     pools.push(
+      // The analysed tracks that sound most like the seeds; owned, since only files are analysed.
+      sql`select n.id, 0 from unnest(${uuidArray([...profile.sound.neighbours])}) n(id) where ${ownership('n.id')}`,
       // One pass over the albums: some sharing a genre, some from the seeds' years, a few at
       // random; a few tracks of each, as a window takes one track per album anyway.
       sql`select file.recording_id, 0 from (
@@ -284,6 +329,9 @@ async function gather(userId: string, profile: Profile, owned: boolean, salt: nu
               select a.id, case when a.genres && ${genres} or ar.genres && ${genres} then 0 when a.year between ${fromYear} and ${toYear} then 1 else 2 end as kind
               from albums a left join artists ar on ar.id = a.primary_artist_id
               where a.merged_into_id is null
+                and exists (
+                  select 1 from media_files mf where mf.album_id = a.id and mf.missing_since is null and mf.recording_id is not null
+                )
             ) typed
           ) ranked
           where n <= (array[40, 20, 15])[kind + 1]
@@ -295,9 +343,12 @@ async function gather(userId: string, profile: Profile, owned: boolean, salt: nu
         ) file`,
       // Tracks the user played within half an hour of playing a seed, by on how many days.
       sql`select p.recording_id, count(distinct (s.started_at at time zone 'UTC')::date)::int as days from (
-          select started_at from plays where user_id = ${userId} and recording_id = any(${seedIds}) order by started_at desc limit 30
+          select started_at from plays where user_id = ${userId} and not skipped and recording_id = any(${seedIds})
+          order by started_at desc limit 30
         ) s join plays p on p.user_id = ${userId} and p.started_at between s.started_at - interval '30 minutes' and s.started_at + interval '30 minutes'
-        group by p.recording_id order by days desc, p.recording_id limit 150`,
+        where not p.skipped
+        group by p.recording_id having ${ownership('p.recording_id')}
+        order by days desc, p.recording_id limit 150`,
     )
   }
   const rows = await db.execute<{ id: string; near: number }>(sql`
@@ -307,7 +358,7 @@ async function gather(userId: string, profile: Profile, owned: boolean, salt: nu
 }
 
 /** Features of the candidates that can be suggested: not merged away, owned (or not, per `owned`). */
-type Features = Omit<Candidate, 'owned' | 'related' | 'coListened' | 'score'>
+type Features = Omit<Candidate, 'owned' | 'related' | 'coListened' | 'sonic' | 'score'>
 
 async function features(userId: string, ids: readonly string[], owned: boolean): Promise<Features[]> {
   if (ids.length === 0) return []
@@ -321,8 +372,14 @@ async function features(userId: string, ids: readonly string[], owned: boolean):
       exists (select 1 from likes l where l.user_id = ${userId} and l.entity_type = 'artist' and l.entity_id = r.primary_artist_id) as "likedArtist",
       exists (select 1 from likes l where l.user_id = ${userId} and l.entity_type = 'album' and l.entity_id = al.id) as "likedAlbum",
       exists (
-        select 1 from plays p where p.recording_id = r.id and p.user_id = ${userId} and p.started_at > now() - ${`${RECENT_HOURS} hours`}::interval
-      ) as "recentlyPlayed"
+        select 1 from plays p where p.recording_id = r.id and p.user_id = ${userId} and not p.skipped
+          and p.started_at > now() - ${`${RECENT_HOURS} hours`}::interval
+      ) as "recentlyPlayed",
+      exists (
+        select 1 from plays p where p.recording_id = r.id and p.user_id = ${userId} and p.skipped
+          and p.started_at > now() - interval '30 days'
+        offset 1
+      ) as "repeatedlySkipped"
     from unnest(${uuidArray(ids)}) c(id)
     join recordings r on r.id = c.id and r.merged_into_id is null
     left join lateral (
@@ -347,7 +404,8 @@ function score(candidate: Omit<Candidate, 'score' | 'related'>, profile: Profile
   const similar = Math.max(0, ...candidate.artistIds.map((id) => profile.similar.get(id) ?? 0))
   const radio = profile.radio.get(candidate.id) ?? 0
   const coListened = Math.min(1, Math.max(0, candidate.coListened - 1) / (CO_LISTENED_FULL - 1))
-  const related = sameArtist || similar > 0 || radio > 0 || genre >= GENRE_RELATED || coListened > 0
+  const soundsLike = profile.sound.neighbours.has(candidate.id)
+  const related = sameArtist || similar > 0 || radio > 0 || genre >= GENRE_RELATED || coListened > 0 || soundsLike
   const total = weights.sameArtist * Number(sameArtist)
     + weights.similarArtist * similar
     + weights.radio * radio
@@ -359,11 +417,13 @@ function score(candidate: Omit<Candidate, 'score' | 'related'>, profile: Profile
     + weights.likedAlbum * Number(candidate.likedAlbum)
     + weights.popularity * candidate.popularity
     + weights.recentlyPlayed * Number(candidate.recentlyPlayed)
+    + weights.repeatedlySkipped * Number(candidate.repeatedlySkipped)
+    + profile.sonicWeight * candidate.sonic
     + weights.noise * random()
   return { score: total, related }
 }
 
-type Placed = { artistId: string | null; albumId: string | null; bySeedArtist: boolean }
+type Placed = { id: string; artistId: string | null; albumId: string | null; bySeedArtist: boolean }
 
 /** Variety limits per window, from strict to none. */
 const levels = [
@@ -404,12 +464,14 @@ function fits(candidate: Candidate, placed: Placed, recent: Placed[], level: (ty
 }
 
 /**
- * Picks up to `limit` candidates in score order under the variety rules and `steps`,
- * continuing after `history`. The first pick goes to an owned candidate within
- * `INSTANT_MARGIN` of the best one, when there is one.
+ * Picks up to `limit` candidates under the variety rules and `steps`, continuing after
+ * `history`: each time the best score less what following the previous track costs
+ * (`transitionCost`), ties to the earlier in score order. The first pick goes to an owned
+ * candidate within `INSTANT_MARGIN` of the best one, when there is one.
  */
 function pick(ranked: Candidate[], history: Placed[], profile: Profile, limit: number): Candidate[] {
   const placedOf = (candidate: Candidate): Placed => ({
+    id: candidate.id,
     artistId: candidate.primaryArtistId ?? candidate.artistIds[0] ?? null,
     albumId: candidate.albumId,
     bySeedArtist: candidate.artistIds.some((id) => profile.artists.has(id)),
@@ -419,17 +481,18 @@ function pick(ranked: Candidate[], history: Placed[], profile: Profile, limit: n
   const chosen: Candidate[] = []
   while (chosen.length < limit && left.length > 0) {
     const recent = sequence.slice(-(WINDOW - 1))
+    const previous = profile.points.get(sequence.at(-1)?.id ?? '')
+    const value = (candidate: Candidate) => candidate.score - transitionCost(previous, profile.points.get(candidate.id), weights)
     let index = -1
     for (const step of steps) {
       if (!step.related && chosen.length >= FILL_UP_TO) continue
       const allowed = (candidate: Candidate) => candidate.related === step.related && fits(candidate, placedOf(candidate), recent, step.level)
-      index = left.findIndex(allowed)
+      const best = bestOf(left, (candidate) => allowed(candidate), value)
+      index = best.index
       if (index < 0) continue
       if (chosen.length === 0 && !left[index]!.owned) {
-        const best = left[index]!.score
-        // `left` is in score order: nothing after `index` scores higher than the best.
-        const instant = left.findIndex((candidate, at) => at > index && candidate.owned && candidate.score >= best - INSTANT_MARGIN && allowed(candidate))
-        if (instant >= 0) index = instant
+        const instant = bestOf(left, (candidate) => candidate.owned && allowed(candidate), value)
+        if (instant.index >= 0 && instant.value >= best.value - INSTANT_MARGIN) index = instant.index
       }
       break
     }
@@ -439,6 +502,17 @@ function pick(ranked: Candidate[], history: Placed[], profile: Profile, limit: n
     sequence.push(placedOf(next!))
   }
   return chosen
+}
+
+/** The candidate `allowed` accepts with the highest `value`; the earliest on a tie. */
+function bestOf(candidates: Candidate[], allowed: (candidate: Candidate) => boolean, value: (candidate: Candidate) => number) {
+  let best = { index: -1, value: -Infinity }
+  candidates.forEach((candidate, index) => {
+    if (!allowed(candidate)) return
+    const score = value(candidate)
+    if (score > best.value) best = { index, value: score }
+  })
+  return best
 }
 
 /**
@@ -456,10 +530,13 @@ export async function suggest(request: SuggestRequest, options: SuggestOptions =
   // looked up next map to them instead of being left out for not being in the catalog.
   const radio = seeds.length ? await radioOf(seeds, timeoutMs) : new Map<string, number>()
   const similar = seeds.length ? await similarTo(seeds, Math.max(MIN_SIMILAR_WAIT_MS, timeoutMs - (Date.now() - started))) : new Map<string, number>()
-  const profile = profileOf(seeds, similar, radio, await artistsOf([...radio.keys()]))
   const banned = new Set([...request.seeds, ...request.exclude])
+  const sonicMode = request.mode === 'sonic'
+  const [radioArtists, sound] = await Promise.all([artistsOf([...radio.keys()]), seedSound(seeds.map((seed) => seed.id), banned, sonicMode)])
+  const profile = profileOf(seeds, similar, radio, radioArtists, sound, sonicMode ? SONIC_RADIO_WEIGHT : weights.sonic)
   // Seeds count towards the artist and album limits, not the limit on seed artists.
   const history: Placed[] = seeds.map((seed) => ({
+    id: seed.id,
     artistId: seed.primaryArtistId ?? seed.artistIds[0] ?? null,
     albumId: seed.albumId,
     bySeedArtist: false,
@@ -475,7 +552,14 @@ export async function suggest(request: SuggestRequest, options: SuggestOptions =
     }
     return rows.map((candidate) => ({ ...candidate, owned, coListened: near.get(candidate.id) ?? 0 }))
   }))
-  const ranked = found.flat()
+  const candidates = found.flat()
+  profile.points = await sonicPoints([...seeds.map((seed) => seed.id), ...candidates.map((candidate) => candidate.id)])
+  const sonic = candidates.map((candidate) => similarity(sound, candidate.id))
+  const known = sonic.filter((value) => value !== null)
+  // Unknown sound counts as average, except in a sonic radio, where sounding alike is the point.
+  const unknown = sonicMode || known.length === 0 ? 0 : known.reduce((sum, value) => sum + value, 0) / known.length
+  const ranked = candidates
+    .map((candidate, index) => ({ ...candidate, sonic: sonic[index] ?? unknown }))
     .map((candidate) => ({ ...candidate, ...score(candidate, profile, random) }))
     .sort((a, b) => b.score - a.score)
   return pick(ranked, history, profile, request.limit).map((candidate) => ({

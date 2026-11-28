@@ -16,9 +16,8 @@
  * does not own still gives way to an owned one found by key, and its provider id moves
  * there: music added to the library after it was first searched shows as owned.
  *
- * Existing rows are never changed, except that a missing external id, image or album
- * hint is added. One transaction per response, serialized by an advisory lock, makes
- * concurrent identical searches create each stub once.
+ * One transaction per response holds locks for the identities it can match, so
+ * overlapping searches reuse stubs and unrelated searches can write concurrently.
  */
 import { inArray, sql, type SQL } from 'drizzle-orm'
 import { db, type Executor, type Transaction } from '../../database/client.js'
@@ -26,6 +25,7 @@ import { albumArtists, albums, artists, externalIds, recordingArtists, recording
 import { getConfig } from '../../config.js'
 import { enqueueMany } from '../../jobs/index.js'
 import { newId } from '../../lib/ids.js'
+import { dropCatalogStubReads, type CatalogStubChanges } from '../../lib/read-cache.js'
 import { creditKey, matchKey } from '../../lib/text.js'
 import { remoteImage } from '../artwork/index.js'
 import { recordingOwned } from '../catalog/availability.js'
@@ -48,9 +48,36 @@ export type Materialized = StubIds & { popularity: Map<string, number> }
 /** Two recordings of one song differ in length by less than this; more means another version. */
 const durationToleranceMs = 10_000
 
-/** Serializes everything that creates or deletes search stubs. Held until the transaction ends. */
-export async function lockStubs(tx: Executor) {
-  await tx.execute(sql`select pg_advisory_xact_lock(hashtext('squirmy:search-stubs'))`)
+/** Searches share this lock. Cleanup takes it exclusively before deleting any stubs. */
+export async function lockStubs(tx: Executor, mode: 'shared' | 'exclusive') {
+  const lock = mode === 'shared' ? sql`pg_advisory_xact_lock_shared` : sql`pg_advisory_xact_lock`
+  await tx.execute(sql`select ${lock}(hashtext('squirmy:search-stubs'))`)
+}
+
+/** Sort the distinct lock numbers, including hash collisions, before taking any of them. */
+async function lockIdentities(tx: Transaction, kind: 'artist' | 'title', keys: string[]) {
+  if (keys.length === 0) return
+  await tx.execute(sql`
+    select pg_advisory_xact_lock(hashtext(${`squirmy:search-stubs:${kind}`}), lock_id)
+    from (select distinct hashtext(key) as lock_id from unnest(${textArray([...new Set(keys)])}) as k(key) order by lock_id) locks`)
+}
+
+function identityKeys(source: IdSource, kind: CatalogEntityType, ref: { id: string | null; mbid: string | null }): string[] {
+  return [
+    ...ref.id ? [`${kind}:provider:${source}:${ref.id}`] : [],
+    ...ref.mbid ? [`${kind}:mbid:${ref.mbid}`] : [],
+  ]
+}
+
+/** Match by either credit text or the resolved primary artist, across all providers. */
+function titleKeys(source: IdSource, kind: 'album' | 'recording', ref: ProviderAlbum | ProviderTrack, artistIds: Map<string, string>): string[] {
+  const title = kind === 'album' ? labelFreeKey(ref.title) : editionFreeKey(ref.title)
+  const primary = ref.artists[0] && artistIds.get(artistRef(ref.artists[0]))
+  return [
+    ...identityKeys(source, kind, ref),
+    `${kind}:credit:${matchKey(ref.artistCredit)}|${title}`,
+    ...primary ? [`${kind}:primary:${primary}|${title}`] : [],
+  ]
 }
 
 /** Identity of a credited artist within one response. */
@@ -126,7 +153,7 @@ async function knownRows(tx: Transaction, table: 'albums' | 'recordings', found:
  * without an MBID or files (a stub) is merged into the owned row: moving only its id left
  * it on the artist's page beside the owned copy, with nothing linking the two.
  */
-async function moveExternalIds(tx: Transaction, source: IdSource, type: 'album' | 'recording', moves: [externalId: string, from: string, entityId: string][]) {
+async function moveExternalIds(tx: Transaction, source: IdSource, type: 'album' | 'recording', moves: [externalId: string, from: string, entityId: string][], changed: CatalogStubChanges) {
   for (const [externalId, from, entityId] of moves) {
     await tx.execute(sql`update external_ids set entity_id = ${entityId} where provider = ${source} and entity_type = ${type} and external_id = ${externalId}`)
     if (from === entityId) continue
@@ -135,8 +162,20 @@ async function moveExternalIds(tx: Transaction, source: IdSource, type: 'album' 
       select t.id from ${sql.identifier(table)} t
       where t.id = ${from} and t.mbid is null and t.merged_into_id is null
         and not exists (select 1 from media_files f where f.${sql.raw(type === 'album' ? 'album_id' : 'recording_id')} = t.id)`)
-    if (stub) await (type === 'album' ? mergeAlbum(from, entityId, tx) : mergeRecording(from, entityId, tx))
+    if (stub) {
+      await (type === 'album' ? mergeAlbum(from, entityId, tx) : mergeRecording(from, entityId, tx))
+      changed.entities.add(from).add(entityId)
+      await changedCredits(tx, type, [from, entityId], changed.discographies)
+    }
   }
+}
+
+/** A different credit's discography or fallback top tracks may show the changed row. */
+async function changedCredits(tx: Transaction, type: 'album' | 'recording', ids: string[], changed: Set<string>) {
+  const credits = sql.identifier(type === 'album' ? 'album_artists' : 'recording_artists')
+  const column = sql.identifier(type === 'album' ? 'album_id' : 'recording_id')
+  const rows = await tx.execute<{ id: string }>(sql`select distinct artist_id as id from ${credits} where ${column} = any(${uuidArray(ids)})`)
+  for (const row of rows) changed.add(row.id)
 }
 
 /** Whether a row of type `row.type` can stand for an album the provider calls `wanted` (null: no type named). */
@@ -197,7 +236,7 @@ async function sameArtistRow(tx: Transaction, candidates: readonly { id: string;
 }
 
 async function resolveArtists(tx: Transaction, source: IdSource, inputs: ArtistInput[], assets: Images,
-  credited: Map<string, ArtistTitles> = new Map(), stubbedNamesakes: Set<string> = new Set()): Promise<Map<string, string>> {
+  credited: Map<string, ArtistTitles>, stubbedNamesakes: Set<string>, changed: Set<string>): Promise<Map<string, string>> {
   const refs = new Map<string, ArtistInput>()
   for (const input of inputs) {
     const known = refs.get(artistRef(input))
@@ -250,7 +289,11 @@ async function resolveArtists(tx: Transaction, source: IdSource, inputs: ArtistI
   for (const [key, ref] of refs) {
     const assetId = assets.get(ref.imageUrl ?? '')
     // Not on a placeholder (Various Artists): the stores' picture of it is a stock photo.
-    if (assetId) await tx.execute(sql`update artists a set image_asset_id = ${assetId} where a.id = ${resolved.get(key)!} and a.image_asset_id is null and not ${placeholderArtist('a')}`)
+    if (assetId) {
+      const [updated] = await tx.execute<{ id: string }>(sql`update artists a set image_asset_id = ${assetId}
+        where a.id = ${resolved.get(key)!} and a.image_asset_id is null and not ${placeholderArtist('a')} returning a.id`)
+      if (updated) changed.add(updated.id)
+    }
   }
   return resolved
 }
@@ -297,7 +340,7 @@ function creditRows(credits: ProviderCredit[], artistIds: Map<string, string>) {
  * name the album, to guess the type of an album the provider names no type for.
  */
 async function resolveAlbums(tx: Transaction, source: IdSource, inputs: ProviderAlbum[], artistIds: Map<string, string>, covers: Images,
-  trackTitles: Map<string, string[]>, stubbedArtists: Set<string>): Promise<Map<string, string>> {
+  trackTitles: Map<string, string[]>, stubbedArtists: Set<string>, changed: CatalogStubChanges): Promise<Map<string, string>> {
   const refs = new Map<string, ProviderAlbum>()
   for (const input of inputs) if (!refs.has(albumRef(input))) refs.set(albumRef(input), input)
   const list = [...refs.values()]
@@ -377,30 +420,39 @@ async function resolveAlbums(tx: Transaction, source: IdSource, inputs: Provider
   const inserted = await insertStubs(tx, albums, stubs)
   const kept = credits.filter((credit) => inserted.get(credit.albumId) === credit.albumId)
   if (kept.length > 0) await tx.insert(albumArtists).values(kept)
+  for (const credit of kept) changed.discographies.add(credit.artistId)
   for (const stub of stubs) if (stub.primaryArtistId && inserted.get(stub.id) === stub.id) stubbedArtists.add(stub.primaryArtistId)
   for (const group of groups.values()) for (const key of group.refs) resolved.set(key, inserted.get(group.id)!)
 
-  await moveExternalIds(tx, source, 'album', moves)
+  await moveExternalIds(tx, source, 'album', moves, changed)
   await addExternalIds(tx, source, 'album', [...refs].flatMap(([key, ref]) => (resolved.has(key) ? [[ref.id, resolved.get(key)!]] : [])))
+  const changedAlbums = new Set<string>()
   for (const [key, ref] of refs) {
     const id = resolved.get(key)
     if (!id) continue
     const assetId = covers.get(ref.artworkUrl ?? '')
-    if (assetId) await tx.execute(sql`update albums set artwork_asset_id = ${assetId} where id = ${id} and artwork_asset_id is null`)
+    if (assetId) {
+      const [updated] = await tx.execute<{ id: string }>(sql`update albums set artwork_asset_id = ${assetId}
+        where id = ${id} and artwork_asset_id is null returning id`)
+      if (updated) changedAlbums.add(updated.id)
+    }
     // A stub made from a track's album reference learns its type (and date) once the
     // provider lists the album itself.
     if (ref.type !== null) {
-      await tx.execute(sql`
+      const [updated] = await tx.execute<{ id: string }>(sql`
         update albums set type = ${ref.type}, type_guessed = false, year = coalesce(year, ${ref.year}::int),
           release_date = coalesce(release_date, ${ref.releaseDate}::text), updated_at = now()
-        where id = ${id} and type_guessed and mbid is null`)
+        where id = ${id} and type_guessed and mbid is null returning id`)
+      if (updated) changedAlbums.add(updated.id)
     }
   }
+  for (const id of changedAlbums) changed.entities.add(id)
+  if (changedAlbums.size > 0) await changedCredits(tx, 'album', [...changedAlbums], changed.discographies)
   return resolved
 }
 
 /** Resolves tracks to recording ids, in input order. */
-async function resolveTracks(tx: Transaction, source: IdSource, tracks: ProviderTrack[], artistIds: Map<string, string>, albumIds: Map<string, string>): Promise<string[]> {
+async function resolveTracks(tx: Transaction, source: IdSource, tracks: ProviderTrack[], artistIds: Map<string, string>, albumIds: Map<string, string>, changed: CatalogStubChanges): Promise<string[]> {
   const refs = new Map<string, ProviderTrack>()
   for (const track of tracks) if (!refs.has(track.id)) refs.set(track.id, track)
   const external = await byExternalId(tx, source, 'recording', [...refs.keys()])
@@ -474,18 +526,21 @@ async function resolveTracks(tx: Transaction, source: IdSource, tracks: Provider
   const inserted = await insertStubs(tx, recordings, stubs)
   const kept = credits.filter((credit) => inserted.get(credit.recordingId) === credit.recordingId)
   if (kept.length > 0) await tx.insert(recordingArtists).values(kept)
+  for (const credit of kept) changed.discographies.add(credit.artistId)
   for (const [key, planId] of planned) resolved.set(key, inserted.get(planId)!)
 
-  await moveExternalIds(tx, source, 'recording', moves)
+  await moveExternalIds(tx, source, 'recording', moves, changed)
   await addExternalIds(tx, source, 'recording', [...refs].map(([key]) => [key, resolved.get(key)!]))
   // A stub found again may not have had an album yet.
   for (const [key, ref] of refs) {
     const hint = ref.album ? albumIds.get(albumRef(ref.album)) : undefined
     if (hint) {
-      await tx.execute(sql`
+      const [updated] = await tx.execute<{ id: string }>(sql`
         update recordings r set album_hint_id = ${hint}
         where r.id = ${resolved.get(key)!} and r.album_hint_id is null
-          and not exists (select 1 from release_tracks rt where rt.recording_id = r.id)`)
+          and not exists (select 1 from release_tracks rt where rt.recording_id = r.id)
+        returning r.id`)
+      if (updated) changed.entities.add(updated.id)
     }
   }
   return tracks.map((track) => resolved.get(track.id)!)
@@ -514,26 +569,33 @@ function creditedTitles(results: ProviderResults): Map<string, ArtistTitles> {
 export async function materialize(source: IdSource, results: ProviderResults): Promise<Materialized> {
   if (results.artists.length + results.albums.length + results.tracks.length === 0) return { artists: [], albums: [], tracks: [], popularity: new Map() }
   const albumInputs = [...results.albums, ...results.tracks.flatMap((track) => (track.album ? [track.album] : []))]
-  // Registered before the transaction: once it holds the lock every query goes through it,
-  // or searches queued on the lock could hold every pooled connection the holder needs.
+  const artistInputs = [
+    ...results.artists,
+    ...[...albumInputs, ...results.tracks].flatMap((item) => item.artists.map((credit) => ({ ...credit, imageUrl: null }))),
+  ]
+  const artistKeys = artistInputs.flatMap((ref) => [...identityKeys(source, 'artist', ref), `name:${matchKey(ref.name)}`])
+  // Register assets before the transaction so a lock holder never needs another pooled connection.
   const [artistImages, covers] = await Promise.all([
     images(results.artists.map((artist) => artist.imageUrl), 'artist'),
     images(albumInputs.map((album) => album.artworkUrl), 'cover'),
   ])
-  const stubbedArtists = new Set<string>()
-  const stubbedNamesakes = new Set<string>()
-  const ids = await db.transaction(async (tx) => {
-    await lockStubs(tx)
-    const artistIds = await resolveArtists(tx, source, [
-      ...results.artists,
-      ...[...albumInputs, ...results.tracks].flatMap((item) => item.artists.map((credit) => ({ ...credit, imageUrl: null }))),
-    ], artistImages, creditedTitles(results), stubbedNamesakes)
+  const write = () => db.transaction(async (tx) => {
+    const stubbedArtists = new Set<string>()
+    const stubbedNamesakes = new Set<string>()
+    const changed: CatalogStubChanges = { entities: new Set(), discographies: new Set() }
+    await lockStubs(tx, 'shared')
+    await lockIdentities(tx, 'artist', artistKeys)
+    const artistIds = await resolveArtists(tx, source, artistInputs, artistImages, creditedTitles(results), stubbedNamesakes, changed.entities)
+    await lockIdentities(tx, 'title', [
+      ...albumInputs.flatMap((ref) => titleKeys(source, 'album', ref, artistIds)),
+      ...results.tracks.flatMap((ref) => titleKeys(source, 'recording', ref, artistIds)),
+    ])
     const trackTitles = new Map<string, string[]>()
     for (const track of results.tracks) {
       if (track.album) trackTitles.set(albumRef(track.album), [...(trackTitles.get(albumRef(track.album)) ?? []), track.title])
     }
-    const albumIds = await resolveAlbums(tx, source, albumInputs, artistIds, covers, trackTitles, stubbedArtists)
-    const trackIds = await resolveTracks(tx, source, results.tracks, artistIds, albumIds)
+    const albumIds = await resolveAlbums(tx, source, albumInputs, artistIds, covers, trackTitles, stubbedArtists, changed)
+    const trackIds = await resolveTracks(tx, source, results.tracks, artistIds, albumIds, changed)
     const popularity = new Map<string, number>()
     const note = (id: string | undefined, value: number | null | undefined) => {
       if (id && typeof value === 'number') popularity.set(id, Math.max(value, popularity.get(id) ?? 0))
@@ -541,13 +603,21 @@ export async function materialize(source: IdSource, results: ProviderResults): P
     for (const artist of results.artists) note(artistIds.get(artistRef(artist)), artist.popularity)
     for (const album of results.albums) note(albumIds.get(albumRef(album)), album.popularity)
     results.tracks.forEach((track, index) => note(trackIds[index], track.popularity))
-    return {
+    const ids = {
       artists: unique(results.artists.map((artist: ProviderArtist) => artistIds.get(artistRef(artist)))),
       albums: unique(results.albums.map((album) => albumIds.get(albumRef(album)))),
       tracks: unique(trackIds),
       popularity,
     }
+    return { ids, stubbedArtists, stubbedNamesakes, changed }
   })
+  const { ids, stubbedArtists, stubbedNamesakes, changed } = await write().catch((error: unknown) => {
+    // A redirect or a writer outside search can still contend on the same catalog rows.
+    const deadlock = (one: unknown) => one && typeof one === 'object' && 'code' in one && one.code === '40P01'
+    if (deadlock(error) || (error instanceof Error && deadlock(error.cause))) return write()
+    throw error
+  })
+  dropCatalogStubReads(changed)
   // The artist's discography may have been written while this response was (or under
   // another row of the artist): the enrichment module folds new stubs into their releases.
   await enqueueMany<{ artistId?: string; artistCopy?: string }>('enrichment.reconcile', [

@@ -17,7 +17,7 @@ const RECENT_PLAYS = 500
  * played is the front page). Section ids are stable; a section without content is left out.
  *
  * - `recently-played`: albums of the user's latest plays.
- * - `most-played`: the user's most played tracks over the last 90 days.
+ * - `most-played`: the user's tracks with the most completed plays over the last 90 days.
  * - `playlists`: the user's own playlists, recently updated first.
  * - `recently-added`: the server's albums (its collection), the newest collection file
  *   first, whatever is in the user's library: Home is where the server's music is found,
@@ -34,13 +34,13 @@ export async function home(userId: string): Promise<HomeResponse> {
     listLibraryAlbums(null, { sort: 'recent', limit: RAIL }),
     db.execute<{ id: string }>(sql`
       select recent.album_id as id from (
-        select album_id, started_at from plays where user_id = ${userId} order by started_at desc limit ${RECENT_PLAYS}
+        select album_id, started_at from plays where user_id = ${userId} and not skipped order by started_at desc limit ${RECENT_PLAYS}
       ) recent
       where recent.album_id is not null
       group by recent.album_id order by max(recent.started_at) desc limit ${RAIL}`).then((rows) => albumSummaries(rows.map((row) => row.id))),
     db.execute<{ id: string; albumId: string | null }>(sql`
       select recording_id as id, (array_agg(album_id order by started_at desc))[1] as "albumId"
-      from plays where user_id = ${userId} and started_at > now() - interval '90 days'
+      from plays where user_id = ${userId} and completed and not skipped and started_at > now() - interval '90 days'
       group by recording_id order by count(*) desc, max(started_at) desc limit ${RAIL}`).then((rows) => trackSummaries(userId, rows)),
     listPlaylists(userId, { limit: RAIL }, { ownOnly: true }),
     wantlistEnabled ? wantedAlbumIds(userId, RAIL).then(albumSummaries) : [],

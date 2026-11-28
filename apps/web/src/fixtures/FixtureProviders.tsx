@@ -61,6 +61,10 @@ export function FixtureProviders({ children, initial }: { children: ReactNode; i
       setShuffle: shuffle => dispatch({ type: 'patch', patch: () => ({ shuffle }) }),
       cycleRepeat: () => dispatch({ type: 'patch', patch: state => ({ repeat: state.repeat === 'off' ? 'all' : state.repeat === 'all' ? 'one' : 'off' }) }),
       setAutoplay: autoplay => dispatch({ type: 'patch', patch: () => ({ autoplay }) }),
+      setSleepTimer: request => dispatch({
+        type: 'patch',
+        patch: () => ({ sleepTimer: !request ? undefined : request.kind === 'time' ? { kind: 'time', endsAt: Date.now() + request.durationMs, durationMs: request.durationMs } : request }),
+      }),
       playTracks: (tracks, startIndex = 0, context, options) => {
         if (options?.shuffle) dispatch({ type: 'patch', patch: () => ({ shuffle: true }) })
         restart({ type: 'play', tracks, startIndex, context: context ?? null })
@@ -271,6 +275,7 @@ function init(initial?: Partial<PlayerState>): Clock {
       lyrics: null,
       detached: false,
       canDetach: true,
+      canSetSleepTimer: true,
     }, current),
     ...initial,
   }

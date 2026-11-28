@@ -23,6 +23,7 @@ const okComputerCd = '52709206-8816-3c12-9ff6-f957f2f1eecf'
 const oknotok = 'd6dc018d-5caa-4e6f-8e9d-d889fcd585f4'
 const awesomeMixJp = '1b3d7b3f-e224-41f6-a1a5-0a44ca8402ff'
 const karmaPolice = '9e2ad5bc-c6f9-40d2-a36f-3122ee2072a3'
+const airbag = '4a7fea2e-545b-4c63-bc9a-9943cc3a29d7'
 
 /** The OKNOTOK edition's 23 tracks from its recorded MusicBrainz response, as a rip of it would be tagged. */
 const oknotokFixture = JSON.parse(readFileSync(new URL('../../test/http/musicbrainz/get-musicbrainz-org-ws-2-release-d6dc018d-5caa-4e6f-8e9d-d889fcd585f4-inc-artist-credits-label-aeef0f15.json', import.meta.url), 'utf8')) as {
@@ -175,6 +176,53 @@ describe('matching.match-album', () => {
     }
   })
 
+  it('tries a tagged release group when the tagged release does not fit', async () => {
+    const ingested = await ingestAlbum(rootId, demoAlbums.okComputer, {
+      folder: 'tagged/release group',
+      tags: () => ({ mbReleaseId: oknotok, mbReleaseGroupId: okComputerGroup }),
+    })
+    await matchGroup(rootId, ingested.groupKey)
+
+    expect(http.requests.some((request) => request.includes(`release-group/${okComputerGroup}`))).toBe(true)
+    expect(http.requests.some((request) => request.includes('query='))).toBe(false)
+    expect(await releaseOf(ingested)).toMatchObject({ trackCount: 12 })
+    expect((await filesOf(ingested)).every((file) => file.matchStatus === 'matched' && file.matchSource === 'tags-mbid')).toBe(true)
+  })
+
+  it('finds a release by its barcode before searching by name or ISRC', async () => {
+    const ingested = await ingestAlbum(rootId, oknotokAlbum, {
+      folder: 'tagged/barcode',
+      tags: () => ({ barcode: '0634904086824', isrcs: ['GBAYE9701368'] }),
+    })
+    await matchGroup(rootId, ingested.groupKey)
+
+    expect(http.requests.filter((request) => request.includes('query='))).toEqual([
+      expect.stringContaining('query=barcode%3A634904086824'),
+    ])
+    expect(await releaseOf(ingested)).toMatchObject({ mbid: oknotok })
+    expect((await filesOf(ingested)).every((file) => file.matchStatus === 'matched' && file.matchSource === 'tags-barcode')).toBe(true)
+  })
+
+  it('finds the right-size edition by ISRC when the barcode and the search have no hits', async () => {
+    const ingested = await ingestAlbum(rootId, demoAlbums.okComputer, {
+      folder: 'tagged/isrc',
+      tags: (track) => ({
+        barcode: '999999999999',
+        ...(track.title === 'Karma Police' && { isrcs: ['GBAYE9701368'], title: 'Track 06' }),
+      }),
+    })
+    await matchGroup(rootId, ingested.groupKey)
+
+    expect(http.requests.filter((request) => request.includes('query='))).toEqual([
+      expect.stringContaining('query=barcode%3A999999999999'),
+      expect.stringContaining('query=release%3A%22OK+Computer%22'),
+      expect.stringContaining('query=isrc%3AGBAYE9701368'),
+    ])
+    expect(await releaseOf(ingested)).toMatchObject({ mbid: okComputerCd })
+    expect((await filesOf(ingested)).every((file) => file.matchStatus === 'matched' && file.matchSource === 'tags-isrc')).toBe(true)
+    expect((await links(ingested))[5]).toMatchObject({ title: 'Karma Police', recordingMbid: karmaPolice })
+  })
+
   it('opens a review with ranked candidates when the tags are mediocre', async () => {
     const ingested = await ingestAlbum(rootId, { ...demoAlbums.theWall, year: undefined }, {
       folder: 'mediocre/The Wall',
@@ -288,12 +336,52 @@ describe('matching.match-album', () => {
     await updateServerSettings({ acoustIdKey: null })
   })
 
-  it('gives fingerprint-only files another go when an AcoustID key is added', async () => {
+  it('uses a fingerprint to improve a fuzzy match below the auto-accept threshold', async () => {
+    const ingested = await ingestAlbum(rootId, demoAlbums.okComputer, {
+      folder: 'mistagged/OK Computer',
+      tags: (track) => track.title === 'Airbag' ? { title: 'Track 01' } : {},
+    })
+    const file = ingested.files[0]!
+    await updateServerSettings({ matchAutoAcceptScore: 0.99 })
+    try {
+      await matchGroup(rootId, ingested.groupKey)
+      expect((await filesOf(ingested))[0]).toMatchObject({ matchStatus: 'review' })
+
+      await updateServerSettings({ acoustIdKey: 'test-acoustid-key' })
+      await db.update(mediaFiles).set({ matchStatus: 'pending', fingerprint: 'AQADtAirbagTestPrint' }).where(eq(mediaFiles.id, file.id))
+      await matchGroup(rootId, ingested.groupKey)
+
+      expect((await filesOf(ingested)).every((row) => row.matchStatus === 'matched')).toBe(true)
+      expect(http.requests.some((request) => request.includes('api.acoustid.org'))).toBe(true)
+      expect((await links(ingested))[0]).toMatchObject({ title: 'Airbag', recordingMbid: airbag })
+      const [review] = await db.select().from(matchReviews).where(eq(matchReviews.groupKey, ingested.groupKey))
+      expect(review?.status).toBe('resolved')
+    } finally {
+      await updateServerSettings({ acoustIdKey: null, matchAutoAcceptScore: 0.9 })
+    }
+  })
+
+  it('skips fingerprint lookup when a fuzzy match already qualifies', async () => {
+    const ingested = await ingestAlbum(rootId, demoAlbums.okComputer, { folder: 'clean/OK Computer' })
+    await db.update(mediaFiles).set({ fingerprint: 'AQADtAirbagTestPrint' }).where(eq(mediaFiles.id, ingested.files[0]!.id))
+    await updateServerSettings({ acoustIdKey: 'test-acoustid-key' })
+    try {
+      await matchGroup(rootId, ingested.groupKey)
+      const files = await filesOf(ingested)
+      expect(files.every((file) => file.matchStatus === 'matched' && file.matchSource === 'search')).toBe(true)
+      expect(files[0]!.acoustid).toBeNull()
+      expect(http.requests.some((request) => request.includes('api.acoustid.org'))).toBe(false)
+    } finally {
+      await updateServerSettings({ acoustIdKey: null })
+    }
+  })
+
+  it('gives unmatched files another go when an AcoustID key is added', async () => {
     const retryRoot = (await createLibraryRoot()).id
     const untagged = await ingestLoose(retryRoot, 'rips/track07.mp3', {}, 200_000)
     const titled = await ingestLoose(retryRoot, 'Singles/Some Song.m4a', { title: 'Some Song', artist: 'Some Artist' }, 180_000)
     const kept = await ingestLoose(retryRoot, 'rips/kept/track01.mp3', {}, 210_000)
-    // Searched by its tags and found nothing: a fingerprint would not change that.
+    // A named album can reach the fingerprint tier too.
     const searched = await ingestAlbum(retryRoot, { artist: 'Nobody Known', album: 'Nothing Found', tracks: [{ title: 'Silence', durationMs: 100_000 }] })
     await db.update(mediaFiles).set({ matchStatus: 'unmatched' }).where(eq(mediaFiles.rootId, retryRoot))
     await db.update(mediaFiles).set({ matchLocked: true }).where(eq(mediaFiles.groupKey, kept.groupKey))
@@ -306,13 +394,12 @@ describe('matching.match-album', () => {
     expect(await queuedJobs('matching.retry-fingerprints')).toHaveLength(1)
 
     // Loose files of earlier tests in other roots count too.
-    expect(await retryWithFingerprints()).toBeGreaterThanOrEqual(2)
-    for (const group of [untagged, titled]) expect((await filesOf(group))[0]!.matchStatus).toBe('pending')
-    for (const group of [kept, searched]) expect((await filesOf(group)).every((file) => file.matchStatus === 'unmatched')).toBe(true)
+    expect(await retryWithFingerprints()).toBeGreaterThanOrEqual(3)
+    for (const group of [untagged, titled, searched]) expect((await filesOf(group))[0]!.matchStatus).toBe('pending')
+    expect((await filesOf(kept))[0]!.matchStatus).toBe('unmatched')
     const keys = (await queuedJobs('matching.match-album')).map((job) => job.singleton_key)
-    expect(keys).toEqual(expect.arrayContaining([`${retryRoot}:${untagged.groupKey}`, `${retryRoot}:${titled.groupKey}`]))
+    expect(keys).toEqual(expect.arrayContaining([untagged, titled, searched].map(({ groupKey }) => `${retryRoot}:${groupKey}`)))
     expect(keys).not.toContain(`${retryRoot}:${kept.groupKey}`)
-    expect(keys).not.toContain(`${retryRoot}:${searched.groupKey}`)
     await db.update(mediaFiles).set({ missingSince: new Date() }).where(eq(mediaFiles.rootId, retryRoot))
   })
 

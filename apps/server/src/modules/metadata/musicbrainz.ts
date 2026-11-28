@@ -1,4 +1,4 @@
-import type { AlbumType } from '@squirmy/contracts'
+import type { AlbumType, CreditRole } from '@squirmy/contracts'
 import { cachedFetch, unexpectedResponse } from '../../lib/http.js'
 import { getServerSettings } from '../../lib/settings.js'
 
@@ -68,6 +68,9 @@ export type MbReleaseSummary = MbDate & {
 
 export type MbLabel = { name: string | null; mbid: string | null; catalogNumber: string | null }
 
+type MbRelationshipCredit = MbArtistCredit & { role: CreditRole; instrument?: string }
+type MbWork = { mbid: string; title: string; movementName?: string; movementNumber?: number }
+
 export type MbRecordingSummary = {
   mbid: string
   title: string
@@ -77,6 +80,8 @@ export type MbRecordingSummary = {
   artistCredit: MbArtistCredit[]
   artistName: string
   isrcs: string[]
+  relationshipCredits?: MbRelationshipCredit[]
+  works?: MbWork[]
 }
 
 export type MbRecording = MbRecordingSummary & MbDate & {
@@ -132,7 +137,13 @@ type RawRelation = {
   release?: { id: string; title: string }
   'release-group'?: { id: string; title: string }
   recording?: { id: string; title: string }
+  work?: RawWork
+  direction?: string
+  attributes?: string[]
+  'ordering-key'?: number
+  'target-credit'?: string
 }
+type RawWork = { id: string; title: string; relations?: RawRelation[] }
 type RawGenre = { name: string; count?: number }
 type RawArtist = {
   id: string
@@ -168,6 +179,7 @@ type RawRecording = {
   video?: boolean
   'artist-credit'?: RawCredit[]
   isrcs?: string[]
+  relations?: RawRelation[]
   'first-release-date'?: string
   releases?: RawRelease[]
   score?: number
@@ -324,6 +336,43 @@ function releaseGroupSummary(raw: RawReleaseGroup): MbReleaseGroupSummary {
   }
 }
 
+const relationshipRoles: ReadonlyMap<string, CreditRole> = new Map([
+  ['composer', 'composer'], ['lyricist', 'lyricist'], ['librettist', 'lyricist'], ['conductor', 'conductor'],
+  ['arranger', 'arranger'], ['instrument arranger', 'arranger'], ['orchestrator', 'arranger'], ['vocal arranger', 'arranger'],
+  ['producer', 'producer'], ['co-producer', 'producer'], ['executive producer', 'producer'], ['engineer', 'engineer'],
+  ['recording', 'engineer'], ['mastering', 'engineer'], ['mix', 'mixer'], ['remixer', 'remixer'],
+  ['performer', 'performer'], ['instrument', 'performer'], ['vocal', 'performer'], ['performing orchestra', 'ensemble'],
+])
+
+function relationshipCredits(relations: RawRelation[]): MbRelationshipCredit[] {
+  return relations.flatMap(({ artist, type, attributes, 'target-credit': creditedName }) => {
+    const role = relationshipRoles.get(type)
+    if (!artist || !role) return []
+    const credit = { role, mbid: artist.id, name: creditedName || artist.name, joinPhrase: '' }
+    const instruments = (attributes ?? []).filter((attribute) => !['guest', 'additional', 'solo'].includes(attribute))
+    return role === 'performer' && instruments.length ? instruments.map((instrument) => ({ ...credit, instrument })) : [credit]
+  })
+}
+
+function recordingRelationships(raw: RawRecording) {
+  const relationshipCreditsForRecording = relationshipCredits(raw.relations ?? [])
+  const works = (raw.relations ?? []).flatMap((relation): MbWork[] => {
+    const work = relation.work
+    if (!work || relation.type !== 'performance') return []
+    const parent = work.relations?.find((part) => part.type === 'parts' && part.direction === 'backward' && part.work)
+    relationshipCreditsForRecording.push(...relationshipCredits(work.relations ?? []), ...relationshipCredits(parent?.work?.relations ?? []))
+    if (parent?.work) {
+      const number = parent['ordering-key']
+      return [{
+        mbid: parent.work.id, title: parent.work.title, movementName: work.title,
+        movementNumber: Number.isInteger(number) && number! > 0 ? number : undefined,
+      }]
+    }
+    return [{ mbid: work.id, title: work.title }]
+  })
+  return { relationshipCredits: relationshipCreditsForRecording, works }
+}
+
 function recordingSummary(raw: RawRecording): MbRecordingSummary {
   return {
     mbid: raw.id,
@@ -333,6 +382,7 @@ function recordingSummary(raw: RawRecording): MbRecordingSummary {
     video: raw.video ?? false,
     ...credits(raw['artist-credit']),
     isrcs: raw.isrcs ?? [],
+    ...(raw.relations && recordingRelationships(raw)),
   }
 }
 
@@ -484,7 +534,7 @@ export async function getReleaseGroup(mbid: string): Promise<MbReleaseGroup | nu
 
 /** One release with its full track list, recordings, ISRCs, labels, release group and links. */
 export async function getRelease(mbid: string): Promise<MbRelease | null> {
-  const raw = await get<RawRelease>(`release/${mbid}`, { inc: 'artist-credits labels recordings release-groups isrcs url-rels' })
+  const raw = await get<RawRelease>(`release/${mbid}`, { inc: 'artist-credits labels recordings release-groups isrcs url-rels recording-level-rels work-level-rels artist-rels work-rels' })
   if (!raw?.['release-group']) return null
   const { score: _score, ...summary } = releaseSummary(raw)
   return {
@@ -502,7 +552,7 @@ export async function getRelease(mbid: string): Promise<MbRelease | null> {
         title: track.title,
         durationMs: track.length ?? null,
         ...credits(track['artist-credit']),
-        recording: recordingSummary(track.recording),
+        recording: recordingSummary({ ...track.recording, relations: track.recording.relations ?? [] }),
       })),
     })),
   }
@@ -540,4 +590,11 @@ export async function findReleasesByBarcode(barcode: string): Promise<MbReleaseS
   const wanted = escapeQuery(barcode.trim().replace(/^0+/, ''))
   const data = await get<{ releases: RawRelease[] }>('release', { query: `barcode:${wanted} OR barcode:0${wanted}`, limit: '25' }, searchTtl)
   return (data?.releases ?? []).filter((release) => release.barcode?.replace(/^0+/, '') === wanted).map(releaseSummary)
+}
+
+/** Recordings with an exact ISRC. Indexed results include the track counts of their releases. */
+export async function findRecordingsByIsrc(isrc: string): Promise<MbRecording[]> {
+  if (!/^[A-Z]{2}[A-Z0-9]{3}[0-9]{7}$/.test(isrc)) return []
+  const data = await get<{ recordings: RawRecording[] }>('recording', { query: `isrc:${isrc}`, limit: '25' }, searchTtl)
+  return (data?.recordings ?? []).map(recording)
 }

@@ -1,0 +1,234 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release/00000000-0000-4000-8000-000000000320?inc=artist-credits+labels+recordings+release-groups+isrcs+url-rels+recording-level-rels+work-level-rels+artist-rels+work-rels&fmt=json"
+  },
+  "note": "Hand-written two-movement release with recording and work relationships.",
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": {
+      "id": "00000000-0000-4000-8000-000000000320",
+      "title": "Woodwind Sketches",
+      "status": "Official",
+      "artist-credit": [
+        {
+          "name": "Cedar Players",
+          "joinphrase": "",
+          "artist": {
+            "id": "00000000-0000-4000-8000-00000000033d",
+            "name": "Cedar Players"
+          }
+        }
+      ],
+      "release-group": {
+        "id": "00000000-0000-4000-8000-000000000321",
+        "title": "Woodwind Sketches",
+        "primary-type": "Album",
+        "artist-credit": [
+          {
+            "name": "Cedar Players",
+            "joinphrase": "",
+            "artist": {
+              "id": "00000000-0000-4000-8000-00000000033d",
+              "name": "Cedar Players"
+            }
+          }
+        ]
+      },
+      "media": [
+        {
+          "position": 1,
+          "format": "Digital Media",
+          "track-count": 2,
+          "tracks": [
+            {
+              "id": "00000000-0000-4000-8000-00000000032b",
+              "title": "Prelude",
+              "position": 1,
+              "number": "1",
+              "length": 180000,
+              "artist-credit": [
+                {
+                  "name": "Cedar Players",
+                  "joinphrase": "",
+                  "artist": {
+                    "id": "00000000-0000-4000-8000-00000000033d",
+                    "name": "Cedar Players"
+                  }
+                }
+              ],
+              "recording": {
+                "id": "00000000-0000-4000-8000-000000000326",
+                "title": "Prelude",
+                "length": 180000,
+                "artist-credit": [
+                  {
+                    "name": "Cedar Players",
+                    "joinphrase": "",
+                    "artist": {
+                      "id": "00000000-0000-4000-8000-00000000033d",
+                      "name": "Cedar Players"
+                    }
+                  }
+                ],
+                "relations": [
+                  {
+                    "type": "instrument",
+                    "target-type": "artist",
+                    "artist": {
+                      "id": "00000000-0000-4000-8000-00000000033f",
+                      "name": "Sage Hale"
+                    },
+                    "attributes": [
+                      "bassoon",
+                      "guest"
+                    ]
+                  },
+                  {
+                    "type": "producer",
+                    "target-type": "artist",
+                    "artist": {
+                      "id": "00000000-0000-4000-8000-000000000340",
+                      "name": "Alex Fern"
+                    }
+                  },
+                  {
+                    "type": "performance",
+                    "target-type": "work",
+                    "work": {
+                      "id": "00000000-0000-4000-8000-000000000335",
+                      "title": "Prelude",
+                      "relations": [
+                        {
+                          "type": "composer",
+                          "target-type": "artist",
+                          "artist": {
+                            "id": "00000000-0000-4000-8000-00000000033e",
+                            "name": "Robin Fenn"
+                          }
+                        },
+                        {
+                          "type": "parts",
+                          "direction": "backward",
+                          "ordering-key": 1,
+                          "work": {
+                            "id": "00000000-0000-4000-8000-000000000334",
+                            "title": "Suite for Winds",
+                            "relations": [
+                              {
+                                "type": "composer",
+                                "target-type": "artist",
+                                "artist": {
+                                  "id": "00000000-0000-4000-8000-00000000033e",
+                                  "name": "Robin Fenn"
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "id": "00000000-0000-4000-8000-00000000032c",
+              "title": "Rondo",
+              "position": 2,
+              "number": "2",
+              "length": 180000,
+              "artist-credit": [
+                {
+                  "name": "Cedar Players",
+                  "joinphrase": "",
+                  "artist": {
+                    "id": "00000000-0000-4000-8000-00000000033d",
+                    "name": "Cedar Players"
+                  }
+                }
+              ],
+              "recording": {
+                "id": "00000000-0000-4000-8000-000000000327",
+                "title": "Rondo",
+                "length": 180000,
+                "artist-credit": [
+                  {
+                    "name": "Cedar Players",
+                    "joinphrase": "",
+                    "artist": {
+                      "id": "00000000-0000-4000-8000-00000000033d",
+                      "name": "Cedar Players"
+                    }
+                  }
+                ],
+                "relations": [
+                  {
+                    "type": "instrument",
+                    "target-type": "artist",
+                    "artist": {
+                      "id": "00000000-0000-4000-8000-00000000033f",
+                      "name": "Sage Hale"
+                    },
+                    "attributes": [
+                      "bassoon",
+                      "guest"
+                    ]
+                  },
+                  {
+                    "type": "producer",
+                    "target-type": "artist",
+                    "artist": {
+                      "id": "00000000-0000-4000-8000-000000000340",
+                      "name": "Alex Fern"
+                    }
+                  },
+                  {
+                    "type": "performance",
+                    "target-type": "work",
+                    "work": {
+                      "id": "00000000-0000-4000-8000-000000000336",
+                      "title": "Rondo",
+                      "relations": [
+                        {
+                          "type": "composer",
+                          "target-type": "artist",
+                          "artist": {
+                            "id": "00000000-0000-4000-8000-00000000033e",
+                            "name": "Robin Fenn"
+                          }
+                        },
+                        {
+                          "type": "parts",
+                          "direction": "backward",
+                          "ordering-key": 2,
+                          "work": {
+                            "id": "00000000-0000-4000-8000-000000000334",
+                            "title": "Suite for Winds",
+                            "relations": [
+                              {
+                                "type": "composer",
+                                "target-type": "artist",
+                                "artist": {
+                                  "id": "00000000-0000-4000-8000-00000000033e",
+                                  "name": "Robin Fenn"
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

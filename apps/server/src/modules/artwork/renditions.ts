@@ -24,20 +24,21 @@ export const PRERENDERED_SIZES: readonly ArtSize[] = [96, 300, 600]
 
 /** Renders in progress, so concurrent requests for one rendition share a single render. */
 const rendering = new Map<string, Promise<Buffer>>()
+type RenditionFormat = 'webp' | 'jpeg'
 
 /**
- * The square WebP rendition of an asset, cropped to fill. Rendered on first request and
- * kept under `<data>/art/<assetId>/<size>.webp`; that folder is safe to delete. A remote
+ * A square rendition of an asset, cropped to fill. Rendered on first request and
+ * kept under `<data>/art/<assetId>/<size>.<format>`; that folder is safe to delete. A remote
  * image is downloaded first, and a lost original is rebuilt (see `recover.ts`).
  */
-export async function rendition(assetId: string, size: ArtSize): Promise<Buffer> {
-  const file = dataPath('art', assetId, `${size}.webp`)
+export async function rendition(assetId: string, size: ArtSize, format: RenditionFormat = 'webp'): Promise<Buffer> {
+  const key = `${assetId}/${size}.${format}`
+  const file = dataPath('art', key)
   const cached = await readFile(file).catch(() => null)
   if (cached) return cached
-  const key = `${assetId}/${size}`
   let pending = rendering.get(key)
   if (!pending) {
-    pending = render(assetId, size, file).finally(() => rendering.delete(key))
+    pending = render(assetId, size, file, format).finally(() => rendering.delete(key))
     rendering.set(key, pending)
   }
   return pending
@@ -61,13 +62,14 @@ export async function prerender({ assetId }: RenderJob) {
     // fails) is for a request to decide, not a head start.
     original ??= await readFile(dataPath(asset.storagePath)).catch(() => undefined)
     if (!original) return
-    await render(assetId, size, file, original)
+    await render(assetId, size, file, 'webp', original)
   }
 }
 
-async function render(assetId: string, size: ArtSize, file: string, original?: Buffer) {
+async function render(assetId: string, size: ArtSize, file: string, format: RenditionFormat, original?: Buffer) {
   original ??= (await readOriginal(assetId)).bytes
-  const output = await sharp(original).autoOrient().resize(size, size, { fit: 'cover' }).webp({ quality: 82 }).toBuffer()
+  const resized = sharp(original).autoOrient().resize(size, size, { fit: 'cover' })
+  const output = await (format === 'jpeg' ? resized.jpeg({ quality: 85 }) : resized.webp({ quality: 82 })).toBuffer()
   await writeAtomic(file, output)
   return output
 }

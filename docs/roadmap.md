@@ -16,6 +16,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 
 - [x] Server core: auth, users, invites, settings, jobs, realtime transport
 - [x] Library scan, tag reading, local-only catalog rows
+- [x] Recording credits, classical works and file advisories in the catalog and web app
 - [x] Artwork store and renditions
 - [x] Library and catalog read API, home
 - [x] Streaming: playback descriptor, signed URLs, Range, transcode cache
@@ -32,6 +33,8 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Reconnect rule and device-lost handling
 - [x] Device presence: only devices that are open and answering the heartbeat are listed
 - [x] Live invalidations on web and mobile
+- [x] Signal path: each device reports what it plays; Lossless badge and Track info on web, iOS and Apple TV
+- [x] Sleep timer held by the session: set anywhere, enforced by the server, faded out on the device that plays
 
 ## 4. Identify and reorganize
 
@@ -70,17 +73,21 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Upload screen in the web app: folders, files and zips with progress, pause and cancel; the imports list and detail; import settings
 - [x] A personal library: the library is what you heart (uploads hearted for their uploader), the server's music on Home and On this server, an opt-in to include all of it; Your uploads and Admin → Uploads to delete uploaded music (web; iOS next)
 - [x] Fingerprinting for untagged files
-- [x] Offline downloads on mobile
+- [x] Offline downloads on mobile, with their lyrics, and search over what the phone holds while offline
 
 ## 8. Providers and extras
 
 - [x] Acquisition provider protocol, on-demand playback, policy ([provider-protocol.md](./provider-protocol.md)), and on the web the Providers admin screen, "Get this album" and preparing tracks
 - [x] Reference adapters: cold storage and mock (`adapters/`)
 - [x] A song the provider doesn't have is skipped with a light notice and playback goes on; only an outage, or nothing left that is available, stops it (server, web and iOS)
-- [ ] Gray out songs a provider lacks before they are played: resolve ahead of the queue, or on album pages, for `assume_available` providers
+- [x] Gray out songs a provider lacks before they are played: resolve ahead of the queue and on album pages for `assume_available` providers
+- [x] Replay listening statistics, Year in Review and listening history import and export (web)
 - [x] Scrobbling to ListenBrainz and Last.fm (server, API, mobile and web settings)
 - [x] Radio and autoplay (server, API, web and iOS, and Subsonic similar songs)
-- [ ] Detached playback: one device plays its own queue apart from the shared session. Protocol, server and shared client code are done; the web and iOS controls are next ([detached-playback-ui.md](./detached-playback-ui.md))
+- [x] Sonic analysis: tempo, key, energy, danceability, intro and outro, and timbre vectors from Squirmy's own DSP; tempo, key and mood tags; Deezer's tempo as a fallback. Radio ranks with it, and the web app has **Songs that sound like this** ([sonic-analysis.md](./server/sonic-analysis.md))
+- [ ] Sonic radio on iOS and Apple TV, tempo and key in the song info, and BPM in Subsonic songs
+- [ ] Daily Mixes and DJ-style transitions from the sonic analysis (the hooks are in place: see [Sonic analysis](./architecture.md#sonic-analysis))
+- [x] Detached playback: web and iOS devices can play their own queue and rejoin the shared session later ([detached-playback-ui.md](./detached-playback-ui.md))
 - [x] Local search index: importer, search and admin routes ([local-search-index.md](./local-search-index.md)), offered as the first search provider, and its admin screen
 - [x] Smart playlists: rules evaluated live on the server, a rule editor on the web, read-only in Subsonic and the iOS and Apple TV apps ([web.md](./use/web.md#smart-playlists))
 - [ ] Edit smart playlist rules in the iOS app
@@ -92,10 +99,34 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] tvOS target and TestFlight upload pipeline under the existing Squirmy bundle ID
 - [x] Rebuilt on Expo Router (`tv-app/`) for tvOS 17, with the system sidebar, context menus, search field and focus effects through native modules
 - [x] Typed server connection and sign-in, remote navigation and library browsing
-- [x] Now Playing, lyrics, queue and Connect playback transfer
+- [x] Now Playing, lyrics, queue and Connect playback transfer, and AirPlay from the playback device panel
 - [x] Settings in the system's style: account, playback, library and scrobbling state
 - [x] Layered app icon and Top Shelf images
 - [ ] First tvOS TestFlight distribution
+
+## 10. Playback core
+
+Designed in [audio-engine.md](./audio-engine.md); each item is a pull request from its [implementation plan](./audio-engine.md#implementation-plan).
+
+- [x] Design, with measurements of today's gaps and spikes of the new engine and formats
+- [x] S1. Transcode priorities and cancelling abandoned encodes
+- [x] S2. Exact lengths and priming per file, estimated gains for unmeasured files
+- [ ] S3. Fragmented MP4 profiles (FLAC, Opus, AAC) with exact gapless numbers, and seeking live transcodes
+- [ ] C1. Queue diffs with checkpoints on the session socket
+- [ ] C2. Undoing queue edits
+- [ ] M1. The native iOS and tvOS engine, behind a setting
+- [ ] M2. Streaming to the cache in one pass
+- [ ] M3. Fragmented MP4 transcodes and live seeking on iOS
+- [ ] M4. Normalization with boost and a true-peak limiter, with a target setting
+- [ ] M5. Equalizer
+- [ ] M6. Crossfade
+- [ ] M7. Playback speed, with the rate in the session
+- [ ] M8. AirPlay 2 buffering
+- [ ] M9. The native engine by default, and `expo-audio` removed
+- [ ] W1. Ramped gain changes on the web
+- [ ] W2. Gapless web playback through Media Source Extensions
+- [ ] W3. Limiter, equalizer and output device on the web
+- [ ] W4. Crossfade on the web
 
 ## Deferred
 

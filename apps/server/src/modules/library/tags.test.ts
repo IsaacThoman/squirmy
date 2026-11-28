@@ -74,6 +74,18 @@ describe('tag normalization', () => {
     expect(readGains({}, raw({ R128_TRACK_GAIN: '-2560', R128_ALBUM_GAIN: '256' }))).toMatchObject({ trackGainDb: -5, albumGainDb: 6 })
   })
 
+  it('reads tempo, key and mood as taggers and DJ software write them', () => {
+    expect(normalizeTags({}, raw({ TBPM: '128', TKEY: 'Am', TMOO: 'Happy; Energetic' }))).toMatchObject({ bpm: 128, key: 'Am', moods: ['Happy', 'Energetic'] })
+    expect(normalizeTags({ bpm: 87.456 }, raw({ INITIALKEY: '8A', MOOD: 'Dark' }))).toMatchObject({ bpm: 87.46, key: '8A', moods: ['Dark'] })
+    expect(normalizeTags({}, raw({ 'TXXX:BPM': '174.0', '----:com.apple.iTunes:initialkey': '1m' }))).toMatchObject({ bpm: 174, key: '1m' })
+    // Zero means unknown; words and impossible tempos are mistakes; a long key is not a key.
+    expect(normalizeTags({ bpm: 0 }, raw({}))).not.toHaveProperty('bpm')
+    const junk = normalizeTags({}, raw({ BPM: 'fast', KEY: 'a very long key value indeed' }))
+    expect(junk).not.toHaveProperty('bpm')
+    expect(junk).not.toHaveProperty('key')
+    expect(normalizeTags({}, raw({ BPM: '9000' }))).not.toHaveProperty('bpm')
+  })
+
   it('detects synced and plain lyrics', () => {
     expect(parseLyricsText('[ti:Song]\n[00:01.00]one\n[00:02.00][00:10.00]two\n')).toEqual({ synced: '[ti:Song]\n[00:01.00]one\n[00:02.00][00:10.00]two', plain: 'one\ntwo' })
     expect(parseLyricsText('just\nwords')).toEqual({ synced: null, plain: 'just\nwords' })
@@ -103,4 +115,39 @@ describe('real files', () => {
       if (format !== 'm4a') expect(normalized).toMatchObject({ mbReleaseId: release, mbRecordingId: recording, mbArtistIds: [artistA] })
     })
   }
+
+  for (const format of ['flac', 'mp3', 'ogg'] as const) {
+    it(`reads the tempo, key and mood of a ${format} file`, async () => {
+      const file = await makeTone(directory, { path: `sonic.${format}`, durationSec: 1, tags: { ...tags, TBPM: 121, BPM: 121, INITIALKEY: 'F#m', TKEY: 'F#m', MOOD: 'Calm', TMOO: 'Calm' } })
+      const metadata = await parseFile(file)
+      expect(normalizeTags(metadata.common, rawTags(Object.values(metadata.native)))).toMatchObject({ bpm: 121, key: 'F#m', moods: ['Calm'] })
+    })
+  }
+})
+
+describe('less common ID3 and MP4 tags', () => {
+  it('reads involved people, musician instruments and the POPM byte', () => {
+    const raw = rawTags([[
+      { id: 'TIPL', value: { engineer: ['Ada Fitch'], mix: ['Eli Birch'] } },
+      { id: 'TMCL', value: { 'bass clarinet': ['Jun Moss'] } },
+      { id: 'POPM', value: { email: 'test@example.invalid', rating: 0 } },
+      { id: 'POPM', value: { email: 'test@example.invalid', rating: 196 } },
+      { id: 'TXXX:ITUNESADVISORY', value: '2' },
+      { id: 'TXXX:MOVEMENTNUMBER', value: '03/08' },
+    ]])
+    expect(normalizeTags({}, raw)).toEqual({
+      credits: [
+        { role: 'engineer', name: 'Ada Fitch' }, { role: 'mixer', name: 'Eli Birch' },
+        { role: 'performer', name: 'Jun Moss', instrument: 'bass clarinet' },
+      ],
+      ratingHint: { source: 'popm', value: 196 }, explicit: false, movementNumber: 3, movementTotal: 8,
+    })
+  })
+
+  it('distinguishes unrated from clean and reads the alternate MP4 explicit advisory', () => {
+    const tags = (value: number) => normalizeTags({}, rawTags([[{ id: 'rtng', value }, { id: 'RATING', value: '4' }]]))
+    expect(tags(0).explicit).toBeUndefined()
+    expect(tags(2).explicit).toBe(false)
+    expect(tags(4)).toMatchObject({ explicit: true, ratingHint: { source: 'rating', value: 4 } })
+  })
 })

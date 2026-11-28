@@ -82,7 +82,7 @@ Stored in the `server_settings` table, from `ServerSettings` in `packages/contra
 | | Wikidata and Wikipedia | `wikidataEnabled` | on | Artist images and biographies. |
 | | LRCLIB | `lrclibEnabled` | on | Synced lyrics. |
 | API keys | ListenBrainz | `listenBrainzToken` | not set | A ListenBrainz user token for top songs, similar artists and popularity. Users' own scrobbling does not need it. |
-| | AcoustID | `acoustIdKey` | not set | Identifies files that have no album and artist tags by their audio fingerprint. |
+| | AcoustID | `acoustIdKey` | not set | Uses audio fingerprints when tags and search do not produce a confident match. |
 | | fanart.tv | `fanartKey` | not set | Better artist images. |
 | | Last.fm | `lastFmKey`, `lastFmSecret` | not set | Lets users connect Last.fm for scrobbling. |
 | Matching | Accept matches automatically above | `matchAutoAcceptScore` | 90% | Matches at or above this score are applied; lower ones (down to 50%) wait in the review queue. |
@@ -182,6 +182,7 @@ These run on their own; nothing needs configuring. Times are UTC.
 | New releases from the artists in each user's library | Mondays at 06:00 |
 | Retry identification of albums still waiting | every 10 minutes |
 | Measure loudness of files that have none | every 10 minutes |
+| [Analyse](./sonic-analysis.md) files not analysed yet, and read their tempo, key and mood tags | every 10 minutes |
 | Fill in covers, images and lyrics still missing | every 30 minutes |
 | Trim the transcode cache to its size | hourly |
 | Trim the [fetched-music cache](./acquisition.md#the-cache) to its limit | hourly at :17 |

@@ -1,12 +1,14 @@
 import type { TrackSummary } from '@squirmy/contracts';
 import { useRouter, type Href } from 'expo-router';
 import { memo } from 'react';
-import { StyleSheet, View } from 'react-native';
-import type { PlaybackActions } from '../../playback';
+import { StyleSheet, Text, View } from 'react-native';
+import { useSleepTimer, type PlaybackActions } from '../../playback';
 import type { HeartButton } from '../../library/heart';
 import { SystemButton } from '../Button';
+import { Icon } from '../../ui';
 import { useTrackMenu } from '../menus';
-import { colors, tv } from '../theme';
+import { chosenSleepTimer, sleepTimerSubmenu } from '../menuModel';
+import { colors, tv, type } from '../theme';
 import type { Panel } from './model';
 
 /** A mode that is on shows in the accent; filled would read as focused. */
@@ -27,12 +29,26 @@ type ModesProps = {
 
 /**
  * The row above the scrubber, at the right as in the system's music app: Shuffle, Repeat and
- * Autoplay (in the accent while on), then the song’s heart and its menu.
+ * Autoplay (in the accent while on), then the song’s heart and its menu, which ends with the
+ * sleep timer. While a timer is set, a moon and the time left come first.
  */
 export const Modes = memo(function Modes({ track, shuffle, repeat, autoplay, songOnly, heart, onHeart, actions, awake }: ModesProps) {
-  const menu = useTrackMenu(track);
+  const songMenu = useTrackMenu(track);
+  const sleep = useSleepTimer();
+  const menu = !sleep.canSet ? songMenu : {
+    actions: [...songMenu.actions, sleepTimerSubmenu({ ...sleep, on: sleep.timer !== undefined })],
+    onAction: (id: string) => {
+      const timer = chosenSleepTimer(id, sleep.choices);
+      if (timer === undefined) songMenu.onAction(id);
+      else actions.setSleepTimer(timer);
+    },
+  };
   const guard = (run: () => void) => () => { if (awake()) run(); };
   return <View style={styles.modes}>
+    {sleep.label && <View style={styles.sleep} accessible accessibilityLabel={sleep.spoken ?? undefined}>
+      <Icon name="moon.zzz.fill" size={26} color={colors.secondary} />
+      <Text style={styles.sleepText}>{sleep.label}</Text>
+    </View>}
     {!songOnly && <>
       <SystemButton icon="shuffle" accessibilityLabel={shuffle ? 'Shuffle, on' : 'Shuffle, off'} tint={on(shuffle)}
         onPress={guard(actions.toggleShuffle)} />
@@ -74,6 +90,8 @@ export const Panels = memo(function Panels({ panel, onPanel, outputIcon, elsewhe
 
 const styles = StyleSheet.create({
   modes: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 28, paddingHorizontal: tv.gutter, height: 70 },
+  sleep: { flexDirection: 'row', alignItems: 'center', gap: 10, marginRight: 8 },
+  sleepText: { ...type.caption, fontVariant: ['tabular-nums'] },
   panels: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 28, paddingHorizontal: tv.gutter, height: 70 },
   gap: { width: 12 },
 });
