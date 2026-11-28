@@ -14,7 +14,7 @@ import {
   type SessionState,
 } from '@squirmy/contracts'
 import { ApiError, streamUrl } from '../api/client.js'
-import type { EngineEvent, EngineState, EngineStatus, PlayerEngine } from '../engine.js'
+import type { EngineEvent, EngineMedia, EngineState, EngineStatus, PlayerEngine } from '../engine.js'
 import { gainFor } from '../normalization.js'
 import { clearRepeating, setRepeating, setTimer } from '../timers.js'
 import { createInitialSession, joinSession, positionAt, reduceParsedSession, type Session, splitSession } from './reducer.js'
@@ -508,7 +508,9 @@ export class SessionClient {
       descriptor => {
         // The engine keeps what it buffers as the preload, which `load` reuses when the entry is the same.
         if (this.isActive() || this.local.current?.id !== current.id || this.takeover !== current.id) return
-        player.engine.preload({ entryId: current.id, url: streamUrl(player.baseUrl, descriptor), gain: this.gainOf(current, descriptor, this.local) })
+        player.engine.preload({
+          entryId: current.id, url: streamUrl(player.baseUrl, descriptor), gain: this.gainOf(current, descriptor, this.local), media: mediaOf(descriptor),
+        })
       },
       () => {
         // The load after a transfer asks again and reports what fails.
@@ -987,6 +989,7 @@ export class SessionClient {
       startMs: waited ? unloaded.startMs : this.startPosition(session),
       autoplay: session.playing,
       gain: this.gain,
+      media: mediaOf(descriptor),
     })
     this.preloadNext()
   }
@@ -1027,7 +1030,7 @@ export class SessionClient {
       descriptor => {
         if (token !== this.preloadToken || this.preloadTarget !== next.id || !this.isActive()) return
         this.hold(next.id, descriptor)
-        engine.preload({ entryId: next.id, url: streamUrl(baseUrl, descriptor), gain: this.gainOf(next, descriptor, predicted) })
+        engine.preload({ entryId: next.id, url: streamUrl(baseUrl, descriptor), gain: this.gainOf(next, descriptor, predicted), media: mediaOf(descriptor) })
       },
       error => {
         // A refusal is the server's answer for this entry; asking again on every session
@@ -1141,6 +1144,10 @@ export class SessionClient {
  */
 function isRefusal(error: unknown): boolean {
   return error instanceof ApiError && error.status >= 400 && error.status < 500 && error.status !== 408 && error.status !== 429
+}
+
+function mediaOf(descriptor: PlaybackDescriptor): EngineMedia {
+  return { transcoded: descriptor.transcoded }
 }
 
 function descriptorKey(entry: QueueEntry): string {

@@ -19,6 +19,7 @@ import { useRealtime } from './data/realtime';
 import { useAvailability, useDownloadManager } from './downloads/DownloadsProvider';
 import { connectAudioSession, connectNowPlaying, createPlayerEngine } from './player/engine';
 import { favoriteState } from './player/engine/favorite';
+import { storedEngine } from './player/engine/setting';
 import { loadSession, sessionSaver } from './player/savedSession';
 import {
   codecsFor, deviceRows, findEntry, isRemote, nextDownloaded, nextRepeat, outputDevice, playableSeeds,
@@ -112,7 +113,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
           const { session, isActiveDevice } = client.getSnapshot();
           if (isActiveDevice && !session.playing && session.current?.id === entryId) send({ type: 'play' });
         },
-      });
+      }, storedEngine());
       const stopAudioSession = connectAudioSession(engine);
       const saved = loadSession(account);
       if (saved) tracks.prime(saved.tracks);
@@ -357,6 +358,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         stopWaiting();
         nowPlaying.disconnect();
         client.dispose();
+        engine.dispose?.();
       };
     });
     return () => {

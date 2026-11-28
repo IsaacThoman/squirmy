@@ -661,8 +661,19 @@ describe('SessionClient engine', () => {
       startMs: 0,
       autoplay: true,
       gain: 1,
+      media: { transcoded: false },
     }]])
     expect(engine.preloaded).toMatchObject({ entryId: queue.queue[0]!.id, url: `https://music.test/api/v1/stream/${track(2)}` })
+  })
+
+  it('tells the engine which streams are transcodes, for engines that decode them themselves', async () => {
+    const context = setup()
+    context.resolvePlayback.mockImplementation(async entry => ({ ...descriptor(entry), transcoded: entry.trackId === track(2), profile: entry.trackId === track(2) ? 'aac_256' : 'original' }))
+    await context.settle()
+    context.client.dispatch({ type: 'playTracks', tracks: seeds(1, 2), seed: 1 })
+    await context.settle()
+    expect(context.calls('load').at(-1)?.[1]).toMatchObject({ media: { transcoded: false } })
+    expect(context.calls('preload').at(-1)?.[1]).toMatchObject({ media: { transcoded: true } })
   })
 
   it('does nothing with the engine while another device is active', async () => {
