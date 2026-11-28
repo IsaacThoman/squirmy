@@ -9,6 +9,8 @@ struct ByteResponse {
   let total: Int64?
   let acceptsRanges: Bool
   let contentType: String?
+  /// `X-Squirmy-Start-Frame`, for a stream asked for from a time.
+  var startFrame: Int64? = nil
 }
 
 protocol ByteLoadTask: AnyObject {
@@ -130,7 +132,13 @@ final class ByteCache: ByteSource {
       try checkUsable(reader)
       condition.wait()
     }
-    return SourceInfo(length: total, contentType: response?.contentType)
+    return SourceInfo(length: total, contentType: response?.contentType, startFrame: response?.startFrame)
+  }
+
+  func available(from offset: Int64) -> Int64 {
+    condition.lock()
+    defer { condition.unlock() }
+    return have.end(of: offset) ?? offset
   }
 
   func length(for reader: CacheReader?) throws -> Int64 {
@@ -390,6 +398,7 @@ final class CacheReader: ByteSource {
   }
   func cancel() { cache.cancel(reader: self) }
   var isComplete: Bool { cache.isComplete }
+  func available(from offset: Int64) -> Int64 { cache.available(from: offset) }
 }
 
 /**
@@ -443,7 +452,9 @@ final class URLSessionByteLoader: NSObject, ByteLoader, URLSessionDataDelegate {
       total = parts.count > 1 ? Int64(parts[1]) : nil
     }
     let accepts = http?.value(forHTTPHeaderField: "Accept-Ranges")?.lowercased().contains("bytes") ?? false
-    let keep = handler(dataTask)?.response(ByteResponse(status: status, start: start, total: total, acceptsRanges: accepts, contentType: http?.mimeType)) ?? false
+    let startFrame = http?.value(forHTTPHeaderField: "X-Squirmy-Start-Frame").flatMap { Int64($0) }
+    let head = ByteResponse(status: status, start: start, total: total, acceptsRanges: accepts, contentType: http?.mimeType, startFrame: startFrame)
+    let keep = handler(dataTask)?.response(head) ?? false
     completionHandler(keep ? .allow : .cancel)
   }
 

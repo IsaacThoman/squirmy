@@ -23,6 +23,8 @@ export interface BrowserEngine extends PlayerEngine {
   setEqualizer(gains: EqGains | null): void
   /** Plays through the output device `sinkId` ('' for the system's default). Rejects when the device is gone or not allowed. */
   setOutputDevice(sinkId: string): Promise<void>
+  /** Crossfades between songs over `seconds` (0 is off), where the engine can (`CrossfadeEngine`). */
+  setCrossfade?(seconds: number): void
   /** Stops playback and releases the elements and the audio context. */
   dispose(): void
 }

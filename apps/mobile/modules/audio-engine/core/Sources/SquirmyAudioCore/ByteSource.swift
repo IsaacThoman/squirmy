@@ -7,6 +7,9 @@ struct SourceInfo {
   var length: Int64?
   /// The server's `Content-Type`, or one guessed from a file's extension.
   var contentType: String?
+  /// Where a stream asked for from a time (`start`) really begins, in frames of the track at
+  /// the delivered rate (`X-Squirmy-Start-Frame`); nil for a stream from the beginning.
+  var startFrame: Int64? = nil
 }
 
 /// The bytes of one stream, read by a decoder on its own queue. Reads block until their bytes
@@ -23,6 +26,9 @@ protocol ByteSource: AnyObject {
   func cancel()
   /// The whole stream is here (a file, or a download that finished).
   var isComplete: Bool { get }
+  /// Where the bytes that are here from `offset` on end, without waiting: `offset` itself
+  /// when that byte has not arrived.
+  func available(from offset: Int64) -> Int64
 }
 
 /// A file on this device: a download, or a test fixture.
@@ -46,6 +52,7 @@ final class FileByteSource: ByteSource {
   func info() throws -> SourceInfo { SourceInfo(length: size, contentType: contentType) }
   func length() throws -> Int64 { size }
   var isComplete: Bool { true }
+  func available(from offset: Int64) -> Int64 { max(offset, size) }
 
   func read(at offset: Int64, count: Int, into buffer: UnsafeMutableRawPointer) throws -> Int {
     if cancelled { throw EngineError.cancelled }

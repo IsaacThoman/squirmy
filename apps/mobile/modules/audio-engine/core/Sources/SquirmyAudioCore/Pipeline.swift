@@ -163,7 +163,7 @@ final class Pipeline {
       self.decodedTo = frame
       if let decoder = self.decoder {
         do {
-          try decoder.seek(to: self.sourceFrame(frame, decoder))
+          try self.seekDecoder(decoder, to: self.sourceFrame(frame, decoder))
           self.resampler?.reset()
         } catch {
           self.fail(EngineError.wrapping(error), serial)
@@ -211,17 +211,56 @@ final class Pipeline {
     guard stillWanted else { throw EngineError.cancelled }
     let decoder: AudioDecoder = switch item.decoder {
     case .file: try FileDecoder(source: source)
-    case .stream: try StreamDecoder(source: source, gapless: item.gapless)
+    case .stream: try StreamDecoder(source: source, gapless: item.gapless, canRestart: canRestart)
     }
     self.decoder = decoder
     makeResampler()
     let start = decodedTo
-    if start > 0 { try decoder.seek(to: sourceFrame(start, decoder)) }
+    if start > 0 { try seekDecoder(decoder, to: sourceFrame(start, decoder)) }
     lock.lock()
     opened = true
     estimated = decoder.estimatedFrames.map { Int64((Double($0) * engineRate / decoder.sampleRate).rounded()) }
     lock.unlock()
     log("\(item.entryId) decoding at \(Int(decoder.sampleRate)) Hz\(resampler == nil ? "" : ", resampled to \(Int(engineRate)) Hz")")
+  }
+
+  /// A transcode from the server, which can send it again from a time.
+  private var canRestart: Bool { item.decoder == .stream && !item.url.isFileURL }
+
+  /// Seeks the decoder; past what has arrived of a transcode, asks the server for the stream
+  /// from that time instead of waiting for it (`start`). That stream is never kept, and the
+  /// one it replaces is let go, so a transcode sought through is not cached.
+  private func seekDecoder(_ decoder: AudioDecoder, to frame: Int64) throws {
+    do {
+      try decoder.seek(to: frame)
+    } catch is SeekOutsideStream {
+      try restart(at: frame, rate: decoder.sampleRate)
+    }
+  }
+
+  private func restart(at frame: Int64, rate: Double) throws {
+    // Milliseconds, to the thousandth: the server rounds them back to exactly this frame. Added
+    // to the URL as it is, since `start` is outside the signature and the rest must stay as signed.
+    let ms = String(format: "%.3f", Double(frame) / rate * 1000)
+    let signed = item.url.absoluteString
+    guard let url = URL(string: "\(signed)\(signed.contains("?") ? "&" : "?")start=\(ms)") else { throw EngineError(message: "Couldn’t seek in this stream") }
+    var from = item
+    from.url = url
+    from.cacheKey = nil
+    let fresh = try factory.source(for: from)
+    let old = source
+    source = fresh
+    lock.lock()
+    let released = self.released
+    cancellable = fresh
+    lock.unlock()
+    if let old { factory.discard(old) }
+    guard !released else { throw EngineError.cancelled }
+    let decoder = try StreamDecoder(source: fresh, gapless: item.gapless, canRestart: true)
+    self.decoder = decoder
+    log("\(item.entryId) streaming from \(ms) ms (frame \(decoder.startFrame)), past what had arrived")
+    // A stream that begins a frame late (rounding) starts where it begins.
+    try decoder.seek(to: max(frame, decoder.startFrame))
   }
 
   private func makeResampler() {

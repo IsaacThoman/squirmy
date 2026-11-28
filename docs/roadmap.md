@@ -133,7 +133,7 @@ Designed in [audio-engine.md](./audio-engine.md); each item is a pull request fr
 - [ ] C2. Undoing queue edits
 - [x] M1. The native iOS and tvOS engine, behind a setting
 - [x] M2. Streaming to the cache in one pass
-- [ ] M3. Fragmented MP4 transcodes and live seeking on iOS
+- [x] M3. Fragmented MP4 transcodes and live seeking on iOS
 - [x] M4. Normalization with boost and a true-peak limiter, with a target setting
 - [x] M5. Equalizer, with presets on the phone and the TV and a custom curve on the phone
 - [ ] M6. Crossfade
@@ -143,7 +143,7 @@ Designed in [audio-engine.md](./audio-engine.md); each item is a pull request fr
 - [x] W1. Ramped gain changes on the web
 - [x] W2. Gapless web playback through Media Source Extensions (Chromium; Firefox and Safari keep today's engine)
 - [x] W3. Limiter, equalizer and output device on the web
-- [ ] W4. Crossfade on the web
+- [x] W4. Crossfade on the web
 
 ## Deferred
 

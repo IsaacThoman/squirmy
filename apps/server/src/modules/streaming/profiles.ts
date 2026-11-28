@@ -29,8 +29,10 @@ const mp4 = ['-f', 'mp4', ...Object.entries(mp4Options).flatMap(([key, value]) =
 
 const fragmentedEncoders = {
   flac_mp4: {
+    // A fixed block size: without one the encoder takes the first decoded frame's, which after
+    // a seek or for some sources is a few hundred samples, and Apple's parser refuses those.
     codec: 'flac', bitrate: null, maxSampleRate: 192_000, mime: 'audio/mp4', extension: 'mp4',
-    primingFrames: 0, args: ['-c:a', 'flac', ...mp4],
+    primingFrames: 0, args: ['-c:a', 'flac', '-frame_size', '4096', ...mp4],
   },
   opus_mp4_192: {
     codec: 'opus', bitrate: 192_000, maxSampleRate: 48_000, mime: 'audio/mp4', extension: 'mp4',

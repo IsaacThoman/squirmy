@@ -25,12 +25,13 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     window.squirmyPageEngine = engine
     return () => { delete window.squirmyPageEngine }
   }, [engine])
-  // This browser's equalizer and output device, as they are set and whenever they change.
+  // This browser's equalizer, crossfade and output device, as they are set and whenever they change.
   useEffect(() => {
     let sink: string | null = null
     const apply = () => {
-      const { equalizer, outputDevice } = getAudioSettings()
+      const { equalizer, outputDevice, crossfadeSeconds } = getAudioSettings()
       engine.setEqualizer(eqGains(equalizer))
+      engine.setCrossfade?.(crossfadeSeconds)
       if (!supportsOutputDevice() || outputDevice === sink) return
       sink = outputDevice
       // A device that is gone (unplugged, or its permission withdrawn) leaves the default playing.

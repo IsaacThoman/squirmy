@@ -156,12 +156,26 @@ function fade(param: AudioParam, value: number, now: number): void {
   param.linearRampToValueAtTime(value, now + EQ_RAMP_SECONDS)
 }
 
+/** Where an engine's gain connects, and what it may turn up: an `OutputChain`, or a stage in front of one. */
+export type OutputStage = {
+  readonly input: AudioNode
+  headroom(gain: number): number
+}
+
+/**
+ * Hands an engine a stage of a graph another owns (`CrossfadeEngine`'s), instead of its own
+ * chain; `onLimiterChange` is called when that graph's limiter comes in or fails.
+ */
+export type AttachOutput = (context: AudioContext, onLimiterChange: () => void) => OutputStage
+
 /**
  * An engine's output settings, kept from before its audio context exists (it is made on the
  * first play) and applied to the chain once it does.
  */
 export class EngineOutput {
   chain: OutputChain | null = null
+  /** The chain, or a stage of another engine's graph it was given. */
+  private stage: OutputStage | null = null
   private equalizer: EqGains | null = null
   private sinkId = ''
 
@@ -169,15 +183,21 @@ export class EngineOutput {
   attach(context: BaseAudioContext, destination: AudioNode, options: OutputOptions): OutputChain {
     const chain = new OutputChain(context, destination, options)
     this.chain = chain
+    this.stage = chain
     chain.setEqualizer(this.equalizer)
     // A device that is gone leaves the default playing; the setting stays for when it is back.
     if (this.sinkId) chain.setSink(this.sinkId).catch(() => {})
     return chain
   }
 
+  /** Plays into `stage`, another graph's, whose owner applies the equalizer and the output device. */
+  adopt(stage: OutputStage): void {
+    this.stage = stage
+  }
+
   /** `gain` as the chain allows it now: at most 1 until the limiter is in. */
   headroom(gain: number): number {
-    return this.chain ? this.chain.headroom(gain) : Math.min(gain, 1)
+    return this.stage ? this.stage.headroom(gain) : Math.min(gain, 1)
   }
 
   setEqualizer(gains: EqGains | null): void {
@@ -193,5 +213,6 @@ export class EngineOutput {
   dispose(): void {
     this.chain?.dispose()
     this.chain = null
+    this.stage = null
   }
 }
