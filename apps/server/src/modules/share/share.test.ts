@@ -151,6 +151,51 @@ describe('share links', () => {
     expect(errorCode(await anon(`/api/v1/share/${tokenOf(borrowed)}`), 404)).toBe('share_not_found')
   })
 
+  it('shows a smart playlist as the songs its rules find now', async () => {
+    // The collection's songs called "…Song": "Other Song" today.
+    const rules = { source: 'server', match: 'all', conditions: [{ field: 'title', op: 'contains', value: 'other song' }], sort: 'title', limit: null }
+    const created = await call({ method: 'POST', url: '/api/v1/playlists', headers: member.headers, payload: { name: 'By the rules', rules } })
+    expect(created.statusCode, created.body).toBe(201)
+    const playlist = created.json()
+    const token = tokenOf(await create({ kind: 'playlist', id: playlist.id }))
+    const shared = await page(token)
+    expect(shared).toMatchObject({ kind: 'playlist', title: 'By the rules' })
+    expect(shared.tracks).toEqual([expect.objectContaining({ title: 'Other Song', albumTitle: 'Elsewhere', available: true })])
+    expect(JSON.stringify(shared)).not.toContain('contains')
+    // A song the rules find plays; one they do not is not on the link.
+    expect((await playback(token, elsewhere.tracks[0]!.recordingId)).preview).toBe(true)
+    expect(errorCode(await anon(`/api/v1/share/${token}/tracks/${album.tracks[0]!.recordingId}/playback`), 404)).toBe('not_available')
+
+    // The link follows the rules.
+    const patched = await call({ method: 'PATCH', url: `/api/v1/playlists/${playlist.id}`, headers: member.headers, payload: { rules: { ...rules, conditions: [{ field: 'title', op: 'is', value: 'no such song' }] } } })
+    expect(patched.statusCode, patched.body).toBe(200)
+    expect((await page(token)).tracks).toEqual([])
+  })
+
+  it('keeps explicit songs off the links of someone who has explicit content turned off', async () => {
+    const link = await create({ kind: 'album', id: album.albumId })
+    const token = tokenOf(link)
+    const trackId = album.tracks[0]!.recordingId
+    const fileId = album.tracks[0]!.fileId!
+    const [before] = await db.select({ tags: mediaFiles.tags }).from(mediaFiles).where(eq(mediaFiles.id, fileId))
+    try {
+      await db.update(mediaFiles).set({ tags: { ...before!.tags!, explicit: true } }).where(eq(mediaFiles.id, fileId))
+      // Allowed: listed, marked and playing.
+      expect((await page(token)).tracks[0]).toMatchObject({ explicit: true, available: true })
+      const song = await playback(token, trackId)
+      expect((await anon(song.url, { method: 'HEAD' })).statusCode).toBe(200)
+
+      await db.update(users).set({ explicitRestricted: true }).where(eq(users.id, member.id))
+      expect((await page(token)).tracks[0]).toMatchObject({ explicit: true, available: false })
+      expect(errorCode(await anon(`/api/v1/share/${token}/tracks/${trackId}/playback`), 404)).toBe('not_available')
+      // The URL handed out before stops too.
+      expect(errorCode(await anon(song.url), 404)).toBe('not_available')
+    } finally {
+      await db.update(users).set({ explicitRestricted: false }).where(eq(users.id, member.id))
+      await db.update(mediaFiles).set({ tags: before!.tags }).where(eq(mediaFiles.id, fileId))
+    }
+  })
+
   it('shares one track with its album as context', async () => {
     const link = await create({ kind: 'track', id: album.tracks[0]!.recordingId, albumId: album.albumId })
     expect(link).toMatchObject({ kind: 'track', title: 'Night Swimming', subtitle: album.artist.name })

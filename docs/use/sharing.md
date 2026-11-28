@@ -13,8 +13,9 @@ You can share any album or song on the server, your own playlists, and other peo
 
 ## What people see
 
-- The page shows what the item holds **now**. A shared playlist follows your changes: songs you add appear on the page, songs you remove leave it.
+- The page shows what the item holds **now**. A shared playlist follows your changes: songs you add appear on the page, songs you remove leave it. A [smart playlist](./web.md#smart-playlists)'s link shows the songs its rules find when the page is opened, not the rules.
 - Songs the server has no file of are listed as **Not available** and do not play. Nothing is fetched for people opening a link.
+- If [explicit content](./web.md#explicit-content) is off for you (your own setting or an admin's), explicit songs are listed as **Not available** on your links and do not play.
 - Depending on the server, a song plays as a **30-second preview**, in full, or not at all. The page says which.
 - Nothing about you is on the page: not your name, not the playlist's description, and nothing else from the server's library. A playlist shows only its name and its songs.
 

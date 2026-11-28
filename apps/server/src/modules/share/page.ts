@@ -1,5 +1,6 @@
 import type { PublicShare, PublicShareTrack, TrackSummary } from '@squirmy/contracts'
 import { getServerSettings } from '../../lib/settings.js'
+import { explicitAllowed } from '../catalog/explicit.js'
 import { resolveOne } from '../catalog/redirects.js'
 import { albumSummaries, alignedTrackSummaries } from '../catalog/summaries.js'
 import { playlistSummaries } from '../userdata/playlists.js'
@@ -10,7 +11,7 @@ import { shareNotFound, shareTracks, type ShareRow } from './links.js'
  * Built field by field, so nothing a summary gains later (hearts, library state, credits with
  * artist ids) reaches people without an account.
  */
-function publicTrack(track: TrackSummary, place: { disc: number | null; position: number | null }, onAlbum: boolean): PublicShareTrack {
+function publicTrack(track: TrackSummary, place: { disc: number | null; position: number | null }, onAlbum: boolean, allowsExplicit: boolean): PublicShareTrack {
   return {
     id: track.id,
     title: track.title,
@@ -22,7 +23,8 @@ function publicTrack(track: TrackSummary, place: { disc: number | null; position
     position: onAlbum ? place.position : null,
     explicit: track.explicit,
     // Only music the server holds. A song a provider could fetch is not fetched for strangers.
-    available: track.availability === 'server',
+    // An explicit song its creator may not play is gray here too, as it is for them.
+    available: track.availability === 'server' && (allowsExplicit || track.explicit !== true),
   }
 }
 
@@ -32,10 +34,11 @@ export async function publicShare(share: ShareRow): Promise<PublicShare> {
   const refs = await shareTracks(share)
   // Summaries as the creator sees them; only the fields `publicTrack` copies leave the server.
   const summaries = await alignedTrackSummaries(share.userId, refs)
+  const allowsExplicit = await explicitAllowed(share.userId)
   const onAlbum = share.kind === 'album'
   const tracks = refs.flatMap((ref, index) => {
     const summary = summaries[index]
-    return summary ? [publicTrack(summary, ref, onAlbum)] : []
+    return summary ? [publicTrack(summary, ref, onAlbum, allowsExplicit)] : []
   })
   const durationMs = tracks.reduce((sum, track) => sum + track.durationMs, 0)
   const common = { tracks, durationMs, playback: settings.sharePlayback, expiresAt: share.expiresAt?.toISOString() ?? null, serverName: settings.serverName }

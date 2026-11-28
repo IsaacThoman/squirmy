@@ -21,6 +21,8 @@ Changing either takes effect for audio already playing from a link: switching fr
 
 Previews are cut by the server: each is a separate 30-second MP3 made the first time it is played and kept in `<data>/previews/` for a week after its last play. A listener cannot get more than the preview, whatever they ask for. Whole songs play at the apps' **High** quality (AAC 256 kbps) when the file is lossless or larger. Only music the server holds plays; a song an acquisition provider could fetch shows as not available.
 
+A link follows its creator's [explicit content](./users.md#explicit-content) switch: while it is off for them, explicit songs show as **Not available** on their links and do not play, links and song URLs already handed out included. With it on, explicit songs play from a link like any other, marked **E**; visitors have no switch of their own.
+
 ## Every link
 
 **Admin → Sharing → Every link** lists the links on the server, newest first, with who made each, when it expires and how often it was opened. **Revoke** stops one for everyone. Members see and revoke their own in **Settings → Share links**.

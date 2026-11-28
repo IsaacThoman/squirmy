@@ -14,6 +14,7 @@ import { mediaFiles } from '../../database/schema.js'
 import { decrypt, encrypt } from '../../lib/crypto.js'
 import { AppError, forbidden, notFound } from '../../lib/errors.js'
 import { getServerSettings } from '../../lib/settings.js'
+import { explicitAllowed, fileExplicit } from '../catalog/explicit.js'
 import { resolveMerged } from '../catalog/redirects.js'
 import { mimeFor, profiles, selectFile } from '../streaming/index.js'
 import { shareForId, shareNotFound, shareTrack, shareTracks, type ShareRow } from './links.js'
@@ -47,6 +48,18 @@ export function openStreamKey(sealed: string, now = Date.now()): ShareStreamKey 
   return { shareId: parsed.data.s, fileId: parsed.data.f, profile: parsed.data.p as ShareStreamProfile, expiresAt: parsed.data.e }
 }
 
+const songUnavailable = () => notFound('This song is not available', 'not_available')
+
+/**
+ * A link plays only what its creator may: explicit content turned off for them (their own
+ * setting or an admin's) keeps explicit files off their links, URLs already handed out
+ * included. The answer is the one for any song that does not play, so a stranger learns
+ * nothing about the account.
+ */
+async function assertSharerAllows(share: ShareRow, file: { tags: { explicit?: boolean } | null; recordingId: string | null }) {
+  if (await fileExplicit(file) && !await explicitAllowed(share.userId)) throw songUnavailable()
+}
+
 const playbackOff = () => new AppError(403, 'share_playback_off', 'This server does not play shared music')
 
 /** `GET /share/:token/tracks/:id/playback` for a live link. */
@@ -56,8 +69,9 @@ export async function shareTrackPlayback(share: ShareRow, trackId: string, codec
   const ref = await shareTrack(share, trackId)
   if (!ref) throw notFound('This song is not on the shared page', 'not_available')
   const selection = await selectFile(trackId, { albumId: ref.albumId ?? undefined, codecs, quality: 'high' })
-  if (!selection) throw notFound('This song is not available', 'not_available')
+  if (!selection) throw songUnavailable()
   const { file } = selection
+  await assertSharerAllows(share, file)
   const preview = sharePlayback === 'previews'
   const profile: ShareStreamProfile = preview ? 'preview' : selection.profile
   const expiresAt = Date.now() + SHARE_STREAM_TTL_MS
@@ -90,9 +104,10 @@ export async function authorizeShareStream(sealed: string) {
   if (sharePlayback === 'off') throw playbackOff()
   if (!modeAllows(sharePlayback, key.profile)) throw forbidden('This server plays only previews of shared music', 'share_previews_only')
   const [file] = await db.select().from(mediaFiles).where(eq(mediaFiles.id, key.fileId))
-  if (!file?.recordingId || file.missingSince) throw notFound('This song is not available', 'not_available')
+  if (!file?.recordingId || file.missingSince) throw songUnavailable()
+  await assertSharerAllows(share, file)
   const refs = await shareTracks(share)
   const current = await resolveMerged('recordings', refs.map((ref) => ref.id))
-  if (!refs.some((ref) => (current.get(ref.id) ?? ref.id) === file.recordingId)) throw notFound('This song is not available', 'not_available')
+  if (!refs.some((ref) => (current.get(ref.id) ?? ref.id) === file.recordingId)) throw songUnavailable()
   return { share, file, profile: key.profile }
 }

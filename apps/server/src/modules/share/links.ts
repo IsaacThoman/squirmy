@@ -23,7 +23,7 @@ import { albumTrackList } from '../catalog/pages.js'
 import { resolveMerged, resolveOne } from '../catalog/redirects.js'
 import { uuidArray } from '../catalog/sql.js'
 import { albumSummaries, alignedTrackSummaries, type TrackRef } from '../catalog/summaries.js'
-import { playlistSummaries } from '../userdata/playlists.js'
+import { playlistSummaries, playlistTrackRefs } from '../userdata/playlists.js'
 
 export type ShareRow = typeof shares.$inferSelect
 
@@ -80,8 +80,8 @@ export async function recordOpen(shareId: string) {
 
 /**
  * The songs of a shared item now, in order, as refs for `alignedTrackSummaries`: an album's
- * track list, a playlist's current items (the page follows the playlist, it is not a copy),
- * or the one track.
+ * track list, a playlist's current songs (the page follows the playlist, it is not a copy;
+ * a smart playlist's are what its rules find for its owner), or the one track.
  */
 export async function shareTracks(share: ShareRow): Promise<(TrackRef & { disc: number | null; position: number | null })[]> {
   if (share.kind === 'album') {
@@ -89,8 +89,7 @@ export async function shareTracks(share: ShareRow): Promise<(TrackRef & { disc: 
     return (await albumTrackList(albumId)).map((track) => ({ id: track.recordingId, albumId, disc: track.disc, position: track.position }))
   }
   if (share.kind === 'playlist') {
-    const items = await db.execute<{ recordingId: string; albumId: string | null }>(sql`
-      select recording_id as "recordingId", album_id as "albumId" from playlist_items where playlist_id = ${share.playlistId} order by position`)
+    const items = await playlistTrackRefs(share.playlistId!)
     return items.map((item) => ({ id: item.recordingId, albumId: item.albumId, disc: null, position: null }))
   }
   return [{ id: share.recordingId!, albumId: share.albumId, disc: null, position: null }]

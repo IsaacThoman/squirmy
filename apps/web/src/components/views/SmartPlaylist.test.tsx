@@ -74,6 +74,16 @@ describe('smart playlists', () => {
     expect(screen.queryByRole('menuitem', { name: 'Remove from playlist' })).toBeNull()
   })
 
+  it('is shared from its menu like any playlist', async () => {
+    const { services, api } = withSmart()
+    renderWithApp(<AppRoutes />, `/playlist/${smart.id}`, services)
+    await userEvent.click(await screen.findByRole('button', { name: 'More options' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Share…' }))
+    const dialog = within(await screen.findByRole('dialog', { name: 'Share playlist' }))
+    await userEvent.click(dialog.getByRole('button', { name: 'Create link' }))
+    expect(api.share.create).toHaveBeenCalledWith(expect.objectContaining({ kind: 'playlist', id: smart.id }))
+  })
+
   it('edits its rules from its menu', async () => {
     const { services, api } = withSmart()
     const updatePlaylist = vi.fn(async (id: string, request: object) => ({ ...smart, id, ...request }))

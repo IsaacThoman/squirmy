@@ -100,6 +100,19 @@ export async function previewSmartPlaylist(userId: string, rules: SmartPlaylistR
   return { trackCount: tracks.length, durationMs: tracks.reduce((sum, track) => sum + track.durationMs, 0) }
 }
 
+/**
+ * The songs a playlist holds now, in order, as refs and whoever reads it: its items, or what a
+ * smart playlist's rules find for its owner today. Does not check who may read it.
+ */
+export async function playlistTrackRefs(id: string): Promise<{ recordingId: string; albumId: string | null }[]> {
+  const [row] = await db.select({ ownerId: playlists.ownerId, rules: playlists.rules }).from(playlists).where(eq(playlists.id, id))
+  if (!row) return []
+  if (row.rules) return (await smartTracks(row.ownerId, row.rules, dailySeed(id))).map((song) => ({ recordingId: song.id, albumId: song.albumId }))
+  const items = await db.execute<{ recordingId: string; albumId: string | null }>(sql`
+    select recording_id as "recordingId", album_id as "albumId" from playlist_items where playlist_id = ${id} order by position`)
+  return [...items]
+}
+
 const playlistOrdering: Ordering = {
   name: 'playlists:updated',
   keys: [
