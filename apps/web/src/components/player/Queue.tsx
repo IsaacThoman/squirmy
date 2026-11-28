@@ -18,7 +18,8 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Switch } from '@/components/ui/switch'
 import { draggedMusic } from '@/lib/drag'
 import { dropIndex } from '@/lib/reorder'
-import { UNAVAILABLE_LABEL } from '@/lib/catalog'
+import { explicitBlocked, UNAVAILABLE_LABEL, unavailableLabel } from '@/lib/catalog'
+import { useViewer } from '@/player/on-demand-context'
 import { cn } from '@/lib/utils'
 import { errorMessage } from '@/api/errors'
 import { useLibrary } from '@/player/library-context'
@@ -320,7 +321,10 @@ function QueueRow({ item, current, playing = false, waiting = false, outage = nu
   const library = useLibrary()
   // Built and mounted when it opens, from its button or a right-click, as a track list row's.
   const { rowProps, trigger, renderMenu } = useTrackRowMenu({ longPress })
-  const failed = readsUnavailable(entry, outage)
+  const viewer = useViewer()
+  // An explicit song queued before explicit content was turned off is gray too: the server refuses it.
+  const failed = readsUnavailable(entry, outage) || explicitBlocked(track, viewer)
+  const failedText = readsUnavailable(entry, outage) ? UNAVAILABLE_LABEL : unavailableLabel(track, viewer)
   const loading = current && (waiting || entry.state === 'preparing')
   const onPlay = failed ? undefined : play
   const songMenu = useSongMenuEntries({ track, unavailable: failed, queued: queued && { entryId: entry.id, ...queued }, onNavigate })
@@ -337,13 +341,13 @@ function QueueRow({ item, current, playing = false, waiting = false, outage = nu
       </div>
       <span className="min-w-0 flex-1 text-left">
         <span title={track.title} className={cn('block truncate text-sm font-medium', failed && 'text-muted-foreground')}>{track.title}</span>
-        <span className="block truncate text-xs text-muted-foreground">{failed ? UNAVAILABLE_LABEL : track.artistCredit}</span>
+        <span className="block truncate text-xs text-muted-foreground">{failed ? failedText : track.artistCredit}</span>
         {selected && <span className="sr-only">(selected)</span>}
       </span>
     </>
   )
   return (
-    <div {...rowProps} title={failed ? UNAVAILABLE_LABEL : undefined} className={cn('group/queue flex h-12 items-center rounded-lg pr-1 transition-colors data-[state=open]:bg-accent/60', onPlay && 'hover:bg-accent/60', selected && 'bg-accent hover:bg-accent')}>
+    <div {...rowProps} title={failed ? failedText : undefined} className={cn('group/queue flex h-12 items-center rounded-lg pr-1 transition-colors data-[state=open]:bg-accent/60', onPlay && 'hover:bg-accent/60', selected && 'bg-accent hover:bg-accent')}>
       {onPlay || rowButton
         ? <button type="button" aria-label={onPlay ? `Play ${track.title}` : track.title} onClick={event => (onPick && (commandKey(event) || event.shiftKey) ? onPick(event) : onPlay?.())} {...rowButton} className={cn('flex min-w-0 flex-1 items-center gap-3 self-stretch rounded-lg px-2 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring', rowButton?.className)}>{body}</button>
         : <div className="flex min-w-0 flex-1 items-center gap-3 px-2">{body}</div>}

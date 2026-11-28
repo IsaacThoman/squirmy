@@ -4,12 +4,28 @@ import { plural } from './format.js'
 /**
  * The parts of a user that decide what they can play. Null or undefined (signed out, or
  * not loaded yet) counts as someone who may not fetch, so nothing looks playable that
- * would then fail.
+ * would then fail. `allowsExplicit` left out (a server from before the setting) allows it.
  */
-export type Viewer = Pick<User, 'role' | 'canAcquire'>
+export type Viewer = Pick<User, 'role' | 'canAcquire'> & Partial<Pick<User, 'allowsExplicit'>>
 
 /** The one word unavailable music carries, on hover, long-press and for screen readers. */
 export const UNAVAILABLE_LABEL = 'Not available'
+
+/** What an explicit song says instead, for a viewer who has explicit content off. */
+export const EXPLICIT_OFF_LABEL = 'Explicit content is off'
+
+/**
+ * An explicit song for a viewer who has explicit content off (their setting, or an admin's
+ * restriction): gray and never played, whatever its availability. Unknown is not explicit.
+ */
+export function explicitBlocked(track: { explicit?: boolean | null }, viewer: Viewer | null | undefined): boolean {
+  return track.explicit === true && viewer?.allowsExplicit === false
+}
+
+/** Why a gray song is gray, in the words every surface uses. */
+export function unavailableLabel(track: { explicit?: boolean | null }, viewer: Viewer | null | undefined): string {
+  return explicitBlocked(track, viewer) ? EXPLICIT_OFF_LABEL : UNAVAILABLE_LABEL
+}
 
 /**
  * Whether the server fetches music for this user when they play it: admins always, members
@@ -21,10 +37,12 @@ export function canFetch(user: Viewer | null | undefined): boolean {
 
 /**
  * The single rule every surface uses: a file on the server plays for everyone, `on_demand`
- * plays for a requester, and nothing else plays. A playable track looks the same wherever
- * its file is.
+ * plays for a requester, and nothing else plays; an explicit song plays for no one who has
+ * explicit content off (`explicitBlocked`). A playable track looks the same wherever its
+ * file is.
  */
-export function isPlayable(track: Pick<TrackSummary, 'availability'>, viewer: Viewer | null | undefined): boolean {
+export function isPlayable(track: Pick<TrackSummary, 'availability'> & { explicit?: boolean | null }, viewer: Viewer | null | undefined): boolean {
+  if (explicitBlocked(track, viewer)) return false
   return track.availability === 'server' || (track.availability === 'on_demand' && canFetch(viewer))
 }
 

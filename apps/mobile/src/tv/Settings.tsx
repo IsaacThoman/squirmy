@@ -9,7 +9,7 @@ import { unsavedSignIn, useAccount } from '../account/AccountProvider';
 import { serviceNames } from '../account/scrobbling';
 import {
   lastFmAdminNote, normalizationNote, normalizationOptions, qualityOptions, saveFailure, scrobbleDetail, scrobbleFooter,
-  serverMusicLabel, serverMusicNote, useSettingsScreen,
+  explicitLabel, explicitNote, explicitRestrictedNote, serverMusicLabel, serverMusicNote, useSettingsScreen,
 } from '../account/settings';
 import { loadFailure } from '../data/errors';
 import { useUpdateSettings, useUserSettings } from '../data/queries';
@@ -156,6 +156,9 @@ export function TvSettingsScreen() {
       <Section title="Library" error={screen.errors.library}>
         <Row title={serverMusicLabel} value={onOff(settings.libraryIncludesServerMusic)} note={serverMusicNote} onNote={setNote}
           onPress={() => screen.setLibraryIncludesServerMusic(!settings.libraryIncludesServerMusic)} />
+        {/* No press while an admin keeps explicit content off for the account: the note says why. */}
+        <Row title={explicitLabel} value={onOff(screen.allowExplicit)} note={screen.explicitRestricted ? explicitRestrictedNote : explicitNote} onNote={setNote}
+          onPress={screen.explicitRestricted ? undefined : () => screen.setAllowExplicit(!screen.allowExplicit)} />
       </Section>
     </> : <Section title="Playback">
       {screen.settingsFailure

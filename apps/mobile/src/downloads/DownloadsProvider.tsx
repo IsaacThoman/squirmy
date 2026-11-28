@@ -33,7 +33,7 @@ const invalidateDelayMs = 3000;
  */
 const arrivalDelayMs = 1000;
 
-/** `viewer`: the signed-in user, whose role and `canAcquire` decide what plays (client-core's `isPlayable`). */
+/** `viewer`: the signed-in user, whose role, `canAcquire` and `allowsExplicit` decide what plays (client-core's `isPlayable`). */
 type DownloadsValue = { manager: DownloadManager | null; offline: boolean; viewer: Viewer | null };
 
 const DownloadsContext = createContext<DownloadsValue>({ manager: null, offline: false, viewer: null });
@@ -106,8 +106,10 @@ export function DownloadsProvider({ children }: PropsWithChildren) {
   const user = state.status === 'signedIn' ? state.user : null;
   const role = user?.role;
   const canAcquire = user?.canAcquire;
+  // Left out by servers from before the setting, which play everything.
+  const allowsExplicit = user?.allowsExplicit ?? true;
   // Rebuilt only when what decides playability changes, not on every new user object.
-  const viewer = useMemo(() => role === undefined ? null : { role, canAcquire: canAcquire ?? false }, [canAcquire, role]);
+  const viewer = useMemo(() => role === undefined ? null : { role, canAcquire: canAcquire ?? false, allowsExplicit }, [allowsExplicit, canAcquire, role]);
   const fetches = canFetch(viewer);
 
   // Built once per account: rebuilding would cancel the downloads in flight and start them over.
@@ -246,13 +248,13 @@ export function useAvailability() {
     const onDevice = (trackId: string) => downloaded(trackId) || (cache?.has(trackId) ?? false);
     return {
       offline, viewer, downloaded,
-      canPlay: (track: Pick<TrackSummary, 'id' | 'availability'>) => canPlay(track, { offline, onDevice, viewer }),
+      canPlay: (track: Pick<TrackSummary, 'id' | 'availability'> & { explicit?: boolean | null }) => canPlay(track, { offline, onDevice, viewer }),
     };
   }, [cache, cacheVersion, manager, offline, version, viewer]);
 }
 
 /** Whether one track can be played now; re-renders only when the answer changes. */
-export function useCanPlay(track: Pick<TrackSummary, 'id' | 'availability'> | undefined): boolean {
+export function useCanPlay(track: (Pick<TrackSummary, 'id' | 'availability'> & { explicit?: boolean | null }) | undefined): boolean {
   const { manager, offline, viewer } = useContext(DownloadsContext);
   const subject = track ?? noTrack;
   const cached = useCached(track?.id);
