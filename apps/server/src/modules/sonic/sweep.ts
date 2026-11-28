@@ -56,8 +56,9 @@ export async function sweepSonic(): Promise<void> {
 }
 
 /**
- * Queues analysis of the recordings' present files that lack it, ahead of the background
- * backlog: something someone asked for now (a sonic radio's seed). Nothing with analysis off.
+ * Queues analysis of the recordings' present files that lack it at the top priority of
+ * the queue: something someone asked for now (a sonic radio's seed). A file the sweep
+ * queued already keeps its place. Nothing with analysis off.
  */
 export async function analyzeSoon(recordingIds: readonly string[]): Promise<void> {
   if (recordingIds.length === 0 || !(await getServerSettings()).sonicAnalysisEnabled) return

@@ -31,6 +31,7 @@ async function readSonicTags(fileId: string, file: string) {
   if (!metadata) return
   const found = sonicTags(metadata.common, rawTags(Object.values(metadata.native)))
   const present = Object.fromEntries(Object.entries(found).filter(([, value]) => value !== undefined && !(Array.isArray(value) && value.length === 0)))
+  // `updated_at` stays: album loudness is redone for files changed after it was measured.
   await db.execute(sql`
     update media_files set tags = (tags - 'bpm' - 'key' - 'moods') || ${JSON.stringify(present)}::jsonb
     where id = ${fileId} and (tags - 'bpm' - 'key' - 'moods') || ${JSON.stringify(present)}::jsonb <> tags`)

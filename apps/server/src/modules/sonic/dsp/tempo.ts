@@ -37,6 +37,11 @@ const REFINE_STEPS = 60
 const PHASE_STEP_FRAMES = 0.25
 /** The beat phase is fitted to this much of the start. */
 const PHASE_SECONDS = 30
+/**
+ * Tempo is found from this much of the start: plenty for a precise period, and it bounds
+ * the work done in one go (on the event loop) for a half-hour mix.
+ */
+const TEMPO_SECONDS = 600
 
 /** Linear interpolation of `values` at a fractional index. */
 function at(values: Float32Array, index: number): number {
@@ -120,7 +125,8 @@ function smooth(envelope: Float32Array): Float32Array {
   return out
 }
 
-export function estimateTempo(envelope: Float32Array, fps: number): Tempo | null {
+export function estimateTempo(whole: Float32Array, fps: number): Tempo | null {
+  const envelope = whole.subarray(0, Math.round(TEMPO_SECONDS * fps))
   const minLag = Math.floor((60 * fps) / MAX_BPM)
   const maxLag = Math.ceil((60 * fps) / MIN_BPM)
   const acf = windowedAutocorrelation(smooth(envelope), fps, maxLag + 1)

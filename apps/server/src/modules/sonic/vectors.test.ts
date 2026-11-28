@@ -27,8 +27,14 @@ describe('sonic vectors', () => {
     const near = neighbourhood(index, vectorOf(index, 'a')!, 2, new Set(['a']))
     expect(near.nearest.map((one) => one.id)).toEqual(['b', 'c'])
     expect(near.percentile(0)).toBe(0)
-    expect(near.percentile(near.sorted.at(-1)! + 1)).toBe(1)
-    expect(near.percentile(near.nearest[0]!.distance)).toBeLessThan(near.percentile(near.sorted.at(-1)!))
+    expect(near.percentile(100)).toBe(1)
+    const all = neighbourhood(index, vectorOf(index, 'a')!, 5)
+    // a itself, then b and c, then the far d and e: about a quarter of the rest per step.
+    expect(all.nearest.map((one) => one.id)).toEqual(['a', 'b', 'c', 'e', 'd'].slice(0, 3).concat(all.nearest.slice(3).map((one) => one.id)))
+    const ranks = all.nearest.map((one) => all.percentile(one.distance))
+    expect(ranks).toEqual(ranks.toSorted((x, y) => x - y))
+    expect(ranks[1]!).toBeLessThan(0.5)
+    expect(ranks.at(-1)).toBe(1)
   })
 
   it('averages seeds by weight', () => {

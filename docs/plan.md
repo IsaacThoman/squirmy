@@ -222,5 +222,5 @@ Purchasing (priced offers, caps, budgets) is deferred. The protocol reserves an 
 5. **OpenSubsonic.** Router, app passwords, client test pass.
 6. **Search everything.** Library search, Deezer and MusicBrainz search providers, gray-out, artist and album pages, wantlist.
 7. **Add and take.** Web upload, inbox folder, fingerprinting, offline downloads.
-8. **Providers and extras.** Acquisition protocol and reference adapters, external scrobbling, radio from similar-artist data, local search index, docs site.
+8. **Providers and extras.** Acquisition protocol and reference adapters, external scrobbling, radio from similar-artist data and sonic analysis, local search index, docs site.
 9. **Apple TV.** A remote-first streaming client, backed by Squirmy Connect, with a tvOS TestFlight build.

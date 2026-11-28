@@ -42,6 +42,11 @@ const WEIGHTS = (() => {
   return Float64Array.from(VECTOR_LAYOUT, (name) => Math.sqrt(GROUP_SHARES[groupOf(name)]! / counts.get(groupOf(name))!))
 })()
 
+/**
+ * The vector length, read once: an imported binding read in the distance loop costs a
+ * getter call per element under the test runner's module loader.
+ */
+const WIDTH = VECTOR_LENGTH
 const CHECK_MS = 60_000
 const REBUILD_MS = 5 * 60_000
 /** Below this many vectors a rebuild costs nothing, so the index follows every change. */
@@ -67,7 +72,7 @@ async function loadVectors(): Promise<{ id: string; vector: number[] }[]> {
     select distinct on (f.recording_id) f.recording_id as id, s.vector
     from sonic_analyses s join media_files f on f.id = s.file_id
     where f.missing_since is null and f.recording_id is not null and s.vector is not null and s.error is null
-      and cardinality(s.vector) = ${VECTOR_LENGTH}
+      and cardinality(s.vector) = ${WIDTH}
     order by f.recording_id, f.lossless desc, s.analyzed_at desc, f.id`)
 }
 
@@ -81,7 +86,7 @@ async function signature(): Promise<string> {
 
 /** Standardizes raw vectors over the set and weights each element by its group. */
 export function buildIndex(rows: readonly { id: string; vector: readonly number[] }[]): SonicIndex {
-  const width = VECTOR_LENGTH
+  const width = WIDTH
   const mean = new Float64Array(width)
   const deviation = new Float64Array(width)
   for (const row of rows) for (let d = 0; d < width; d++) mean[d]! += row.vector[d]! / rows.length
@@ -94,7 +99,7 @@ export function buildIndex(rows: readonly { id: string; vector: readonly number[
 
 function standardize(vector: readonly number[], mean: Float64Array, deviation: Float64Array): Float32Array {
   // An element that does not vary in the library says nothing about similarity.
-  return Float32Array.from({ length: VECTOR_LENGTH }, (_, d) => (deviation[d]! > 1e-9 ? ((vector[d]! - mean[d]!) / deviation[d]!) * WEIGHTS[d]! : 0))
+  return Float32Array.from({ length: WIDTH }, (_, d) => (deviation[d]! > 1e-9 ? ((vector[d]! - mean[d]!) / deviation[d]!) * WEIGHTS[d]! : 0))
 }
 
 /** The current index; rebuilt as described at the top of this file. */
@@ -130,21 +135,21 @@ export function resetSonicIndex() {
 /** The recording's standardized vector, if it is analysed. */
 export function vectorOf(index: SonicIndex, recordingId: string): Float32Array | null {
   const row = index.rows.get(recordingId)
-  return row === undefined ? null : index.data.subarray(row * VECTOR_LENGTH, (row + 1) * VECTOR_LENGTH)
+  return row === undefined ? null : index.data.subarray(row * WIDTH, (row + 1) * WIDTH)
 }
 
 /** Weighted mean of standardized vectors; null when there are none. */
 export function centroid(vectors: readonly { vector: Float32Array; weight: number }[]): Float32Array | null {
   const total = vectors.reduce((sum, one) => sum + one.weight, 0)
   if (vectors.length === 0 || total <= 0) return null
-  const out = new Float32Array(VECTOR_LENGTH)
-  for (const { vector, weight } of vectors) for (let d = 0; d < VECTOR_LENGTH; d++) out[d]! += (vector[d]! * weight) / total
+  const out = new Float32Array(WIDTH)
+  for (const { vector, weight } of vectors) for (let d = 0; d < WIDTH; d++) out[d]! += (vector[d]! * weight) / total
   return out
 }
 
 export function distance(a: Float32Array, b: Float32Array, bOffset = 0): number {
   let sum = 0
-  for (let d = 0; d < VECTOR_LENGTH; d++) {
+  for (let d = 0; d < WIDTH; d++) {
     const delta = a[d]! - b[bOffset + d]!
     sum += delta * delta
   }
@@ -152,19 +157,31 @@ export function distance(a: Float32Array, b: Float32Array, bOffset = 0): number 
 }
 
 export type Neighbourhood = {
-  /** Every analysed recording's distance to the query, ascending, for percentiles. */
-  sorted: Float64Array
   /** The nearest recordings, closest first, without the excluded ones. */
   nearest: { id: string; distance: number }[]
   /** 0 for the nearest recording in the library, 1 for the farthest. */
   percentile: (distance: number) => number
 }
 
-/** Distances from `query` to the whole library, with the `limit` nearest not in `exclude`. */
+/** Bins of the distance histogram percentiles are read from: finer than ranking can tell apart. */
+const PERCENTILE_BINS = 1024
+
+/**
+ * Distances from `query` to the whole library, with the `limit` nearest not in `exclude`.
+ * Percentiles come from a histogram of the distances rather than sorting them, which
+ * would cost more than the distances themselves in a large library.
+ */
 export function neighbourhood(index: SonicIndex, query: Float32Array, limit: number, exclude: ReadonlySet<string> = new Set()): Neighbourhood {
   const count = index.ids.length
   const distances = new Float64Array(count)
-  for (let row = 0; row < count; row++) distances[row] = distance(query, index.data, row * VECTOR_LENGTH)
+  let low = Infinity
+  let high = -Infinity
+  for (let row = 0; row < count; row++) {
+    const value = distance(query, index.data, row * WIDTH)
+    distances[row] = value
+    if (value < low) low = value
+    if (value > high) high = value
+  }
   const nearest: { id: string; distance: number }[] = []
   for (let row = 0; row < count; row++) {
     const id = index.ids[row]!
@@ -175,17 +192,18 @@ export function neighbourhood(index: SonicIndex, query: Float32Array, limit: num
     nearest.splice(at, 0, { id, distance: value })
     if (nearest.length > limit) nearest.pop()
   }
-  const sorted = distances.slice().sort()
+  const width = high > low ? (high - low) / PERCENTILE_BINS : 1
+  const below = new Float64Array(PERCENTILE_BINS + 1)
+  for (const value of distances) below[Math.min(PERCENTILE_BINS - 1, Math.floor((value - low) / width)) + 1]! += 1
+  for (let bin = 1; bin <= PERCENTILE_BINS; bin++) below[bin]! += below[bin - 1]!
   const percentile = (value: number) => {
-    if (count <= 1) return 0
-    let low = 0
-    let high = count
-    while (low < high) {
-      const middle = (low + high) >> 1
-      if (sorted[middle]! < value) low = middle + 1
-      else high = middle
-    }
-    return Math.min(1, low / (count - 1))
+    if (count <= 1 || value <= low) return 0
+    if (value >= high) return 1
+    const position = (value - low) / width
+    const bin = Math.floor(position)
+    // Within a bin, assume its distances are spread evenly.
+    const rank = below[bin]! + (below[bin + 1]! - below[bin]!) * (position - bin)
+    return Math.min(1, rank / (count - 1))
   }
-  return { sorted, nearest, percentile }
+  return { nearest, percentile }
 }

@@ -45,7 +45,7 @@ Albums are mastered at very different levels. Normalization evens them out so yo
 
 ## Listening history
 
-Squirmy records app plays with less than five seconds of listening as early skips when the play closes. They stay out of listening history, Home's Recently played and Most played, and scrobbles. Radio and Autoplay slightly lower a track's ranking if you skipped it early at least twice in the past 30 days.
+Squirmy records app plays with less than five seconds of listening as early skips when the play closes. They stay out of listening history, Home's Recently played and Most played, and scrobbles. Radio and Autoplay slightly lower a track's ranking if you skipped it early at least twice in the past 30 days. They also use the [sonic analysis](./sonic-analysis.md#how-radio-uses-it) to keep to songs that sound alike and to let tempo, key and energy flow.
 
 Home's **Most played** counts the past 90 days of plays that reached half the song or four minutes, whichever came first. Scrobbles use the same listening threshold.
 

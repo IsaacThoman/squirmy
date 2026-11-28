@@ -38,6 +38,8 @@ const BODY_DB = 6
 /** Levels are averaged over 400 ms, like EBU R128's momentary loudness. */
 const LEVEL_SMOOTH_SECONDS = 0.4
 const DYNAMICS_WINDOW_SECONDS = 3
+/** Read once: an imported binding in the per-peak loop costs a getter call under the test runner. */
+const PITCH_BIN_COUNT = PITCH_BINS
 
 /**
  * What each element of the raw timbre vector holds. Similarity standardizes every element
@@ -182,7 +184,7 @@ export class SonicAnalyzer {
   private readonly logMel = new Float64Array(MEL_BANDS)
   private readonly previousLogMel = new Float64Array(MEL_BANDS).fill(FLOOR_DB)
   private readonly mfcc = new Float64Array(MFCCS)
-  private readonly pitch = new Float64Array(PITCH_BINS)
+  private readonly pitch = new Float64Array(PITCH_BIN_COUNT)
   private pending = new Float32Array(0)
   private samples = 0
   private loudestLogMel = FLOOR_DB
@@ -305,7 +307,7 @@ export class SonicAnalyzer {
     for (const [hz, magnitude] of found) {
       // Cents above C, in one octave.
       const cents = (((1200 * Math.log2(hz / 440) + 900) % 1200) + 1200) % 1200
-      this.pitch[Math.floor(cents / 10) % PITCH_BINS]! += (magnitude / frameTotal) * level
+      this.pitch[Math.floor(cents / 10) % PITCH_BIN_COUNT]! += (magnitude / frameTotal) * level
     }
   }
 

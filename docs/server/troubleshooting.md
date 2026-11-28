@@ -22,6 +22,7 @@ Request lines show the URL with the values of credential parameters replaced by 
 | `matching.match-album` | Identifying albums against MusicBrainz |
 | `enrichment.album`, `enrichment.artist`, `enrichment.lyrics` | Covers, images, bios, lyrics |
 | `loudness.measure`, `loudness.album` | Loudness for normalization |
+| `sonic.analyze`, `sonic.deezer-tempo` | [Sonic analysis](./sonic-analysis.md) for radio, and Deezer's tempo for songs nothing else describes |
 | `streaming.evict` | Trimming the transcode cache |
 | `imports.process` | Uploads and the inbox |
 | `acquisition.*` | Fetching through providers |
