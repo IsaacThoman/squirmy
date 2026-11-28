@@ -34,6 +34,14 @@ import {
   type CreatePlaylistRequest,
   CreateUserRequest,
   DeviceInfo,
+  DuplicatePage,
+  type DuplicateQuery,
+  HealthPage,
+  QualityPage,
+  type RemoveDuplicate,
+  type TagEdit,
+  TagEditor,
+  TagEditResult,
   DirectoryListing,
   type DirectoryQuery,
   GenrePage,
@@ -44,6 +52,8 @@ import {
   type ReplayQuery,
   ReplayStats,
   HomeResponse,
+  type HomeQuery,
+  MixDetail,
   Import,
   ImportAlbumList,
   ImportFilesResponse,
@@ -346,6 +356,22 @@ export function createApiClient(options: ApiClientOptions) {
       deleteAppPassword: (passwordId: string) => send('DELETE', `/auth/app-passwords/${id(passwordId)}`, Ok),
     },
     admin: {
+      duplicates: (query: Partial<DuplicateQuery> = {}) =>
+        request('GET', '/admin/library/duplicates', { schema: DuplicatePage, query }),
+      removeDuplicate: (fileId: string, body: RemoveDuplicate) =>
+        request('DELETE', `/admin/library/duplicates/${id(fileId)}`, { schema: Ok, body }),
+      lowQuality: (query: { cursor?: string } = {}) =>
+        request('GET', '/admin/library/quality', { schema: QualityPage, query }),
+      fileHealth: (query: { cursor?: string; issues?: boolean } = {}) =>
+        request('GET', '/admin/library/file-health', { schema: HealthPage, query }),
+      recheckFile: (fileId: string) =>
+        request('POST', `/admin/library/file-health/${id(fileId)}`, { schema: Ok }),
+      albumTags: (albumId: string) =>
+        request('GET', `/admin/albums/${id(albumId)}/tags`, { schema: TagEditor }),
+      tagCovers: (albumId: string) =>
+        request('GET', `/admin/albums/${id(albumId)}/tag-covers`, { schema: TagEditor.shape.covers }),
+      editAlbumTags: (albumId: string, body: TagEdit) =>
+        request('PATCH', `/admin/albums/${id(albumId)}/tags`, { schema: TagEditResult, body }),
       users: () => get('/admin/users', UserList),
       createUser: (body: Input<typeof CreateUserRequest>) => send('POST', '/admin/users', User, body),
       updateUser: (userId: string, body: UpdateUserRequest) => send('PATCH', `/admin/users/${id(userId)}`, User, body),
@@ -410,7 +436,8 @@ export function createApiClient(options: ApiClientOptions) {
       collectionArtists: (query: Partial<LibraryQuery> = {}) => get('/collection/artists', ArtistPage, query),
       /** The server's songs. */
       collectionTracks: (query: Partial<LibraryQuery> = {}) => get('/collection/tracks', TrackPage, query),
-      home: () => get('/home', HomeResponse),
+      /** Home's rails; apps of this release ask for `layout: 'personal'` with the device's time zone. */
+      home: (query: HomeQuery = {}) => get('/home', HomeResponse, query),
       artist: (artistId: string) => get(`/artists/${id(artistId)}`, ArtistDetail),
       /** One section of an artist page, paged ("See all"). */
       artistReleases: (artistId: string, query: Partial<ArtistReleasesQuery> & Pick<ArtistReleasesQuery, 'section'>) => get(`/artists/${id(artistId)}/releases`, AlbumPage, query),
@@ -486,6 +513,8 @@ export function createApiClient(options: ApiClientOptions) {
     radio: {
       track: (trackId: string) => send('POST', `/radio/track/${id(trackId)}`, RadioResponse),
       artist: (artistId: string) => send('POST', `/radio/artist/${id(artistId)}`, RadioResponse),
+      /** A mix made for the user, from Home's Made for you. */
+      mix: (mixId: string) => get(`/mixes/${id(mixId)}`, MixDetail),
       /** A radio of tracks that sound like this one (falls back to the track radio's mix when it is not analysed). */
       sonic: (trackId: string) => send('POST', `/radio/sonic/${id(trackId)}`, RadioResponse),
     },
