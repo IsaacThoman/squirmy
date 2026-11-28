@@ -1,9 +1,10 @@
 import { contextLabel, readsUnavailable, upNextDetail, upNextTitle, type SessionOutage } from '@squirmy/client-core'
 import { Infinity as InfinityIcon, Repeat, Repeat1, Shuffle, X } from 'lucide-react'
-import { memo, useEffect, useId, useLayoutEffect, useRef, useState, type ComponentPropsWithRef, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode, type RefObject } from 'react'
+import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentPropsWithRef, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode, type RefObject } from 'react'
 import { Equalizer } from '@/components/music/Equalizer'
 import { Cover } from '@/components/music/Cover'
 import { SaveHeart } from '@/components/music/LibrarySave'
+import { useVirtualRows } from '@/components/music/use-virtual-rows'
 import { ConfirmDialog } from '@/components/ui/dialog'
 import { Spinner } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
@@ -49,7 +50,7 @@ type QueueSection = 'history' | 'next' | 'autoplay'
  * history the view keeps its place. The bar above the queue says where it is: "Queue", or, once a
  * list's heading has scrolled away, that list's heading, so the list scrolls under nothing.
  */
-export function QueueContent({ player, modes = true, shown = true, onClose, onNavigate, className }: QueueContentProps) {
+export const QueueContent = memo(function QueueContent({ player, modes = true, shown = true, onClose, onNavigate, className }: QueueContentProps) {
   const { state, controls } = player
   // The queue can be on screen twice, as the panel and as a pane of Now Playing.
   const id = useId()
@@ -62,7 +63,7 @@ export function QueueContent({ player, modes = true, shown = true, onClose, onNa
   const autoplayList = useRef<HTMLElement>(null)
   const section = useScrolledSection(home, { history: historyList, next: nextList, autoplay: autoplayList })
   const autoplaySwitch = <Switch checked={state.autoplay} onCheckedChange={controls.setAutoplay} aria-label="Autoplay" />
-  const upNext = state.queue.map(item => item.entry)
+  const upNext = useMemo(() => state.queue.map(item => item.entry), [state.queue])
   const headings: Record<QueueSection, { title: string; detail?: string | null; icon?: ReactNode }> = {
     history: { title: 'History' },
     next: { title: upNextTitle(context, upNext), detail: upNextDetail(context, upNext) ?? 'Songs you add to the queue appear here.' },
@@ -100,7 +101,7 @@ export function QueueContent({ player, modes = true, shown = true, onClose, onNa
               <QueueHeading id={`${id}-history`} action={<ClearButton label="Clear history" onClick={() => setClearingHistory(true)} />}>
                 History
               </QueueHeading>
-              <ul>{state.history.map(item => <li key={item.entry.id}><QueueRow item={item} onPlay={() => controls.playEntry(item.entry.id)} onNavigate={onNavigate} faded /></li>)}</ul>
+              <QueueRows items={state.history} onPlay={controls.playEntry} onNavigate={onNavigate} />
             </section>
           )}
 
@@ -147,7 +148,7 @@ export function QueueContent({ player, modes = true, shown = true, onClose, onNa
               >
                 Autoplay
               </QueueHeading>
-              {state.autoplay && <ul>{state.autoplayQueue.map(item => <li key={item.entry.id}><QueueRow item={item} onPlay={() => controls.playEntry(item.entry.id)} onNavigate={onNavigate} faded /></li>)}</ul>}
+              {state.autoplay && <QueueRows items={state.autoplayQueue} onPlay={controls.playEntry} onNavigate={onNavigate} />}
             </section>
             {/* Nothing brings a cleared history back, so it is asked first. */}
             <ConfirmDialog
@@ -163,7 +164,7 @@ export function QueueContent({ player, modes = true, shown = true, onClose, onNa
       </ScrollArea>
     </div>
   )
-}
+})
 
 /**
  * Which list the queue is scrolled into: the one whose heading has scrolled up out of view while
@@ -369,6 +370,42 @@ type SortableQueueProps = {
   onNavigate?: () => void
 }
 
+type QueueRowsProps = Pick<SortableQueueProps, 'items' | 'onPlay' | 'onNavigate'>
+
+function useQueueRows(items: QueueItem[], pinned?: number) {
+  const list = useRef<HTMLUListElement>(null)
+  const [scroller, setScroller] = useState<HTMLElement | null>(null)
+  const [focusedId, setFocusedId] = useState<string>()
+  const indexes = useMemo(() => new Map(items.map(({ entry }, index) => [entry.id, index])), [items])
+  const getItemKey = useCallback((index: number) => items[index].entry.id, [items])
+  useLayoutEffect(() => setScroller(scrollParent(list.current, { overflowing: false })), [])
+  const rows = useVirtualRows({
+    list, scroller, count: items.length, rowHeight, focused: focusedId === undefined ? undefined : indexes.get(focusedId), pinned, getItemKey,
+  })
+  return { list, rows, setFocusedId, scroller }
+}
+
+const QueueRows = memo(function QueueRows({ items, onPlay, onNavigate }: QueueRowsProps) {
+  const { list, rows, setFocusedId } = useQueueRows(items)
+  return (
+    <ul ref={list} className="relative" style={{ height: rows.getTotalSize() }}
+      onBlur={event => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setFocusedId(undefined)
+      }}>
+      {rows.getVirtualItems().map(({ index, key }) => {
+        const item = items[index]
+        return (
+          <li key={key} className="absolute inset-x-0" style={{ top: index * rowHeight }}
+            aria-posinset={index + 1} aria-setsize={items.length}
+            onFocus={() => setFocusedId(item.entry.id)}>
+            <QueueRow item={item} onPlay={() => onPlay(item.entry.id)} onNavigate={onNavigate} faded />
+          </li>
+        )
+      })}
+    </ul>
+  )
+})
+
 const DRAG_THRESHOLD = 6
 const TOUCH_HOLD_MS = 350
 
@@ -387,9 +424,8 @@ type QueuePointer = {
 }
 
 /** Drag the song row itself, or focus it and move it with the arrow keys. */
-export function SortableQueue({ items, onMove, onRemove, onPlay, onNavigate }: SortableQueueProps) {
+export const SortableQueue = memo(function SortableQueue({ items, onMove, onRemove, onPlay, onNavigate }: SortableQueueProps) {
   const [drag, setDrag] = useState<{ entryId: string; offset: number } | null>(null)
-  const list = useRef<HTMLUListElement>(null)
   const pointer = useRef<QueuePointer | null>(null)
   const suppressClick = useRef(false)
   const dragging = drag !== null
@@ -400,6 +436,7 @@ export function SortableQueue({ items, onMove, onRemove, onPlay, onNavigate }: S
   const dropPositions = useRef<Map<Element, number> | null>(null)
   const origin = drag ? items.findIndex(item => item.entry.id === drag.entryId) : -1
   const target = drag && origin >= 0 ? dropIndex(origin, drag.offset, rowHeight, items.length) : -1
+  const { list, rows, setFocusedId, scroller } = useQueueRows(items, origin)
 
   useLayoutEffect(() => {
     if (drag || !dropPositions.current) return
@@ -422,7 +459,10 @@ export function SortableQueue({ items, onMove, onRemove, onPlay, onNavigate }: S
   // A moved row's DOM node can lose focus as it is reinserted; give it back.
   useEffect(() => {
     if (!refocus.current) return
-    buttons.current.get(refocus.current)?.focus()
+    const button = buttons.current.get(refocus.current)
+    // Use the actual row once the optimistic move updates its position, including across a window edge.
+    button?.focus()
+    button?.scrollIntoView?.({ block: 'nearest' })
     refocus.current = null
   }, [items])
 
@@ -437,7 +477,7 @@ export function SortableQueue({ items, onMove, onRemove, onPlay, onNavigate }: S
       element?.removeEventListener('touchmove', preventScroll)
       window.clearTimeout(pointer.current?.timer)
     }
-  }, [])
+  }, [list])
 
   const move = (item: QueueItem, to: number) => {
     onMove(item.entry.id, to)
@@ -467,7 +507,6 @@ export function SortableQueue({ items, onMove, onRemove, onPlay, onNavigate }: S
 
   const onPointerDown = (event: PointerEvent<HTMLButtonElement>, entryId: string) => {
     if (event.button !== 0 || pointer.current || items.length < 2) return
-    const scroller = scrollParent(list.current)
     const at: QueuePointer = {
       entryId, pointerId: event.pointerId, button: event.currentTarget,
       startX: event.clientX, startY: event.clientY, y: event.clientY,
@@ -545,7 +584,10 @@ export function SortableQueue({ items, onMove, onRemove, onPlay, onNavigate }: S
   }, [dragging])
   return (
     <>
-      <ul ref={list} className="relative"
+      <ul ref={list} className="relative" style={{ height: rows.getTotalSize() }}
+        onBlur={event => {
+          if (!event.currentTarget.contains(event.relatedTarget)) setFocusedId(undefined)
+        }}
         onPointerDownCapture={() => { suppressClick.current = false }}
         onClickCapture={event => {
           if (!suppressClick.current || event.detail === 0) return
@@ -560,21 +602,22 @@ export function SortableQueue({ items, onMove, onRemove, onPlay, onNavigate }: S
         onPointerLeave={event => {
           if (!pointer.current?.active) endDrag(event)
         }}>
-        {items.map((item, index) => {
+        {rows.getVirtualItems().map(({ index, key }) => {
+          const item = items[index]
           const held = drag?.entryId === item.entry.id
           let shift = 0
           if (origin >= 0 && !held) {
             if (index > origin && index <= target) shift = -rowHeight
             if (index < origin && index >= target) shift = rowHeight
           }
-          return <SortableQueueRow key={item.entry.id} item={item} index={index} count={items.length} y={held ? drag.offset : shift} held={held} dragging={dragging} helpId={helpId} actions={actions} />
+          return <SortableQueueRow key={key} item={item} index={index} count={items.length} y={held ? drag.offset : shift} held={held} dragging={dragging} helpId={helpId} actions={actions} onFocusRow={setFocusedId} />
         })}
       </ul>
       <p id={helpId} className="sr-only">Use the up and down arrow keys to move this song.</p>
       <p aria-live="polite" className="sr-only">{announcement}</p>
     </>
   )
-}
+})
 
 type SortableRowActions = {
   register: (entryId: string, element: HTMLButtonElement | null) => void
@@ -596,16 +639,20 @@ type SortableQueueRowProps = {
   dragging: boolean
   helpId: string
   actions: SortableRowActions
+  onFocusRow: (entryId: string) => void
 }
 
 /** A song of `SortableQueue`. A drag renders only the rows it moves, not the whole queue on every pointer move. */
-const SortableQueueRow = memo(function SortableQueueRow({ item, index, count, y, held, dragging, helpId, actions }: SortableQueueRowProps) {
+const SortableQueueRow = memo(function SortableQueueRow({ item, index, count, y, held, dragging, helpId, actions, onFocusRow }: SortableQueueRowProps) {
   const entryId = item.entry.id
   return (
     <li
-      style={{ transform: `translateY(${y}px)` }}
+      aria-posinset={index + 1}
+      aria-setsize={count}
+      onFocus={() => onFocusRow(entryId)}
+      style={{ top: index * rowHeight, transform: `translateY(${y}px)` }}
       className={cn(
-        'relative rounded-lg',
+        'absolute inset-x-0 rounded-lg',
         held ? 'z-10 bg-accent shadow-md' : dragging && 'motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out',
       )}
     >

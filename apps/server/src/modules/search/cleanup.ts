@@ -48,7 +48,7 @@ export async function cleanupStubs(now = new Date()) {
   const deleted = await db.transaction(async (tx) => {
     // The library lock first: ingest may link files to a stub while this runs.
     await lockCatalog(tx)
-    await lockStubs(tx)
+    await lockStubs(tx, 'exclusive')
     // Queues and history in stored sessions are JSON; any id in them counts as kept.
     await tx.execute(sql`
       create temp table session_ids on commit drop as

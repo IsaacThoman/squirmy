@@ -8,7 +8,7 @@ import { StorageSection } from '../streamingCache/StorageSection';
 import { createThemedStyles, useColors } from '../theme';
 import {
   lastFmAdminNote, normalizationNote, normalizationOptions, openListenBrainzSettings, qualityNote, qualityOptions, scrobbleDetail,
-  scrobbleFooter, serverMusicLabel, serverMusicNote, useSettingsScreen,
+  scrobbleFooter, serverMusicLabel, serverMusicNote, shareNowPlayingLabel, shareNowPlayingNote, useSettingsScreen,
 } from './settings';
 
 export function SettingsScreen() {
@@ -49,6 +49,15 @@ export function SettingsScreen() {
           onPress={screen.settingsFailure.retry ?? (() => {})} />
       </SheetRows> : <ActivityIndicator />}
       <StorageSection />
+      {settings && <>
+        <Text style={styles.heading}>Privacy</Text>
+        <SheetRows>
+          <SheetRow title={shareNowPlayingLabel} icon="eye" selected={settings.shareNowPlaying ?? false}
+            onPress={() => screen.setShareNowPlaying(!settings.shareNowPlaying)} />
+        </SheetRows>
+        <Text style={styles.note}>{shareNowPlayingNote}</Text>
+        {screen.errors.privacy && <Text style={[styles.note, styles.error]}>{screen.errors.privacy}</Text>}
+      </>}
       {screen.listenBrainz && <ListenBrainz service={screen.listenBrainz} busy={screen.connectingListenBrainz}
         error={screen.errors.listenbrainz} onConnect={screen.connectListenBrainz} onDisconnect={() => screen.disconnect('listenbrainz')} />}
       {screen.listenBrainz?.connected && <ScrobbleSwitch service={screen.listenBrainz} enabled={screen.scrobbleEnabled(screen.listenBrainz)}

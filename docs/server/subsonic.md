@@ -52,7 +52,7 @@ A working server and password answer `"status":"ok"`. A wrong password answers `
 | Playlists | `getPlaylists`, `getPlaylist`, `createPlaylist`, `updatePlaylist`, `deletePlaylist` |
 | Play queue | `getPlayQueue`, `savePlayQueue`, `getPlayQueueByIndex`, `savePlayQueueByIndex` |
 
-OpenSubsonic extensions: `apiKeyAuthentication`, `formPost`, `songLyrics` (synced lyrics), `transcodeOffset` (seeking while transcoding), `indexBasedQueue` and `topSongsByArtistId`.
+`getOpenSubsonicExtensions` advertises version 1 of `apiKeyAuthentication`, `formPost`, `indexBasedQueue`, `songLyrics` (line-synced lyrics), `topSongsByArtistId` and `transcodeOffset` (seeking while transcoding).
 
 Requests can be GET or form POST, with or without `.view`, and answers come as XML (the default), JSON or JSONP.
 
@@ -61,6 +61,7 @@ Requests can be GET or form POST, with or without `.view`, and answers come as X
 - **Stars are the heart.** Starring a song, album or artist in an app saves it to your Squirmy library, and the other way round: a song you heart in Squirmy is starred in the app.
 - **Ratings** (1 to 5 stars) are kept for Subsonic apps; Squirmy's own apps do not show them.
 - **Scrobbles are plays.** A scrobble adds the play to your history at the time the app reports, and from there to ListenBrainz or Last.fm when you have connected them. A "now playing" notice shows in `getNowPlaying` until the song would have ended.
+- **Now playing is private by default.** You can always see your own current playback in `getNowPlaying`. To let other users on the server see it, turn on **Share what I’m listening to with other users on this server** under **Settings → Scrobbling** on the web or **Settings → Privacy** on iOS.
 - **The play queue is your Squirmy queue.** Save the queue in one app and Squirmy's web and phone apps pick it up paused at the same point, and the other way round. Tracks a Subsonic app saved before its current song are remembered until the queue changes in Squirmy. Of a very long queue, 5,000 tracks from the current song on, and 5,000 before it, are kept.
 - **Music folders are library roots.** Apps that filter by folder see one folder per root.
 - **Your library is Squirmy's library**, what you saved (plus the music on the server with the setting on), limited to songs whose files are on the server: an album you starred shows once its files have arrived. A search with a query, and opening an album or artist by id, also reach the server's collection, so search finds everything the server has.
@@ -79,7 +80,7 @@ By default an app gets the original file, with byte ranges, so seeking works.
 - `timeOffset` starts a transcode that many seconds in, for apps that seek while transcoding.
 - `estimateContentLength=true` sends a Content-Length for transcodes, estimated from the duration and bitrate.
 
-Cover art is served at the original size, or with `size` as a square WebP at the nearest of 96, 300, 600 and 1200 pixels at or above the request.
+Cover art is served as the original when `size` is omitted or zero. A sized request gets a square rendition at the nearest of 96, 300, 600 and 1200 pixels at or above the request, capped at 1200. It gets JPEG by default and WebP when its `Accept` header explicitly allows `image/webp`. JPEG renditions are generated on first request and cached.
 
 A cover that cannot be served right now (its download failed within the last hour, or its file is gone and cannot be rebuilt) is left out of `coverArt` and the image URLs rather than handed out to fail. A song then shows its file's embedded picture if it has one.
 
@@ -88,7 +89,7 @@ A cover that cannot be served right now (its download failed within the last hou
 - **Podcasts, internet radio, bookmarks, shares, jukebox, chat and video.** Squirmy has none of these. `getPodcasts`, `getNewestPodcasts`, `getInternetRadioStations`, `getBookmarks` and `getShares` answer with empty lists so apps that ask at startup are content; the rest answer with an error.
 - **User management** (`getUsers`, `createUser`, `updateUser`, `deleteUser`, `changePassword`). Manage accounts and passwords in Squirmy's admin settings.
 - **Downloading a whole album or artist** with `download`. Download songs one by one, or let the app do it.
-- **The `transcoding` extension** (`getTranscodeDecision`), **`playbackReport`**, **`sonicSimilarity`** and the karaoke timing of `songLyrics` version 2.
+- **Additional OpenSubsonic extensions.** The server does not advertise `playbackReport` (playback timelines), `transcoding` (client profiles and transcode decisions), `sonicSimilarity` (audio similarity), `getPodcastEpisode` (podcast episode metadata), or `songLyrics` version 2 (word or syllable timing and lyric layers).
 - **Album and artist sort names, moods, BPM, comments and contributors** are not stored, so songs do not carry them.
 - **Playlist limits** are the web app's: names up to 120 characters, comments up to 2,000, 10,000 songs per playlist and 1,000 playlists per person. An app that goes past one gets an error, and the songs stay as they were.
 - **Clearing the play queue** from an app keeps the current song: a Squirmy session always has something it is on.
