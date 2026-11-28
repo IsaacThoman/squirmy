@@ -92,10 +92,12 @@ discover → probe → group → match → enrich → measure loudness
 - **Probe.** Tags, technical details, and a hash of the audio stream computed without decoding. Retagging or moving a file does not change its identity.
 - **Group.** By folder, album tag and album artist.
 - **Match, album-first, in tiers:**
-  1. MusicBrainz IDs already in the tags.
-  2. Artist, album and track count, scored on titles and durations.
-  3. AcoustID fingerprint for untagged files.
-  4. Below the threshold, a review queue with "Fix match".
+  1. MusicBrainz release and release-group IDs already in the tags.
+  2. Barcode (UPC/EAN).
+  3. Artist, album and track count, scored on titles and durations.
+  4. ISRC (recordings on releases of the right track count).
+  5. AcoustID fingerprints when a key is set and no earlier candidate qualifies for automatic acceptance.
+  6. Below the threshold, a review queue with "Fix match" for plausible candidates.
 - **Manual matches are locked.** A rescan never overwrites them.
 - **Enrich.** Covers (the folder image or embedded art, whichever is larger; when that is under 500 px, the Cover Art Archive release, then release group, then Deezer, keeping the largest), artist images, bios, lyrics (`.lrc` sidecar or embedded, synced first, then LRCLIB). `sharp` resizes images and produces the album color and a blur placeholder.
 - **Every stage is a resumable job.** Heavy ones run at low priority.
@@ -224,3 +226,4 @@ Purchasing (priced offers, caps, budgets) is deferred. The protocol reserves an 
 7. **Add and take.** Web upload, inbox folder, fingerprinting, offline downloads.
 8. **Providers and extras.** Acquisition protocol and reference adapters, external scrobbling, radio from similar-artist data and sonic analysis, local search index, docs site.
 9. **Apple TV.** A remote-first streaming client, backed by Squirmy Connect, with a tvOS TestFlight build.
+10. **Playback core.** A native iOS and tvOS audio engine (sample-exact gapless, crossfade, normalization with a limiter, EQ, speed, AirPlay 2), gapless and seekable transcodes, transcode priorities, a gapless web engine, and queue diffs for Connect ([audio-engine.md](./audio-engine.md)).

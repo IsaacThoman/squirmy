@@ -30,7 +30,9 @@ Every conversion is kept in `<data>/transcodes/`, so the second play of a track 
 
 Albums are mastered at very different levels. Normalization evens them out so you do not reach for the volume between songs.
 
-**What is measured.** Each file's integrated loudness and true peak are measured with ffmpeg's EBU R128 filter, in the background at low priority. Each album is also measured as a whole, with its tracks played in order, so the quiet and loud songs of one album keep their relationship. Until a file is measured, its ReplayGain tags are used if it has them. The target is -18 LUFS, the ReplayGain reference.
+**What is measured.** Each file's integrated loudness and true peak are measured with ffmpeg's EBU R128 filter, in the background at low priority. The server decodes the tracks of an album one at a time into a continuous measurement. The album true peak is the highest of the track true peaks. Until a measurement is available, the server uses the file's ReplayGain tags when present. The target is -18 LUFS, the ReplayGain reference.
+
+**Decode failures.** After retries, the server records the error for the file and clears its measured track and album gains. The next scan that detects a change to the file retries measurement. Check the failed `loudness.measure` job when investigating an unreadable file.
 
 **The modes**, per user in **Settings → Playback → Volume normalization** (web) or **Normalize Volume** (iOS):
 
@@ -41,7 +43,7 @@ Albums are mastered at very different levels. Normalization evens them out so yo
 | **Per album** / **Album** | The album's gain, falling back to the song's. |
 | **Off** | None. |
 
-**How clients apply it.** The gain is applied on the device, never baked into the stream. A gain is limited so the track's peak does not clip. The web app can raise quiet tracks as well as lower loud ones. The iOS app can only lower: a track quieter than the target plays at its own level.
+**How clients apply it.** The gain is applied on the device and capped using the peak for the selected gain. If the chosen gain is unavailable, clients try the other gain. When neither is available, playback uses the current volume with no normalization adjustment. The web app can raise quiet tracks as well as lower loud ones. The iOS app can only lower volume.
 
 ## Listening history
 

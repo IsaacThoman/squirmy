@@ -25,7 +25,7 @@ Responses are cached in the database (`http_cache`), so the same question is not
 | **LRCLIB** (`lrclib.net`) | Lyrics for owned tracks without lyrics in the file or a `.lrc` file, and when lyrics are opened | Track title, artist, album and length | On | **LRCLIB** |
 | **ListenBrainz** (`api.listenbrainz.org`, `labs.api.listenbrainz.org`) | With a server token: artist pages (top songs when Deezer has none, popularity) and radio (similar artists) | MusicBrainz artist and recording ids, the server token | Off until an admin adds a token | **API keys → ListenBrainz → Remove key** |
 | **ListenBrainz**, per user | A user connects ListenBrainz in their settings | That user's plays: title, artist, album, track number, length, start time, MusicBrainz ids, with the user's own token | Off until a user connects | The user disconnects it |
-| **AcoustID** (`api.acoustid.org`) | Identifying files that have no album and artist tags | An audio fingerprint (computed on the server with `fpcalc`) and the length, with the key | Off until an admin adds a key | **API keys → AcoustID → Remove key** |
+| **AcoustID** (`api.acoustid.org`) | Identifying files when tags and search do not produce a confident match | An audio fingerprint (computed on the server with `fpcalc`) and the length, with the key | Off until an admin adds a key | **API keys → AcoustID → Remove key** |
 | **fanart.tv** (`webservice.fanart.tv`, `assets.fanart.tv`) | Artist images | MusicBrainz artist ids, the key | Off until an admin adds a key | **API keys → fanart.tv → Remove key** |
 | **Last.fm** (`ws.audioscrobbler.com`) | A user connects Last.fm; plays and "now playing" for connected users | That user's plays and current track: title, artist, album, track number, length, start time, MusicBrainz ids | Off until an admin adds a key and a user connects | Remove the key, or the user disconnects |
 | **MetaBrainz data** (`data.metabrainz.org`) | Only when an admin starts a **Search index** import | Nothing beyond the download request | Off | Do not start an import |
@@ -44,7 +44,7 @@ Add these in **Admin → Server settings → API keys** with **Add key**. They a
 | Key | Where to get it | What it unlocks |
 |---|---|---|
 | **ListenBrainz** user token | Your ListenBrainz profile settings | Top songs (when Deezer has none) and popularity on artist pages, similar artists for radio and Subsonic "similar songs". Not needed for users to scrobble to ListenBrainz. |
-| **AcoustID** API key | An application key from acoustid.org | Identifying untagged files (no album or artist tags) by their audio fingerprint. Untagged files already in the library are tried again when the key is added ([Turning identification on later](./library.md#turning-identification-on-later)). |
+| **AcoustID** API key | An application key from acoustid.org | Identifying files by audio fingerprint when tags and search fall short. Eligible unmatched files already in the library are tried again when the key is added ([Turning identification on later](./library.md#turning-identification-on-later)). |
 | **fanart.tv** API key | A personal or project key from fanart.tv | Better artist images. |
 | **Last.fm** API key and shared secret | A Last.fm API account | Lets users connect their Last.fm account for scrobbling. See [Scrobbling](./scrobbling.md). |
 

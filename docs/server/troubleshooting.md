@@ -70,7 +70,7 @@ Confirm in **Admin → Library** under **Identification**: **Waiting** means not
   ```
 
   MusicBrainz answers 403 to requests without a User-Agent, so keep the header. A `503` means it is limiting requests from your address right now (the server may be using its share); try again a few seconds later.
-- **From tags only, some albums**: the tags may lack an album artist and album title, or be too far from the release MusicBrainz knows. Use **Fix match** (see [The review queue and Fix match](./library.md#the-review-queue-and-fix-match)). Files with no album and artist tags at all can be identified by fingerprint once an AcoustID key is added.
+- **From tags only, some albums**: the tags may lack an album artist and album title, or be too far from the release MusicBrainz knows. Use **Fix match** (see [The review queue and Fix match](./library.md#the-review-queue-and-fix-match)). Adding an AcoustID key lets the matcher try audio fingerprints when tags and search fall short.
 - **In review**: open **Admin → Review queue**. If too many good matches end up there, lower **Accept matches automatically above** a little.
 
 ## No covers

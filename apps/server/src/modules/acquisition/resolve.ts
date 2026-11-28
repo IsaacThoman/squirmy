@@ -7,7 +7,8 @@
  * - `acquisition_misses` holds what a provider could not supply: an empty resolve, a failed
  *   or mismatched delivery. A miss hides the recording from that provider for a day, then
  *   it is asked again; sooner when the provider changes (misses.ts).
- * - Recordings a `must_resolve` provider has never answered for are batched into
+ * - Unanswered recordings for `must_resolve` providers, and album-page checks for
+ *   `assume_available` providers, are batched into
  *   `acquisition.resolve` jobs, and the screens showing them are invalidated when the
  *   answer arrives.
  */
@@ -15,12 +16,14 @@ import { type ProviderOffer, type ProviderRecordingQuery } from '@squirmy/contra
 import { and, eq, gt, inArray, lt, sql } from 'drizzle-orm'
 import { getConfig } from '../../config.js'
 import { db } from '../../database/client.js'
-import { acquisitionMisses, acquisitionOffers } from '../../database/schema.js'
+import { withSessionLock } from '../../database/locks.js'
+import { acquisitionMisses, acquisitionOffers, acquisitionProviders } from '../../database/schema.js'
 import { enqueue, enqueueMany } from '../../jobs/index.js'
 import { publishChanges } from '../../realtime/index.js'
 import { albumAvailability, trackAvailability } from '../catalog/availability.js'
 import { uuidArray } from '../catalog/sql.js'
-import { busyWaitSeconds, ProviderCallError, resolveItems, type ProviderEndpoint } from './client.js'
+import { ownedRecordings } from './catalog.js'
+import { busyWaitSeconds, ProviderCallError, resolveItems } from './client.js'
 import { currentMisses, expireMisses, recordMisses } from './misses.js'
 import { activeProviders, noteProviderError, type ActiveProvider } from './providers.js'
 
@@ -31,6 +34,7 @@ export const OFFER_TTL_MS = 30 * 24 * 60 * 60_000
 export const FRESH_OFFER_MS = 60 * 60_000
 /** Items per `POST /resolve`, the protocol's limit. */
 export const RESOLVE_BATCH = 100
+export type RecordingTarget = { recordingId: string; albumId: string | null }
 
 const timing = {
   debounceMs: 250,
@@ -39,9 +43,10 @@ const timing = {
   busyWaitSeconds: 5,
   busyRetries: 5,
 }
-const pending = new Map<string, Set<string>>()
+const pending = new Map<string, Map<string, string | null>>()
 /** `<provider>:<recording>` → when a resolve was last queued for it, so lists do not queue it again. */
 const asked = new Map<string, number>()
+const resolving = new Map<string, Promise<unknown>>()
 let flushTimer: ReturnType<typeof setTimeout> | null = null
 
 /** Overrides the resolve batching delays in tests. */
@@ -88,20 +93,31 @@ export async function coveredRecordings(providers: readonly ActiveProvider[], id
 }
 
 /** Queues recordings for a batched `acquisition.resolve`, at most once per provider every few minutes. */
-function scheduleResolve(providerId: string, ids: readonly string[]) {
+function scheduleResolve(providerId: string, ids: readonly string[], albumId: string | null = null) {
   const now = Date.now()
   let batch = pending.get(providerId)
   for (const id of ids) {
     const key = `${providerId}:${id}`
     if (now - (asked.get(key) ?? -Infinity) < timing.reaskMs) continue
     asked.set(key, now)
-    if (!batch) pending.set(providerId, batch = new Set())
-    batch.add(id)
+    if (!batch) pending.set(providerId, batch = new Map())
+    batch.set(id, albumId)
   }
   if (batch && !flushTimer) {
     flushTimer = setTimeout(() => void flushResolves(), timing.debounceMs)
     flushTimer.unref()
   }
+}
+
+/** Checks the optimistic availability of the unowned tracks shown on an album page. */
+export async function queueAlbumResolve(ids: readonly string[], albumId: string) {
+  if (!ids.length) return
+  const providers = (await activeProviders()).filter((provider) => provider.coverage === 'assume_available')
+  if (!providers.length) return
+  const [misses, offers] = await Promise.all([currentMisses(ids), cachedOffers(providers.map((provider) => provider.id), ids, FRESH_OFFER_MS)])
+  const answered = new Set(misses.map(({ providerId, id }) => `${providerId}:${id}`))
+  for (const offer of offers) if (usableOffers(offer.offers).length) answered.add(`${offer.providerId}:${offer.recordingId}`)
+  for (const { id } of providers) scheduleResolve(id, ids.filter((recordingId) => !answered.has(`${id}:${recordingId}`)), albumId)
 }
 
 /** Enqueues what `scheduleResolve` collected, in batches of the protocol's size. */
@@ -111,9 +127,13 @@ export async function flushResolves() {
   const now = Date.now()
   for (const [key, at] of asked) if (now - at >= timing.reaskMs) asked.delete(key)
   const items: { data: ResolveJob }[] = []
-  for (const [providerId, ids] of pending) {
-    const list = [...ids]
-    for (let start = 0; start < list.length; start += RESOLVE_BATCH) items.push({ data: { providerId, recordingIds: list.slice(start, start + RESOLVE_BATCH) } })
+  for (const [providerId, recordings] of pending) {
+    const list = [...recordings]
+    for (let start = 0; start < list.length; start += RESOLVE_BATCH) {
+      const batch = list.slice(start, start + RESOLVE_BATCH)
+      const albums = Object.fromEntries(batch.filter(([, albumId]) => albumId !== null))
+      items.push({ data: { providerId, recordingIds: batch.map(([id]) => id), albums } })
+    }
   }
   pending.clear()
   if (items.length === 0) return
@@ -143,28 +163,27 @@ export function resetResolveQueue() {
 }
 
 /** `attempt` counts the times the provider was too busy to answer, for the backoff. */
-export type ResolveJob = { providerId: string; recordingIds: string[]; attempt?: number }
+export type ResolveJob = { providerId: string; recordingIds: string[]; albums?: Record<string, string | null>; attempt?: number }
 
 /**
- * `acquisition.resolve`: asks a `must_resolve` provider about recordings nobody has asked
- * it about, stores the answers and invalidates whatever shows the ones that lit up.
+ * `acquisition.resolve`: asks a provider about recordings nobody has asked it about.
+ * Publishes positive answers for required coverage and misses for optimistic coverage.
  */
-export async function runResolveJob({ providerId, recordingIds, attempt = 0 }: ResolveJob) {
+export async function runResolveJob({ providerId, recordingIds, albums, attempt = 0 }: ResolveJob) {
   const provider = (await activeProviders()).find((candidate) => candidate.id === providerId)
   if (!provider) return
-  const owned = await db.execute<{ id: string }>(sql`
-    select distinct recording_id as id from media_files where recording_id = any(${uuidArray(recordingIds)}) and missing_since is null`)
-  const ownedIds = new Set(owned.map((row) => row.id))
   let answers: Map<string, ProviderOffer[]>
   try {
-    answers = await resolveRecordings(provider, recordingIds.filter((id) => !ownedIds.has(id)))
+    const targets = new Map(recordingIds.map((id) => [id, albums?.[id] ?? null]))
+    const check = () => resolveUncached(provider, targets, provider.coverage === 'assume_available' ? FRESH_OFFER_MS : OFFER_TTL_MS)
+    answers = provider.coverage === 'assume_available' ? await withRecordingResolve(provider, check) : await check()
   } catch (error) {
-    // Unanswered recordings stay gray and are asked about again when a list next shows them.
+    // Unanswered recordings keep their current availability.
     if (!(error instanceof ProviderCallError)) throw error
     if (error.busy) {
       // Rate limited: not a fault to show the admin, and the answer is wanted soon, not in ten minutes.
       if (attempt < timing.busyRetries) {
-        await enqueue<ResolveJob>('acquisition.resolve', { providerId, recordingIds, attempt: attempt + 1 }, {
+        await enqueue<ResolveJob>('acquisition.resolve', { providerId, recordingIds, albums, attempt: attempt + 1 }, {
           startAfter: busyWaitSeconds(attempt, error.retryAfterSeconds, { firstSeconds: timing.busyWaitSeconds }),
         })
       }
@@ -173,8 +192,53 @@ export async function runResolveJob({ providerId, recordingIds, attempt = 0 }: R
     await noteProviderError(provider.id, error.message)
     return
   }
-  const lit = [...answers].filter(([, offers]) => offers.length > 0).map(([id]) => id)
-  if (lit.length > 0) await announceAvailability(lit)
+  const changed = [...answers].filter(([, offers]) => (offers.length === 0) === (provider.coverage === 'assume_available')).map(([id]) => id)
+  await announceAvailability(changed)
+}
+
+/** Serializes optimistic resolves across workers so a later batch can reuse the first answer. */
+async function withRecordingResolve<T>(provider: ActiveProvider, work: () => Promise<T>): Promise<T> {
+  const previous = resolving.get(provider.id)
+  const next = (async () => {
+    await previous?.catch(() => {})
+    const result = await withSessionLock(`squirmy:acquisition:resolve:${provider.id}`, work)
+    if (!result.locked) throw new ProviderCallError('A recording resolve is already running', true)
+    return result.value
+  })()
+  resolving.set(provider.id, next)
+  try {
+    return await next
+  } finally {
+    if (resolving.get(provider.id) === next) resolving.delete(provider.id)
+  }
+}
+
+/** Rechecks the database in the worker, including jobs enqueued before another batch answered. */
+async function resolveUncached(provider: ActiveProvider, targets: Map<string, string | null>, ttl: number, requestedId?: string) {
+  const ids = [...targets.keys()]
+  const [owned, misses, offers] = await Promise.all([
+    ownedRecordings(ids.filter((id) => id !== requestedId)), currentMisses(ids), cachedOffers([provider.id], ids, ttl),
+  ])
+  const answered = new Set(misses.filter((miss) => miss.providerId === provider.id).map((miss) => miss.id))
+  for (const row of offers) if (usableOffers(row.offers).length) answered.add(row.recordingId)
+  for (const id of ids) if (owned.has(id) || answered.has(id)) targets.delete(id)
+  return resolveRecordings(provider, targets)
+}
+
+/** Uses the background cache, resolving neighbouring prefetch entries in the same call. */
+export async function recordingOffers(provider: ActiveProvider, id: string, albumId: string | null, upcoming: readonly RecordingTarget[] = []): Promise<ProviderOffer[]> {
+  const cached = await freshOffers(provider.id, id)
+  if (cached) return cached
+  if (provider.coverage === 'must_resolve') return (await resolveRecordings(provider, new Map([[id, albumId]]))).get(id) ?? []
+  const { answers, offers } = await withRecordingResolve(provider, async () => {
+    const targets = new Map(upcoming.map((track) => [track.recordingId, track.albumId]))
+    targets.set(id, albumId)
+    // The current acquisition has already checked ownership. Check again only for speculative entries.
+    const answers = await resolveUncached(provider, targets, FRESH_OFFER_MS, id)
+    return { answers, offers: answers.get(id) ?? await freshOffers(provider.id, id) ?? [] }
+  })
+  await announceAvailability([...answers].filter(([recordingId, offers]) => recordingId !== id && !offers.length).map(([recordingId]) => recordingId))
+  return offers
 }
 
 /**
@@ -182,8 +246,8 @@ export async function runResolveJob({ providerId, recordingIds, attempt = 0 }: R
  * cache, nothing usable as a miss. Returns the usable offers by recording; recordings the
  * provider did not answer for are left out. Throws `ProviderCallError`.
  */
-export async function resolveRecordings(provider: ProviderEndpoint & { id: string }, ids: readonly string[], albumId?: string | null): Promise<Map<string, ProviderOffer[]>> {
-  const queries = await recordingQueries(ids, albumId ?? null)
+async function resolveRecordings(provider: ActiveProvider, targets: ReadonlyMap<string, string | null>): Promise<Map<string, ProviderOffer[]>> {
+  const queries = await recordingQueries(targets)
   const entries = [...queries]
   const answers = new Map<string, ProviderOffer[]>()
   for (let start = 0; start < entries.length; start += RESOLVE_BATCH) {
@@ -195,15 +259,20 @@ export async function resolveRecordings(provider: ProviderEndpoint & { id: strin
       if (offers) answers.set(id, usableOffers(offers))
     }
   }
-  await storeAnswers(provider.id, answers)
+  await storeAnswers(provider, answers)
   return answers
 }
 
-async function storeAnswers(providerId: string, answers: Map<string, ProviderOffer[]>) {
+async function storeAnswers({ id: providerId, missEpoch }: ActiveProvider, answers: Map<string, ProviderOffer[]>) {
+  if (answers.size === 0) return
   const now = new Date()
   const positive = [...answers].filter(([, offers]) => offers.length > 0)
   const negative = [...answers].filter(([, offers]) => offers.length === 0).map(([id]) => id)
   await db.transaction(async (tx) => {
+    // An answer from before a provider was reconfigured must not count at its new epoch.
+    const [provider] = await tx.select({ missEpoch: acquisitionProviders.missEpoch }).from(acquisitionProviders)
+      .where(and(eq(acquisitionProviders.id, providerId), eq(acquisitionProviders.enabled, true))).for('update')
+    if (provider?.missEpoch !== missEpoch) throw new ProviderCallError('The provider changed during resolve', true)
     if (positive.length > 0) {
       await tx.insert(acquisitionOffers).values(positive.map(([recordingId, offers]) => ({ providerId, recordingId, offers, resolvedAt: now })))
         .onConflictDoUpdate({ target: [acquisitionOffers.providerId, acquisitionOffers.recordingId], set: { offers: sql`excluded.offers`, resolvedAt: now } })
@@ -217,12 +286,20 @@ async function storeAnswers(providerId: string, answers: Map<string, ProviderOff
 }
 
 /** Usable offers a provider returned for a recording within the last hour. */
-export async function freshOffers(providerId: string, recordingId: string): Promise<ProviderOffer[] | null> {
-  const [row] = await db.select().from(acquisitionOffers).where(and(
-    eq(acquisitionOffers.providerId, providerId), eq(acquisitionOffers.recordingId, recordingId),
-    gt(acquisitionOffers.resolvedAt, new Date(Date.now() - FRESH_OFFER_MS)),
+async function freshOffers(providerId: string, recordingId: string): Promise<ProviderOffer[] | null> {
+  const [row] = await cachedOffers([providerId], [recordingId], FRESH_OFFER_MS)
+  const offers = row ? usableOffers(row.offers) : []
+  return offers.length ? offers : null
+}
+
+function cachedOffers(providerIds: string[], ids: readonly string[], ttl: number) {
+  return db.select({
+    providerId: acquisitionOffers.providerId, recordingId: acquisitionOffers.recordingId,
+    offers: sql<ProviderOffer[]>`${acquisitionOffers.offers}`,
+  }).from(acquisitionOffers).where(and(
+    inArray(acquisitionOffers.providerId, providerIds), sql`${acquisitionOffers.recordingId} = any(${uuidArray(ids)})`,
+    gt(acquisitionOffers.resolvedAt, new Date(Date.now() - ttl)),
   ))
-  return row ? usableOffers(row.offers as ProviderOffer[]) : null
 }
 
 /** Deletes misses and offers too old to count. */
@@ -236,22 +313,22 @@ export async function expireCaches(now = Date.now()) {
  * is a release the recording is on, `albumId`'s when it is one of them, else the album
  * hint of a search stub.
  */
-export async function recordingQueries(ids: readonly string[], albumId: string | null): Promise<Map<string, ProviderRecordingQuery>> {
-  if (ids.length === 0) return new Map()
+async function recordingQueries(targets: ReadonlyMap<string, string | null>): Promise<Map<string, ProviderRecordingQuery>> {
+  if (targets.size === 0) return new Map()
   const rows = await db.execute<{
     id: string; mbid: string | null; isrcs: string[]; title: string; artist: string; durationMs: number | null
     albumTitle: string | null; albumMbid: string | null; year: number | null; disc: number | null; position: number | null
   }>(sql`
     select r.id, r.mbid, r.isrcs, r.title, r.artist_credit as artist, r.duration_ms as "durationMs",
       a.title as "albumTitle", a.mbid as "albumMbid", a.year, t.disc, t.position
-    from recordings r
+    from unnest(${uuidArray([...targets.keys()])}, ${uuidArray([...targets.values()])}) as requested(id, album_id)
+    join recordings r on r.id = requested.id
     left join lateral (
       select rel.album_id, rt.disc, rt.position from release_tracks rt join releases rel on rel.id = rt.release_id
       where rt.recording_id = r.id
-      order by (rel.album_id = ${albumId}::uuid) desc nulls last, rt.id limit 1
+      order by (rel.album_id = requested.album_id) desc nulls last, rt.id limit 1
     ) t on true
-    left join albums a on a.id = coalesce(t.album_id, r.album_hint_id)
-    where r.id = any(${uuidArray(ids)})`)
+    left join albums a on a.id = coalesce(t.album_id, r.album_hint_id)`)
   return new Map(rows.map((row) => [row.id, {
     mbid: row.mbid,
     isrcs: row.isrcs ?? [],
