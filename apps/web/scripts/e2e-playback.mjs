@@ -10,6 +10,8 @@
 // 3. node scripts/e2e-playback.mjs <baseUrl>
 //
 // The demo tracks are very quiet tones, and this run keeps the volume low besides.
+// SQUIRMY_E2E_ENGINE=web hides Media Source Extensions, so a Chromium run walks the same steps
+// on WebPlayerEngine, the engine Firefox and Safari get.
 import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { chromium } from 'playwright'
@@ -77,11 +79,22 @@ async function listeningOn(page) {
 /**
  * Records every audio element the page creates and what it does, so the checks can tell
  * whether this page is really making sound, where it is, and how long a track change took.
+ * The page's engine (development builds expose it) reports its ends too: one element of
+ * `MseEngine` plays every track on one timeline, with no `ended` between them, and says
+ * where on it the track playing starts.
  */
 function instrumentAudio() {
   const Native = window.Audio
   const record = { elements: [], events: [] }
   window.__audio = record
+  record.trackStart = () => window.squirmyPageEngine?.inspect?.().current?.start ?? 0
+  record.entry = () => window.squirmyPageEngine?.inspect?.().current?.entryId ?? ''
+  const watch = setInterval(() => {
+    const engine = window.squirmyPageEngine
+    if (!engine) return
+    clearInterval(watch)
+    engine.subscribe(event => { if (event.type === 'ended') record.events.push({ type: 'track ended', at: performance.now() }) })
+  }, 50)
   window.Audio = function Audio(...rest) {
     const element = new Native(...rest)
     record.elements.push(element)
@@ -93,11 +106,18 @@ function instrumentAudio() {
   window.Audio.prototype = Native.prototype
 }
 
-/** The element that is playing, with its position in ms, or null when the page is silent. */
+/** The element that is playing, with the track's position in ms, or null when the page is silent. */
 const sounding = page => page.evaluate(() => {
   const element = window.__audio.elements.find(audio => !audio.paused && !audio.ended && audio.currentSrc)
-  return element ? { src: element.currentSrc, ms: Math.round(element.currentTime * 1000) } : null
+  return element ? { src: `${element.currentSrc}#${window.__audio.entry()}`, ms: Math.round((element.currentTime - window.__audio.trackStart()) * 1000) } : null
 })
+
+/** Where the audio is in the track, from an element that has played, paused or not. */
+const audioPosition = (page, after = 0) => page.evaluate(after => {
+  const start = window.__audio.trackStart()
+  const element = window.__audio.elements.find(audio => audio.currentSrc && audio.currentTime - start > after)
+  return element ? Math.round((element.currentTime - start) * 1000) : NaN
+}, after)
 
 /**
  * Whether the page plays one source that moves on with time. Waits a few seconds for it to
@@ -135,6 +155,7 @@ async function api(context, method, url, data) {
 
 async function signedIn(browser, credentials, viewport = { width: 1440, height: 900 }) {
   const context = await browser.newContext({ viewport })
+  if (process.env.SQUIRMY_E2E_ENGINE === 'web') await context.addInitScript(() => { delete window.MediaSource })
   await context.addInitScript(instrumentAudio)
   await api(context, 'POST', '/auth/login', credentials)
   const page = await context.newPage()
@@ -196,7 +217,7 @@ await step('transport', async () => {
   check('pause stops the audio', paused === null)
   await seekTo(page, 0.5)
   const target = await until(() => seekValue(page), value => value > 100_000, 2000)
-  const element = await page.evaluate(() => Math.round(window.__audio.elements.find(audio => audio.currentSrc && audio.currentTime > 0)?.currentTime * 1000))
+  const element = await audioPosition(page)
   check('seeking moves the audio', Math.abs(element - target) < 1500, `${target} ms, audio at ${element} ms`)
   await transport(page, 'Play').click()
   check('play resumes', await advancing(page))
@@ -407,9 +428,9 @@ await step('natural end', async () => {
   // As scripts/e2e-engine.mjs measures it: time since the end, less what the next track has played.
   const gap = await page.evaluate(() => {
     const { events, elements } = window.__audio
-    const end = events.findLast(event => event.type === 'ended')
-    const next = elements.find(audio => !audio.paused && audio.currentSrc && audio.currentSrc !== end?.src)
-    return end && next ? Math.round(performance.now() - end.at - next.currentTime * 1000) : null
+    const end = events.findLast(event => event.type === 'track ended')
+    const next = elements.find(audio => !audio.paused && audio.currentSrc)
+    return end && next ? Math.round(performance.now() - end.at - (next.currentTime - window.__audio.trackStart()) * 1000) : null
   })
   check('without a gap', gap !== null && gap < 120, `${gap} ms lost between the tracks`)
   const errors = await page.evaluate(() => window.__audio.events.filter(event => event.type === 'error').length)
@@ -453,7 +474,7 @@ await step('remote control', async () => {
   check('pausing from the second device pauses the first within a second', paused === null)
   await seekTo(b.page, 0.25)
   const target = await until(() => seekValue(b.page), value => value > 30_000 && value < 70_000, 1000)
-  const there = await until(() => a.page.evaluate(() => Math.round(window.__audio.elements.find(audio => audio.currentSrc && audio.currentTime > 1)?.currentTime * 1000)), ms => Math.abs(ms - target) < 1000, 1000)
+  const there = await until(() => audioPosition(a.page, 1), ms => Math.abs(ms - target) < 1000, 1000)
   check('seeking from it moves the first within a second', Math.abs(there - target) < 1000, `${target} ms asked, ${there} ms there`)
   await transport(b.page, 'Play').click()
   const resumed = await until(() => sounding(a.page), value => value !== null, 1000)
