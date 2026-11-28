@@ -203,7 +203,7 @@ describe('matching.match-album', () => {
     expect((await filesOf(ingested)).every((file) => file.matchStatus === 'matched' && file.matchSource === 'tags-barcode')).toBe(true)
   })
 
-  it('finds the right-size edition by ISRC when the barcode has no hits', async () => {
+  it('finds the right-size edition by ISRC when the barcode and the search have no hits', async () => {
     const ingested = await ingestAlbum(rootId, demoAlbums.okComputer, {
       folder: 'tagged/isrc',
       tags: (track) => ({
@@ -215,6 +215,7 @@ describe('matching.match-album', () => {
 
     expect(http.requests.filter((request) => request.includes('query='))).toEqual([
       expect.stringContaining('query=barcode%3A999999999999'),
+      expect.stringContaining('query=release%3A%22OK+Computer%22'),
       expect.stringContaining('query=isrc%3AGBAYE9701368'),
     ])
     expect(await releaseOf(ingested)).toMatchObject({ mbid: okComputerCd })

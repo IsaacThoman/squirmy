@@ -189,7 +189,11 @@ async function fromBarcode(evidence: GroupEvidence, files: GroupFile[], found: M
   await fetchAndScore(evidence, preselect(releases, evidence), 'tags-barcode', found)
 }
 
-/** An ISRC identifies a recording. Use a few distinct codes to find editions that fit the group. */
+/**
+ * An ISRC identifies a recording. Use a few distinct codes to find editions that fit the group.
+ * Runs after the search: it costs up to `voters` rate-limited requests, and the search
+ * settles most albums in one.
+ */
 async function fromIsrcs(evidence: GroupEvidence, files: GroupFile[], found: Map<string, Found>) {
   const codes = new Set(files.flatMap((file) => file.tags.isrcs ?? []))
   if (codes.size === 0) return
@@ -264,7 +268,7 @@ async function fromFingerprints(evidence: GroupEvidence, files: GroupFile[], fou
 /** Every candidate for one album or loose track, best first. */
 async function findCandidates(evidence: GroupEvidence, files: GroupFile[], settings: ServerSettings): Promise<Found[]> {
   const found = new Map<string, Found>()
-  for (const tier of [fromTagRelease, fromTagReleaseGroup, fromBarcode, fromIsrcs, searchAlbum]) {
+  for (const tier of [fromTagRelease, fromTagReleaseGroup, fromBarcode, searchAlbum, fromIsrcs]) {
     await tier(evidence, files, found)
     const accepted = rank([...found.values()]).find(({ evaluation }) => isPlausible(evaluation) && evaluation.score >= settings.matchAutoAcceptScore)
     if (accepted) return [accepted]

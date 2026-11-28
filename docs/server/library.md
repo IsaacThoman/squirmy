@@ -91,8 +91,8 @@ The matcher tries these steps in order and stops as soon as a candidate qualifie
 
 1. Look up the MusicBrainz release ID, then the release-group ID from the tags.
 2. Look up the release by barcode (UPC or EAN).
-3. Look up recordings by ISRC and consider releases with the same number of tracks as the album's files.
-4. Search by album artist and title.
+3. Search by album artist and title.
+4. Look up recordings by ISRC and consider releases with the same number of tracks as the album's files.
 5. Use audio fingerprints when an [AcoustID key](./metadata-and-privacy.md#api-keys) is set.
 
 The matcher scores the candidates against the files, including track count, titles, lengths and year. If fingerprints are available, they also help score releases found earlier. The review queue shows up to five of the highest-scoring releases when the best one needs review.
