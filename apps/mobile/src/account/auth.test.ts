@@ -43,9 +43,19 @@ describe('reduceAuth', () => {
     expect(run(signedIn, { type: 'unauthorized', token: 'token-1' })).toEqual({ status: 'signIn', server, notice: expiredNotice });
   });
 
+  it('opens another saved account by closing everything until its saved library is read', () => {
+    expect(run(signedIn, { type: 'switching' })).toEqual({ status: 'restoring' });
+    expect(run(signedIn, { type: 'switching' }, { type: 'restored', server: other, token: 'token-2', user }))
+      .toEqual({ status: 'signedIn', server: other, token: 'token-2', user });
+    // One that was signed out opens at its sign-in.
+    expect(run(signedIn, { type: 'switching' }, { type: 'restored', server: other, token: null, user: null }))
+      .toEqual({ status: 'signIn', server: other, notice: null });
+  });
+
   it('switches server from sign-in or signed in, remembering the last one', () => {
     expect(run(signedIn, { type: 'switchServer' })).toEqual({ status: 'connect', previous: server });
     expect(run({ status: 'signIn', server, notice: expiredNotice }, { type: 'switchServer' })).toEqual({ status: 'connect', previous: server });
+
   });
 
   it('takes what the server now says about itself, for the same server only', () => {

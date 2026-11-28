@@ -10,7 +10,11 @@ export { limitOptions } from './model';
 
 const device = Platform.OS === 'ios' ? 'iPhone' : 'phone';
 
-export const cacheNote = `Keeps the songs you played most recently, and the next ones in your queue, on this ${device}. They start at once, play without a connection and use no data the second time. The oldest are removed to stay under the limit. Downloads are separate and never removed.`;
+export const cacheNote = `Keeps the songs you played most recently, and the next ones in your queue, on this ${device}. They start at once, play without a connection and use no data the second time. The oldest are removed to stay under the limit. Downloads are separate and never removed. The limit is for every account on this ${device} together.`;
+
+/** Under an account kept for switching back to, in Settings → Storage. */
+export const accountNote = `Kept on this ${device} while you use another account, so switching back finds its downloads and library as they were.`;
+export const signedOutNote = `Signed out. Its downloads stay on this ${device} until you sign in again or remove them.`;
 
 const nothing: CacheSummary = { usedBytes: 0, count: 0 };
 const noSubscription = () => () => undefined;

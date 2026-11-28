@@ -11,7 +11,8 @@ import { useUserSettings } from '../data/queries';
 import { useRealtime } from '../data/realtime';
 import { codecsFor } from '../player/session';
 import { useCached, useCachedArtwork, useCacheFilesVersion, useStreamingCache } from '../streamingCache/context';
-import { downloadIndex } from './database';
+import { otherAccountsBytes } from '../account/accounts';
+import { downloadIndex, downloadUsage } from './database';
 import { downloadFiles, downloadNetwork } from './files';
 import { DownloadManager, type CollectionContent, type DownloadSource } from './manager';
 import {
@@ -112,6 +113,7 @@ export function DownloadsProvider({ children }: PropsWithChildren) {
   const fetches = canFetch(viewer);
 
   // Built once per account: rebuilding would cancel the downloads in flight and start them over.
+  // Another account's downloads stay on the device, in the same folder, and wait for it to be opened again.
   useEffect(() => {
     if (Platform.isTV || !apiRef.current || !account) return;
     const network = downloadNetwork();
@@ -122,6 +124,8 @@ export function DownloadsProvider({ children }: PropsWithChildren) {
       }, serverUrl),
       options: {
         quality: settings?.downloadQuality ?? 'original', wifiOnly: settings?.downloadOnWifiOnly ?? true, capBytes: savedLimit(capItem.read()), canFetch: fetches,
+        // The limit is the device's: the other accounts' downloads, kept for when they are opened again, count too.
+        otherBytes: otherAccountsBytes(downloadUsage(), account),
       },
     });
     next.start();

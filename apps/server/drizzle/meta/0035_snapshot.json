@@ -1,5 +1,5 @@
 {
-  "id": "30624260-5934-4b47-b3d6-a8f798beca48",
+  "id": "48b86516-f3c8-47d5-b838-dcfc1fccba47",
   "prevId": "ef0c2409-4de6-44e5-9554-afb74173d755",
   "version": "7",
   "dialect": "postgresql",
@@ -728,6 +728,13 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
+        },
+        "artwork_locked": {
+          "name": "artwork_locked",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "canonical_release_id": {
           "name": "canonical_release_id",
@@ -4046,6 +4053,30 @@
           "primaryKey": false,
           "notNull": false
         },
+        "health_checked_at": {
+          "name": "health_checked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "health_status": {
+          "name": "health_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "health_detail": {
+          "name": "health_detail",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "health_requested_at": {
+          "name": "health_requested_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "missing_since": {
           "name": "missing_since",
           "type": "timestamp with time zone",
@@ -4106,6 +4137,44 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "media_files_health_due": {
+          "name": "media_files_health_due",
+          "columns": [
+            {
+              "expression": "coalesce(\"health_checked_at\", '-infinity'::timestamptz)",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"media_files\".\"missing_since\" is null and not \"media_files\".\"cached\"",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "media_files_health_requested": {
+          "name": "media_files_health_requested",
+          "columns": [
+            {
+              "expression": "health_requested_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"media_files\".\"health_requested_at\" is not null",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -6880,13 +6949,6 @@
         },
         "can_acquire": {
           "name": "can_acquire",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "explicit_restricted": {
-          "name": "explicit_restricted",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
