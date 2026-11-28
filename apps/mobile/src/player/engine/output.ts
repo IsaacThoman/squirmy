@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { accountItem } from '../../data/accountStorage';
-import { readCrossfade } from './crossfade';
+import { readCrossfade, readSmartTransitions } from './crossfade';
 import { equalizerCurve, readEqualizer, type EqualizerSetting } from './equalizer';
 import type { AppEngine } from './index';
 
@@ -12,9 +12,11 @@ import type { AppEngine } from './index';
 
 const equalizerItem = accountItem<EqualizerSetting>('equalizer', 'device');
 const crossfadeItem = accountItem<number>('crossfade', 'device');
+const smartItem = accountItem<boolean>('smartTransitions', 'device');
 const listeners = new Set<() => void>();
 let equalizer: EqualizerSetting | undefined;
 let crossfade: number | undefined;
+let smart: boolean | undefined;
 
 export function storedEqualizer(): EqualizerSetting {
   equalizer ??= readEqualizer(equalizerItem.read());
@@ -40,6 +42,18 @@ export function setStoredCrossfade(seconds: number): void {
   for (const listener of [...listeners]) listener();
 }
 
+/** Crossfades follow the songs' outro and intro; off by default. */
+export function storedSmartTransitions(): boolean {
+  smart ??= readSmartTransitions(smartItem.read());
+  return smart;
+}
+
+export function setStoredSmartTransitions(on: boolean): void {
+  smart = on;
+  smartItem.write(on);
+  for (const listener of [...listeners]) listener();
+}
+
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
@@ -55,22 +69,30 @@ export function useCrossfadeSetting(): [number, (seconds: number) => void] {
   return [useSyncExternalStore(subscribe, storedCrossfade), setStoredCrossfade];
 }
 
+/** Settings' Smart transitions, beside the crossfade, for the next song on. */
+export function useSmartTransitionsSetting(): [boolean, (on: boolean) => void] {
+  return [useSyncExternalStore(subscribe, storedSmartTransitions), setStoredSmartTransitions];
+}
+
 /**
- * Hands `engine` the device's equalizer and crossfade now and whenever they change, for an
- * engine that has them. Returns a function that stops.
+ * Hands `engine` the device's equalizer, crossfade and Smart transitions now and whenever they
+ * change, for an engine that has them. Returns a function that stops.
  */
 export function followOutputSettings(engine: AppEngine): () => void {
   const setEqualizer = engine.equalizer ? engine.setEqualizer?.bind(engine) : undefined;
   const setCrossfade = engine.crossfade ? engine.setCrossfade?.bind(engine) : undefined;
+  const setSmart = engine.crossfade && engine.smartTransitions ? engine.setSmartTransitions?.bind(engine) : undefined;
   if (!setEqualizer && !setCrossfade) return () => undefined;
-  let applied: { curve: string; crossfade: number } | undefined;
+  let applied: { curve: string; crossfade: number; smart: boolean } | undefined;
   const apply = () => {
     const curve = equalizerCurve(storedEqualizer());
     const key = JSON.stringify(curve);
     const seconds = storedCrossfade();
+    const on = storedSmartTransitions();
     if (key !== applied?.curve) setEqualizer?.(curve);
     if (seconds !== applied?.crossfade) setCrossfade?.(seconds);
-    applied = { curve: key, crossfade: seconds };
+    if (on !== applied?.smart) setSmart?.(on);
+    applied = { curve: key, crossfade: seconds, smart: on };
   };
   apply();
   return subscribe(apply);

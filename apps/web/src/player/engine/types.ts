@@ -25,6 +25,8 @@ export interface BrowserEngine extends PlayerEngine {
   setOutputDevice(sinkId: string): Promise<void>
   /** Crossfades between songs over `seconds` (0 is off), where the engine can (`CrossfadeEngine`). */
   setCrossfade?(seconds: number): void
+  /** Fits each crossfade to the songs' outro and intro, where the engine can (`CrossfadeEngine`). */
+  setSmartTransitions?(on: boolean): void
   /** Stops playback and releases the elements and the audio context. */
   dispose(): void
 }

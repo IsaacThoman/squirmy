@@ -56,6 +56,9 @@ class FakeNative implements SquirmyAudio {
   setCrossfade(seconds: number) {
     this.calls.push(['setCrossfade', seconds]);
   }
+  setSmartTransitions(on: boolean) {
+    this.calls.push(['setSmartTransitions', on]);
+  }
   setFade(level: number) {
     this.calls.push(['setFade', level]);
   }
@@ -141,6 +144,21 @@ describe('NativeEngine', () => {
     expect(older.setFade).toBeUndefined();
   });
 
+  it('hands over the songs\' timing and Smart transitions, which an older build may not have', () => {
+    const { native, engine } = setup();
+    expect(engine.smartTransitions).toBe(true);
+    engine.setSmartTransitions(true);
+    expect(native.calls.at(-1)).toEqual(['setSmartTransitions', true]);
+    const timing = { bpm: 120, beatOffsetMs: 40, audibleStartMs: 300, audibleEndMs: 179_000, introEndMs: 2000, outroStartMs: 170_000 };
+    engine.preload({ entryId: 'b', url: 'https://music.test/stream/b', gain: 1, media: { transcoded: false, timing } });
+    expect(native.preloaded).toMatchObject({ timing: { audibleStartMs: 300, audibleEndMs: 179_000, introEndMs: 2000, outroStartMs: 170_000 } });
+    engine.preload({ entryId: 'c', url: 'https://music.test/stream/c', gain: 1 });
+    expect(native.preloaded).toMatchObject({ timing: null });
+    const older = new NativeEngine({ native: { ...native, setSmartTransitions: undefined, addListener: native.addListener.bind(native) } as never });
+    expect(older.smartTransitions).toBe(false);
+    older.setSmartTransitions(true);
+  });
+
   it('hands the equalizer to the native engine, which an older build may not have', () => {
     const { native, engine } = setup();
     expect(engine.equalizer).toBe(true);
@@ -157,7 +175,7 @@ describe('NativeEngine', () => {
     engine.load({ ...load, startMs: 42_000, gain: 0.5, media: { transcoded: false } });
     expect(native.calls.at(-1)).toEqual(['load', {
       entryId: 'a', url: 'https://music.test/stream/a', startMs: 42_000, gain: 0.5, autoplay: true,
-      cacheKey: null, gapless: null, decoder: 'file', albumRun: false,
+      cacheKey: null, gapless: null, decoder: 'file', albumRun: false, timing: null,
     }]);
     const gapless = { sampleRate: 48_000, primingFrames: 312, frames: 9_600_000 };
     engine.preload({ entryId: 'b', url: 'https://music.test/stream/b', gain: 1, media: { transcoded: true, gapless } });

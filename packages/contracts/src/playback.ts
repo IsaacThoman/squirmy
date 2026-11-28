@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { VersionId } from './catalog.js'
 import { Id, IsoDateTime } from './common.js'
+import { SonicFileTiming } from './sonic.js'
 
 /** `original` serves the file untouched. `copy_mp4` repackages its audio packets. */
 export const StreamProfile = z.enum([
@@ -86,6 +87,15 @@ export const TranscodeReason = z.enum(['quality', 'codec'])
 export type TranscodeReason = z.infer<typeof TranscodeReason>
 
 /**
+ * Where the file's music starts and ends, from its sonic analysis (`SonicFileTiming` without
+ * the file id): the silence before and after it, its intro and its outro, and its beat grid.
+ * In milliseconds of the file, which a transcode keeps. Crossfades skip the silence and, with
+ * Smart transitions, follow the intro and outro; gapless playback ignores it.
+ */
+export const PlaybackTiming = SonicFileTiming.omit({ fileId: true })
+export type PlaybackTiming = z.infer<typeof PlaybackTiming>
+
+/**
  * `GET /tracks/:id/playback`. `url` is signed, relative to the server origin. `codec`,
  * `lossless`, `bitrate`, `sampleRate`, `bitDepth` and `bytes` describe what the URL delivers:
  * after a transcode, the transcode. `source` describes the file.
@@ -127,5 +137,7 @@ export const PlaybackDescriptor = z.object({
   source: PlaybackSource.optional(),
   /** Why the stream is transcoded; null when it is not. Absent from older servers. */
   transcodeReason: TranscodeReason.nullable().optional(),
+  /** The file's timing, for crossfades; null when it is not analysed. Absent from older servers. */
+  timing: PlaybackTiming.nullable().optional(),
 })
 export type PlaybackDescriptor = z.infer<typeof PlaybackDescriptor>

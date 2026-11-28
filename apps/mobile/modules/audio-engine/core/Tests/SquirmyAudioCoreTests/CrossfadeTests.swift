@@ -245,14 +245,81 @@ final class CrossfadeTests: XCTestCase {
     XCTAssertEqual(harness.output.heard.count / 2 - firstSound(harness.output.heard)!, Int(rate * 4), "the two entries overlap")
   }
 
+  // MARK: - With the items' timing
+
+  func testTheFadeSkipsTheSilenceAtBothEnds() throws {
+    let a = try toneFile(1_000, seconds: 8)
+    let b = try toneFile(1_500, seconds: 8)
+    // The tones are steady, so their timing is said rather than heard: a falls silent at 7 s, b's sound starts at 1.5 s.
+    let harness = start(a, then: b, crossfade: 4, timing: (ItemTiming(audibleEndMs: 7_000), ItemTiming(audibleStartMs: 1_500)))
+    harness.run(seconds: 10)
+    let heard = harness.output.heard
+    let first = try XCTUnwrap(firstSound(heard))
+    let at = { (seconds: Double) in Array(heard[(first + Int(self.rate * seconds) - 1200) * 2..<(first + Int(self.rate * seconds) + 1200) * 2]) }
+    // a alone until 3 s, the fade from 3 s to 7 s (half way at 5 s), and nothing of a after 7 s.
+    XCTAssertLessThan(toneLevel(at(2.8), 1_500), 1e-4)
+    XCTAssertEqual(toneLevel(at(5), 1_000), Double(amplitude) * 0.707, accuracy: 0.004)
+    XCTAssertEqual(toneLevel(at(5), 1_500), Double(amplitude) * 0.707, accuracy: 0.004)
+    XCTAssertLessThan(toneLevel(at(7.1), 1_000), 1e-4)
+    XCTAssertEqual(toneLevel(at(7.1), 1_500), Double(amplitude), accuracy: 0.002)
+    // b starts at 1.5 s, and so ends 6.5 s after the fade began.
+    let afterEnded = harness.events.drop { if case .ended = $0 { return false } else { return true } }.dropFirst().first
+    guard case .status(let status)? = afterEnded else { return XCTFail("no status after ended") }
+    XCTAssertEqual(status.entryId, "b")
+    XCTAssertEqual(status.positionMs, 1_500, accuracy: 25)
+    XCTAssertEqual(harness.ended, ["a", "b"])
+    XCTAssertEqual(Double(heard.count / 2 - first) / rate, 9.5, accuracy: 0.03)
+  }
+
+  func testSmartTransitionsMixOverTheOutro() throws {
+    let a = try toneFile(1_000, seconds: 8)
+    let b = try toneFile(1_500, seconds: 8)
+    // A 2 s outro before the silence at 7 s, a 1 s intro: a 2 s fade, from 5 s.
+    let timing = (ItemTiming(audibleEndMs: 7_000, outroStartMs: 5_000), ItemTiming(audibleStartMs: 0, introEndMs: 1_000))
+    let harness = start(a, then: b, crossfade: 4, smart: true, timing: timing)
+    harness.run(seconds: 7.5)
+    let heard = harness.output.heard
+    let first = try XCTUnwrap(firstSound(heard))
+    let at = { (seconds: Double) in Array(heard[(first + Int(self.rate * seconds) - 1200) * 2..<(first + Int(self.rate * seconds) + 1200) * 2]) }
+    XCTAssertLessThan(toneLevel(at(4.8), 1_500), 1e-4)
+    XCTAssertEqual(toneLevel(at(6), 1_000), Double(amplitude) * 0.707, accuracy: 0.004)
+    XCTAssertEqual(toneLevel(at(6), 1_500), Double(amplitude) * 0.707, accuracy: 0.004)
+    XCTAssertLessThan(toneLevel(at(7.1), 1_000), 1e-4)
+  }
+
+  func testAnAlbumStaysGaplessWhateverItsTiming() {
+    let pair = Fixtures.pair("flac", "flac")
+    let harness = Harness()
+    harness.engine.setCrossfade(seconds: 4)
+    harness.engine.setSmartTransitions(true)
+    var a = harness.item("a", pair.a)
+    a.timing = ItemTiming(audibleEndMs: 900, outroStartMs: 700)
+    harness.engine.load(a, autoplay: false)
+    var next = harness.item("b", pair.b)
+    next.albumRun = true
+    next.timing = ItemTiming(audibleStartMs: 100, introEndMs: 300)
+    harness.engine.preload(next)
+    harness.settle()
+    harness.engine.play()
+    harness.settle()
+    harness.run(seconds: 3.4)
+    XCTAssertEqual(harness.ended, ["a", "b"])
+    XCTAssertEqual(Array(harness.output.heard.prefix(Fixtures.reference.count)), Fixtures.reference, "the album's tracks did not meet gapless")
+  }
+
   // MARK: - Helpers
 
-  /// `a` playing from its start with `b` preloaded and the crossfade set.
-  private func start(_ a: URL, then b: URL, crossfade: Double) -> Harness {
+  /// `a` playing from its start with `b` preloaded, the crossfade set and, when given, their timing.
+  private func start(_ a: URL, then b: URL, crossfade: Double, smart: Bool = false, timing: (ItemTiming, ItemTiming)? = nil) -> Harness {
     let harness = Harness(rate: rate)
     harness.engine.setCrossfade(seconds: crossfade)
-    harness.engine.load(harness.item("a", a), autoplay: true)
-    harness.engine.preload(harness.item("b", b))
+    harness.engine.setSmartTransitions(smart)
+    var first = harness.item("a", a)
+    var second = harness.item("b", b)
+    first.timing = timing?.0
+    second.timing = timing?.1
+    harness.engine.load(first, autoplay: true)
+    harness.engine.preload(second)
     harness.settle()
     return harness
   }

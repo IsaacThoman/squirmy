@@ -1,5 +1,6 @@
 import type { EngineEvent, EngineLoad, EnginePreload, EngineStatus, PlayerEngine } from '@squirmy/client-core';
-import type { NativeEqualizer, NativeItem, SquirmyAudio } from '../../../modules/audio-engine';
+import type { PlaybackTiming } from '@squirmy/contracts';
+import type { NativeEqualizer, NativeItem, NativeTiming, SquirmyAudio } from '../../../modules/audio-engine';
 import { playbackErrorMessage } from './state';
 
 export type NativeEngineOptions = {
@@ -129,6 +130,16 @@ export class NativeEngine implements PlayerEngine {
     this.native.setCrossfade?.(seconds);
   }
 
+  /** The build's engine fits crossfades to the songs (`setSmartTransitions`). */
+  get smartTransitions(): boolean {
+    return typeof this.native.setSmartTransitions === 'function';
+  }
+
+  /** Crossfades follow the songs' outro and intro, from the next one on. */
+  setSmartTransitions(on: boolean): void {
+    this.native.setSmartTransitions?.(on);
+  }
+
   /** Stops listening to the native engine, which carries on as the process's one engine. */
   dispose(): void {
     for (const subscription of this.subscriptions) subscription.remove();
@@ -152,5 +163,13 @@ function item(request: Omit<EngineLoad, 'autoplay'> & { continuesAlbum?: boolean
     // file reader, so a format never alternates between two decoders.
     decoder: request.media?.transcoded ? 'stream' : 'file',
     albumRun: request.continuesAlbum ?? false,
+    timing: timingOf(request.media?.timing),
   };
+}
+
+/** The descriptor's timing as the native engine takes it: the part crossfades use. */
+function timingOf(timing: PlaybackTiming | null | undefined): NativeTiming | null {
+  if (!timing) return null;
+  const { audibleStartMs, audibleEndMs, introEndMs, outroStartMs } = timing;
+  return { audibleStartMs, audibleEndMs, introEndMs, outroStartMs };
 }

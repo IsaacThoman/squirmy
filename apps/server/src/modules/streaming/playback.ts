@@ -1,4 +1,4 @@
-import { API_PREFIX, type PlaybackDescriptor, type PlaybackQuery, type StreamIntent, type StreamProfile } from '@squirmy/contracts'
+import { API_PREFIX, type PlaybackDescriptor, type PlaybackQuery, type PlaybackTiming, type StreamIntent, type StreamProfile } from '@squirmy/contracts'
 import { and, eq, isNull } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { users } from '../../database/schema.js'
@@ -8,6 +8,7 @@ import { assertFileAllowed } from '../catalog/explicit.js'
 import { resolveOne } from '../catalog/redirects.js'
 import { normalizationFor } from '../loudness/normalization.js'
 import { versionPicker } from '../sessions/versions.js'
+import { fileTimings } from '../sonic/index.js'
 import { fragmentedSourceFrames } from './gapless.js'
 import { codecFamily, fragmentedEncoder, isFragmented, mimeFor, outputBitDepth, outputSampleRate, parseCodecs, profiles } from './profiles.js'
 import { selectFile } from './select.js'
@@ -47,6 +48,13 @@ export async function verifyStreamSignature(fileId: string, profile: StreamProfi
   return user?.id ?? null
 }
 
+/** The file's timing from its sonic analysis (the sonic module's `fileTimings`), or null when it is not analysed. */
+async function playbackTiming(recordingId: string, fileId: string): Promise<PlaybackTiming | null> {
+  const found = (await fileTimings([recordingId])).get(fileId)
+  if (!found || found.audibleEndMs === null) return null
+  return { bpm: found.bpm, beatOffsetMs: found.beatOffsetMs, audibleStartMs: found.audibleStartMs, audibleEndMs: found.audibleEndMs, introEndMs: found.introEndMs, outroStartMs: found.outroStartMs }
+}
+
 /**
  * `GET /tracks/:id/playback`: picks the file and profile for the recording (after following
  * merges of the recording and of `albumId`; the user's version picks first, see `selectFile`), signs a URL for `userId`, and describes what that URL will deliver. Throws 404
@@ -65,6 +73,7 @@ export async function buildPlaybackDescriptor(userId: string, recordingId: strin
   const { file, profile, versionId } = selection
   await assertFileAllowed(userId, file)
   const { url, expiresAt } = signStreamUrl(file.id, profile, userId, query)
+  const [normalization, timing] = await Promise.all([normalizationFor(file), playbackTiming(target, file.id)])
   const base = {
     trackId: recordingId,
     albumId: file.albumId,
@@ -73,7 +82,8 @@ export async function buildPlaybackDescriptor(userId: string, recordingId: strin
     expiresAt: expiresAt.toISOString(),
     profile,
     durationMs: file.durationMs,
-    normalization: await normalizationFor(file),
+    normalization,
+    timing,
     source: {
       codec: codecFamily(file),
       lossless: file.lossless,

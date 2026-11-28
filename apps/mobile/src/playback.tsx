@@ -47,6 +47,8 @@ type Runtime = {
   equalizer: boolean;
   /** The engine crossfades. */
   crossfade: boolean;
+  /** Its crossfades can follow the songs' outro and intro. */
+  smartTransitions: boolean;
 };
 type PlayOptions = { start?: number; shuffle?: boolean; context?: PlaybackContext };
 
@@ -368,7 +370,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       followPlaying();
       holdWhilePreparing();
       setRuntime({ client, device, loading, seeks, boosts: engine.canBoost && engine.limiter, equalizer: engine.equalizer === true,
-        crossfade: engine.crossfade === true });
+        crossfade: engine.crossfade === true, smartTransitions: engine.smartTransitions === true });
       teardown = () => {
         // Saved for the account as it leaves (sign-out or a switch keeps what it saved), so
         // opening it again offline finds the queue as it was.
@@ -674,6 +676,11 @@ export function useEqualizerAvailable(): boolean {
 /** Whether this device's engine crossfades (the native one), for Settings to offer it. False before playback starts. */
 export function useCrossfadeAvailable(): boolean {
   return useContext(RuntimeContext)?.crossfade ?? false;
+}
+
+/** Whether this device's engine has Smart transitions, for Settings to offer them beside the crossfade. */
+export function useSmartTransitionsAvailable(): boolean {
+  return useContext(RuntimeContext)?.smartTransitions ?? false;
 }
 
 /** `useLoading` for a row: its phase while `trackId` is the current entry's track, otherwise `none`. */

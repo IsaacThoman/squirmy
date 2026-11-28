@@ -11,6 +11,15 @@ export const crossfadeOptions: readonly { value: number; label: string }[] = [
 
 export const crossfadeNote = 'Crossfade blends the end of each song into the start of the next. Songs that follow each other on an album you play in order still play without a gap, as the album was made.';
 
+export const smartTransitionsLabel = 'Smart Transitions';
+
+export const smartTransitionsNote = 'Smart Transitions fit each crossfade to the songs: a song that fades out is blended over its fade-out, one that ends abruptly is cut close to the next, within the crossfade’s length. Silence at either end is always skipped.';
+
+/** Smart transitions as stored: on only when they were turned on. */
+export function readSmartTransitions(stored: unknown): boolean {
+  return stored === true;
+}
+
 /** What was stored, in seconds, or Off for anything this app does not offer. */
 export function readCrossfade(stored: unknown): number {
   return typeof stored === 'number' && crossfadeOptions.some(option => option.value === stored) ? stored : 0;

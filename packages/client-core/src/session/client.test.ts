@@ -827,7 +827,7 @@ describe('SessionClient engine', () => {
       startMs: 0,
       autoplay: true,
       gain: 1,
-      media: { transcoded: false, gapless: null, cacheKey: null, profile: 'original', mime: 'audio/flac', codec: 'flac', sampleRate: 44100, durationMs: session.current!.durationMs },
+      media: { transcoded: false, gapless: null, cacheKey: null, timing: null, profile: 'original', mime: 'audio/flac', codec: 'flac', sampleRate: 44100, durationMs: session.current!.durationMs },
     }]])
     expect(engine.preloaded).toMatchObject({ entryId: queue.queue[0]!.id, url: `https://music.test/api/v1/stream/${track(2)}`, media: { codec: 'flac' } })
   })
@@ -926,6 +926,22 @@ describe('SessionClient engine', () => {
     // The engine's position follows the replayed end, which the server anchors on arrival.
     expect(server.commands.map(envelope => envelope.command.type)).toEqual(['playTracks', 'trackEnded', 'seek'])
     expect(server.session.current!.id).toBe(second.id)
+  })
+
+  it('starts the next song where a crossfade started it, past its silence', async () => {
+    const { client, transport, server, engine, calls, settle } = await playingHere()
+    const second = client.getSnapshot().queue.queue[0]!
+    await settle()
+    engine.preloadStartMs = 1800
+    engine.finish()
+    expect(client.getSnapshot().session.current!.id).toBe(second.id)
+    // Not sought back to 0: the session follows the engine.
+    expect(calls('seek')).toEqual([])
+    expect(engine.getStatus().positionMs).toBe(1800)
+    expect(client.getPositionMs()).toBe(1800)
+    transport.flush()
+    expect(server.commands.map(envelope => envelope.command.type)).toEqual(['playTracks', 'trackEnded', 'seek'])
+    expect(server.session.positionMs).toBe(1800)
   })
 
   it('preloads the restarted entry under repeat one, with the id the server will allocate', async () => {

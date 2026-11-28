@@ -42,7 +42,9 @@ export interface PlayerEngine {
    * An engine that crossfades starts the preloaded entry up to the fade's length before the
    * loaded one ends, and emits `ended` for the loaded one when the preloaded one's first
    * sample plays; `getStatus()` reports the new entry from then on. It never crossfades into
-   * an entry that `continuesAlbum`.
+   * an entry that `continuesAlbum`. With the songs' `timing` it follows `crossfadePlan`: the
+   * loaded entry may stop before its file ends (its trailing silence) and the preloaded one
+   * may start after 0 (its leading silence), which `getStatus()` then reports.
    */
   preload(request: EnginePreload | null): void
   /** Starts or resumes the loaded entry. No-op without one or while `loading`/`playing`. */
@@ -109,6 +111,8 @@ export type EngineMedia = {
    * (see `ResolvedPlayback`). Engines that do not ignore it.
    */
   cacheKey?: string | null
+  /** Where the song's music starts and ends, for an engine that crossfades (`crossfadePlan`). */
+  timing?: PlaybackDescriptor['timing']
 } & Partial<Pick<PlaybackDescriptor, 'profile' | 'mime' | 'codec' | 'sampleRate' | 'durationMs'>>
 
 /**
@@ -157,6 +161,8 @@ export class FakeEngine implements PlayerEngine {
   preloaded: FakeEntry | null = null
   /** Duration used by `seek` clamping and by `finish`. */
   durationMs = 180_000
+  /** Where `finish` starts the preloaded entry, as a crossfade past its leading silence does. */
+  preloadStartMs = 0
   /** Leaves each load `loading` until `ready()`, as a stream that takes a while to start. */
   holdLoads = false
   private held: boolean | null = null
@@ -245,7 +251,7 @@ export class FakeEngine implements PlayerEngine {
     if (this.preloaded) {
       this.loaded = this.preloaded
       this.preloaded = null
-      this.setPosition(0)
+      this.setPosition(this.preloadStartMs)
       this.state = 'playing'
       this.emit({ type: 'ended', entryId: finished.entryId })
       this.emit({ type: 'status', status: this.getStatus() })

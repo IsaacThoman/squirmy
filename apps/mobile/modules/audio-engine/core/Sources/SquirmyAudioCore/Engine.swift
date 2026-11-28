@@ -140,6 +140,8 @@ private final class Crossfade {
   }
 
   var end: Int64 { start + length }
+  /// The outgoing entry's frame where the fade ends, and it with it (past it is its trailing silence).
+  var fromEnd: Int64 { fromStart + length }
   /// Frames of it still to queue.
   var left: Int64 { length - (from.nextFrame - fromStart) }
   var isQueued: Bool { left <= 0 }
@@ -173,7 +175,9 @@ private struct Chunk {
  * clock. Each entry's first real sample goes right after the previous one's last, so
  * consecutive tracks are gapless to the sample whenever their decoders trim exactly. With a
  * crossfade set, the next entry starts that long before the loaded one ends instead, the two
- * mixed into one stream, unless it continues the loaded one's album (`albumRun`).
+ * mixed into one stream, unless it continues the loaded one's album (`albumRun`). Where the
+ * fade lies follows `TransitionPlan` from the items' timing: it ends where the outgoing entry
+ * falls silent, which is not played past it, and the incoming one starts past its own silence.
  *
  * Everything runs on `queue`, the feed queue, which never waits for bytes: it takes decoded
  * PCM from each entry's `Pipeline` and keeps the output a short lead ahead of the playhead
@@ -212,6 +216,8 @@ final class Engine {
   private var marks: [Mark] = []
   /// How long a crossfade between entries lasts; 0 for none.
   private var crossfadeSeconds = 0.0
+  /// Crossfades follow the items' outro and intro (`TransitionPlan`'s Smart transitions).
+  private var smartTransitions = false
   /// The crossfade queued or playing, from the loaded entry into the next or, once the next
   /// is heard, from the one before into the loaded one.
   private var crossfade: Crossfade?
@@ -250,6 +256,8 @@ final class Engine {
   /// How long the next entry overlaps the loaded one's end, in seconds; 0 for none. For the
   /// crossfades not queued yet.
   func setCrossfade(seconds: Double) { queue.async { self.crossfadeSeconds = max(0, seconds) } }
+  /// Fits crossfades not queued yet to the items' outro and intro.
+  func setSmartTransitions(_ on: Bool) { queue.async { self.smartTransitions = on } }
   /// A level from 0 to 1 over everything that plays, whichever entries those are: the sleep
   /// timer's fade. Heard after the lead.
   func setFade(_ level: Float) { queue.async { self.fadeLevel = min(1, max(0, level)) } }
@@ -495,7 +503,8 @@ final class Engine {
     if let current, let next, let first = segments.first(where: { $0.slot === next }), playhead >= first.start {
       self.current = next
       self.next = nil
-      anchor = 0
+      // Past its leading silence, after a crossfade.
+      anchor = first.itemStart
       // Fading out under the next one, it plays on until its last frame.
       if crossfade?.from !== current { current.pipeline.release() }
       segments.removeAll { $0.slot === current }
@@ -554,7 +563,7 @@ final class Engine {
         // The outgoing entry is decoded to its end: only the incoming one can hold a crossfade up.
         feeding = fade.to
       } else {
-        feeding = current.nextFrame >= current.pipeline.decoded.end && current.pipeline.decoded.ended ? next : current
+        feeding = current.nextFrame >= end(of: current) && current.pipeline.decoded.ended ? next : current
       }
       let ahead = feeding.map { $0.pipeline.decoded.end - $0.nextFrame } ?? 0
       let done = feeding == nil || feeding!.pipeline.decoded.ended || feeding!.pipeline.error != nil
@@ -621,12 +630,12 @@ final class Engine {
     }
     guard let current else { return nil }
     let decoded = current.pipeline.decoded
-    if current.nextFrame < decoded.end {
-      guard let start = crossfadeStart(current) else { return .solo(current, count: most) }
-      if current.nextFrame < start { return .solo(current, count: min(most, Int(start - current.nextFrame))) }
+    if current.nextFrame < end(of: current) {
+      guard let plan = crossfadePlan(current) else { return .solo(current, count: most) }
+      if current.nextFrame < plan.start { return .solo(current, count: min(most, Int(plan.start - current.nextFrame))) }
       // Its time has come, or passed while the next entry was not decoded yet: a shorter one.
       // Until the next one has frames, the loaded one plays on alone.
-      if planning, let next, let fade = beginCrossfade(from: current, into: next) {
+      if planning, let next, let fade = beginCrossfade(from: current, into: next, plan: plan) {
         return .mix(fade, count: min(most, Int(fade.left), Int(next.pipeline.decoded.end - next.nextFrame)))
       }
       return .solo(current, count: most)
@@ -635,27 +644,32 @@ final class Engine {
     return .solo(next, count: most)
   }
 
-  /// The loaded entry's frame where a crossfade into the preloaded one begins, or nil when
-  /// they meet gapless: no crossfade set, the next one continuing the album, or the loaded
-  /// one's end not known yet (decoding runs further ahead while a crossfade is set).
-  private func crossfadeStart(_ slot: Slot) -> Int64? {
+  /// The loaded entry's frames where a crossfade into the preloaded one begins and ends, and
+  /// the preloaded one's where it starts (`TransitionPlan`), or nil when they meet gapless: no
+  /// crossfade set, the next one continuing the album, or the loaded one's end not known yet
+  /// (decoding runs further ahead while a crossfade is set).
+  private func crossfadePlan(_ slot: Slot) -> (start: Int64, end: Int64, incomingStart: Int64)? {
     guard crossfadeSeconds > 0, crossfade == nil, let next, !next.albumRun, next.nextFrame == 0, next.pipeline.error == nil else { return nil }
     let decoded = slot.pipeline.decoded
     guard decoded.ended else { return nil }
-    // Never more than half of either entry, so a short one is not all fade.
-    var length = min(frames(seconds: crossfadeSeconds), decoded.end / 2)
-    if let incoming = next.pipeline.lengthFrames.frames { length = min(length, incoming / 2) }
+    let plan = TransitionPlan.make(
+      outgoingMs: ms(decoded.end), outgoing: slot.pipeline.item.timing,
+      incomingMs: next.pipeline.lengthFrames.frames.map(ms), incoming: next.pipeline.item.timing,
+      seconds: crossfadeSeconds, smart: smartTransitions)
+    let end = min(decoded.end, frames(ms: plan.outgoingEndMs))
+    let length = min(frames(ms: plan.fadeMs), end)
     guard length >= frames(seconds: config.shortestCrossfade) else { return nil }
-    return decoded.end - length
+    return (end - length, end, frames(ms: plan.incomingStartMs))
   }
 
-  /// Starts a crossfade from `current`'s next frame to its end, if that is long enough and
-  /// `next` has frames to mix in.
-  private func beginCrossfade(from current: Slot, into next: Slot) -> Crossfade? {
-    let length = current.pipeline.decoded.end - current.nextFrame
-    guard length >= frames(seconds: config.shortestCrossfade), next.nextFrame < next.pipeline.decoded.end else { return nil }
+  /// Starts a crossfade from `current`'s next frame to the plan's end, if that is long enough
+  /// and `next` has frames to mix in from where it starts.
+  private func beginCrossfade(from current: Slot, into next: Slot, plan: (start: Int64, end: Int64, incomingStart: Int64)) -> Crossfade? {
+    let length = plan.end - current.nextFrame
+    guard length >= frames(seconds: config.shortestCrossfade), plan.incomingStart < next.pipeline.decoded.end else { return nil }
+    next.nextFrame = plan.incomingStart
     let fade = Crossfade(from: current, to: next, start: enqueued, fromStart: current.nextFrame, length: length)
-    log("crossfading \(current.entryId) into \(next.entryId) over \(Int(Double(length) / output.sampleRate * 1000)) ms")
+    log("crossfading \(current.entryId) into \(next.entryId) at \(Int(ms(plan.incomingStart))) ms over \(Int(ms(length))) ms")
     crossfade = fade
     return fade
   }
@@ -789,10 +803,12 @@ final class Engine {
       }
     } else {
       guard let current else { return [] }
-      frames = scaled(current.pipeline.copy(from: current.nextFrame, count: count), current)
+      // Not past where a crossfade out of it ends: that is never heard.
+      let left = Int(max(0, min(Int64(count), end(of: current) - current.nextFrame)))
+      frames = scaled(current.pipeline.copy(from: current.nextFrame, count: left), current)
       let decoded = current.pipeline.decoded
       let short = count - frames.count / 2
-      if short > 0, decoded.ended, current.nextFrame + Int64(frames.count / 2) >= decoded.end, !seeking, let next, next.pipeline.error == nil {
+      if short > 0, decoded.ended, current.nextFrame + Int64(frames.count / 2) >= end(of: current), !seeking, let next, next.pipeline.error == nil {
         frames += scaled(next.pipeline.copy(from: next.nextFrame, count: short), next)
       }
     }
@@ -843,7 +859,19 @@ final class Engine {
     // A crossfade starts that long before the loaded entry's end, which has to be known by then.
     let fade = crossfadeSeconds > 0 ? frames(seconds: crossfadeSeconds) : 0
     if let current { current.pipeline.want(current.nextFrame + ahead + fade) }
-    if let next { next.pipeline.want(next.nextFrame + ahead) }
+    if let next { next.pipeline.want(max(next.nextFrame, plannedStart(next)) + ahead) }
+  }
+
+  /// Where a crossfade would start the preloaded entry, past its leading silence: decoded by the time it does.
+  private func plannedStart(_ next: Slot) -> Int64 {
+    guard crossfadeSeconds > 0, !next.albumRun, next.nextFrame == 0 else { return 0 }
+    return frames(ms: TransitionPlan.incomingStart(incomingMs: next.pipeline.lengthFrames.frames.map(ms), incoming: next.pipeline.item.timing))
+  }
+
+  /// Where the slot's frames end: its decoded end, or where a crossfade out of it does.
+  private func end(of slot: Slot) -> Int64 {
+    if let fade = crossfade, fade.from === slot { return min(fade.fromEnd, slot.pipeline.decoded.end) }
+    return slot.pipeline.decoded.end
   }
 
   private func forgetHistory() {
@@ -1033,6 +1061,7 @@ final class Engine {
 
   private func frames(ms: Double) -> Int64 { Int64((ms / 1000 * output.sampleRate).rounded()) }
   private func frames(seconds: Double) -> Int64 { Int64((seconds * output.sampleRate).rounded()) }
+  private func ms(_ frames: Int64) -> Double { Double(frames) / output.sampleRate * 1000 }
 
   private func emit(_ event: EngineEvent) { listener?(event) }
   private func log(_ message: String) { listener?(.log(message)) }

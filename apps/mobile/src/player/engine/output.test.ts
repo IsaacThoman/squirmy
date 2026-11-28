@@ -47,6 +47,21 @@ describe('followOutputSettings', () => {
     stop();
   });
 
+  it('hands an engine that has them Smart transitions, off until they are turned on', async () => {
+    const { followOutputSettings, setStoredSmartTransitions } = await import('./output');
+    const setSmartTransitions = vi.fn();
+    const stop = followOutputSettings({ crossfade: true, setCrossfade: vi.fn(), smartTransitions: true, setSmartTransitions } as never);
+    expect(setSmartTransitions).toHaveBeenCalledWith(false);
+    setStoredSmartTransitions(true);
+    expect(setSmartTransitions).toHaveBeenLastCalledWith(true);
+    expect(stored.get('smartTransitions')).toBe(true);
+    stop();
+    // A build without them is not asked.
+    const older = vi.fn();
+    followOutputSettings({ crossfade: true, setCrossfade: vi.fn(), smartTransitions: false, setSmartTransitions: older } as never)();
+    expect(older).not.toHaveBeenCalled();
+  });
+
   it('leaves an engine without an equalizer alone', async () => {
     const { followOutputSettings } = await import('./output');
     const setEqualizer = vi.fn();

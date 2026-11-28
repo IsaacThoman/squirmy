@@ -23,7 +23,16 @@ export type NativeItem = {
   decoder: 'file' | 'stream';
   /** For a preload: it continues the loaded item's album in album order, so it is never crossfaded into. */
   albumRun: boolean;
+  /** Its timing, for crossfades; null when the server has not analysed it. Ignored by builds before it. */
+  timing: NativeTiming | null;
 };
+
+/**
+ * Where an item's music starts and ends (the playback descriptor's `timing`), in milliseconds
+ * of the file, for crossfades: the engine skips the silence and, with Smart transitions, mixes
+ * over the outro and intro. Each is null when unknown.
+ */
+export type NativeTiming = { audibleStartMs: number | null; audibleEndMs: number | null; introEndMs: number | null; outroStartMs: number | null };
 
 /** The equalizer's curve: a gain for each band from 31 Hz to 16 kHz, and the preamp, in dB. */
 export type NativeEqualizer = { bandsDb: number[]; preampDb: number };
@@ -50,6 +59,8 @@ export type SquirmyAudio = {
   setEqualizer?(curve: NativeEqualizer | null): void;
   /** How long the next item overlaps the loaded one's end, in seconds; 0 for none. Missing in builds before it. */
   setCrossfade?(seconds: number): void;
+  /** Crossfades follow the items' outro and intro (Smart transitions). Missing in builds before it. */
+  setSmartTransitions?(on: boolean): void;
   /** A level from 0 to 1 over everything that plays (the sleep timer's fade). Missing in builds before it. */
   setFade?(level: number): void;
   /** Synchronous, with the position read from the clock now. */

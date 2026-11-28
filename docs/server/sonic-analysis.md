@@ -1,6 +1,6 @@
 # Sonic analysis
 
-Squirmy listens to every song on your server and measures how it sounds: its tempo and beat, its key, how energetic and danceable it is, where it really starts and ends, and a description of its sound. Radio and Autoplay use these measurements to choose songs that sound alike, and to order them so tempo, key and energy flow from one song to the next. The analysis runs on your server; no audio and nothing measured from it leaves the server.
+Squirmy listens to every song on your server and measures how it sounds: its tempo and beat, its key, how energetic and danceable it is, where it really starts and ends, and a description of its sound. Radio, Autoplay and your daily mixes use these measurements to choose songs that sound alike, and to order them so tempo, key and energy flow from one song to the next; crossfades use them to skip silence and fit the fade to the songs. The analysis runs on your server; no audio and nothing measured from it leaves the server.
 
 ## What it measures
 
@@ -48,6 +48,23 @@ On an Apple Silicon Mac a four-minute song takes about 0.6 seconds: 0.4 seconds 
 - **Flow.** Each next song is chosen with a small penalty for a jump in tempo (more than about 3%, but double or half time is fine), a key that clashes on the Camelot wheel, or a jump in energy. These weights are small: they reorder songs that were close anyway, and never override who the seeds are.
 - **Songs that sound like this.** In the web app, a song's menu starts a radio that leans on sound much more than on artist and genre. A song that is not analysed yet gets an ordinary radio, and its analysis is queued at once.
 - Songs the server would fetch through a [provider](./acquisition.md) have no file to analyse. In ordinary radio they count as average, so analysis never favours songs you own. In a "sounds like this" radio they rank below songs known to sound alike.
+
+## How mixes use it
+
+Your daily mixes under **Made for you** ([Home](../use/web.md#home)) use the analysis three ways:
+
+- **Artists that sound alike go together.** Each artist's sound is the average of its analysed songs. Two artists sound alike when one's songs sit as close to the other's sound as that artist's own songs do, and nothing alike when they sit as far as a typical song of your library. This counts beside shared genres, similar-artist data and what you play in the same sittings, so artists whose files carry no genre tags still form mixes from their sound alone. An artist needs at least three analysed songs.
+- **Suggestions stay on theme.** A suggested song whose genres nothing says, but whose sound is farther from the mix's favourites than half of your library, is left out of that mix.
+- **Songs flow.** Each mix is ordered so tempo, key and energy change gently from one song to the next, with the same penalties radio uses. The shape stays: it opens on the same favourite, favourites keep their places among the suggestions, and no artist plays twice in a row more than before. The order is worked out with the mix, once a day, so it stays the same all day.
+
+## How crossfades use it
+
+The [playback](./playback.md) answer for a song carries its file's timing: where its sound starts and stops, where its intro reaches full level and where its outro begins. Apps that crossfade (the web app, and the iPhone and Apple TV with the native engine) use it:
+
+- **Silence is skipped.** The fade ends where the outgoing song falls silent, not at the end of its file, and the next song starts where its sound does. Songs that follow each other on an album you play in order still play gaplessly, silence and all, and crossfade off plays every song whole.
+- **Smart transitions** (a setting beside **Crossfade**, off by default) fit each fade to the songs: it lasts as long as the outgoing song's ending or the incoming song's intro, whichever is longer, at least a second and at most the crossfade length you set. A song that fades out is mixed over its fade-out; one that stops dead is cut close to the next.
+
+A song that is not analysed crossfades as before, over the length you set, at the ends of its file. Beats are not matched yet.
 
 ## When a file cannot be analysed
 

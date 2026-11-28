@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Row } from '@/components/ui/section'
 import { Select, type SelectOption } from '@/components/ui/select'
 import { Slider } from '@/components/ui/slider'
+import { Switch } from '@/components/ui/switch'
 import { setAudioSettings, useAudioSettings } from '@/player/audio-settings'
 import { CROSSFADE_SECONDS } from '@/player/engine/crossfade-engine'
 import { EQ_BANDS, EQ_MAX_DB, EQ_PRESETS, eqGains, type EqPreset } from '@/player/engine/equalizer'
@@ -23,7 +24,7 @@ const formatBand = (frequency: number) => (frequency >= 1000 ? `${frequency / 10
 
 /** Settings → Playback, for this browser: crossfade, the equalizer and, where the browser can send Web Audio to one (`choosesOutput`), the output device. */
 export function SoundSettings({ choosesOutput }: { choosesOutput: boolean }) {
-  const { equalizer, outputDevice, crossfadeSeconds } = useAudioSettings()
+  const { equalizer, outputDevice, crossfadeSeconds, smartTransitions } = useAudioSettings()
   const gains = eqGains(equalizer)
   const bandsLabel = useId()
   return (
@@ -31,6 +32,11 @@ export function SoundSettings({ choosesOutput }: { choosesOutput: boolean }) {
       <Row htmlFor="crossfade" label="Crossfade" description="Fades each song into the next. Songs of an album played in order still follow each other without a gap. Kept in this browser.">
         <Select id="crossfade" label="Crossfade" value={String(crossfadeSeconds)} options={crossfadeOptions} onValueChange={seconds => setAudioSettings({ crossfadeSeconds: Number(seconds) })} className="w-40" />
       </Row>
+      {crossfadeSeconds > 0 && (
+        <Row htmlFor="smart-transitions" label="Smart transitions" description="Fits each crossfade to the songs: a song that fades out is blended over its fade-out, one that ends abruptly is cut close to the next, within the length above. Silence at either end is always skipped.">
+          <Switch id="smart-transitions" checked={smartTransitions} onCheckedChange={on => setAudioSettings({ smartTransitions: on })} />
+        </Row>
+      )}
       <Row htmlFor="equalizer" label="Equalizer" description="Shapes the sound for the speakers or headphones this browser plays through. Kept in this browser.">
         <Select id="equalizer" label="Equalizer" value={equalizer.preset} options={presetOptions} onValueChange={preset => setAudioSettings({ equalizer: { ...equalizer, preset } })} className="w-40" />
       </Row>

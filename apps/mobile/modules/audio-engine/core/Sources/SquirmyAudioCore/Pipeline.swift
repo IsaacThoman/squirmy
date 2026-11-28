@@ -16,6 +16,8 @@ struct EngineItem {
   /// Names the stream in the app's streaming cache: a load, the preload and a prefetch with
   /// the same key read one download, whose file the app keeps once it is whole.
   var cacheKey: String?
+  /// Where its music starts and ends, for crossfades (`TransitionPlan`).
+  var timing: ItemTiming? = nil
 }
 
 /// Where an item's bytes come from: a file on the device, or the network through a cache file.

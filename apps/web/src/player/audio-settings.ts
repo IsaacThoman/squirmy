@@ -14,10 +14,12 @@ export type AudioSettings = {
   outputDevice: string
   /** Seconds songs crossfade over, 0 for off (`CROSSFADE_SECONDS`). */
   crossfadeSeconds: number
+  /** Each crossfade follows the songs' outro and intro (client-core's `crossfadePlan`). */
+  smartTransitions: boolean
 }
 
 export const AUDIO_STORAGE_KEY = 'squirmy.audio'
-const DEFAULTS: AudioSettings = { equalizer: DEFAULT_EQUALIZER, outputDevice: '', crossfadeSeconds: 0 }
+const DEFAULTS: AudioSettings = { equalizer: DEFAULT_EQUALIZER, outputDevice: '', crossfadeSeconds: 0, smartTransitions: false }
 
 let current: AudioSettings = DEFAULTS
 let started = false
@@ -31,6 +33,7 @@ function read(): AudioSettings {
       equalizer: parseEqualizer(stored.equalizer),
       outputDevice: typeof stored.outputDevice === 'string' ? stored.outputDevice : '',
       crossfadeSeconds: (CROSSFADE_SECONDS as readonly unknown[]).includes(stored.crossfadeSeconds) ? stored.crossfadeSeconds as number : 0,
+      smartTransitions: stored.smartTransitions === true,
     }
   } catch {
     return DEFAULTS

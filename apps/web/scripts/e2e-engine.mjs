@@ -3,7 +3,8 @@
 // elements) and `MseEngine` (one timeline through Media Source Extensions). It runs the output
 // chain's true-peak limiter (the AudioWorklet) and equalizer on the iOS engine's test values,
 // rendered offline, so silently and sample for sample, and records a crossfade between two
-// tones (the iOS engine's test values: power within 0.5 dB through a 4 s fade). With a fixture
+// tones (the iOS engine's test values: power within 0.5 dB through a 4 s fade), and two more
+// with the songs' timing: one past their silence, one with Smart transitions. With a fixture
 // library it also measures MseEngine through the server's own streams, recorded sample by
 // sample through an AudioWorklet: the boundary between the two halves of a split tone,
 // seeks inside and outside the buffer, and a background tab through three track changes.
@@ -180,6 +181,7 @@ try {
 }
 for (const kind of kinds) if (browserName === 'chromium') await blockedAutoplay(kind)
 if (browserName === 'chromium') for (const kind of kinds) await crossfade(kind)
+if (browserName === 'chromium') for (const kind of kinds) await timedCrossfade(kind)
 if (fixtures && kinds.includes('mse')) await measure(fixtures)
 
 console.log(`\n${results.length - failed} of ${results.length} checks passed`)
@@ -549,6 +551,68 @@ async function crossfade(kind) {
     check(`${kind}: ended comes as the second tone starts`, result.atEnded?.entryId === 'e1' && result.atEnded.state === 'playing' && result.atEnded.positionMs < 300, JSON.stringify(result.atEnded))
   } finally {
     await browser.close()
+  }
+}
+
+/**
+ * Crossfades placed by the songs' timing (client-core's `crossfadePlan`), recorded from the
+ * graph, muted: the same tones, with timing that says the first (from 2 s into its 8) falls
+ * silent at 7 s. Without Smart transitions the 4 s fade ends there rather than at 8 s, and the
+ * second tone starts past its 1.5 s of "silence"; with them, a 2 s outro sets a 2 s fade.
+ */
+async function timedCrossfade(kind) {
+  const cases = [
+    {
+      name: 'skips the silence at both ends', smart: false,
+      outgoing: { audibleEndMs: 7000 }, incoming: { audibleStartMs: 1500 },
+      fade: 4, outgoingEnd: 5, incomingStart: 1500,
+    },
+    {
+      name: 'with Smart transitions, mixes over the outro', smart: true,
+      outgoing: { audibleEndMs: 7000, outroStartMs: 5000 }, incoming: { audibleStartMs: 0, introEndMs: 1000 },
+      fade: 2, outgoingEnd: 5, incomingStart: 0,
+    },
+  ]
+  for (const one of cases) {
+    const browser = await chromium.launch({ args: launchArgs })
+    try {
+      const { page } = await openEngine(browser, `engine=${kind}&rate=44100&muted=1&crossfade=4${one.smart ? '&smart=1' : ''}`)
+      const result = await page.evaluate(async ({ outgoing, incoming }) => {
+        const { engine, until, wait, source } = window.t
+        const timed = (name, timing) => {
+          const found = source(name)
+          return { ...found, media: { transcoded: false, ...found.media, timing: { bpm: null, beatOffsetMs: null, audibleStartMs: null, audibleEndMs: null, introEndMs: null, outroStartMs: null, ...timing } } }
+        }
+        engine.warm()
+        await until(() => window.squirmyEngine.recorder, 5000)
+        const recording = window.squirmyEngine.recorder()
+        let atEnded = null
+        const off = engine.subscribe(event => { if (event.type === 'ended' && !atEnded) atEnded = engine.getStatus() })
+        engine.load({ entryId: 'd1', ...timed('d', outgoing), startMs: 2000, autoplay: true, gain: 1 })
+        engine.preload({ entryId: 'e1', ...timed('e', incoming), gain: 1 })
+        await until(() => atEnded, 15_000)
+        await wait(5000)
+        off()
+        engine.stop()
+        await wait(100)
+        return { samples: await recording.stop(), atEnded }
+      }, one)
+      const samples = channels(result.samples)
+      const rate = 44_100, window = 4410, hop = 2205, full = 0.02
+      const windows = []
+      for (let from = 0; from + window < samples.length / 2; from += hop) {
+        windows.push({ at: from / rate, rms: rms(samples, from, null, 0, window), outgoing: amplitudeAt(samples, from, window, 880, rate), incoming: amplitudeAt(samples, from, window, 330, rate) })
+      }
+      const start = windows.find(({ rms: level }) => level > full / 10)?.at ?? 0
+      const both = windows.filter(({ outgoing, incoming }) => outgoing > full / 100 && incoming > full / 100)
+      const fadeSeconds = both.length ? both.at(-1).at - both[0].at + window / rate : 0
+      const outgoingEnd = (windows.filter(({ outgoing }) => outgoing > full / 100).at(-1)?.at ?? 0) + window / rate - start
+      check(`${kind}: ${one.name}: the fade takes ${one.fade} s and ends as the first tone falls silent`, Math.abs(fadeSeconds - one.fade) < 0.35 && Math.abs(outgoingEnd - one.outgoingEnd) < 0.3,
+        `both tones heard for ${fadeSeconds.toFixed(2)} s, the first ending ${outgoingEnd.toFixed(2)} s after it started`)
+      check(`${kind}: ${one.name}: the second tone starts at ${one.incomingStart} ms`, result.atEnded?.entryId === 'e1' && result.atEnded.state === 'playing' && Math.abs(result.atEnded.positionMs - one.incomingStart) < 300, JSON.stringify(result.atEnded))
+    } finally {
+      await browser.close()
+    }
   }
 }
 

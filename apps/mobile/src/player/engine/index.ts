@@ -27,6 +27,9 @@ export type AppEngine = PlayerEngine & {
   /** The native engine's crossfade, where the build has it. */
   readonly crossfade?: boolean;
   setCrossfade?(seconds: number): void;
+  /** Its crossfades follow the songs' outro and intro, where the build has it. */
+  readonly smartTransitions?: boolean;
+  setSmartTransitions?(on: boolean): void;
 };
 
 /** Native playback reports position this often, in milliseconds. */
