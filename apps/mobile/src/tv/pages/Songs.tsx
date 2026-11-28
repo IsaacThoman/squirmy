@@ -2,7 +2,7 @@ import { songCountLabel } from '@squirmy/client-core';
 import type { HomeSection, PlaybackContext, TrackSummary } from '@squirmy/contracts';
 import { useCallback, useMemo, type ReactElement } from 'react';
 import { loadFailure } from '../../data/errors';
-import { useArtist, useHome } from '../../data/queries';
+import { useArtist, useHome, useMix } from '../../data/queries';
 import { useAvailability } from '../../downloads/DownloadsProvider';
 import { usePlaybackActions } from '../../playback';
 import { SystemButton } from '../Button';
@@ -11,10 +11,24 @@ import { CollectionArt } from './CollectionArt';
 import { splitId } from './pageIds';
 import { artSize, TrackListPage } from './TrackListPage';
 
-/** Every song of a section that shows only its first few: an artist's top songs, or a Home row. */
+/** Every song of a section that shows only its first few (an artist's top songs, or a Home row), or a mix's. */
 export function SongsPage({ id }: { id: string }) {
   const [source, ref] = splitId(id);
+  if (source === 'mix') return <MixSongs mixId={ref} />;
   return source === 'home' ? <HomeSongs sectionId={ref} /> : <TopSongs artistId={ref} />;
+}
+
+/** A mix made for the user, read-only. */
+function MixSongs({ mixId }: { mixId: string }) {
+  const mix = useMix(mixId);
+  const loaded = mix.data;
+  const context = useMemo((): PlaybackContext | null => (loaded ? { type: 'mix', id: loaded.id, title: loaded.name } : null), [loaded]);
+  if (!loaded || !context) {
+    return <PageState loading={!mix.isError} message={mix.isError ? loadFailure(mix.error).description : undefined}
+      onRetry={mix.isError ? () => void mix.refetch() : undefined} />;
+  }
+  return <SongList title={loaded.name} credit={loaded.description} tracks={loaded.tracks} context={context}
+    art={<CollectionArt artworks={loaded.artworks} size={artSize} />} />;
 }
 
 function TopSongs({ artistId }: { artistId: string }) {

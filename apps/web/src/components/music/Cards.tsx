@@ -1,4 +1,4 @@
-import type { AlbumSummary, ArtistSummary, PlaylistSummary } from '@squirmy/contracts'
+import type { AlbumSummary, ArtistSummary, MixSummary, PlaylistSummary, RadioSummary } from '@squirmy/contracts'
 import { BookmarkCheck, BookmarkPlus, MoreHorizontal, Pin, PinOff, Play } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
@@ -11,7 +11,8 @@ import { cn } from '@/lib/utils'
 import { useLibraryFailure } from '@/player/library-context'
 import { useViewer } from '@/player/on-demand-context'
 import { useAlbumMenu } from '@/player/use-album-menu'
-import { LikedCover, PlaylistCover } from './CollectionArt'
+import { LikedCover, MixCover, PlaylistCover, RadioCover } from './CollectionArt'
+import { mixSlot } from './mix-menu'
 import { Cover } from './Cover'
 
 type CardProps = {
@@ -255,6 +256,39 @@ export function PlaylistCard({ playlist, onPlay, pin }: { playlist: PlaylistSumm
       art={<PlaylistCover artworks={playlist.artworks} />}
       onPlay={playlist.trackCount ? onPlay : undefined}
       pin={pin}
+    />
+  )
+}
+
+/** A mix made for the user (Home's Made for you): its cover, name and leading artists. */
+export function MixCard({ mix, onPlay, menu }: { mix: MixSummary; onPlay?: () => void; menu?: CardMenu }) {
+  return (
+    <Card
+      to={`/mix/${mix.id}`}
+      title={mix.name}
+      subtitle={mix.description}
+      art={<MixCover artworks={mix.artworks} label={mixSlot(mix)} />}
+      onPlay={mix.trackCount ? onPlay : undefined}
+      menu={menu}
+    />
+  )
+}
+
+/**
+ * A radio the user played, started again from its play button. It opens the artist it
+ * started from, or the album of its song.
+ */
+export function RadioCard({ radio, onPlay }: { radio: RadioSummary; onPlay: () => void }) {
+  const round = radio.seed === 'artist'
+  const to = radio.seed === 'artist' ? `/artist/${radio.id}` : radio.albumId ? `/album/${radio.albumId}` : '/'
+  return (
+    <Card
+      to={to}
+      title={`${radio.title} Radio`}
+      subtitle={radio.subtitle ? `Radio · ${radio.subtitle}` : 'Radio'}
+      round={round}
+      art={<RadioCover artwork={radio.artwork} round={round} />}
+      onPlay={onPlay}
     />
   )
 }

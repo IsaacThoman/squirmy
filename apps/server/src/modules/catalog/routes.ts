@@ -1,5 +1,5 @@
 import {
-  ArtistReleasesQuery, Id, LibraryItemsQuery, LibraryQuery, PageQuery, TrackQuery, TrackSummariesRequest,
+  ArtistReleasesQuery, HomeQuery, Id, LibraryItemsQuery, LibraryQuery, PageQuery, TrackQuery, TrackSummariesRequest,
   type Lyrics, type TrackSummariesResponse, type TrackSummary,
 } from '@squirmy/contracts'
 import type { FastifyInstance } from 'fastify'
@@ -75,7 +75,8 @@ export async function catalogRoutes(app: FastifyInstance) {
 
   app.get('/home', async (request, reply) => {
     const userId = requireUser(request).id
-    return cachedRead(request, reply, { userId, tags: everything, rewarm: true }, () => home(userId))
+    const query = HomeQuery.parse(request.query)
+    return cachedRead(request, reply, { userId, tags: everything, rewarm: true }, () => home(userId, query))
   })
 
   app.get('/artists/:id', async (request, reply) => {
