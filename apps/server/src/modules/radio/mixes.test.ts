@@ -1,18 +1,21 @@
 import { MixDetail, type TrackSummary } from '@squirmy/contracts'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { albums, mixes } from '../../database/schema.js'
+import { albums, mixes, sonicAnalyses } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { updateServerSettings } from '../../lib/settings.js'
 import { body, errorCode, signIn } from '../../test/api.js'
 import { createAsset, createPlay } from '../../test/catalog.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createArtist } from '../../test/factories.js'
-import { artistLine, cluster, genreLabel, interleave, listMixes, makeMixes, saveMixes } from './mixes.js'
-import { pairKey } from './sonic.js'
+import { VECTOR_LENGTH } from '../sonic/dsp/analyzer.js'
+import type { SonicPoint } from '../sonic/index.js'
+import { resetSonicIndex } from '../sonic/vectors.js'
+import { artistLine, cluster, genreLabel, interleave, listMixes, makeMixes, saveMixes, sequenceCost, smoothOrder } from './mixes.js'
+import { artistSoundAffinity, pairKey } from './sonic.js'
 
 vi.mock('../acquisition/coverage.js', () => ({
   onDemandRecordings: vi.fn(async () => new Set<string>()),
@@ -63,6 +66,42 @@ describe('mix rules', () => {
     const fresh = [track('f1', 'a'), track('f2', 'c'), track('f3', 'd'), track('f4', 'e')]
     expect(interleave(loved, fresh, 50).map((one) => one.id)).toEqual(['l1', 'f2', 'f1', 'l3', 'f3', 'f4', 'l2'])
     expect(interleave(loved, fresh, 3)).toHaveLength(3)
+  })
+
+  describe('smooth order', () => {
+    const track = (id: string, artistId: string) => ({ id, artists: [{ id: artistId, name: artistId }], artistCredit: artistId }) as TrackSummary
+    const point = (id: string, bpm: number, energy: number, tonic = 0): SonicPoint => ({
+      recordingId: id, analyzed: true, bpm, bpmSource: 'analysis', bpmConfidence: 0.9, key: { tonic, mode: 'major' }, keySource: 'analysis',
+      keyConfidence: 0.9, energy, danceability: 0.5, moods: [],
+    })
+    // Two tempos and energies, alternating as `interleave` laid them out: every step a jump.
+    const loved = Array.from({ length: 6 }, (_, n) => track(`l${n}`, `a${n}`))
+    const fresh = Array.from({ length: 12 }, (_, n) => track(`f${n}`, `b${n}`))
+    const mixed = interleave(loved, fresh, 50)
+    const points = new Map(mixed.map((one, n) => [one.id, n % 2 ? point(one.id, 90, 0.2, 6) : point(one.id, 128, 0.9)]))
+    const favourites = new Set(loved.map((one) => one.id))
+
+    it('lowers the cost of the transitions, keeping the mix in shape', () => {
+      const ordered = smoothOrder(mixed, favourites, points)
+      const ids = (list: TrackSummary[]) => list.map((one) => one.id)
+      expect(sequenceCost(ids(mixed), points)).toBeGreaterThan(0)
+      expect(sequenceCost(ids(ordered), points)).toBeLessThan(sequenceCost(ids(mixed), points) / 2)
+      expect(ids(ordered).toSorted()).toEqual(ids(mixed).toSorted())
+      // The same opening, and favourites where favourites were.
+      expect(ordered[0]).toBe(mixed[0])
+      expect(ordered.map((one) => favourites.has(one.id))).toEqual(mixed.map((one) => favourites.has(one.id)))
+      // The same day, the same order.
+      expect(ids(smoothOrder(mixed, favourites, points))).toEqual(ids(ordered))
+    })
+
+    it('changes nothing without analysis, and never puts an artist twice in a row to save a jump', () => {
+      expect(smoothOrder(mixed, favourites, new Map())).toEqual(mixed)
+      // One artist for the suggestions that sound like the opening favourite: they stay apart.
+      const sameArtist = mixed.map((one) => (favourites.has(one.id) ? one : track(one.id, points.get(one.id)!.bpm === 128 ? 'x' : one.artists[0]!.id)))
+      const repeats = (list: TrackSummary[]) => list.filter((one, n) => n > 0 && one.artists[0]!.id === list[n - 1]!.artists[0]!.id).length
+      expect(repeats(sameArtist)).toBe(0)
+      expect(repeats(smoothOrder(sameArtist, favourites, points))).toBe(0)
+    })
   })
 })
 
@@ -138,6 +177,45 @@ describe('mixes', () => {
     await saveMixes(user.id, made.slice(0, 1))
     const again = await db.select().from(mixes).where(eq(mixes.userId, user.id))
     expect(again.map((row) => row.id)).toEqual([listed[0]!.mix.id])
+  })
+
+  it('makes mixes of artists that sound alike when nothing says their genres', async () => {
+    const user = await signIn()
+    // Two sounds far apart, each with a little spread; no genres, no similar-artist data.
+    const vector = (base: number, jitter: number) => Array.from({ length: VECTOR_LENGTH }, (_, d) => base * (d % 2 ? 1 : -1) + Math.sin(d * 7 + jitter) * 0.2)
+    async function sounding(name: string, base: number, seed: number) {
+      const made = await shelf(name, '')
+      await db.update(albums).set({ genres: [] }).where(eq(albums.primaryArtistId, made.artist.id))
+      for (const [n, track] of made.tracks.entries()) {
+        const [file] = await db.execute<{ id: string }>(sql`select id from media_files where recording_id = ${track.recordingId}`)
+        await db.insert(sonicAnalyses).values({
+          fileId: file!.id, version: 1, bpm: base > 0 ? 124 + (n % 3) * 10 : 80 + (n % 3) * 9, bpmConfidence: 0.9, key: (n * 5) % 12, mode: 'major',
+          keyStrength: 0.8, energy: base > 0 ? 0.6 + (n % 4) * 0.1 : 0.15 + (n % 2) * 0.3, vector: vector(base, seed * 10 + n),
+        })
+      }
+      return made
+    }
+    const loud = [await sounding('Loud A', 3, 1), await sounding('Loud B', 3, 2), await sounding('Loud C', 3, 3)]
+    const soft = [await sounding('Soft A', -3, 4), await sounding('Soft B', -3, 5)]
+    resetSonicIndex()
+    // Each artist in sittings of its own, so playing together links nobody.
+    for (const [k, one] of [...loud, ...soft].entries()) {
+      for (const [n, track] of one.tracks.slice(0, 4).entries()) {
+        for (let play = 0; play < 3; play++) await createPlay({ userId: user.id, ...track, minutesAgo: 60 * (k * 20 + n * 4 + play) + 5 })
+      }
+    }
+    const sound = (await artistSoundAffinity([...loud, ...soft].map((one) => one.artist.id)))!
+    expect(sound.get(pairKey(loud[0]!.artist.id, loud[1]!.artist.id))).toBeGreaterThan(0.8)
+    expect(sound.get(pairKey(soft[0]!.artist.id, soft[1]!.artist.id))).toBeGreaterThan(0.8)
+    expect(sound.get(pairKey(loud[0]!.artist.id, soft[0]!.artist.id))).toBe(0)
+
+    const made = await makeMixes(user.id, '2026-11-28')
+    expect(made.map((mix) => mix.artistIds.toSorted())).toEqual([loud.map((one) => one.artist.id).toSorted(), soft.map((one) => one.artist.id).toSorted()])
+    // Each mix keeps to its sound: the suggestions too.
+    const of = (group: typeof loud) => new Set(group.flatMap((one) => one.tracks.map((track) => track.recordingId)))
+    expect(made[0]!.tracks.every((track) => of(loud).has(track.id))).toBe(true)
+    expect(made[1]!.tracks.every((track) => of(soft).has(track.id))).toBe(true)
+    expect(await makeMixes(user.id, '2026-11-28')).toEqual(made)
   })
 
   it('makes no mix without enough listening', async () => {
