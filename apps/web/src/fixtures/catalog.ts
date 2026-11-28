@@ -1,3 +1,4 @@
+import { parseLrc, stripWordStamps } from '@squirmy/client-core'
 /**
  * A fictional catalog, ported from the iOS prototype, shaped like the API's responses.
  * Pages read from here until they are wired to the server.
@@ -508,9 +509,13 @@ const nightSwimming = [
 export function lyricsFor(trackId: string): Lyrics | null {
   if (trackId !== track('night-swimming').id) return null
   const step = 224 / (nightSwimming.length + 2)
-  const synced = nightSwimming.map((line, index) => {
+  const time = (at: number) => `${String(Math.floor(at / 60)).padStart(2, '0')}:${(at % 60).toFixed(2).padStart(5, '0')}`
+  // Enhanced LRC: each word is sung in turn over the first two thirds of its line's time.
+  const enhanced = nightSwimming.map((line, index) => {
     const at = step * (index + 1)
-    return `[${String(Math.floor(at / 60)).padStart(2, '0')}:${(at % 60).toFixed(2).padStart(5, '0')}] ${line}`
+    const words = line.split(' ')
+    const each = (step * 2) / 3 / words.length
+    return `[${time(at)}]${words.map((word, i) => `<${time(at + each * i)}>${word}`).join(' ')}<${time(at + each * words.length)}>`
   }).join('\n')
-  return { trackId, synced, plain: nightSwimming.join('\n'), instrumental: false, source: 'embedded' }
+  return { trackId, synced: stripWordStamps(enhanced), plain: nightSwimming.join('\n'), instrumental: false, source: 'embedded', lines: parseLrc(enhanced) }
 }

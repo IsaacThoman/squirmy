@@ -23,12 +23,13 @@ const ownsSpace = `${ownsArrows}, button, a[href], summary, [role="button"], [ro
 const ownsAllKeys = '[role="dialog"]:not([data-player-keys]), [role="alertdialog"]'
 
 /**
- * Where a letter key (M, S, R, L, Q, Y, /, ?) is typed or picks an item rather than reaching the
+ * Where a letter key (M, S, R, L, Q, Y, F, /, ?) is typed or picks an item rather than reaching the
  * app: fields, menus and lists that jump to what is typed, and dialogs but Now Playing.
+ * `data-own-keys` is not here: the regions that say it (full screen's buttons) own the arrows only.
  */
 const ownsLetters = [
   'input', 'textarea', 'select', '[contenteditable=""]', '[contenteditable="true"]',
-  '[role="menu"]', '[role="menuitem"]', '[role="listbox"]', '[role="option"]', '[role="combobox"]', '[role="tree"]', '[data-own-keys]',
+  '[role="menu"]', '[role="menuitem"]', '[role="listbox"]', '[role="option"]', '[role="combobox"]', '[role="tree"]',
 ].join(', ')
 
 /** Whether a letter key's press belongs to the focused element rather than the app's shortcuts. */

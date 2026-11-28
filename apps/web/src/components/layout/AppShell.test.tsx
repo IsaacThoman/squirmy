@@ -550,7 +550,7 @@ describe('AppShell', () => {
       await renderShell()
       await userEvent.keyboard('?')
       const sheet = await screen.findByRole('dialog', { name: 'Keyboard shortcuts' })
-      for (const group of ['Playback', 'Views', 'Song lists']) expect(within(sheet).getByRole('region', { name: group })).toBeInTheDocument()
+      for (const group of ['Playback', 'Views', 'Now Playing', 'Song lists']) expect(within(sheet).getByRole('region', { name: group })).toBeInTheDocument()
       expect(within(sheet).getByText('Previous or next song')).toBeInTheDocument()
     })
 
@@ -564,6 +564,18 @@ describe('AppShell', () => {
       await userEvent.type(await searchField(), 'q')
       expect(screen.queryByRole('complementary', { name: 'Queue' })).not.toBeInTheDocument()
       expect(await searchField()).toHaveValue('q')
+    })
+
+    it('shows Now Playing\'s queue with Q while Now Playing covers the queue panel', async () => {
+      await renderShell()
+      await press('k')
+      await userEvent.type(await searchField(), 'amber')
+      await userEvent.click(await screen.findByRole('option', { name: 'Amber Song · Lune Park' }))
+      await userEvent.click(await screen.findByRole('button', { name: 'Open Now Playing' }))
+      const nowPlaying = await screen.findByRole('dialog', { name: 'Now Playing' })
+      await userEvent.keyboard('q')
+      expect(within(nowPlaying).getByRole('button', { name: 'Hide queue' })).toBeInTheDocument()
+      expect(screen.queryByRole('complementary', { name: 'Queue' })).not.toBeInTheDocument()
     })
 
     it('turns shuffle on with S and cycles repeat with R', async () => {

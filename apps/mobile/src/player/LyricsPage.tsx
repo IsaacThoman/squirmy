@@ -6,6 +6,7 @@ import { usePlaybackState, usePosition } from '../playback';
 import { createThemedStyles, useColors } from '../theme';
 import { Icon } from '../ui';
 import { LyricButton } from './Controls';
+import { SungLyricButton } from './SungLyric';
 import LyricsEmpty from './LyricsEmpty';
 import { selectionFeedback } from './design';
 import { activeLine, lineInView, lyricLines } from './lyrics';
@@ -95,8 +96,11 @@ export default function LyricsPage({ selected }: LyricsProps) {
               lineCenters.current[index] = y + height / 2;
               if (index === active) setPlaced(true);
             }}>
-              <LyricButton line={line.text} active={!synced || index === active}
-                onPress={line.startMs === null ? undefined : () => { selectionFeedback(); setFollowing(true); actions.seek(line.startMs!); }} />
+              {synced && index === active && line.words?.length
+                ? <SungLyricButton line={line.text} words={line.words} translation={line.translation} active
+                  onPress={() => { selectionFeedback(); setFollowing(true); actions.seek(line.startMs!); }} />
+                : <LyricButton line={line.text} translation={line.translation} active={!synced || index === active}
+                  onPress={line.startMs === null ? undefined : () => { selectionFeedback(); setFollowing(true); actions.seek(line.startMs!); }} />}
             </View>
           ))}
         </ScrollView>

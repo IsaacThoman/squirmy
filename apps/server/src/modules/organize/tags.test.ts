@@ -14,7 +14,7 @@ import { applyBatch } from './apply.js'
 import { getBatch } from './batches.js'
 import { planOrganize } from './plan.js'
 import { revertBatch } from './revert.js'
-import { catalogTagValues, TAG_WRITABLE, writeTags, type TagValues } from './tags.js'
+import { catalogTagValues, TAG_WRITABLE, writeTagEdit, writeTags, type TagValues } from './tags.js'
 import { addAlbum, makeRoot, manifest } from '../../test/organize-library.js'
 
 describe('organize: tags', () => {
@@ -113,6 +113,25 @@ describe('organize: tags', () => {
       expect(await writeTags(file, values, { temp: path.join(dir, '.tmp.m4a') })).toEqual({ written: false, reason: 'The audio stream could not be read' })
       expect(await readFile(file)).toEqual(before)
       expect(await readdir(dir)).toEqual(['broken.m4a'])
+    })
+  })
+
+  describe('writeTagEdit', () => {
+    it.each(formats)('verifies precise dates, compilation, credits and cover changes in %s', async format => {
+      const dir = await scratch()
+      const source = await makeTone(dir, { path: 'cover.flac', cover: true })
+      const cover = Buffer.from((await parseFile(source)).common.picture![0]!.data)
+      const file = await makeTone(dir, { path: `edit.${format}`, tags: { title: 'Untouched', genre: 'Rock' } })
+      const hash = await audioHash(file)
+      const options = { temp: path.join(dir, `.edit.${format}`), expectedAudioHash: hash }
+      expect(await writeTagEdit(file, {
+        date: '2025-09-21', disc: 1, discTotal: 2, compilation: true,
+        composer: ['Composer'], lyricist: ['Lyricist'], arranger: ['Arranger'], producer: ['Producer'],
+      }, cover, options)).toMatchObject({ written: true })
+      expect(await writeTagEdit(file, { date: null, compilation: false, genres: [], composer: [] }, undefined, options))
+        .toMatchObject({ written: true })
+      expect((await parseFile(file)).common).toMatchObject({ title: 'Untouched' })
+      expect(await audioHash(file)).toBe(hash)
     })
   })
 

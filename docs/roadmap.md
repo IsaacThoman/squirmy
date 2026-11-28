@@ -23,9 +23,10 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Streaming: playback descriptor, signed URLs, Range, transcode cache
 - [x] Loudness measurement and normalization values
 - [x] Likes, ratings, playlists, history, user settings
-- [x] Lyrics: embedded, sidecar and LRCLIB, shown on web and iOS
+- [x] Lyrics: embedded, sidecar and LRCLIB, shown on web and iOS, word by word from Enhanced LRC and TTML
 - [x] Web app: setup, login, library, album and artist pages, player, queue
 - [x] Web app on a desktop: multi-select in song lists and the queue, dragging songs and cards to playlists, the queue and the player, right-click menus on cards and the player, a command palette, keyboard shortcuts, a pop-out player
+- [x] Now Playing's turning cover colors (web and iPhone), covers that crossfade, a lean-back full screen on the web and a Compact density
 - [x] Mobile app: connect, login, real data, real audio, lock-screen controls
 
 ## 3. Connect
@@ -37,6 +38,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Live invalidations on web and mobile
 - [x] Signal path: each device reports what it plays; Lossless badge and Track info on web, iOS and Apple TV
 - [x] Sleep timer held by the session: set anywhere, enforced by the server, faded out on the device that plays
+- [x] Queue changes as small diffs against a queue version, with the whole queue as a checkpoint
 
 ## 4. Identify and reorganize
 
@@ -46,6 +48,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Managed roots: preview, apply, journal, undo (server and API)
 - [x] Admin screens (web): library folders, review queue, Fix match, Organize, users and invites, server settings, jobs
 - [x] Tag writing with verification
+- [x] Admin tag editor, duplicate and bitrate review, and scheduled file health checks
 
 ## 5. OpenSubsonic
 
@@ -76,6 +79,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] A personal library: the library is what you heart (uploads hearted for their uploader), the server's music on Home and On this server, an opt-in to include all of it; Your uploads and Admin → Uploads to delete uploaded music (web; iOS next)
 - [x] Fingerprinting for untagged files
 - [x] Offline downloads on mobile, with their lyrics, and search over what the phone holds while offline
+- [x] Several accounts on one phone or Apple TV: a switcher, and each account's downloads, streaming cache and saved library kept on the device for switching back
 
 ## 8. Providers and extras
 
@@ -112,7 +116,7 @@ Designed in [audio-engine.md](./audio-engine.md); each item is a pull request fr
 - [x] Design, with measurements of today's gaps and spikes of the new engine and formats
 - [x] S1. Transcode priorities and cancelling abandoned encodes
 - [x] S2. Exact lengths and priming per file, estimated gains for unmeasured files
-- [ ] S3. Fragmented MP4 profiles (FLAC, Opus, AAC) with exact gapless numbers, and seeking live transcodes
+- [x] S3. Fragmented MP4 profiles (FLAC, Opus, AAC) with exact gapless numbers, and seeking live transcodes
 - [ ] C1. Queue diffs with checkpoints on the session socket
 - [ ] C2. Undoing queue edits
 - [ ] M1. The native iOS and tvOS engine, behind a setting

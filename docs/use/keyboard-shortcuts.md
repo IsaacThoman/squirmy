@@ -44,6 +44,22 @@ One key each, with no Ctrl, Alt or Cmd. They work anywhere but where letters are
 | / | Open search and commands |
 | ? | List every shortcut |
 
+While [Now Playing](./web.md#playing-music) is open, Q shows its queue, as on a phone, rather than the queue panel it covers.
+
+## Now Playing
+
+The player keys and the letter keys work here too.
+
+| Key | Action |
+|---|---|
+| F | Go into [full screen](./web.md#playing-music), or leave it |
+| Escape | Leave full screen; otherwise close Now Playing |
+| Enter | In full screen, on the screen itself: play or pause |
+| ← / → | In full screen, on the transport: move to the button before or after |
+| Q / Y | In full screen: leave it for Now Playing's queue or lyrics |
+
+In full screen, while the controls are hidden, the first key only brings them back. A right-click on the cover, there and in Now Playing, opens the song's menu; while it is open, Escape and the letters belong to the menu.
+
 ## Search and commands
 
 | Key | Action |
@@ -86,3 +102,5 @@ In an album, a playlist, Liked Songs, an artist's top songs, your songs and Up n
 | Admin folder picker, path field | Enter | Open the typed path |
 | Admin server settings, a text field | Enter | Save the value |
 | The pop-out player's window | Space | Play or pause |
+
+There are no other single-key shortcuts.

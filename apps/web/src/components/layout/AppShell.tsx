@@ -8,6 +8,7 @@ import { canPopOut, usePopOut } from '@/components/player/pop-out'
 import { PopOutPlayer } from '@/components/player/PopOutPlayer'
 import { toggleMute } from '@/components/player/mute'
 import { QueuePanel } from '@/components/player/Queue'
+import { usePreloadNextArtwork } from '@/components/player/use-next-artwork'
 import { SettingsDialogContext, type SettingsOpenOptions, type SettingsSection } from '@/components/settings/settings-dialog'
 import { cn } from '@/lib/utils'
 import { useLibrary } from '@/player/library-context'
@@ -260,11 +261,12 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [openSettings, openSearch])
 
-  // The queue's own panel from 768px; below that it is a pane of Now Playing.
+  // The queue's own panel from 768px; below that, and while Now Playing covers the panel, it is a
+  // pane of Now Playing.
   const toggleQueue = useCallback(() => {
-    if (!mobile) return setQueueOpen(open => !open)
+    if (!mobile && !nowPlaying.open) return setQueueOpen(open => !open)
     setNowPlaying(now => (now.open && now.pane === 'queue' ? { ...now, open: false } : { open: true, pane: 'queue' }))
-  }, [mobile])
+  }, [mobile, nowPlaying.open])
   const toggleLyrics = useCallback(() => setNowPlaying(now => ({ open: !(now.open && now.pane === 'lyrics'), pane: 'lyrics' })), [])
   const openNowPlaying = useCallback(() => setNowPlaying(now => ({ ...now, open: true })), [])
   const showShortcuts = useCallback(() => {
@@ -274,7 +276,7 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
   const popOutSupported = canPopOut()
   const commands = useMemo<ShellCommands>(() => ({
     toggleQueue,
-    queueOpen: mobile ? nowPlaying.open && nowPlaying.pane === 'queue' : queueOpen,
+    queueOpen: mobile || nowPlaying.open ? nowPlaying.open && nowPlaying.pane === 'queue' : queueOpen,
     toggleLyrics,
     lyricsOpen: nowPlaying.open && nowPlaying.pane === 'lyrics',
     openNowPlaying,
@@ -512,6 +514,7 @@ function ShellPlayer({ mobile, queueOpen, setQueueOpen, nowPlaying, setNowPlayin
   const player = usePlayer()
   const { liked, toggleLike } = useCurrentLike()
   const openNowPlaying = () => setNowPlaying(now => ({ ...now, open: true }))
+  usePreloadNextArtwork(player.state, nowPlaying.open)
   if (mobile) return <MiniPlayer player={player} onOpenNowPlaying={openNowPlaying} />
   return (
     <PlayerBar

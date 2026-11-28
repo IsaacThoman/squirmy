@@ -26,8 +26,10 @@ export const INPUT_GUARD: readonly string[] = ['-protocol_whitelist', 'file', '-
 export const audioInput = (file: string): string[] => [...INPUT_GUARD, '-i', file]
 
 /** Runs ffmpeg with `-v error -nostdin` and the given arguments. Rejects on a non-zero exit. */
-export async function runFfmpeg(args: readonly string[], options: { timeoutMs?: number; maxBuffer?: number } = {}): Promise<ToolResult> {
-  return exec(getConfig().FFMPEG_PATH, ['-v', 'error', '-nostdin', ...args], {
+export async function runFfmpeg(args: readonly string[], options: { timeoutMs?: number; maxBuffer?: number; lowPriority?: boolean } = {}): Promise<ToolResult> {
+  const ffmpeg = getConfig().FFMPEG_PATH
+  const nice = options.lowPriority && process.platform !== 'win32'
+  return exec(nice ? '/usr/bin/nice' : ffmpeg, [...(nice ? ['-n', '15', ffmpeg] : []), '-v', 'error', '-nostdin', ...args], {
     timeout: options.timeoutMs ?? 10 * 60_000,
     maxBuffer: options.maxBuffer ?? 16 * 1024 * 1024,
   })
@@ -50,6 +52,10 @@ export async function runFfprobe(file: string, entries = 'format:stream'): Promi
  */
 export async function audioHash(file: string): Promise<string> {
   const { stdout } = await runFfmpeg([...audioInput(file), '-map', '0:a:0', '-c', 'copy', '-f', 'hash', '-hash', 'sha256', '-'])
+  return readAudioHash(stdout, file)
+}
+
+export function readAudioHash(stdout: string, file: string): string {
   const match = /SHA256=([0-9a-f]{64})/i.exec(stdout)
   if (!match?.[1]) throw new Error(`ffmpeg did not return an audio hash for ${file}`)
   return match[1].toLowerCase()

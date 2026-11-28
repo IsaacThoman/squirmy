@@ -1,6 +1,7 @@
 import { act, createEvent, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ApiError } from '@squirmy/client-core'
+import { UNDO_LIMIT } from '@squirmy/contracts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from '@/App'
 import { album, allTracks, track } from '@/fixtures/catalog'
@@ -78,6 +79,25 @@ describe('PlayerProvider', () => {
     await userEvent.click(within(panel).getByRole('button', { name: 'Remove Soft Signal from queue' }))
     await waitFor(() => expect(socket.session.queue.map(entry => entry.trackId)).not.toContain(blueHour.discs[0].tracks[1].id))
     expect(within(next).queryByRole('button', { name: 'Play Soft Signal' })).toBeNull()
+  })
+
+  it('offers Undo on the status line after a queue edit, and the server puts it back', async () => {
+    const { services, socket } = fakeServices()
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    await playAlbum()
+    await userEvent.click(screen.getByRole('button', { name: 'Queue' }))
+    const panel = await screen.findByRole('complementary', { name: 'Queue' })
+    await waitFor(() => expect(within(panel).getByRole('button', { name: 'Remove Soft Signal from queue' })).toBeInTheDocument())
+    const queued = socket.session.queue.map(entry => entry.id)
+    await userEvent.click(within(panel).getByRole('button', { name: 'Remove Soft Signal from queue' }))
+
+    const player = screen.getByRole('region', { name: 'Player' })
+    expect(await within(player).findByText('Removed “Soft Signal”')).toBeInTheDocument()
+    await userEvent.click(within(player).getByRole('button', { name: 'Undo' }))
+    await waitFor(() => expect(socket.session.queue.map(entry => entry.id)).toEqual(queued))
+    expect(socket.commands.at(-1)).toEqual({ type: 'undo', commandId: expect.any(String) })
+    expect(within(player).queryByText('Removed “Soft Signal”')).toBeNull()
+    expect(await within(panel).findByRole('button', { name: 'Play Soft Signal' })).toBeInTheDocument()
   })
 
   it('changes the playing track’s heart at once and tells the server', async () => {
@@ -201,6 +221,36 @@ describe('dragging music to the queue and the player', () => {
     expect(fireEvent(target, at(createEvent.dragOver(target, { dataTransfer: transfer }), 60))).toBe(false)
     fireEvent(target, at(createEvent.drop(target, { dataTransfer: transfer }), 60))
     await waitFor(() => expect(socket.session.queue.map(entry => entry.trackId)).toEqual([before[0], amber.id, ...before.slice(1)]))
+
+    // One Undo takes the drop back, moves and all.
+    const player = screen.getByRole('region', { name: 'Player' })
+    expect(within(player).getByText(`Added “${amber.title}” to the queue`)).toBeInTheDocument()
+    await userEvent.click(within(player).getByRole('button', { name: 'Undo' }))
+    await waitFor(() => expect(socket.session.queue.map(entry => entry.trackId)).toEqual(before))
+    expect(socket.commands.filter(command => command.type === 'undo')).toHaveLength(1)
+  })
+
+  it('takes a drop of many songs back with Undo when its moves have pushed it off the server\'s stack', async () => {
+    const { services, socket } = fakeServices()
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    await playAlbum()
+    await userEvent.click(screen.getByRole('button', { name: 'Queue' }))
+    const panel = await screen.findByRole('complementary', { name: 'Queue' })
+    await waitFor(() => expect(socket.session.queue.length).toBeGreaterThan(2))
+    const before = socket.session.queue.map(entry => entry.trackId)
+    const playable = allTracks.filter(song => song.availability === 'server')
+    const songs = Array.from({ length: UNDO_LIMIT }, (_, index) => playable[index % playable.length]!)
+    const transfer = dataTransfer()
+    startTrackDrag({ dataTransfer: transfer }, { tracks: songs, list: null, index: 0 })
+    const target = within(panel).getByRole('region', { name: 'Continue Playing' })
+    fireEvent(target, at(createEvent.dragOver(target, { dataTransfer: transfer }), 60))
+    fireEvent(target, at(createEvent.drop(target, { dataTransfer: transfer }), 60))
+    await waitFor(() => expect(socket.session.queue).toHaveLength(before.length + UNDO_LIMIT))
+
+    const player = screen.getByRole('region', { name: 'Player' })
+    await userEvent.click(within(player).getByRole('button', { name: 'Undo' }))
+    await waitFor(() => expect(socket.session.queue.map(entry => entry.trackId)).toEqual(before))
+    expect(socket.commands.some(command => command.type === 'undo')).toBe(false)
   })
 
   it('picks songs in Up next with Ctrl-click and takes them out from the bar', async () => {

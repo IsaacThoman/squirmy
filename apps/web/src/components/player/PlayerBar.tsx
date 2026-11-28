@@ -166,7 +166,7 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
           {item ? (
             <>
               <button type="button" aria-label="Open Now Playing" onClick={onOpenNowPlaying} className="group relative shrink-0 rounded-[5px] outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar">
-                <Cover artwork={item.track.album?.artwork ?? null} size={96} className="size-12 rounded-[5px]" />
+                <Cover artwork={item.track.album?.artwork ?? null} size={96} crossfade className="size-12 rounded-[5px]" />
                 <span className="absolute inset-0 flex items-center justify-center rounded-[5px] bg-black/45 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
                   <ChevronUp aria-hidden className="size-4" />
                 </span>
@@ -309,7 +309,7 @@ export function MiniPlayer({ player, onOpenNowPlaying }: Pick<PlayerChromeProps,
     <section aria-label="Player" className={cn(barClass, 'relative pb-[env(safe-area-inset-bottom)]')} onWheel={onWheel}>
       <div className="flex h-16 items-center gap-1 border-t pl-3 pr-2">
         <button type="button" aria-label={`Open Now Playing, ${item.track.title}`} onClick={onOpenNowPlaying} className="flex min-w-0 flex-1 items-center gap-3 self-stretch rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
-          <Cover artwork={item.track.album?.artwork ?? null} size={96} className="size-10 rounded-[5px]" />
+          <Cover artwork={item.track.album?.artwork ?? null} size={96} crossfade className="size-10 rounded-[5px]" />
           <span className="min-w-0">
             <span className="block truncate text-sm font-medium">{item.track.title}</span>
             <span className="block truncate text-xs text-muted-foreground">

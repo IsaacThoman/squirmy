@@ -38,6 +38,13 @@ export const SHORTCUT_GROUPS: { title: string; shortcuts: Shortcut[] }[] = [
     ],
   },
   {
+    title: 'Now Playing',
+    shortcuts: [
+      { keys: [['F']], label: 'Full screen, or leave it' },
+      { keys: [['Esc']], label: 'Leave full screen, or close Now Playing' },
+    ],
+  },
+  {
     title: 'Song lists',
     shortcuts: [
       { keys: [['Click']], label: 'Select a song' },

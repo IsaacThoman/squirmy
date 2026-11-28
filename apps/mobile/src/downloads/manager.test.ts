@@ -381,6 +381,19 @@ describe('DownloadManager queue', () => {
     expect(capped.manager.track(id(4))).toEqual({ state: 'queued', wait: 'storage' });
   });
 
+  it('counts the other accounts’ downloads toward the device’s storage limit', async () => {
+    const { manager, files, settle } = setup();
+    manager.setOptions({ capBytes: 1500, otherBytes: 1500 });
+    manager.addTrack(track(1));
+    await settle();
+    expect(files.transfers).toHaveLength(0);
+    expect(manager.track(id(1))).toEqual({ state: 'queued', wait: 'storage' });
+    // That account's downloads were removed: there is room again.
+    manager.setOptions({ otherBytes: 0 });
+    await settle();
+    expect(files.transfers).toHaveLength(1);
+  });
+
   it('plays a download from its file with its normalization', async () => {
     const { manager, files, settle } = setup();
     manager.addTrack(track(1));

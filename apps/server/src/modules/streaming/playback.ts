@@ -6,7 +6,8 @@ import { sign, verify } from '../../lib/crypto.js'
 import { notFound } from '../../lib/errors.js'
 import { resolveOne } from '../catalog/redirects.js'
 import { normalizationFor } from '../loudness/normalization.js'
-import { codecFamily, mimeFor, outputSampleRate, parseCodecs, profiles } from './profiles.js'
+import { fragmentedSourceFrames } from './gapless.js'
+import { codecFamily, fragmentedEncoder, isFragmented, mimeFor, outputBitDepth, outputSampleRate, parseCodecs, profiles } from './profiles.js'
 import { selectFile } from './select.js'
 import { readyTranscode } from './transcode.js'
 
@@ -55,7 +56,7 @@ export async function buildPlaybackDescriptor(userId: string, recordingId: strin
     resolveOne('recordings', recordingId).then((id) => id ?? recordingId),
     query.albumId ? resolveOne('albums', query.albumId).then((id) => id ?? query.albumId) : undefined,
   ])
-  const selection = await selectFile(target, { albumId, codecs: query.codecs, quality: query.quality })
+  const selection = await selectFile(target, { ...query, albumId })
   if (!selection) throw notFound('No file of this track is available', 'not_available')
   const { file, profile } = selection
   const { url, expiresAt } = signStreamUrl(file.id, profile, userId, query)
@@ -78,6 +79,10 @@ export async function buildPlaybackDescriptor(userId: string, recordingId: strin
       bytes: file.size,
     },
   }
+  const frames = isFragmented(profile) ? await fragmentedSourceFrames(file) : file.decodedFrames
+  const sourceGapless = frames !== null && file.decodedRate !== null && file.primingFrames !== null
+    ? { sampleRate: file.decodedRate, primingFrames: file.primingFrames, frames }
+    : null
   if (profile === 'original') {
     return {
       ...base,
@@ -89,26 +94,32 @@ export async function buildPlaybackDescriptor(userId: string, recordingId: strin
       sampleRate: file.sampleRate,
       bitDepth: file.bitDepth,
       bytes: file.size,
-      gapless: file.decodedFrames !== null && file.decodedRate !== null && file.primingFrames !== null
-        ? { sampleRate: file.decodedRate, primingFrames: file.primingFrames, frames: file.decodedFrames }
-        : null,
+      gapless: sourceGapless,
       transcodeReason: null,
     }
   }
   const spec = profiles[profile]
+  const encoder = fragmentedEncoder(profile)
   const cached = await readyTranscode(file, profile)
+  const sampleRate = outputSampleRate(file, profile)
+  const gapless = profile === 'copy_mp4' ? sourceGapless : encoder && sourceGapless && sampleRate
+    ? {
+        sampleRate,
+        primingFrames: encoder.primingFrames,
+        frames: Math.ceil(sourceGapless.frames * sampleRate / sourceGapless.sampleRate),
+      }
+    : null
   return {
     ...base,
     transcoded: true,
     mime: spec.mime,
-    codec: spec.codec,
-    lossless: false,
-    bitrate: spec.bitrate,
-    sampleRate: outputSampleRate(file, profile) ?? file.sampleRate,
-    bitDepth: null,
+    codec: 'codec' in spec ? spec.codec : base.source.codec,
+    lossless: profile === 'flac_mp4' || (profile === 'copy_mp4' && file.lossless),
+    bitrate: 'bitrate' in spec ? spec.bitrate : file.bitrate,
+    sampleRate,
+    bitDepth: outputBitDepth(file, profile),
     bytes: cached?.bytes ?? null,
-    gapless: null,
-    // A client that decodes the file is only given a transcode for the quality it asked for.
-    transcodeReason: parseCodecs(query.codecs).has(codecFamily(file)) ? 'quality' : 'codec',
+    gapless,
+    transcodeReason: profile === 'copy_mp4' ? null : parseCodecs(query.codecs).has(base.source.codec) && query.quality !== 'original' ? 'quality' : 'codec',
   }
 }

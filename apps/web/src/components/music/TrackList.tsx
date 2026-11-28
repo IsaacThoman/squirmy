@@ -7,6 +7,7 @@ import { ExplicitBadge, Spinner } from '@/components/ui/feedback'
 import { DropdownMenu, type MenuEntry } from '@/components/ui/menu'
 import { isPlayable, UNAVAILABLE_LABEL } from '@/lib/catalog'
 import { dragBadge, draggedTracks, endTrackDrag, startTrackDrag } from '@/lib/drag'
+import { TRACK_ROW_HEIGHT, useDensity } from '@/lib/density'
 import { formatDuration, formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useViewer } from '@/player/on-demand-context'
@@ -318,7 +319,7 @@ export function TrackRow({ track, index, selectionKey, number, movementName, add
         selected && 'bg-accent hover:bg-accent has-[:focus-visible]:bg-accent',
       )}
     >
-      <div className={cn('grid h-11 content-center items-center gap-x-3', columnsOf(variant, addedAt !== undefined))}>
+      <div className={cn('grid h-11 content-center items-center gap-x-3 compact:h-9', columnsOf(variant, addedAt !== undefined))}>
         {variant === 'compact' ? null : (
           <div className={cn('relative flex h-8 items-center justify-center text-sm tabular', unavailable ? 'text-faded-foreground' : 'text-muted-foreground')}>
             {playButton(false)}
@@ -328,8 +329,8 @@ export function TrackRow({ track, index, selectionKey, number, movementName, add
 
         {album ? <div className="min-w-0">{title}{showArtists && artists}</div> : (
           <div className="flex min-w-0 items-center gap-3">
-            <div className="relative size-8 shrink-0">
-              <Cover artwork={track.album?.artwork ?? null} size={96} dimmed={unavailable} className="size-8 rounded-[5px]" />
+            <div className="relative size-8 shrink-0 compact:size-7">
+              <Cover artwork={track.album?.artwork ?? null} size={96} dimmed={unavailable} className="size-8 rounded-[5px] compact:size-7" />
               {variant === 'compact' && (
                 <div className={cn('absolute inset-0 flex items-center justify-center rounded-[5px] transition-colors', current ? 'bg-black/50' : !unavailable && 'group-hover/row:bg-black/50 group-data-[state=open]/row:bg-black/50 has-[:focus-visible]:bg-black/50')}>
                   {playButton(true)}
@@ -471,8 +472,6 @@ export function TrackList({ tracks, discs, addedAt, header = true, label, varian
   )
 }
 
-/** The height of a row with artwork, `h-11`. */
-const rowHeight = 44
 
 /** The same rows, rendered only near the viewport. */
 type VirtualTrackListProps = Omit<TrackListProps, 'variant' | 'discs' | 'header'> & {
@@ -492,6 +491,8 @@ export function VirtualTrackList({ tracks, label, addedAt, variant = 'compact', 
   const [focused, setFocused] = useState<number>()
   const [dragged, setDragged] = useState<number>()
   const [menuRow, setMenuRow] = useState<number>()
+  // The height the rows are drawn at (`h-11`, or `compact:h-9`), which the virtualizer places them by.
+  const rowHeight = TRACK_ROW_HEIGHT[useDensity()]
   const virtualizer = useVirtualRows({
     list, scroller, count: tracks.length, rowHeight, focused, pinned: dragged ?? menuRow, getItemKey,
   })

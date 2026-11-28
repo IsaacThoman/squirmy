@@ -2,7 +2,7 @@ import {
   PlaybackNoticeWatcher, planChanges, randomSeed, refreshFetchedTracks, SessionClient, skipNotice, TrackStore, unavailableNotice, type ApiClient, type PlaybackNotice, type SessionClientSnapshot,
 } from '@squirmy/client-core'
 import { createSocketTransport, type SquirmySocket } from '@squirmy/client-core/socket'
-import { queryKeys, type ClientDevice, type EntityChanges, type QueueEntry, type QueueSeed, type SessionCommand, type StreamQuality, type TrackSummary } from '@squirmy/contracts'
+import { queryKeys, type ClientDevice, type EntityChanges, type QueueEntry, type QueueSeed, type SessionCommand, type StreamQuality, type TrackSummary, UNDO_LIMIT } from '@squirmy/contracts'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { use, useCallback, useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { useUserSettings } from '@/api/queries'
@@ -21,7 +21,7 @@ import { MediaSessionAdapter, mediaArtwork, type MediaSessionTrack } from './eng
 import { Listening, type Audible } from './listening'
 import { NowPlayingContext, PlayerContext, PlayerControlsContext, PositionClock, PositionContext, RadioPendingContext, useNowPlayingStore, type PlayerControls, type PlayerState, type QueueItem, type RadioSeed } from './player-context'
 import { useShortcuts } from './shortcuts'
-import { STATUS_ERROR_MS, STATUS_EVENT_MS, StatusLine, type PlayerStatus } from './status'
+import { STATUS_ERROR_MS, STATUS_EVENT_MS, STATUS_UNDO_MS, StatusLine, type PlayerStatus } from './status'
 
 /** The most tracks one `playTracks` or `enqueue` may carry. */
 const MAX_SEEDS = 5000
@@ -204,6 +204,17 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const latest = () => client.getSnapshot()
     const shown = (entries: readonly QueueEntry[]) => entries.filter(entry => store.get(entry.trackId, entry.albumId))
     const playable = (track: TrackSummary) => isPlayable(track, viewer)
+    const titleOf = (entry: QueueEntry | undefined) => entry && store.get(entry.trackId, entry.albumId)?.title
+    /** Sends a queue edit and, where the server can take it back, says so on the status line with Undo. */
+    const undoable = (command: SessionCommand, message: string, undo = (commandId: string) => void dispatch({ type: 'undo', commandId })) => {
+      const commandId = dispatch(command)
+      if (!commandId || !latest().canUndo) return
+      const run = () => {
+        status.clear(UNDO_STATUS)
+        undo(commandId)
+      }
+      status.show({ message, tone: 'info', key: UNDO_STATUS, action: { label: 'Undo', run } }, STATUS_UNDO_MS)
+    }
     return {
       togglePlay: () => {
         // The player shows Play while the browser holds the audio back, so pressing it plays.
@@ -253,15 +264,34 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         const before = shown(latest().queue.queue)
         const at = toIndex === undefined ? undefined : Math.max(0, Math.min(toIndex, before.length))
         // The session adds only before or after Up next; a place between is the moves that follow.
-        dispatch({ type: 'enqueue', tracks: seeds, placement: at === 0 ? 'next' : at === undefined ? placement : 'last' })
+        const where = at === 0 ? 'next' : at === undefined ? placement : 'last'
+        const first = tracks.find(playable)
+        const message = seeds.length > 1 ? `Added ${seeds.length} songs to the queue` : where === 'next' ? `“${first!.title}” plays next` : `Added “${first!.title}” to the queue`
+        let added: QueueEntry[] = []
+        let moves = 0
+        // One Undo takes the whole drop back. Undoing the enqueue removes its entries by id
+        // wherever they were moved, so the moves need no undo of their own. Each move is an edit
+        // on the server's stack too, so past `UNDO_LIMIT` of them the enqueue has fallen off it,
+        // and Undo takes the songs out itself.
+        undoable({ type: 'enqueue', tracks: seeds, placement: where }, message, commandId => {
+          if (moves < UNDO_LIMIT) {
+            dispatch({ type: 'undo', commandId })
+            return
+          }
+          const still = new Set(latest().queue.queue.map(entry => entry.id))
+          for (const entry of added) if (still.has(entry.id)) dispatch({ type: 'removeFromQueue', entryId: entry.id })
+        })
         if (at === undefined || at === 0 || at === before.length) return
         const known = new Set(latest().queue.queue.map(entry => entry.id))
         for (const entry of before) known.delete(entry.id)
-        const added = latest().queue.queue.filter(entry => known.has(entry.id))
+        added = latest().queue.queue.filter(entry => known.has(entry.id))
         added.forEach((entry, offset) => {
           const list = latest().queue.queue
           const target = shown(list)[at + offset]
-          if (target && target.id !== entry.id) dispatch({ type: 'moveInQueue', entryId: entry.id, toIndex: list.indexOf(target) })
+          if (target && target.id !== entry.id) {
+            dispatch({ type: 'moveInQueue', entryId: entry.id, toIndex: list.indexOf(target) })
+            moves += 1
+          }
         })
       },
       startRadio,
@@ -277,14 +307,21 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         }
         picked.set(latest().session.current?.id ?? null)
       },
-      removeEntry: entryId => dispatch({ type: 'removeFromQueue', entryId }),
+      removeEntry: entryId => {
+        const { queue: lists } = latest()
+        const title = titleOf([...lists.queue, ...lists.autoplayQueue].find(entry => entry.id === entryId))
+        undoable({ type: 'removeFromQueue', entryId }, title ? `Removed “${title}”` : 'Removed from the queue')
+      },
       moveEntry: (entryId, toIndex) => {
         const { queue: lists } = latest()
         const list = lists.queue.some(entry => entry.id === entryId) ? lists.queue : lists.autoplayQueue
         const target = shown(list)[toIndex]
         if (target) dispatch({ type: 'moveInQueue', entryId, toIndex: list.indexOf(target) })
       },
-      clearQueue: () => dispatch({ type: 'clearQueue' }),
+      clearQueue: () => {
+        if (latest().queue.queue.length) undoable({ type: 'clearQueue' }, 'Queue cleared')
+        else dispatch({ type: 'clearQueue' })
+      },
       clearHistory: () => {
         if (!latest().queue.history.length) return
         dispatch({ type: 'clearHistory' })
@@ -368,6 +405,7 @@ const NOTICE_STATUS = 'notice'
 const STOP_STATUS = 'stop'
 const RADIO_STATUS = 'radio'
 const ACTION_STATUS = 'action'
+const UNDO_STATUS = 'undo'
 /**
  * How long a skipped song's notice waits. When the provider is down the server fails the
  * current and next songs in one moment and then stops, and the stop's one notice says it
