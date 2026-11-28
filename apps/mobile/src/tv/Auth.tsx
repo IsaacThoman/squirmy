@@ -1,7 +1,9 @@
+import { Image } from 'expo-image';
+import { tvDiscovery, type DiscoveredServer } from '../../modules/tv-discovery';
 import { ApiError } from '@squirmy/client-core';
 import { useMutation } from '@tanstack/react-query';
-import { useRef, useState, type ComponentRef, type ReactNode } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
+import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 import { BrandMark } from '../BrandMark';
 import { displayAddress, isExposedHttp } from '../account/address';
 import { unsavedSignIn, useAccount } from '../account/AccountProvider';
@@ -12,6 +14,7 @@ import { Button } from './Button';
 import { Focusable } from './Focusable';
 import { Backdrop } from './Page';
 import { colors, type } from './theme';
+import { usePairing } from './usePairing';
 
 const addressHint = 'For example music.example.com or http://192.168.1.20:4747.';
 
@@ -70,9 +73,25 @@ function Note({ text, error }: { text: string | null | undefined; error?: boolea
   return <Text style={[styles.note, error && styles.error]}>{text}</Text>;
 }
 
+function useLocalServers() {
+  const [servers, setServers] = useState<DiscoveredServer[]>([]);
+  useEffect(() => {
+    const discovery = tvDiscovery();
+    if (!discovery) return;
+    const subscription = discovery.addListener('serversChanged', event => setServers(event.servers));
+    void discovery.start().catch(() => undefined);
+    return () => {
+      subscription.remove();
+      void discovery.stop().catch(() => undefined);
+    };
+  }, []);
+  return servers;
+}
+
 export function TvConnectScreen() {
   const { state, accounts, connect, switchTo } = useAccount();
   const previous = state.status === 'connect' ? state.previous : null;
+  const servers = useLocalServers();
   const [address, setAddress] = useState(previous ? displayAddress(previous.url) : '');
   const search = useRef<AbortController | null>(null);
   const lookup = useMutation({
@@ -86,8 +105,12 @@ export function TvConnectScreen() {
   const submit = (value = address) => {
     if (value.trim() && !lookup.isPending) lookup.mutate(value);
   };
-  return <AuthCard title="Connect to your server" message="Squirmy plays the music on your own server. Enter its address to get started.">
-    <Field label="Server address" value={address} keyboard="url" kind="URL" hasTVPreferredFocus
+  return <AuthCard title="Connect to your server" message="Choose a nearby Squirmy server or enter its address.">
+    {servers.length > 0 && <ScrollView horizontal contentContainerStyle={styles.localServers}>
+      {servers.map((server, index) => <Button key={server.name} label={server.name} hasTVPreferredFocus={index === 0} disabled={lookup.isPending}
+        onPress={() => { setAddress(server.url); submit(server.url); }} />)}
+    </ScrollView>}
+    <Field label="Server address" value={address} keyboard="url" kind="URL" hasTVPreferredFocus={!servers.length}
       onChange={value => {
         setAddress(value);
         if (lookup.isPending) search.current?.abort();
@@ -110,19 +133,65 @@ export function TvConnectScreen() {
 
 type Mode = 'signIn' | 'register';
 
+function TvPairingScreen({ onPassword }: { onPassword?: () => void }) {
+  const { state, addAccount } = useAccount();
+  const [attempt, setAttempt] = useState(0);
+  const { code, error, finishing } = usePairing(attempt);
+  if (state.status !== 'signIn') return null;
+  const message = finishing ? 'Opening your account…'
+    : 'Scan with your phone’s camera, or enter this code under Account → Sign in a TV in Squirmy for iOS.';
+  return <AuthCard title={`Sign in to ${state.server.name}`} message={message}>
+    {code ? <View style={styles.pairCode}>
+      <Image source={{ uri: code.qrCode }} style={styles.qr} accessibilityLabel="TV sign-in QR code" accessible cachePolicy="none" />
+      <Text style={styles.code}>{code.userCode}</Text>
+      <Note text={`${displayAddress(new URL(code.verificationUrl).origin)}/pair`} />
+    </View> : error ? <Note text={error} error /> : <ActivityIndicator color={colors.secondary} />}
+    {!finishing && <View style={styles.actions}>
+      {error && <Button label="Get a New Code" prominent hasTVPreferredFocus onPress={() => setAttempt(value => value + 1)} />}
+      {onPassword && <Button label="Use Password" onPress={onPassword} />}
+      <Button label="Change Server" onPress={addAccount} />
+    </View>}
+  </AuthCard>;
+}
+
 export function TvSignInScreen() {
-  const { state, unsaved, signIn, register, addAccount } = useAccount();
+  const { state } = useAccount();
+  const [usePassword, setUsePassword] = useState(false);
+  if (state.status !== 'signIn') return null;
+  const { server } = state;
+  if (server.supportsTvPairing && !usePassword) {
+    return <TvPairingScreen key={server.url} onPassword={server.passwordLogin === false ? undefined : () => setUsePassword(true)} />;
+  }
+  return <TvPasswordSignIn onPair={server.supportsTvPairing ? () => setUsePassword(false) : undefined} />;
+}
+
+function TvPasswordSignIn({ onPair }: { onPair?: () => void }) {
+  const { state, unsaved, signIn, signInWithCode, register, addAccount } = useAccount();
   const [mode, setMode] = useState<Mode>('signIn');
+  // Set once the password was right and the account wants a code from an authenticator app too.
+  const [challenge, setChallenge] = useState<string | null>(null);
+  const [code, setCode] = useState('');
   const serverUrl = state.status === 'signIn' ? state.server.url : '';
   const [remembered] = useState(() => lastUsername(serverUrl));
   const [inviteCode, setInviteCode] = useState('');
   const [username, setUsername] = useState(remembered);
   const [password, setPassword] = useState('');
   const attempt = useMutation({
-    mutationFn: () => mode === 'signIn' ? signIn(username, password) : register(inviteCode, username, password),
-    onSuccess: () => rememberUsername(serverUrl, username.trim()),
+    mutationFn: async () => {
+      if (challenge) return signInWithCode(challenge, code);
+      return mode === 'signIn' ? signIn(username, password) : register(inviteCode, username, password);
+    },
+    onSuccess: result => {
+      if (result?.twoFactor) setChallenge(result.twoFactor);
+      else rememberUsername(serverUrl, username.trim());
+    },
     onError: error => {
-      if (error instanceof ApiError && error.code === 'invalid_credentials') setPassword('');
+      if (error instanceof ApiError && (error.code === 'invalid_credentials' || error.code === 'invalid_challenge')) setPassword('');
+      if (error instanceof ApiError && error.code === 'invalid_code') setCode('');
+      if (error instanceof ApiError && error.code === 'invalid_challenge') {
+        setChallenge(null);
+        setCode('');
+      }
     },
   });
   if (state.status !== 'signIn') return null;
@@ -135,6 +204,28 @@ export function TvSignInScreen() {
   const submit = () => {
     if (ready && !attempt.isPending) attempt.mutate();
   };
+  if (challenge) {
+    const submitCode = () => {
+      if (code.trim() && !attempt.isPending) attempt.mutate();
+    };
+    return <AuthCard title="Enter your code" message={`Open your authenticator app and enter the code it shows for ${server.name}. Lost your phone? Enter a recovery code.`}>
+      <Field label="Code" value={code} onChange={setCode} kind="oneTimeCode" hasTVPreferredFocus onSubmit={submitCode} />
+      <Note text={error} error />
+      <View style={styles.actions}>
+        {attempt.isPending
+          ? <ActivityIndicator color={colors.secondary} />
+          : <Button label="Verify" prominent disabled={!code.trim()} onPress={submitCode} style={styles.primary} />}
+      </View>
+      <View style={styles.secondary}>
+        <Button label="Back" onPress={() => {
+          attempt.reset();
+          setChallenge(null);
+          setCode('');
+          setPassword('');
+        }} />
+      </View>
+    </AuthCard>;
+  }
   return <AuthCard title={registering ? 'Create an account' : 'Sign in'}
     message={notice ?? (unsaved ? unsavedSignIn : registering
       ? inviteRequired ? `Use the invite code you were given to join ${server.name}.` : `Create an account on ${server.name}.`
@@ -156,6 +247,7 @@ export function TvSignInScreen() {
         setPassword('');
         setMode(registering ? 'signIn' : 'register');
       }} />
+      {onPair && <Button label="Use Phone" onPress={onPair} />}
       <Button label="Change Server" onPress={addAccount} />
     </View>
   </AuthCard>;
@@ -178,6 +270,10 @@ const styles = StyleSheet.create({
   error: { color: colors.danger },
   actions: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 28, marginTop: 30 },
   primary: { minWidth: 420 },
+  localServers: { gap: 20, paddingVertical: 12, paddingHorizontal: 12 },
+  pairCode: { alignItems: 'center', gap: 12 },
+  qr: { width: 252, height: 252, backgroundColor: '#fff', borderRadius: 12 },
+  code: { ...type.title2, fontVariant: ['tabular-nums'], letterSpacing: 5 },
   secondary: { flexDirection: 'row', justifyContent: 'center', gap: 28, marginTop: 40 },
   placeholderFocused: { color: 'rgba(17,16,24,0.45)' },
 });

@@ -1,13 +1,13 @@
 import { ApiError } from '@squirmy/client-core';
 import type { User } from '@squirmy/contracts';
 import { describe, expect, it } from 'vitest';
-import { expiredNotice, reduceAuth, signInErrorMessage, type AuthEvent, type AuthState } from './auth';
+import { expiredNotice, reduceAuth, signInErrorMessage, ssoErrorMessage, ssoRedirectResult, type AuthEvent, type AuthState } from './auth';
 
 const server = { url: 'https://music.example.com', name: 'Home', version: '1.0.0', registrationRequiresInvite: true, wantlistEnabled: false };
 const other = { url: 'http://192.168.1.20:4747', name: 'Studio', version: '1.0.0', registrationRequiresInvite: false, wantlistEnabled: false };
 const user: User = {
   id: '6f1c2e4a-1d2b-4c3d-8e9f-0a1b2c3d4e5f', username: 'ada', displayName: null, role: 'member',
-  canUpload: false, canAcquire: false, createdAt: '2026-11-20T08:00:00.000Z', disabled: false,
+  canUpload: false, canAcquire: false, createdAt: '2026-11-20T08:00:00.000Z', disabled: false, explicitRestricted: false, allowsExplicit: true,
 };
 const signedIn: AuthState = { status: 'signedIn', server, token: 'token-1', user };
 
@@ -94,6 +94,8 @@ describe('signInErrorMessage', () => {
     expect(signInErrorMessage(new ApiError(400, 'invalid_invite', 'That invite code is not valid'), 'Home')).toMatch(/invite code/);
     expect(signInErrorMessage(new ApiError(409, 'username_taken', 'That username is taken'), 'Home')).toMatch(/taken/);
     expect(signInErrorMessage(new ApiError(500, 'internal_error', 'Something went wrong'), 'Home')).toMatch(/Home ran into a problem/);
+    expect(signInErrorMessage(new ApiError(401, 'invalid_code', 'That code is not right.'), 'Home')).toMatch(/recovery code/);
+    expect(signInErrorMessage(new ApiError(401, 'invalid_challenge', 'That sign-in has expired.'), 'Home')).toMatch(/password again/);
   });
 
   it('names the field a validation error is about', () => {
@@ -101,5 +103,19 @@ describe('signInErrorMessage', () => {
     expect(signInErrorMessage(new ApiError(400, 'invalid_request', 'The request is not valid', tooShort), 'Home')).toMatch(/8 characters/);
     const username = [{ path: ['username'], code: 'invalid_format' }];
     expect(signInErrorMessage(new ApiError(400, 'invalid_request', 'The request is not valid', username), 'Home')).toMatch(/Usernames/);
+  });
+});
+
+describe('single sign-on', () => {
+  it('reads the code or the error from the redirect back to the app', () => {
+    expect(ssoRedirectResult('squirmy://auth/sso?code=abc%2Bdef')).toEqual({ code: 'abc+def' });
+    expect(ssoRedirectResult('squirmy-dev://auth/sso?error=sso_no_account')).toEqual({ error: 'sso_no_account' });
+    expect(ssoRedirectResult('squirmy://auth/sso')).toBeNull();
+  });
+
+  it('explains each error in the provider’s name', () => {
+    expect(ssoErrorMessage('sso_not_allowed', 'Authelia')).toMatch(/Authelia account isn’t in a group/);
+    expect(ssoErrorMessage('sso_no_account', 'Authelia')).toMatch(/no account here/);
+    expect(ssoErrorMessage('something_new', 'Authelia')).toBe('Authelia didn’t sign you in. Try again.');
   });
 });

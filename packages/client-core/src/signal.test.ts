@@ -1,6 +1,6 @@
 import type { PlaybackDescriptor } from '@squirmy/contracts'
 import { describe, expect, it } from 'vitest'
-import { audioQualityOf, codecLabel, formatBitrate, formatGain, formatSampleRate, signalQuality, signalReport, signalSections } from './signal.js'
+import { audioQualityOf, codecLabel, formatBitrate, formatGain, formatLoudness, formatSampleRate, signalQuality, signalReport, signalSections } from './signal.js'
 
 const id = '00000000-0000-4000-8000-000000000001'
 
@@ -53,6 +53,14 @@ describe('signalReport', () => {
     const report = signalReport('e1', descriptor(), { mode: 'auto', applied: 'album', gain: 10 ** (-3.24 / 20) }, false)
     expect(report.normalization).toEqual({ mode: 'auto', applied: 'album', gainDb: -3.2 })
   })
+
+  it('states the target, and what the limiter does when there is one', () => {
+    const boosted = { mode: 'track' as const, applied: 'track' as const, gain: 10 ** (5.04 / 20), targetLufs: -14, limitDb: 2.26 }
+    expect(signalReport('e1', descriptor(), boosted, false).normalization).toEqual({ mode: 'track', applied: 'track', gainDb: 5, targetLufs: -14, limitDb: 2.3 })
+    expect(signalReport('e1', descriptor(), { ...boosted, limitDb: null }, false).normalization.limitDb).toBeNull()
+    // Nothing of either while nothing is applied.
+    expect(signalReport('e1', descriptor(), { ...off, targetLufs: -14, limitDb: 0 }, false).normalization).toEqual({ mode: 'off', applied: null, gainDb: null })
+  })
 })
 
 describe('signalSections', () => {
@@ -81,6 +89,21 @@ describe('signalSections', () => {
     ])
   })
 
+  it('words the target and the limiter', () => {
+    const rows = (normalization: Parameters<typeof signalReport>[2]) => signalSections(signalReport('e1', descriptor(), normalization, false))[2]!.rows
+    const boosted = { mode: 'track' as const, applied: 'track' as const, gain: 10 ** (5 / 20), targetLufs: -14 }
+    expect(rows({ ...boosted, limitDb: 2.26 })).toEqual([
+      { label: 'Setting', value: 'Per song' },
+      { label: 'Applied', value: 'Song level, +5.0 dB' },
+      { label: 'Target', value: '−14 LUFS' },
+      { label: 'Peak limiter', value: 'Turns the loudest peaks down by up to 2.3 dB' },
+    ])
+    expect(rows({ ...boosted, limitDb: 0 }).at(-1)).toEqual({ label: 'Peak limiter', value: 'Not needed for this song' })
+    expect(rows({ ...boosted, limitDb: null }).at(-1)).toEqual({ label: 'Peak limiter', value: 'On' })
+    // A device without a limiter, or from before targets: no limiter row, and -18.
+    expect(rows({ ...boosted, targetLufs: undefined }).map(row => row.value)).toEqual(['Per song', 'Song level, +5.0 dB', '−18 LUFS'])
+  })
+
   it('leaves out what normalization does not do', () => {
     const [, , normalization] = signalSections(signalReport('e1', descriptor(), off, false))
     expect(normalization!.rows).toEqual([{ label: 'Setting', value: 'Off' }])
@@ -94,6 +117,7 @@ describe('formatting', () => {
     expect(formatBitrate(1_411_200)).toBe('1,411 kbps')
     expect(formatGain(1)).toBe('+1.0 dB')
     expect(formatGain(0)).toBe('0.0 dB')
+    expect(formatLoudness(-14)).toBe('−14 LUFS')
     expect(codecLabel('alac')).toBe('Apple Lossless')
     expect(codecLabel('wv')).toBe('WV')
   })

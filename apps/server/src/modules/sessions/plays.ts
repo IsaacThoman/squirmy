@@ -1,3 +1,4 @@
+import { emitWebhook } from '../integrations/webhooks.js'
 import { positionAt, type Session } from '@squirmy/client-core'
 import { PlaybackContext, queryKeys } from '@squirmy/contracts'
 import { z } from 'zod'
@@ -5,6 +6,7 @@ import { db } from '../../database/client.js'
 import { plays } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { invalidate } from '../../realtime/index.js'
+import { explicitAllowed } from '../catalog/explicit.js'
 import { alignedTrackSummaries } from '../catalog/summaries.js'
 
 /**
@@ -16,6 +18,10 @@ import { alignedTrackSummaries } from '../catalog/summaries.js'
 
 /** Closed plays shorter than this are skips. */
 const SKIP_MS = 5000
+
+export function isSkipped(msPlayed: number): boolean {
+  return msPlayed < SKIP_MS
+}
 /** A play counts as completed after half the track or this much, whichever is less. */
 const COMPLETE_CAP_MS = 4 * 60_000
 
@@ -118,12 +124,16 @@ export function isCompleted(msPlayed: number, durationMs: number): boolean {
  * of its queue entry: an on-demand track queued from a catalog stub album lands on the
  * album its fetched file was filed under, and identification may merge the recording
  * while it plays. The entry's ids would leave plays on empty stubs and merged-away rows.
+ *
+ * A song the user may not hear (explicit, with explicit content off) is not written: their
+ * device sat it out, as a member of a jam does when the host plays one.
  */
 export async function savePlay(userId: string, play: OpenPlay, { closed = true } = {}): Promise<void> {
-  const skipped = play.msPlayed < SKIP_MS
+  const skipped = isSkipped(play.msPlayed)
   if (skipped && !closed) return
   const msPlayed = Math.round(play.msPlayed)
   const [track] = await alignedTrackSummaries(userId, [{ id: play.recordingId }])
+  if (track?.explicit === true && !(await explicitAllowed(userId))) return
   await insertPlay({
     id: play.id,
     userId,
@@ -146,5 +156,8 @@ export async function insertPlay({ id = newId(), ...values }: Omit<typeof plays.
     target: plays.id,
     set: { recordingId: values.recordingId, albumId: values.albumId, msPlayed: values.msPlayed, completed: values.completed, skipped: values.skipped },
   })
+  if (values.completed) await emitWebhook('scrobble', {
+    playId: id, trackId: values.recordingId, albumId: values.albumId, startedAt: values.startedAt, msPlayed: values.msPlayed,
+  }, values.userId, id)
   if (!values.skipped) await invalidate({ user: values.userId }, [queryKeys.history(), queryKeys.home()])
 }

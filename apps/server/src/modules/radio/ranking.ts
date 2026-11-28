@@ -46,6 +46,7 @@ import { eq, sql, type SQL } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { users } from '../../database/schema.js'
 import { onDemandRecordings } from '../acquisition/coverage.js'
+import { explicitAllowed, explicitRecordings } from '../catalog/explicit.js'
 import { uuidArray } from '../catalog/sql.js'
 import { artistRadioTracks } from '../enrichment/detail.js'
 import { sonicPoints, type SonicPoint } from '../sonic/index.js'
@@ -518,12 +519,13 @@ function bestOf(candidates: Candidate[], allowed: (candidate: Candidate) => bool
 /**
  * Up to `limit` tracks to play after the seeds, best first, as queue seeds: owned tracks
  * `ready`, on-demand ones (for a user who may have tracks fetched) `preparing`. Never
- * returns a seed or an excluded track. See the top of this file for the method.
+ * returns a seed, an excluded track or, for a user who has explicit content off, an
+ * explicit one. See the top of this file for the method.
  */
 export async function suggest(request: SuggestRequest, options: SuggestOptions = {}): Promise<QueueSeed[]> {
   const random = options.random ?? Math.random
   if (request.limit <= 0) return []
-  const [seeds, requester] = await Promise.all([describe(request.seeds), isRequester(request.userId)])
+  const [seeds, requester, allowsExplicit] = await Promise.all([describe(request.seeds), isRequester(request.userId), explicitAllowed(request.userId)])
   const timeoutMs = options.similarTimeoutMs ?? SIMILAR_TIMEOUT_MS
   const started = Date.now()
   // Deezer's radio first: it writes rows for the artists it names, so the similar artists
@@ -546,6 +548,10 @@ export async function suggest(request: SuggestRequest, options: SuggestOptions =
   const found = await Promise.all((requester ? [true, false] : [true]).map(async (owned) => {
     const near = await gather(request.userId, profile, owned, salt)
     let rows = await features(request.userId, [...near.keys()].filter((id) => !banned.has(id)), owned)
+    if (!allowsExplicit) {
+      const explicit = await explicitRecordings(rows.map((candidate) => candidate.id))
+      rows = rows.filter((candidate) => !explicit.has(candidate.id))
+    }
     if (!owned) {
       const available = await onDemandRecordings(rows.map((candidate) => candidate.id))
       rows = rows.filter((candidate) => available.has(candidate.id))

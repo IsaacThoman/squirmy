@@ -1,22 +1,32 @@
 import {
-  Button, Form, Host, HStack, ProgressView, Section, Spacer, Text, TextField, Toggle, VStack, useNativeState,
+  Button, Form, Host, HStack, ProgressView, Section, Slider, Spacer, Text, TextField, Toggle, VStack, useNativeState,
 } from '@expo/ui/swift-ui';
 import {
-  accessibilityLabel, autocorrectionDisabled, disabled, font, foregroundStyle, listRowBackground,
-  listRowInsets, scrollContentBackground, scrollDismissesKeyboard, submitLabel, textInputAutocapitalization, tint,
+  accessibilityLabel, accessibilityValue, autocorrectionDisabled, disabled, font, foregroundStyle, frame, listRowBackground,
+  listRowInsets, monospacedDigit, scrollContentBackground, scrollDismissesKeyboard, submitLabel, textInputAutocapitalization, tint,
 } from '@expo/ui/swift-ui/modifiers';
 import type { ScrobbleService } from '@squirmy/contracts';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, StyleSheet } from 'react-native';
 import { closeSheet } from '../closeSheet';
+import { runningEngine } from '../player/engine';
+import { useCrossfadeAvailable, useEqualizerAvailable, useNormalizationBoosts } from '../playback';
+import { crossfadeNote, crossfadeOptions } from '../player/engine/crossfade';
+import {
+  automaticPreamp, clampGain, customEqualizerNote, equalizerBands, equalizerNote, equalizerOptions, equalizerRangeDb, formatGain,
+  maxPreampDb, type EqualizerSetting,
+} from '../player/engine/equalizer';
+import { useCrossfadeSetting, useEqualizerSetting } from '../player/engine/output';
+import { engineNote, engineOptions, showsEngineSetting, useEngineSetting } from '../player/engine/setting';
 import { SheetFormHeader, SheetPickerRow } from '../SheetUI';
 import { StorageSection } from '../streamingCache/StorageSection';
 import { useColors } from '../theme';
 import { serviceNames } from './scrobbling';
 import {
-  lastFmAdminNote, normalizationNote, normalizationOptions, openListenBrainzSettings, qualityNote, qualityOptions,
-  scrobbleDetail, scrobbleFooter, serverMusicLabel, serverMusicNote, shareNowPlayingLabel, shareNowPlayingNote, useSettingsScreen,
+  explicitLabel, explicitNote, explicitRestrictedNote, lastFmAdminNote, nativeQualityNote, normalizationNote, normalizationOptions, normalizationTarget,
+  openListenBrainzSettings, qualityNote, qualityOptions, ratingsLabel, ratingsNote, scrobbleDetail, scrobbleFooter, serverMusicLabel, serverMusicNote, shareNowPlayingLabel,
+  shareNowPlayingNote, targetOptions, useSettingsScreen,
 } from './settings';
 
 const clearRow = [listRowBackground('clear'), listRowInsets({ top: 0, leading: 0, bottom: 0, trailing: 0 })];
@@ -27,6 +37,16 @@ export function SettingsScreen() {
   const screen = useSettingsScreen();
   const { settings, update } = screen;
   const lastFm = screen.lastFm;
+  const [engine, setEngine] = useEngineSetting();
+  const engineChoice = showsEngineSetting();
+  const equalizerAvailable = useEqualizerAvailable();
+  const [equalizer, setEqualizer] = useEqualizerSetting();
+  const crossfadeAvailable = useCrossfadeAvailable();
+  const [crossfade, setCrossfade] = useCrossfadeSetting();
+  const playbackNote = [
+    normalizationNote(useNormalizationBoosts()), equalizerAvailable ? equalizerNote : null, crossfadeAvailable ? crossfadeNote : null,
+    engineChoice ? engineNote : null,
+  ].filter(Boolean).join('\n\n');
 
   return <KeyboardAvoidingView behavior="padding" style={styles.page}>
     <Host style={styles.page}>
@@ -36,11 +56,20 @@ export function SettingsScreen() {
             values take `muted`: the form's own secondary gray is about 3.2:1 on this sheet in Light. */}
         <Form modifiers={[scrollDismissesKeyboard('interactively'), scrollContentBackground('hidden'), tint(colors.accent)]}>
         {settings ? <>
-          <Section title="Playback" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{normalizationNote}</Text>}>
+          <Section title="Playback" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{playbackNote}</Text>}>
             <SheetPickerRow label="Volume Normalization" value={settings.normalization} options={normalizationOptions}
               onChange={normalization => update({ normalization })} />
+            {/* Only normalization has a target: with it off, songs play as they are. */}
+            {settings.normalization !== 'off' && <SheetPickerRow label="Target Loudness" value={normalizationTarget(settings)} options={targetOptions}
+              onChange={target => update({ normalizationTarget: target })} />}
+            {/* The device's own, so it changes at once and needs no account settings. */}
+            {equalizerAvailable && <SheetPickerRow label="Equalizer" value={equalizer.preset} options={equalizerOptions}
+              onChange={preset => setEqualizer({ ...equalizer, preset })} />}
+            {crossfadeAvailable && <SheetPickerRow label="Crossfade" value={crossfade} options={crossfadeOptions} onChange={setCrossfade} />}
+            {engineChoice && <SheetPickerRow label="Engine" value={engine} options={engineOptions} onChange={setEngine} />}
           </Section>
-          <Section title="Streaming Quality" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{qualityNote}</Text>}>
+          {equalizerAvailable && equalizer.preset === 'custom' && <CustomEqualizer setting={equalizer} onChange={setEqualizer} />}
+          <Section title="Streaming Quality" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{runningEngine() === 'native' ? nativeQualityNote : qualityNote}</Text>}>
             <SheetPickerRow label="Wi-Fi" value={settings.qualityWifi} options={qualityOptions} onChange={qualityWifi => update({ qualityWifi })} />
             <SheetPickerRow label="Cellular" value={settings.qualityCellular} options={qualityOptions}
               onChange={qualityCellular => update({ qualityCellular })} />
@@ -51,6 +80,16 @@ export function SettingsScreen() {
               <Text modifiers={[font({ textStyle: 'body' })]}>{serverMusicLabel}</Text>
             </Toggle>
             {screen.errors.library && <ServiceError message={screen.errors.library} />}
+          </Section>
+          <Section footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{ratingsNote}</Text>}>
+            <Toggle isOn={settings.showRatings ?? false} onIsOnChange={screen.setShowRatings} modifiers={[tint(colors.accent)]}>
+              <Text modifiers={[font({ textStyle: 'body' })]}>{ratingsLabel}</Text>
+            </Toggle>
+          </Section>
+          <Section title="Explicit Content" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{screen.explicitRestricted ? explicitRestrictedNote : explicitNote}</Text>}>
+            <Toggle isOn={screen.allowExplicit} onIsOnChange={screen.setAllowExplicit} modifiers={[tint(colors.accent), disabled(screen.explicitRestricted)]}>
+              <Text modifiers={[font({ textStyle: 'body' })]}>{explicitLabel}</Text>
+            </Toggle>
           </Section>
         </> : screen.settingsFailure
           ? <LoadFailure title="Couldn’t load your settings" failure={screen.settingsFailure} />
@@ -83,6 +122,51 @@ export function SettingsScreen() {
       </VStack>
     </Host>
   </KeyboardAvoidingView>;
+}
+
+/**
+ * The custom curve: a slider for each band, as the system's own audio settings have them, and
+ * the preamp, automatic until it is moved. Each move plays at once.
+ */
+function CustomEqualizer({ setting, onChange }: { setting: EqualizerSetting; onChange: (setting: EqualizerSetting) => void }) {
+  const colors = useColors();
+  const { bandsDb, preampDb } = setting.custom;
+  const change = (custom: Partial<EqualizerSetting['custom']>) => onChange({ ...setting, custom: { ...setting.custom, ...custom } });
+  const automatic = automaticPreamp(bandsDb);
+  const untouched = preampDb === null && bandsDb.every(gain => gain === 0);
+  return <Section title="Custom Equalizer" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{customEqualizerNote}</Text>}>
+    {equalizerBands.map((band, index) => <GainSlider key={band.label} label={band.label} spoken={band.spoken}
+      value={bandsDb[index]} min={-equalizerRangeDb} max={equalizerRangeDb}
+      onChange={gain => change({ bandsDb: bandsDb.map((old, at) => at === index ? clampGain(gain) : old) })} />)}
+    <GainSlider label="Preamp" spoken="Preamp" value={preampDb ?? automatic} min={-equalizerRangeDb} max={maxPreampDb}
+      note={preampDb === null ? 'Automatic' : undefined}
+      onChange={gain => change({ preampDb: Math.min(maxPreampDb, clampGain(gain)) })} />
+    {preampDb !== null && <Button label="Automatic Preamp" onPress={() => change({ preampDb: null })} modifiers={[tint(colors.accent)]} />}
+    <Button label="Reset" onPress={() => change({ bandsDb: bandsDb.map(() => 0), preampDb: null })}
+      modifiers={[tint(colors.accent), disabled(untouched)]} />
+  </Section>;
+}
+
+/**
+ * One band's slider, with its frequency on the left and its gain on the right, in half
+ * decibels; `note` goes under the label (the preamp's "Automatic"), so every slider is as wide.
+ */
+function GainSlider({ label, spoken, value, min, max, note, onChange }: {
+  label: string; spoken: string; value: number; min: number; max: number; note?: string; onChange: (value: number) => void;
+}) {
+  const colors = useColors();
+  const text = formatGain(value);
+  return <HStack spacing={10}>
+    <VStack alignment="leading" spacing={1} modifiers={[frame({ width: 66, alignment: 'leading' })]}>
+      <Text modifiers={[font({ textStyle: 'subheadline' }), monospacedDigit()]}>{label}</Text>
+      {note && <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle(colors.muted)]}>{note}</Text>}
+    </VStack>
+    <Slider value={value} min={min} max={max} step={0.5} onValueChange={onChange}
+      modifiers={[tint(colors.accent), accessibilityLabel(spoken), accessibilityValue(`${note ? `${note}, ` : ''}${text.replace('−', 'minus ')}`)]} />
+    <Text modifiers={[font({ textStyle: 'subheadline' }), monospacedDigit(), foregroundStyle(colors.muted), frame({ width: 62, alignment: 'trailing' })]}>
+      {text}
+    </Text>
+  </HStack>;
 }
 
 /**

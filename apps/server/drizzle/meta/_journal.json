@@ -253,6 +253,76 @@
       "when": 1795852078407,
       "tag": "0035_library_hygiene",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1795853456375,
+      "tag": "0036_open_ecosystem",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1795855205683,
+      "tag": "0037_explicit_restriction",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1795855793048,
+      "tag": "0038_smart_playlists",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1795856371621,
+      "tag": "0039_share_links",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1795858173048,
+      "tag": "0040_auth_two_factor",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1795858173979,
+      "tag": "0041_auth_passkeys",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1795858174900,
+      "tag": "0042_auth_sso",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1795859634655,
+      "tag": "0043_playlist_power",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1795862658290,
+      "tag": "0044_album_versions",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1795864650878,
+      "tag": "0045_tv_pairing",
+      "breakpoints": true
     }
   ]
 }

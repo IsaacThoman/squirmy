@@ -12,7 +12,8 @@ module.exports = ({ config }) => {
   const development = variant === 'development';
   // Xcode's bundling phase does not pass EXPO_TV on, but names the platform it builds for.
   const tv = process.env.EXPO_TV === '1' || /^appletv/.test(process.env.PLATFORM_NAME ?? '');
-  const plugins = [...config.plugins, ['expo-dev-client', { addGeneratedScheme: false }]];
+  // The native audio engine's Info.plist keys, for the phone and the TV alike.
+  const plugins = [...config.plugins, ['expo-dev-client', { addGeneratedScheme: false }], './modules/audio-engine/app.plugin.js'];
 
   if (tv) {
     return {
@@ -24,7 +25,12 @@ module.exports = ({ config }) => {
         ...config.ios,
         icon: config.icon,
         buildNumber: process.env.SQUIRMY_IOS_BUILD_NUMBER ?? config.ios.buildNumber,
-        infoPlist: { ...config.ios.infoPlist, UIBackgroundModes: ['audio'] },
+        infoPlist: {
+          ...config.ios.infoPlist,
+          UIBackgroundModes: ['audio'],
+          NSLocalNetworkUsageDescription: 'Squirmy finds your music server on your local network.',
+          NSBonjourServices: ['_squirmy._tcp'],
+        },
       },
       plugins: [
         ...plugins.filter(plugin => plugin !== 'expo-router' && plugin[0] !== 'expo-splash-screen'),
@@ -35,6 +41,10 @@ module.exports = ({ config }) => {
       ],
     };
   }
+
+  // Siri, Shortcuts and Spotlight, the widgets and the Live Activity, on the phone only.
+  // SQUIRMY_IOS_WIDGETS=0 leaves out the widget extension and its App Group.
+  plugins.push(['./modules/app-intents/app.plugin.js', { widgets: process.env.SQUIRMY_IOS_WIDGETS !== '0' }]);
 
   if (!development) {
     return {

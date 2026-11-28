@@ -15,6 +15,7 @@ import { PlayerTransitionProvider } from '../src/player/transition';
 import { PlaybackProvider } from '../src/playback';
 import { noScrollEdgeEffects } from '../src/scrollEdgeEffects';
 import { StreamingCacheProvider } from '../src/streamingCache/StreamingCacheProvider';
+import { SystemSurfaces } from '../src/surfaces/SystemSurfaces';
 import { useAppearance, useColors } from '../src/theme';
 
 // Sheets opened by a link or a restored route still get the tabs beneath them.
@@ -44,6 +45,7 @@ export default function RootLayout() {
                     <StreamingCacheProvider>
                       <PlaybackProvider>
                         <StatusBar style={appearance === 'dark' ? 'light' : 'dark'} />
+                        <SystemSurfaces />
                         <Routes />
                       </PlaybackProvider>
                     </StreamingCacheProvider>
@@ -83,13 +85,18 @@ function Routes() {
       <Stack.Protected guard={signedIn}>
         <Stack.Screen name="(tabs)" options={authOptions} />
         <Stack.Screen name="devices" options={sheet} />
+        <Stack.Screen name="listen-together" options={sheet} />
         <Stack.Screen name="track-actions" options={sheet} />
         <Stack.Screen name="track-info" options={sheet} />
+        <Stack.Screen name="track-credits" options={sheet} />
         <Stack.Screen name="add-to-playlist" options={sheet} />
         <Stack.Screen name="account" options={sheet} />
+        <Stack.Screen name="pair" options={sheet} />
         <Stack.Screen name="settings" options={{ ...sheet, sheetAllowedDetents: [0.92] }} />
         <Stack.Screen name="downloads" options={{ ...sheet, sheetAllowedDetents: [0.92] }} />
+        <Stack.Screen name="replay" options={{ ...sheet, sheetAllowedDetents: [0.92] }} />
         <Stack.Screen name="name-playlist" options={sheet} />
+        <Stack.Screen name="smart-playlist" options={{ ...sheet, sheetAllowedDetents: [0.92] }} />
         <Stack.Protected guard={__DEV__}>
           <Stack.Screen name="dev/engine" options={{ presentation: 'modal' }} />
         </Stack.Protected>

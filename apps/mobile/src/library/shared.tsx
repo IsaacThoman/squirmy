@@ -14,6 +14,7 @@ import { Cover, Icon } from '../ui';
 import { BrowseButton, CollectionTile } from './BrowseControls';
 import { useCollectionActions } from './collectionActions';
 import { mosaicCovers } from './mosaic';
+import { nearListEnd } from './rows';
 import { displayFontScale, secondaryFontScale } from '../fontScale';
 import { createThemedStyles, useColors } from '../theme';
 
@@ -45,8 +46,6 @@ export function gridColumns(width: number, fontScale: number): number {
 export function railTileSize(size: number, width: number, fontScale: number): number {
   return fontScale >= largeTextScale ? Math.max(size, Math.floor((width - gutter * 2) * 0.72)) : size;
 }
-/** Start loading the next page this far before the end of the list. */
-const endThreshold = 900;
 
 export function tapFeedback() {
   void Haptics.selectionAsync();
@@ -219,14 +218,14 @@ export function QueryState({ query, what }: {
 /** An `onScroll` that calls `onEnd` as the end of a list comes near, for loading its next page. */
 export function onScrollNearEnd(onEnd: () => void) {
   return ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
-    if (nativeEvent.layoutMeasurement.height + nativeEvent.contentOffset.y > nativeEvent.contentSize.height - endThreshold) onEnd();
+    if (nearListEnd(nativeEvent.contentOffset.y, nativeEvent.layoutMeasurement.height, nativeEvent.contentSize.height)) onEnd();
   };
 }
 
 /** For worklet scroll handlers: the same test as `onScrollNearEnd`. */
 export function nearEnd(event: NativeScrollEvent) {
   'worklet';
-  return event.layoutMeasurement.height + event.contentOffset.y > event.contentSize.height - endThreshold;
+  return nearListEnd(event.contentOffset.y, event.layoutMeasurement.height, event.contentSize.height);
 }
 
 /** Case- and accent-insensitive match of every word of `query` against `values`. */

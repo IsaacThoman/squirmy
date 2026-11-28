@@ -1,4 +1,4 @@
-import { ApiError, formatBytes, GIGABYTE, isPlayable, plural, UNAVAILABLE_LABEL, type Viewer } from '@squirmy/client-core';
+import { ApiError, EXPLICIT_OFF_LABEL, explicitBlocked, formatBytes, GIGABYTE, isPlayable, plural, UNAVAILABLE_LABEL, type Viewer } from '@squirmy/client-core';
 import type {
   AcquisitionJob, AlbumDetail, Artwork, Lyrics, PlaybackDescriptor, PlaylistSummary, StreamQuality, TrackSummary,
 } from '@squirmy/contracts';
@@ -390,13 +390,15 @@ export function unreferenced(rows: Iterable<DownloadRow>, collections: Iterable<
 }
 
 /**
- * Whether `track` can be played now: a download or a cached copy always can; with no
- * connection nothing else can; otherwise client-core's rule decides (`isPlayable`: what the
- * server has, and what it fetches for this viewer).
+ * Whether `track` can be played now: an explicit song never can for a viewer who has
+ * explicit content off, not even a download made before; otherwise a download or a cached
+ * copy always can; with no connection nothing else can; otherwise client-core's rule decides
+ * (`isPlayable`: what the server has, and what it fetches for this viewer).
  */
-export function canPlay(track: Pick<TrackSummary, 'id' | 'availability'>, { offline, onDevice, viewer }: {
+export function canPlay(track: Pick<TrackSummary, 'id' | 'availability'> & { explicit?: boolean | null }, { offline, onDevice, viewer }: {
   offline: boolean; onDevice: (trackId: string) => boolean; viewer: Viewer | null | undefined;
 }): boolean {
+  if (explicitBlocked(track, viewer)) return false;
   if (onDevice(track.id)) return true;
   if (offline) return false;
   return isPlayable(track, viewer);
@@ -424,10 +426,12 @@ export function downloadSymbol(download: TrackDownload | undefined): string | nu
 }
 
 /**
- * Why a gray track is gray, in the one or two words every surface uses: offline it is
- * "Not downloaded" (it would play with a connection), otherwise "Not available".
+ * Why a gray track is gray, in the one or two words every surface uses: an explicit song for
+ * a viewer who has explicit content off says so; offline it is "Not downloaded" (it would play
+ * with a connection), otherwise "Not available".
  */
-export function unavailableReason(track: Pick<TrackSummary, 'availability'>, offline: boolean, viewer: Viewer | null | undefined): string {
+export function unavailableReason(track: Pick<TrackSummary, 'availability'> & { explicit?: boolean | null }, offline: boolean, viewer: Viewer | null | undefined): string {
+  if (explicitBlocked(track, viewer)) return EXPLICIT_OFF_LABEL;
   return offline && isPlayable(track, viewer) ? NOT_DOWNLOADED_LABEL : UNAVAILABLE_LABEL;
 }
 

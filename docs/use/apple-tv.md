@@ -8,10 +8,11 @@ Open your Squirmy TestFlight invitation on an iPhone or iPad signed into the sam
 
 ## Connect and sign in
 
-1. Select **Server address** and type the address of your Squirmy server, such as `music.example.com` or `http://192.168.1.20:4747` on your home network. Choose **Continue**. If Apple TV asks for Local Network access, allow it so the app can reach a server on your network.
-2. Type your Squirmy username and password and choose **Sign In**. With an invite code you can choose **Create Account** instead.
+1. Allow Local Network access if Apple TV asks. Choose your server if it appears nearby. Otherwise enter its **Server address**, such as `music.example.com` or `http://192.168.1.20:4747`, and choose **Continue**. Server administrators can [enable LAN discovery](../server/authentication.md#lan-discovery).
+2. Scan the QR code with your phone’s Camera. In the browser, sign in to the indicated Squirmy server if prompted. You can also choose **Open in Squirmy for iOS**, or enter the code under **Account → Sign in a TV…** in the iOS app while signed in to that server.
+3. Check the TV name, address, code, and account on your phone, then choose **Approve TV**. The Apple TV signs in on its own. Codes last ten minutes. If one expires, choose **Get a New Code** on the TV.
 
-When a field opens the keyboard, Apple TV also offers it on your iPhone: accept the notification and type there. Use the web app to [set up the server](../server/quick-start.md) or [create an account from an invite](../server/users.md) first if you need to. For a server outside your home, use [HTTPS](../server/reverse-proxy.md).
+If password sign-in is allowed, **Use Password** opens the username and password form, including account creation for an invite. Older servers go straight to that form. When a field opens the keyboard, Apple TV also offers it on your iPhone. Use the web app to [set up the server](../server/quick-start.md) if it is new, and use [HTTPS](../server/reverse-proxy.md) for a server outside your home.
 
 ## Getting around
 
@@ -27,7 +28,7 @@ Select a cover to open its album, artist or playlist. Songs that can't play righ
 
 Select a song to play it, or **Play** or the shuffle button at the top of an album or playlist. The Play/Pause button on the remote plays and pauses from anywhere in the app.
 
-Hold the click on a song or an album for its menu. A song's has **Play next**, **Add to queue**, **Add to playlist**, **Start radio**, saving it to your library, and going to its album or artist; an album's plays, shuffles or queues it, adds it to a playlist, or goes to its artist. These are the same actions as the long-press menus on the phone. An album page's **⋯** button opens its menu too.
+Hold the click on a song or an album for its menu. A song's has **Play next**, **Add to queue**, **Add to playlist**, **Start radio**, **Songs that sound like this** (a radio led by how the song sounds), saving it to your library, **Rating** (one to five stars, when **Show star ratings** is on for your account in the web or phone app's settings), and going to its album or artist; an album's plays, shuffles or queues it, adds it to a playlist, or goes to its artist. These are the same actions as the long-press menus on the phone. An album page's **⋯** button opens its menu too.
 
 ## Now Playing
 
@@ -51,7 +52,7 @@ The Apple TV is one of your devices, like your phone and your browser, and they 
 
 ## Settings
 
-**Settings** shows who is signed in and to which server, with **Sign Out**. Under **Profiles** are the household's other accounts on this Apple TV, on any server: select one to switch to it, still signed in (one that was signed out opens at its sign-in), or hold it and choose **Remove Profile**. **Add Profile** signs in to another server, or as someone else on this one, and keeps the profile in use signed in. Switching stops what the Apple TV was playing; each profile keeps its own streaming cache. Under **Playback** are **Volume Normalization** and **Streaming Quality**; the Apple TV streams at your Wi-Fi quality, over Ethernet too, and these settings are your account's, so they change on your phone as well. **Library** has the switch that shows all of this server's music in your library.
+**Settings** shows who is signed in and to which server, with **Sign Out**. Under **Profiles** are the household's other accounts on this Apple TV, on any server: select one to switch to it, still signed in (one that was signed out opens at its sign-in), or hold it and choose **Remove Profile**. **Add Profile** signs in to another server, or as someone else on this one, and keeps the profile in use signed in. Switching stops what the Apple TV was playing; each profile keeps its own streaming cache. Under **Playback** are **Volume Normalization**, **Target Loudness** (while normalization is on) and **Streaming Quality**; the Apple TV streams at your Wi-Fi quality, over Ethernet too, and these settings are your account's, so they change on your phone as well. **Library** has the switch that shows all of this server's music in your library, and **Allow explicit content** (see [Explicit content](./web.md#explicit-content)): off, explicit songs are gray and don't play. When an admin turned it off for your account, it can't be changed here. TestFlight and development builds also have **Engine**, which switches between the classic engine and Squirmy's own, gapless one for this Apple TV, from the next time the app opens. With Squirmy's own engine, **Playback** also has **Equalizer**, with the iPhone's presets (**Off**, **Bass Boost**, **Bass Reducer**, **Treble Boost**, **Vocal** and **Late Night**); the band editor is on the iPhone only. **Crossfade** blends each song into the next over 2 to 12 seconds (**Off** to begin with), leaving albums played in order gapless. Both belong to this Apple TV, not your account.
 
 **Scrobbling** shows whether ListenBrainz and Last.fm are connected, and turns a connected service on or off; hold the click on one to disconnect it. Connecting needs a sign-in page or a token, so connect them in Squirmy on your iPhone or in the web app ([scrobbling](../server/scrobbling.md)). **About** has the app's and the server's versions, for bug reports.
 

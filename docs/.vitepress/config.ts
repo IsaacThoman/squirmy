@@ -31,8 +31,11 @@ const sidebar = [
     text: 'People and apps',
     items: [
       { text: 'Users and access', link: '/server/users' },
+      { text: 'Signing in and security', link: '/server/authentication' },
       { text: 'Subsonic clients', link: '/server/subsonic' },
       { text: 'Scrobbling', link: '/server/scrobbling' },
+      { text: 'Share links', link: '/server/sharing' },
+      { text: 'Integrations', link: '/server/integrations' },
       { text: 'Acquisition providers', link: '/server/acquisition' },
     ],
   },
@@ -44,6 +47,7 @@ const sidebar = [
       { text: 'The Apple TV app', link: '/use/apple-tv' },
       { text: 'Keyboard shortcuts', link: '/use/keyboard-shortcuts' },
       { text: 'The wantlist', link: '/use/wantlist' },
+      { text: 'Sharing music', link: '/use/sharing' },
     ],
   },
   {

@@ -16,7 +16,7 @@ import { newId } from '../../lib/ids.js'
 import { libraryPath, serveFile, withLibraryFile, type StreamRequest, type StreamResponse } from './files.js'
 import { fragmentedSourceFrames } from './gapless.js'
 import { rewritePacketDurations } from './mp4.js'
-import { codecFamily, fragmentedEncoder, isFragmented, mp4Options, outputBitDepth, outputSampleRate, profiles, sourceSampleRate, type MediaFile, type TranscodeProfile } from './profiles.js'
+import { codecFamily, fragmentedEncoder, mp4Options, outputBitDepth, outputSampleRate, profiles, sourceSampleRate, type MediaFile, type TranscodeProfile } from './profiles.js'
 
 type TranscodeRow = typeof transcodes.$inferSelect
 
@@ -227,6 +227,7 @@ ${line}`.slice(-2000)
       this.tempPath = target
       const { size } = await stat(target)
       await db.update(transcodes).set({ status: 'ready', bytes: size, error: null, lastUsedAt: new Date() }).where(rowKey)
+      published++
     } catch (error) {
       this.error = signal.aborted ? signal.reason as Error : error as Error
       await handle?.close().catch(() => {})
@@ -253,6 +254,7 @@ ${line}`.slice(-2000)
 const priority = (intent: StreamIntent) => StreamIntent.options.indexOf(intent)
 const keyOf = (fileId: string, profile: TranscodeProfile, seek?: Seek) => `${fileId}/${profile}${seek ? `/${seek.seconds}/${seek.frame}` : ''}`
 const active = new Map<string, Transcode>()
+let published = 0
 const slotQueue = new Set<Transcode>()
 const running = new Set<Transcode>()
 const liveByUser = new Map<string, number>()
@@ -382,6 +384,7 @@ function ffmpegArgs(input: string, file: MediaFile, profile: TranscodeProfile, s
     '-map', '0:a:0', '-vn', '-sn', '-dn', '-map_metadata', '-1', '-map_chapters', '-1',
     ...metadata.flatMap(([key, value]) => value === undefined || value === '' ? [] : ['-metadata', `${key}=${value}`]),
     ...(sampleRate && !copy ? ['-ar', String(sampleRate)] : []),
+    ...(!copy && profiles[profile].codec === 'mp3' && (file.channels ?? 0) > 2 ? ['-ac', '2'] : []),
     ...(filters.length ? ['-af', filters.join(',')] : []),
     ...(profile === 'flac_mp4' ? ['-sample_fmt', outputBitDepth(file, profile) === 16 ? 's16' : 's32'] : []),
     ...(copy && codecFamily(file) === 'aac' ? ['-bsf:a', 'aac_adtstoasc'] : []),
@@ -465,13 +468,15 @@ function follow(job: Transcode, detach: () => void): Readable {
 async function openEither(job: Transcode): Promise<FileHandle> {
   for (;;) {
     const file = job.tempPath!
+    const changed = job.changed()
     try {
       return await open(file, 'r')
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-      // The rename may have moved the file before its promise updated tempPath.
-      if (job.tempPath === file && !job.finished) await job.done
-      if (job.tempPath === file) throw error
+      if (job.tempPath !== file) continue
+      if (job.finished) throw job.error ?? error
+      // The rename can have happened on disk before its callback updates tempPath.
+      await changed
     }
   }
 }
@@ -591,10 +596,11 @@ function planSeek(file: MediaFile, profile: TranscodeProfile, startMs: number): 
  * length, `Accept-Ranges: none`. HEAD reports those headers without starting anything.
  */
 export async function openTranscode(file: MediaFile, profile: TranscodeProfile, request: StreamRequest, headers: Record<string, string> = {}): Promise<StreamResponse> {
+  let cacheVersion = published
   if (profile === 'copy_mp4' && !['aac', 'flac', 'mp3'].includes(codecFamily(file))) {
     throw badRequest('This codec cannot be remuxed for playback', 'unsupported_remux')
   }
-  const startMs = isFragmented(profile) ? request.startMs : undefined
+  const startMs = request.startMs
   const seek = startMs && !request.range ? planSeek(file, profile, startMs) : undefined
   const responseHeaders = startMs !== undefined && !request.range
     ? { ...headers, 'x-squirmy-start-frame': String(seek?.frame ?? 0), 'access-control-expose-headers': 'X-Squirmy-Start-Frame' }
@@ -611,16 +617,30 @@ export async function openTranscode(file: MediaFile, profile: TranscodeProfile, 
   const { signal, intent = 'play', userId } = request
   const key = keyOf(source.id, profile, seek)
   signal?.throwIfAborted()
-  let job = active.get(key)
-  while (job?.cancelled) {
-    await waitForEncode(job.done, signal)
-    job = active.get(key)
-  }
-  if (stopping) throw transcoderBusy()
-  if (!job) {
+  let job: Transcode
+  for (;;) {
+    signal?.throwIfAborted()
+    if (stopping) throw transcoderBusy()
+    const existing = active.get(key)
+    if (existing) {
+      if (existing.cancelled) {
+        await waitForEncode(existing.done, signal)
+        continue
+      }
+      job = existing
+      break
+    }
+    // A simultaneous encode may have published and left the active map since our miss.
+    if (!seek && cacheVersion !== published) {
+      cacheVersion = published
+      const refreshed = await serveCached(source, profile, request, responseHeaders)
+      if (refreshed) return refreshed
+      continue
+    }
     job = new Transcode(source, profile, userId, intent, seek)
     active.set(key, job)
     slotQueue.add(job)
+    break
   }
   const detach = job.attach(intent)
   scheduleEncoders()

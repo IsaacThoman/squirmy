@@ -1,0 +1,3 @@
+# swift test's build folder.
+core/.build/
+core/.swiftpm/

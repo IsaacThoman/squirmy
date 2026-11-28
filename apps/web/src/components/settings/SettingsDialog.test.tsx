@@ -4,10 +4,11 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { appPasswords, currentUser, userSettings, users } from '@/fixtures/server'
+import { accountSecurity, appPasswords, authSessions, currentUser, shareLinks, userSettings, users } from '@/fixtures/server'
 import { APPEARANCE_STORAGE_KEY, setAppearanceMode, setColorTheme } from '@/lib/appearance'
 import { colorThemeStylesheet, findColorTheme } from '@/lib/color-themes'
 import { modKey } from '@/lib/platform'
+import { AUDIO_STORAGE_KEY, reloadAudioSettings } from '@/player/audio-settings'
 import { renderWithApp } from '@/test/render'
 import { SettingsDialog, type SettingsDialogProps } from './SettingsDialog'
 
@@ -41,8 +42,29 @@ function props() {
     appPasswords,
     onCreateAppPassword: vi.fn<SettingsDialogProps['onCreateAppPassword']>(async request => ({ ...appPasswords[0], name: request.name, secret: 'sq-secret' })),
     onRevokeAppPassword: vi.fn<SettingsDialogProps['onRevokeAppPassword']>(async () => {}),
+    shareLinks,
+    sharingEnabled: true,
+    onRevokeShareLink: vi.fn<SettingsDialogProps['onRevokeShareLink']>(async () => {}),
     onChangePassword: vi.fn<SettingsDialogProps['onChangePassword']>(async () => {}),
     onLogout: vi.fn<SettingsDialogProps['onLogout']>(),
+    security: {
+      security: accountSecurity,
+      sessions: authSessions,
+      onStartTwoFactor: vi.fn(async () => ({ secret: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP', otpauthUrl: 'otpauth://totp/x', qrCode: 'data:image/svg+xml;base64,PHN2Zy8+' })),
+      onEnableTwoFactor: vi.fn(async () => ({ recoveryCodes: ['abcde-fghjk', 'mnpqr-stuvw'] })),
+      onDisableTwoFactor: vi.fn(async () => {}),
+      onRegenerateRecoveryCodes: vi.fn(async () => ({ recoveryCodes: ['zzzzz-yyyyy'] })),
+      onRevokeSession: vi.fn(async () => {}),
+      onRevokeOtherSessions: vi.fn(async () => {}),
+      passkeys: { server: true, browser: true },
+      defaultPasskeyName: 'Firefox on macOS',
+      onAddPasskey: vi.fn(async () => {}),
+      onRenamePasskey: vi.fn(async () => {}),
+      onDeletePasskey: vi.fn(async () => {}),
+      sso: { name: 'Authelia' } as { name: string } | null,
+      onLinkSso: vi.fn(async () => {}),
+      onUnlinkSso: vi.fn(async () => {}),
+    },
   } satisfies SettingsDialogProps
 }
 
@@ -76,12 +98,13 @@ afterEach(() => {
   setAppearanceMode('system')
   setColorTheme('squirmy')
   localStorage.clear()
+  reloadAudioSettings()
 })
 
 describe('SettingsDialog', () => {
   it('lists its sections and opens on the one it is given', () => {
     renderSettings()
-    expect(sections().getAllByRole('button').map(button => button.textContent)).toEqual(['Playback', 'Library', 'Appearance', 'Account', 'Scrobbling', 'App passwords', 'About'])
+    expect(sections().getAllByRole('button').map(button => button.textContent)).toEqual(['Playback', 'Library', 'Appearance', 'Account', 'Security', 'App passwords', 'Share links', 'Scrobbling', 'Webhooks', 'About'])
     expect(sections().getByRole('button', { name: 'Playback' })).toHaveAttribute('aria-current', 'page')
     expect(panelTitles()).toEqual(['Settings', 'Playback'])
   })
@@ -90,8 +113,10 @@ describe('SettingsDialog', () => {
     ['Library', 'library'],
     ['Appearance', 'appearance'],
     ['Account', 'account'],
+    ['Security', 'security'],
     ['Scrobbling', 'scrobbling'],
     ['App passwords', 'app-passwords'],
+    ['Share links', 'share-links'],
     ['About', 'about'],
     ['Playback', 'playback'],
   ] as const)('switches to %s', async (name, id) => {
@@ -126,9 +151,35 @@ describe('SettingsDialog', () => {
       expect(onOpenUploads).toHaveBeenCalled()
     })
 
+    it('turns star ratings on, off by default so the heart stays the one control', async () => {
+      const { onSettingsChange } = renderSettings({ section: 'library' })
+      const toggle = within(settings()).getByRole('switch', { name: 'Show star ratings' })
+      expect(toggle).not.toBeChecked()
+      await userEvent.click(toggle)
+      expect(onSettingsChange).toHaveBeenCalledWith({ showRatings: true })
+    })
+
     it('leaves out Your uploads for someone who may not upload', () => {
       renderSettings({ section: 'library' })
       expect(within(settings()).queryByRole('button', { name: 'Manage' })).toBeNull()
+    })
+
+    it('turns explicit content off', async () => {
+      const { onSettingsChange } = renderSettings({ section: 'library' })
+      const toggle = within(settings()).getByRole('switch', { name: 'Allow explicit content' })
+      expect(toggle).toBeChecked()
+      await userEvent.click(toggle)
+      expect(onSettingsChange).toHaveBeenCalledWith({ allowExplicit: false })
+    })
+
+    it('says an admin turned explicit content off, and offers no way back', async () => {
+      const { onSettingsChange } = renderSettings({ section: 'library', user: { ...currentUser, explicitRestricted: true, allowsExplicit: false } })
+      const toggle = within(settings()).getByRole('switch', { name: 'Allow explicit content' })
+      expect(toggle).not.toBeChecked()
+      expect(toggle).toBeDisabled()
+      expect(within(settings()).getByText(/An admin turned explicit content off for your account/)).toBeInTheDocument()
+      await userEvent.click(toggle)
+      expect(onSettingsChange).not.toHaveBeenCalled()
     })
   })
 
@@ -150,12 +201,14 @@ describe('SettingsDialog', () => {
     it('shows the user’s settings', () => {
       renderSettings()
       expect(screen.getByRole('combobox', { name: 'Volume normalization' })).toHaveTextContent('Automatic')
+      expect(screen.getByRole('combobox', { name: 'Target loudness' })).toHaveTextContent('Standard (−18 LUFS)')
       expect(screen.getByRole('combobox', { name: 'Streaming quality' })).toHaveTextContent('Original')
       expect(screen.getByRole('combobox', { name: 'Cellular quality' })).toHaveTextContent('High (AAC 256)')
     })
 
     it.each([
       ['Volume normalization', ['Automatic', 'Per song', 'Per album', 'Off'], 'Per album', { normalization: 'album' }],
+      ['Target loudness', ['Loud (−14 LUFS)', 'Medium (−16 LUFS)', 'Standard (−18 LUFS)', 'Quiet (−23 LUFS)'], 'Loud (−14 LUFS)', { normalizationTarget: -14 }],
       ['Streaming quality', ['Original', 'High (AAC 256)', 'Data saver'], 'Data saver', { qualityWifi: 'data_saver' }],
       ['Cellular quality', ['Original', 'High (AAC 256)', 'Data saver'], 'Original', { qualityCellular: 'original' }],
     ] as const)('sends a new choice of %s', async (name, choices, choice, patch) => {
@@ -170,14 +223,105 @@ describe('SettingsDialog', () => {
     it('shows the settings as they are saved', () => {
       renderSettings({ settings: { ...userSettings, normalization: 'off', qualityWifi: 'high', qualityCellular: 'data_saver' } })
       expect(screen.getByRole('combobox', { name: 'Volume normalization' })).toHaveTextContent('Off')
+      // With normalization off there is nothing to aim at.
+      expect(screen.queryByRole('combobox', { name: 'Target loudness' })).not.toBeInTheDocument()
       expect(screen.getByRole('combobox', { name: 'Streaming quality' })).toHaveTextContent('High (AAC 256)')
       expect(screen.getByRole('combobox', { name: 'Cellular quality' })).toHaveTextContent('Data saver')
     })
 
     it('holds the choices back until the settings have loaded', () => {
       renderSettings({ settings: undefined })
-      expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+      expect(screen.queryByRole('combobox', { name: 'Volume normalization' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('combobox', { name: 'Streaming quality' })).not.toBeInTheDocument()
+      // This browser's own settings are not the server's.
+      expect(screen.getByRole('combobox', { name: 'Equalizer' })).toBeInTheDocument()
       expect(screen.getByRole('textbox', { name: 'This browser’s name' })).toBeInTheDocument()
+    })
+
+    it('says whether quiet songs are turned up, which takes this browser\'s limiter', () => {
+      renderSettings()
+      expect(screen.getByText(/never turns quiet ones up/)).toBeInTheDocument()
+      renderSettings({ boosts: true })
+      expect(screen.getByText(/Quiet songs are turned up to it, with a limiter/)).toBeInTheDocument()
+    })
+
+    it('crossfades songs over the time chosen, kept in this browser', async () => {
+      renderSettings()
+      const crossfade = screen.getByRole('combobox', { name: 'Crossfade' })
+      expect(crossfade).toHaveTextContent('Off')
+      await userEvent.click(crossfade)
+      expect((await screen.findAllByRole('option')).map(option => option.textContent)).toEqual(['Off', ...[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(seconds => `${seconds} seconds`)])
+      await userEvent.click(screen.getByRole('option', { name: '6 seconds' }))
+      expect(JSON.parse(localStorage.getItem(AUDIO_STORAGE_KEY)!).crossfadeSeconds).toBe(6)
+      expect(crossfade).toHaveTextContent('6 seconds')
+    })
+
+    describe('equalizer', () => {
+      const stored = () => JSON.parse(localStorage.getItem(AUDIO_STORAGE_KEY) ?? 'null') as { equalizer: { preset: string; custom: number[] } } | null
+      const bands = () => screen.queryAllByRole('slider')
+
+      it('is off until a preset is chosen, and keeps the choice in this browser', async () => {
+        renderSettings()
+        const equalizer = screen.getByRole('combobox', { name: 'Equalizer' })
+        expect(equalizer).toHaveTextContent('Off')
+        expect(bands()).toEqual([])
+        await userEvent.click(equalizer)
+        expect((await screen.findAllByRole('option')).map(option => option.textContent)).toEqual(['Off', 'Bass boost', 'Bass reducer', 'Treble boost', 'Vocal', 'Late night', 'Custom'])
+        await userEvent.click(screen.getByRole('option', { name: 'Bass boost' }))
+        expect(stored()?.equalizer.preset).toBe('bassBoost')
+        expect(bands().map(band => band.getAttribute('aria-label'))).toEqual(['31 Hz', '62 Hz', '125 Hz', '250 Hz', '500 Hz', '1 kHz', '2 kHz', '4 kHz', '8 kHz', '16 kHz'])
+        expect(bands()[0]).toHaveAttribute('aria-valuetext', '+6 dB')
+      })
+
+      it('makes a moved band of a preset the user\'s own', async () => {
+        localStorage.setItem(AUDIO_STORAGE_KEY, JSON.stringify({ equalizer: { preset: 'treble', custom: Array(10).fill(0) } }))
+        reloadAudioSettings()
+        renderSettings()
+        const lowest = screen.getByRole('slider', { name: '31 Hz' })
+        lowest.focus()
+        await userEvent.keyboard('{ArrowUp}{ArrowUp}')
+        expect(stored()?.equalizer).toEqual({ preset: 'custom', custom: [1, 0, 0, 0, 0, 0.5, 1.5, 3, 4.5, 6] })
+        expect(screen.getByRole('combobox', { name: 'Equalizer' })).toHaveTextContent('Custom')
+        expect(lowest).toHaveAttribute('aria-valuetext', '+1 dB')
+      })
+    })
+
+    describe('output device', () => {
+      const device = (deviceId: string, label: string, kind: MediaDeviceKind = 'audiooutput') => ({ deviceId, label, kind, groupId: '' }) as MediaDeviceInfo
+      function chromium(devices: MediaDeviceInfo[][], getUserMedia = vi.fn(async () => ({ getTracks: () => [{ stop: vi.fn() }] }))) {
+        const enumerateDevices = vi.fn(async () => devices.length > 1 ? devices.shift()! : devices[0]!)
+        Object.defineProperty(navigator, 'mediaDevices', { value: { enumerateDevices, getUserMedia, addEventListener() {}, removeEventListener() {} }, configurable: true })
+        return { getUserMedia }
+      }
+      afterEach(() => { Reflect.deleteProperty(navigator, 'mediaDevices') })
+
+      it('is not offered where the browser cannot choose one', () => {
+        chromium([[device('dac', 'USB DAC')]])
+        renderSettings()
+        expect(screen.queryByText('Output')).not.toBeInTheDocument()
+      })
+
+      it('lists the outputs the browser names and keeps the choice in this browser', async () => {
+        chromium([[device('default', 'Default - Speakers'), device('mic', 'Microphone', 'audioinput'), device('dac', 'USB DAC'), device('phones', 'Headphones')]])
+        renderSettings({ choosesOutput: true })
+        const output = await screen.findByRole('combobox', { name: 'Output' })
+        expect(output).toHaveTextContent('System default')
+        await userEvent.click(output)
+        expect((await screen.findAllByRole('option')).map(option => option.textContent)).toEqual(['System default', 'USB DAC', 'Headphones'])
+        await userEvent.click(screen.getByRole('option', { name: 'USB DAC' }))
+        expect(JSON.parse(localStorage.getItem(AUDIO_STORAGE_KEY)!).outputDevice).toBe('dac')
+      })
+
+      it('asks for the permission the browser names its outputs behind, and lets the microphone go at once', async () => {
+        const stop = vi.fn()
+        const { getUserMedia } = chromium([[device('', '')], [device('dac', 'USB DAC')]], vi.fn(async () => ({ getTracks: () => [{ stop }] })))
+        renderSettings({ choosesOutput: true })
+        expect(await screen.findByText(/only to sites that may use the microphone/)).toBeInTheDocument()
+        await userEvent.click(screen.getByRole('button', { name: 'Choose a device' }))
+        expect(getUserMedia).toHaveBeenCalledWith({ audio: true })
+        expect(stop).toHaveBeenCalled()
+        expect(await screen.findByRole('combobox', { name: 'Output' })).toHaveTextContent('System default')
+      })
     })
 
     it('names this browser on Enter', async () => {
@@ -315,6 +459,142 @@ describe('SettingsDialog', () => {
     })
   })
 
+  describe('Security', () => {
+    const security = (overrides: Partial<SettingsDialogProps['security']> = {}) => ({ ...props().security, ...overrides })
+
+    it('turns two-factor on: password, then the QR code and a code, then the recovery codes', async () => {
+      const given = security()
+      renderSettings({ section: 'security', security: given })
+      await userEvent.click(screen.getByRole('button', { name: 'Turn on' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Turn on two-factor authentication' })
+      await userEvent.type(within(dialog).getByLabelText('Your password'), 'hunter22')
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Continue' }))
+      expect(given.onStartTwoFactor).toHaveBeenCalledWith({ currentPassword: 'hunter22' })
+
+      const scan = await screen.findByRole('dialog', { name: 'Scan the code' })
+      expect(within(scan).getByRole('img', { name: 'QR code for your authenticator app' })).toHaveAttribute('src', 'data:image/svg+xml;base64,PHN2Zy8+')
+      expect(within(scan).getByLabelText('Setup key')).toHaveValue('JBSW Y3DP EHPK 3PXP JBSW Y3DP EHPK 3PXP')
+      await userEvent.type(within(scan).getByLabelText('Code from the app'), '123 456')
+      await userEvent.click(within(scan).getByRole('button', { name: 'Turn on' }))
+      expect(given.onEnableTwoFactor).toHaveBeenCalledWith({ code: '123456' })
+
+      const saved = await screen.findByRole('dialog', { name: 'Save your recovery codes' })
+      expect(within(within(saved).getByRole('list', { name: 'Recovery codes' })).getAllByRole('listitem').map(item => item.textContent)).toEqual(['abcde-fghjk', 'mnpqr-stuvw'])
+    })
+
+    it('says a wrong code under the field and stays on the step', async () => {
+      const given = security({ onEnableTwoFactor: vi.fn(async () => { throw new ApiError(403, 'invalid_code', 'That code is not right.') }) })
+      renderSettings({ section: 'security', security: given })
+      await userEvent.click(screen.getByRole('button', { name: 'Turn on' }))
+      await userEvent.type(within(await screen.findByRole('dialog')).getByLabelText('Your password'), 'hunter22')
+      await userEvent.click(screen.getByRole('button', { name: 'Continue' }))
+      await userEvent.type(await screen.findByLabelText('Code from the app'), '000000')
+      await userEvent.click(within(screen.getByRole('dialog', { name: 'Scan the code' })).getByRole('button', { name: 'Turn on' }))
+      expect(await screen.findByText('That code is not right.')).toBeInTheDocument()
+      expect(screen.getByRole('dialog', { name: 'Scan the code' })).toBeInTheDocument()
+    })
+
+    it('turns two-factor off with the password and a code', async () => {
+      const given = security({ security: { hasPassword: true, twoFactor: { enabled: true, enabledAt: '2026-11-20T10:00:00.000Z', recoveryCodesRemaining: 7 }, passkeys: [], ssoIdentities: [] } })
+      renderSettings({ section: 'security', security: given })
+      expect(screen.getByText(/7 recovery codes left/)).toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: 'Turn off' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Turn off two-factor authentication?' })
+      await userEvent.type(within(dialog).getByLabelText('Your password'), 'hunter22')
+      await userEvent.type(within(dialog).getByLabelText('Code from your authenticator app, or a recovery code'), '654321')
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Turn off' }))
+      expect(given.onDisableTwoFactor).toHaveBeenCalledWith({ currentPassword: 'hunter22', code: '654321' })
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Turn off two-factor authentication?' })).toBeNull())
+    })
+
+    it('adds a passkey after the password, named after this browser', async () => {
+      const given = security()
+      renderSettings({ section: 'security', security: given })
+      const list = screen.getByRole('list', { name: 'Passkeys' })
+      expect(within(list).getByText('MacBook')).toBeInTheDocument()
+      expect(within(list).getByText('Synced')).toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: 'Add passkey' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Add a passkey' })
+      expect(within(dialog).getByLabelText('Name')).toHaveValue('Firefox on macOS')
+      await userEvent.type(within(dialog).getByLabelText('Your password'), 'hunter22')
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Continue' }))
+      expect(given.onAddPasskey).toHaveBeenCalledWith({ currentPassword: 'hunter22', name: 'Firefox on macOS' })
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add a passkey' })).toBeNull())
+    })
+
+    it('renames and removes a passkey', async () => {
+      const given = security()
+      renderSettings({ section: 'security', security: given })
+      await userEvent.click(screen.getByRole('button', { name: 'Rename' }))
+      const rename = await screen.findByRole('dialog', { name: 'Rename passkey' })
+      await userEvent.clear(within(rename).getByLabelText('Name'))
+      await userEvent.type(within(rename).getByLabelText('Name'), 'Work laptop')
+      await userEvent.click(within(rename).getByRole('button', { name: 'Save' }))
+      expect(given.onRenamePasskey).toHaveBeenCalledWith(accountSecurity.passkeys[0]!.id, 'Work laptop')
+      await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
+      await userEvent.click(within(await screen.findByRole('dialog', { name: 'Remove “MacBook”?' })).getByRole('button', { name: 'Remove' }))
+      expect(given.onDeletePasskey).toHaveBeenCalledWith(accountSecurity.passkeys[0]!.id)
+    })
+
+    it('says why passkeys cannot be added when the server has no https address', () => {
+      renderSettings({ section: 'security', security: security({ passkeys: { server: false, browser: true } }) })
+      expect(screen.getByText(/Ask whoever runs it to set PUBLIC_URL/)).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Add passkey' })).toBeNull()
+    })
+
+    it('connects single sign-on after the password, and disconnects it', async () => {
+      const given = security()
+      renderSettings({ section: 'security', security: given })
+      await userEvent.click(screen.getByRole('button', { name: 'Connect' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Connect Authelia' })
+      await userEvent.type(within(dialog).getByLabelText('Your password'), 'hunter22')
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Continue' }))
+      expect(given.onLinkSso).toHaveBeenCalledWith({ currentPassword: 'hunter22' })
+    })
+
+    it('lists the connected provider account and says what the provider answered', async () => {
+      const identity = { id: '00000000-0000-4000-8a00-000000000001', issuer: 'https://auth.example.com', email: 'alex@example.com', createdAt: '2026-11-20T10:00:00.000Z', lastUsedAt: null }
+      const given = security({ security: { ...accountSecurity, ssoIdentities: [identity] }, ssoNotice: 'sso_linked_elsewhere' })
+      renderSettings({ section: 'security', security: given })
+      expect(screen.getByRole('status')).toHaveTextContent('already connected to another account')
+      expect(screen.getByText('alex@example.com')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Connect' })).toBeNull()
+      await userEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
+      await userEvent.click(within(await screen.findByRole('dialog', { name: 'Disconnect Authelia?' })).getByRole('button', { name: 'Disconnect' }))
+      expect(given.onUnlinkSso).toHaveBeenCalledWith(identity.id)
+    })
+
+    it('adds a passkey without a password on an account that has none', async () => {
+      const given = security({ security: { ...accountSecurity, hasPassword: false } })
+      renderSettings({ section: 'security', security: given })
+      expect(screen.getByText(/Your account has no password/)).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Turn on' })).toBeNull()
+      await userEvent.click(screen.getByRole('button', { name: 'Add passkey' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Add a passkey' })
+      expect(within(dialog).queryByLabelText('Your password')).toBeNull()
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Continue' }))
+      expect(given.onAddPasskey).toHaveBeenCalledWith({ name: 'Firefox on macOS', currentPassword: undefined })
+    })
+
+    it('lists where the account is signed in and signs one out, or all the others', async () => {
+      const given = security()
+      renderSettings({ section: 'security', security: given })
+      const list = screen.getByRole('list', { name: 'Signed-in devices' })
+      const rows = within(list).getAllByRole('listitem')
+      expect(rows.map(row => row.querySelector('.truncate')?.textContent)).toEqual(['Firefox on macOS', 'Alex’s iPhone', 'Chrome on Windows'])
+      expect(within(rows[0]!).getByText('This browser')).toBeInTheDocument()
+      expect(within(rows[0]!).queryByRole('button', { name: 'Sign out' })).toBeNull()
+      expect(within(rows[1]!).getByText(/with a password and an authenticator code/)).toBeInTheDocument()
+
+      await userEvent.click(within(rows[2]!).getByRole('button', { name: 'Sign out' }))
+      await userEvent.click(within(await screen.findByRole('dialog', { name: 'Sign out Chrome on Windows?' })).getByRole('button', { name: 'Sign out' }))
+      expect(given.onRevokeSession).toHaveBeenCalledWith(authSessions[2]!.id)
+
+      await userEvent.click(screen.getByRole('button', { name: 'Sign out everywhere else' }))
+      expect(given.onRevokeOtherSessions).toHaveBeenCalledTimes(1)
+    })
+  })
+
   describe('Scrobbling', () => {
     it('offers opt-in sharing for now playing', async () => {
       const { onSettingsChange } = renderSettings({ section: 'scrobbling' })
@@ -385,6 +665,21 @@ describe('SettingsDialog', () => {
       await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Connect ListenBrainz' })).not.toBeInTheDocument())
     })
 
+    it('submits the selected ListenBrainz API URL and enables heart sync separately', async () => {
+      const { onConnectListenBrainz, onSettingsChange } = renderSettings({ section: 'scrobbling' })
+      const sync = screen.getByRole('switch', { name: 'Sync hearts with ListenBrainz' })
+      expect(sync).not.toBeChecked()
+      await userEvent.click(sync)
+      expect(onSettingsChange).toHaveBeenCalledWith({ syncListenBrainzHearts: true })
+
+      await userEvent.click(screen.getByRole('button', { name: 'Change connection' }))
+      const dialog = within(await screen.findByRole('dialog', { name: 'Connect ListenBrainz' }))
+      await userEvent.type(dialog.getByLabelText('User token'), 'service-token')
+      await userEvent.type(dialog.getByLabelText('API URL (optional)'), 'https://listens.example.com/apis/listenbrainz/1/')
+      await userEvent.click(dialog.getByRole('button', { name: 'Connect' }))
+      expect(onConnectListenBrainz).toHaveBeenCalledWith('service-token', 'https://listens.example.com/apis/listenbrainz/1/')
+    })
+
     it('sends the browser to Last.fm to connect', async () => {
       const { onConnectLastFm } = renderSettings({ section: 'scrobbling', scrobbling: scrobbling({ ...lastFm, available: true }) })
       expect(screen.getByText('Connect your Last.fm account.')).toBeInTheDocument()
@@ -408,6 +703,31 @@ describe('SettingsDialog', () => {
     })
   })
 
+  describe('Share links', () => {
+    it('lists the user’s links with what each points at and how long it lasts', () => {
+      renderSettings({ section: 'share-links' })
+      const panel = settings()
+      expect(within(panel).getByText('Blue Hour')).toBeInTheDocument()
+      expect(within(panel).getByText(/^Playlist · Created .* · Never expires · Not opened yet$/)).toBeInTheDocument()
+      expect(within(panel).getByText(/^Song · Mira Vale · Created .* · Expired .* · Opened 12 times/)).toBeInTheDocument()
+      expect(within(panel).getByText('Expired')).toBeInTheDocument()
+    })
+
+    it('revokes a link after asking', async () => {
+      const { onRevokeShareLink } = renderSettings({ section: 'share-links' })
+      await userEvent.click(within(settings()).getAllByRole('button', { name: 'Revoke' })[0])
+      const confirm = await screen.findByRole('dialog', { name: 'Revoke the link to “Blue Hour”?' })
+      await userEvent.click(within(confirm).getByRole('button', { name: 'Revoke' }))
+      expect(onRevokeShareLink).toHaveBeenCalledWith(shareLinks[0].id)
+    })
+
+    it('says when the server has sharing off, and when there are none', () => {
+      renderSettings({ section: 'share-links', sharingEnabled: false, shareLinks: [] })
+      expect(within(settings()).getByText('Sharing is off on this server')).toBeInTheDocument()
+      expect(within(settings()).getByText('No share links')).toBeInTheDocument()
+    })
+  })
+
   describe('About', () => {
     it('shows the server’s name, its version and its address', () => {
       renderSettings({ section: 'about' })
@@ -419,7 +739,7 @@ describe('SettingsDialog', () => {
       renderSettings({ section: 'about' })
       const shortcuts = Object.fromEntries(screen.getAllByRole('term').map(term => [term.textContent, term.nextElementSibling?.textContent]))
       expect(screen.getByRole('heading', { level: 3, name: 'Keyboard shortcuts' })).toBeInTheDocument()
-      expect(shortcuts).toMatchObject({ Search: `${modKey}K`, 'Show or hide the sidebar': `${modKey}B`, Settings: `${modKey},`, 'Play or pause': 'Space' })
+      expect(shortcuts).toMatchObject({ 'Search and commands': `${modKey}K`, 'All shortcuts': '?', 'Show or hide the sidebar': `${modKey}B`, Settings: `${modKey},`, 'Play or pause': 'Space' })
     })
   })
 })

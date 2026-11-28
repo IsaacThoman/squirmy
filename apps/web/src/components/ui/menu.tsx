@@ -58,6 +58,8 @@ export type MenuItem = {
    * not, with a check mark in place of an icon while it is the one chosen.
    */
   checked?: boolean
+  /** Lines under the label, smaller, for a choice that needs telling apart (an album's versions). They wrap. */
+  detail?: string[]
 }
 
 /** How long an item says it worked before its menu closes. */
@@ -182,7 +184,14 @@ function Entries({ parts, entries, path = '' }: { parts: Parts; entries: MenuEnt
                 : entry.checked ? <Check className="text-primary" /> : <span aria-hidden className="size-4 shrink-0" />}
         {shown?.state === 'failed'
           ? <span className="flex min-w-0 flex-col"><Label text={entry.label} /><span className="text-xs text-destructive">{shown.text}</span></span>
-          : <Label text={shown?.state === 'done' ? shown.text! : entry.label} />}
+          : entry.detail?.length && shown?.state !== 'done'
+            ? (
+                <span className="flex min-w-0 flex-col">
+                  <Label text={entry.label} />
+                  {entry.detail.map(line => <span key={line} className="text-xs text-muted-foreground">{line}</span>)}
+                </span>
+              )
+            : <Label text={shown?.state === 'done' ? shown.text! : entry.label} />}
         {entry.shortcut && <span aria-hidden className="ml-auto pl-4 text-xs tracking-widest text-muted-foreground">{entry.shortcut}</span>}
       </parts.Item>
     )

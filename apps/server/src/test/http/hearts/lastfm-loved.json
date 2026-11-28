@@ -1,0 +1,28 @@
+{
+  "note": "Hand-written from the API schema with synthetic credentials and feedback.",
+  "request": {
+    "method": "GET",
+    "url": "https://ws.audioscrobbler.com/2.0/?method=user.getLovedTracks&user=other-user&api_key=hearts-key&format=json&limit=100&page=1"
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "lovedtracks": {
+        "track": [
+          {
+            "name": "Outside",
+            "artist": {
+              "name": "Beyonce"
+            },
+            "date": {
+              "uts": "1700000000"
+            }
+          }
+        ],
+        "@attr": {
+          "totalPages": "1"
+        }
+      }
+    }
+  }
+}

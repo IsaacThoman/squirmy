@@ -1,3 +1,4 @@
+export { IntegrationsAdmin as AdminIntegrationsPage } from '@/components/admin/IntegrationsAdmin'
 import {
   AcquisitionJobStatus, MatchReviewStatus, queryKeys,
   type AcquisitionPolicy, type AcquisitionProvider, type CatalogIndexStatus, type LibraryRoot, type MatchReview, type OrganizeBatchSummary, type ResolveReviewRequest,
@@ -21,6 +22,7 @@ import { ProvidersAdmin } from '@/components/admin/ProvidersAdmin'
 import { ReviewAdmin } from '@/components/admin/ReviewAdmin'
 import { SearchIndexAdmin } from '@/components/admin/SearchIndexAdmin'
 import { ServerSettingsAdmin } from '@/components/admin/ServerSettingsAdmin'
+import { SharingAdmin } from '@/components/admin/SharingAdmin'
 import { UsersAdmin } from '@/components/admin/UsersAdmin'
 import { loadFailure } from '@/components/ui/load-failure'
 import { useServerEvent } from '@/realtime/realtime-context'
@@ -325,6 +327,11 @@ export function AdminUsersPage() {
   const deleteUser = useMutation({ mutationFn: api.admin.deleteUser, onSuccess: refresh(queryKeys.adminUsers()) })
   const createInvite = useMutation({ mutationFn: api.admin.createInvite, onSuccess: refresh(invitesKey) })
   const revokeInvite = useMutation({ mutationFn: api.admin.deleteInvite, onSuccess: refresh(invitesKey) })
+  // One user's sign-ins at a time, read while their dialog is open.
+  const [securityUserId, setSecurityUserId] = useState<string | null>(null)
+  const securityKey = [...queryKeys.adminUsers(), securityUserId, 'security'] as const
+  const security = useQuery({ queryKey: securityKey, queryFn: () => api.admin.userSecurity(securityUserId!), enabled: !!securityUserId })
+  const refreshSecurity = () => queryClient.invalidateQueries({ queryKey: securityKey })
   return (
     <UsersAdmin
       users={users.data?.items}
@@ -337,6 +344,11 @@ export function AdminUsersPage() {
       onCreateInvite={request => createInvite.mutateAsync(request)}
       onRevokeInvite={id => revokeInvite.mutateAsync(id)}
       failures={{ users: loadFailure(users, 'The users did not load'), invites: loadFailure(invites, 'The invites did not load') }}
+      security={securityUserId ? { userId: securityUserId, data: security.data, failure: loadFailure(security, 'Their sign-ins did not load') } : null}
+      onShowSecurity={setSecurityUserId}
+      onRevokeUserSession={(id, sessionId) => api.admin.revokeUserSession(id, sessionId).then(refreshSecurity)}
+      onRevokeUserSessions={id => api.admin.revokeUserSessions(id).then(refreshSecurity)}
+      onResetTwoFactor={id => api.admin.resetTwoFactor(id).then(refreshSecurity)}
     />
   )
 }
@@ -435,6 +447,45 @@ export function AdminSettingsPage() {
       managedRoots={managedOnly(roots.data)}
       onSave={patch => save.mutateAsync(patch)}
       status={save.isPending ? 'saving' : save.isSuccess ? 'saved' : 'idle'}
+      onTestSso={() => api.admin.testSso()}
+    />
+  )
+}
+
+/** Links come a page at a time, newest first. */
+const SHARES_PAGE = 100
+
+export function AdminSharingPage() {
+  const api = useApi()
+  const queryClient = useQueryClient()
+  const settings = useQuery({ queryKey: settingsKey, queryFn: () => api.admin.settings() })
+  const save = useMutation({
+    mutationFn: (patch: UpdateServerSettings) => api.admin.updateSettings(patch),
+    onSuccess: (updated: ServerSettings) => {
+      queryClient.setQueryData(settingsKey, updated)
+      // The switch is read from the setup status, which decides whether menus offer Share.
+      return queryClient.invalidateQueries({ queryKey: setupStatusKey })
+    },
+  })
+  const links = useInfiniteQuery({
+    queryKey: queryKeys.adminShares(),
+    queryFn: ({ pageParam }) => api.share.adminList({ cursor: pageParam, limit: SHARES_PAGE }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: page => page.nextCursor ?? undefined,
+    select: data => data.pages.flatMap(page => page.items),
+  })
+  // The server tells every admin screen and the creator's; this one refreshes now.
+  const revoke = useMutation({ mutationFn: (id: string) => api.share.adminRevoke(id), onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.adminShares() }) })
+  return (
+    <SharingAdmin
+      settings={settings.data}
+      onSave={patch => save.mutateAsync(patch)}
+      status={save.isPending ? 'saving' : save.isSuccess ? 'saved' : 'idle'}
+      links={links.data}
+      onLoadMore={links.hasNextPage ? () => void links.fetchNextPage() : undefined}
+      loadingMore={links.isFetchingNextPage}
+      onRevoke={id => revoke.mutateAsync(id)}
+      failures={{ settings: loadFailure(settings, 'The sharing settings did not load'), links: loadFailure(links, 'The share links did not load') }}
     />
   )
 }

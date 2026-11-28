@@ -81,4 +81,44 @@ describe('BackgroundPresence', () => {
     expect(socket.disconnect).toHaveBeenCalledTimes(1);
     presence.dispose();
   });
+
+  it('opens a parked socket for a request from Siri or a widget, and parks it again once every hold is released', () => {
+    const { socket, presence } = setup(false);
+    vi.advanceTimersByTime(PARK_DELAY_MS);
+    expect(presence.parked).toBe(true);
+
+    const first = presence.hold();
+    const second = presence.hold();
+    expect(socket.connect).toHaveBeenCalledTimes(1);
+    first();
+    first();
+    vi.advanceTimersByTime(PARK_DELAY_MS * 4);
+    expect(socket.disconnect).toHaveBeenCalledTimes(1);
+
+    second();
+    vi.advanceTimersByTime(PARK_DELAY_MS);
+    expect(socket.disconnect).toHaveBeenCalledTimes(2);
+    expect(presence.parked).toBe(true);
+    presence.dispose();
+  });
+
+  it('leaves its socket alone once disposed, when a hold taken on it is released later', () => {
+    const { socket, presence } = setup(false);
+    const release = presence.hold();
+    presence.dispose();
+    release();
+    vi.advanceTimersByTime(PARK_DELAY_MS * 2);
+    expect(socket.disconnect).not.toHaveBeenCalled();
+  });
+
+  it('keeps an app that starts in the background for a request connected while it is held', () => {
+    const { socket, presence } = setup(false);
+    const release = presence.hold();
+    vi.advanceTimersByTime(PARK_DELAY_MS * 4);
+    expect(socket.disconnect).not.toHaveBeenCalled();
+    release();
+    vi.advanceTimersByTime(PARK_DELAY_MS);
+    expect(socket.disconnect).toHaveBeenCalledTimes(1);
+    presence.dispose();
+  });
 });

@@ -1,8 +1,8 @@
 import {
-  PlaybackNoticeWatcher, planChanges, randomSeed, refreshFetchedTracks, SessionClient, skipNotice, TrackStore, unavailableNotice, type ApiClient, type PlaybackNotice, type SessionClientSnapshot,
+  followsJam, PlaybackNoticeWatcher, planChanges, randomSeed, refreshFetchedTracks, SessionClient, sitOutNotice, skipNotice, TrackStore, unavailableNotice, type ApiClient, type PlaybackNotice, type SessionClientSnapshot,
 } from '@squirmy/client-core'
 import { createSocketTransport, type SquirmySocket } from '@squirmy/client-core/socket'
-import { queryKeys, type ClientDevice, type EntityChanges, type QueueEntry, type QueueSeed, type SessionCommand, type StreamQuality, type TrackSummary } from '@squirmy/contracts'
+import { queryKeys, type ClientDevice, type EntityChanges, type QueueEntry, type QueueSeed, type SessionCommand, type StreamQuality, type TrackSummary, UNDO_LIMIT } from '@squirmy/contracts'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { use, useCallback, useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { useUserSettings } from '@/api/queries'
@@ -10,22 +10,39 @@ import { useApi } from '@/api/services'
 import { useCurrentUser } from '@/auth/session'
 import { apiArtUrl } from '@/lib/artwork'
 import { isPlayable } from '@/lib/catalog'
-import { playableCodecs } from '@/lib/codecs'
 import { browserName, claimTabDevice, saveBrowserName } from '@/lib/device'
 import { useDocumentTitle } from '@/lib/document-title'
 import { useRealtime } from '@/realtime/realtime-context'
 import { useEngine } from './engine/engine-context'
 import { AUDIO_BLOCKED_MESSAGE } from './engine/errors'
-import type { WebPlayerEngine } from './engine/web-engine'
+import type { BrowserEngine } from './engine/types'
 import { MediaSessionAdapter, mediaArtwork, type MediaSessionTrack } from './engine/media-session'
 import { Listening, type Audible } from './listening'
-import { NowPlayingContext, PlayerContext, PlayerControlsContext, PositionClock, PositionContext, RadioPendingContext, useNowPlayingStore, type PlayerControls, type PlayerState, type QueueItem, type RadioSeed } from './player-context'
+import {
+  JamContext, NowPlayingContext, PlayerContext, PlayerControlsContext, PositionClock, PositionContext, RadioPendingContext, useNowPlayingStore, type JamInvite, type PlayerControls, type PlayerState,
+  type QueueItem, type RadioSeed,
+} from './player-context'
 import { useShortcuts } from './shortcuts'
 import { STATUS_ERROR_MS, STATUS_EVENT_MS, STATUS_UNDO_MS, StatusLine, type PlayerStatus } from './status'
 
 /** The most tracks one `playTracks` or `enqueue` may carry. */
 const MAX_SEEDS = 5000
 
+
+/** The invite to a jam shown, until it is answered or dismissed. */
+class InviteBox {
+  private value: JamInvite | null = null
+  private readonly listeners = new Set<() => void>()
+  get = (): JamInvite | null => this.value
+  subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
+  set(value: JamInvite | null): void {
+    this.value = value
+    for (const listener of [...this.listeners]) listener()
+  }
+}
 
 /** The entry the listener started by name (a song clicked in a list or the queue), while it is current. */
 class Picked {
@@ -42,9 +59,15 @@ function couldNotPlay(title: string | undefined, detail?: string): PlaybackNotic
 /**
  * What happens when this tab cannot play the current song: the song the listener just picked
  * stays, paused, and the player says why (pressing Play tries again); any other is skipped,
- * as continuous playback goes on.
+ * as continuous playback goes on. In someone else's jam, where skipping and pausing are the
+ * host's, this tab sits the song out silently and plays along again from the next one
+ * (explicit songs, for a listener who has them off, end up here).
  */
-function failCurrent(client: SessionClient, status: StatusLine, picked: Picked, entryId: string, title: string | undefined, why?: string) {
+function failCurrent(client: SessionClient, status: StatusLine, picked: Picked, entryId: string, title: string | undefined, why?: string, error?: unknown) {
+  if (followsJam(client.getSnapshot().session)) {
+    status.show({ ...sitOutNotice(title, error), tone: 'info', key: NOTICE_STATUS }, STATUS_ERROR_MS)
+    return
+  }
   if (picked.is(entryId)) {
     status.show({ ...couldNotPlay(title, why), tone: 'error', key: STOP_STATUS })
     client.dispatch({ type: 'pause' })
@@ -56,13 +79,22 @@ function failCurrent(client: SessionClient, status: StatusLine, picked: Picked, 
 
 /**
  * The session client of this tab. Playback is resolved with the user's streaming quality,
- * which `setQuality` keeps current, and the codecs this browser plays.
+ * which `setQuality` keeps current, and the streams the page's engine plays.
  */
-function createSession(api: ApiClient, socket: SquirmySocket, device: ClientDevice, engine: WebPlayerEngine, store: TrackStore, status: StatusLine, picked: Picked) {
+function createSession(api: ApiClient, socket: SquirmySocket, device: ClientDevice, engine: BrowserEngine, store: TrackStore, status: StatusLine, picked: Picked, invites: InviteBox) {
   let quality: StreamQuality = 'original'
   const client = new SessionClient({
     transport: createSocketTransport(socket),
     device,
+    onJamEvent: event => {
+      if (event.type === 'jam.invite') return invites.set({ jamId: event.jamId, hostName: event.hostName })
+      status.show({
+        message: event.reason === 'ended' ? 'The listening session ended' : 'You were removed from the listening session',
+        detail: 'Paused where it was. Play to carry on by yourself.',
+        tone: 'info',
+        key: NOTICE_STATUS,
+      }, STATUS_ERROR_MS)
+    },
     onDetachedEnded: reason => status.show({
       message: 'Playing with your other devices again',
       detail: reason === 'expired' ? 'This tab was away for over a week, so its own queue was cleared.' : 'Its own queue had already been cleared.',
@@ -73,12 +105,13 @@ function createSession(api: ApiClient, socket: SquirmySocket, device: ClientDevi
       engine,
       baseUrl: '',
       canBoost: engine.canBoost,
-      resolvePlayback: entry => api.streaming.playback(entry.trackId, { albumId: entry.albumId ?? undefined, quality, codecs: playableCodecs().join(',') }),
+      limiter: engine.limiter,
+      resolvePlayback: entry => api.streaming.playback(entry.trackId, { albumId: entry.albumId ?? undefined, quality, ...engine.playbackQuery() }),
       // A failure that may pass is retried by the client. A track the server refused to stream
       // (gone, or not allowed) is told once and skipped, as one the browser cannot play.
-      onLoadError: (entry, _error, willRetry) => {
+      onLoadError: (entry, error, willRetry) => {
         if (willRetry || client.getSnapshot().session.current?.id !== entry.id) return
-        failCurrent(client, status, picked, entry.id, store.get(entry.trackId, entry.albumId)?.title)
+        failCurrent(client, status, picked, entry.id, store.get(entry.trackId, entry.albumId)?.title, undefined, error)
       },
     },
   })
@@ -119,7 +152,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [store] = useState(() => new TrackStore(request => api.catalog.trackSummaries(request)))
   const [status] = useState(() => new StatusLine())
   const [picked] = useState(() => new Picked())
-  const [{ client, setQuality }] = useState(() => createSession(api, socket!, tab.device, engine, store, status, picked))
+  const [invites] = useState(() => new InviteBox())
+  const [{ client, setQuality }] = useState(() => createSession(api, socket!, tab.device, engine, store, status, picked, invites))
+  const jamInvite = useSyncExternalStore(invites.subscribe, invites.get)
   const [listening] = useState(() => new Listening(client, engine))
   const [clock] = useState(() => new PositionClock(() => listening.position()))
   const serverNow = useMemo(() => () => client.serverNow(), [client])
@@ -144,6 +179,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (!settings) return
     setQuality(settings.qualityWifi)
     client.setNormalization(settings.normalization)
+    client.setNormalizationTarget(settings.normalizationTarget ?? -18)
   }, [client, setQuality, settings])
 
   const { session, queue } = snapshot
@@ -206,14 +242,23 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const playable = (track: TrackSummary) => isPlayable(track, viewer)
     const titleOf = (entry: QueueEntry | undefined) => entry && store.get(entry.trackId, entry.albumId)?.title
     /** Sends a queue edit and, where the server can take it back, says so on the status line with Undo. */
-    const undoable = (command: SessionCommand, message: string) => {
+    const undoable = (command: SessionCommand, message: string, undo = (commandId: string) => void dispatch({ type: 'undo', commandId })) => {
       const commandId = dispatch(command)
       if (!commandId || !latest().canUndo) return
       const run = () => {
         status.clear(UNDO_STATUS)
-        dispatch({ type: 'undo', commandId })
+        undo(commandId)
       }
       status.show({ message, tone: 'info', key: UNDO_STATUS, action: { label: 'Undo', run } }, STATUS_UNDO_MS)
+    }
+    /**
+     * In someone's jam only the host chooses what plays: what would (a radio, a queued song picked)
+     * says so rather than doing nothing. Buttons for it are dimmed; this is for menus and the like.
+     */
+    const hostChooses = () => {
+      if (!followsJam(latest().session)) return false
+      status.show({ message: 'Only the host can choose what plays', detail: 'You can still add songs to the queue if they let everyone.', tone: 'error', key: ACTION_STATUS }, STATUS_ERROR_MS)
+      return true
     }
     return {
       togglePlay: () => {
@@ -224,6 +269,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       next: () => dispatch({ type: 'next' }),
       previous: () => dispatch({ type: 'previous' }),
       seek: positionMs => {
+        // The jam's host seeks; this device keeps to the jam's clock (a lyric line pressed included).
+        if (followsJam(latest().session)) return
         listening.seek(Math.max(0, Math.round(positionMs)))
         clock.sync()
       },
@@ -244,6 +291,16 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         store.prime(tracks)
         // The requested track, or the first playable one after it.
         const start = Math.max(0, candidates.findIndex(candidate => candidate.index >= startIndex))
+        const { session } = latest()
+        if (followsJam(session)) {
+          // In someone's jam only the host picks what plays; a member's pick joins the queue instead.
+          if (session.jam?.queuePolicy !== 'everyone') {
+            return status.show({ message: 'Only the host can choose what plays', detail: 'They chose who can add songs, too.', tone: 'error', key: ACTION_STATUS }, STATUS_ERROR_MS)
+          }
+          const picks = byName ? [candidates[start]!] : candidates.slice(0, MAX_SEEDS)
+          dispatch({ type: 'enqueue', tracks: picks.map(candidate => seedOf(candidate.track)), placement: 'last' })
+          return status.show({ message: picks.length === 1 ? `Added “${picks[0]!.track.title}” for everyone` : `Added ${picks.length} songs for everyone`, tone: 'info', key: ACTION_STATUS }, STATUS_EVENT_MS)
+        }
         const fits = candidates.length <= MAX_SEEDS
         const sent = options.shuffle || fits ? candidates.slice(0, MAX_SEEDS) : candidates.slice(start, start + MAX_SEEDS)
         dispatch({
@@ -257,16 +314,60 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         })
         picked.set(byName ? latest().session.current?.id ?? null : null)
       },
-      enqueue: (tracks, placement) => {
+      enqueue: (tracks, placement, toIndex) => {
         const seeds = tracks.filter(playable).slice(0, MAX_SEEDS).map(seedOf)
         if (!seeds.length) return
+        const { session } = latest()
+        if (followsJam(session)) {
+          // A member adds where the jam's policy lets them, and only at either end: moving songs is the host's.
+          if (session.jam?.queuePolicy !== 'everyone') {
+            return status.show({ message: 'Only the host adds songs', detail: 'They chose who can add songs.', tone: 'error', key: ACTION_STATUS }, STATUS_ERROR_MS)
+          }
+          store.prime(tracks)
+          const next = toIndex === 0 || (toIndex === undefined && placement === 'next')
+          dispatch({ type: 'enqueue', tracks: seeds, placement: next ? 'next' : 'last' })
+          const first = tracks.find(playable)!
+          return status.show({ message: seeds.length > 1 ? `Added ${seeds.length} songs for everyone` : `Added “${first.title}” for everyone`, tone: 'info', key: ACTION_STATUS }, STATUS_EVENT_MS)
+        }
         store.prime(tracks)
+        const before = shown(latest().queue.queue)
+        const at = toIndex === undefined ? undefined : Math.max(0, Math.min(toIndex, before.length))
+        // The session adds only before or after Up next; a place between is the moves that follow.
+        const where = at === 0 ? 'next' : at === undefined ? placement : 'last'
         const first = tracks.find(playable)
-        const message = seeds.length > 1 ? `Added ${seeds.length} songs to the queue` : placement === 'next' ? `“${first!.title}” plays next` : `Added “${first!.title}” to the queue`
-        undoable({ type: 'enqueue', tracks: seeds, placement }, message)
+        const message = seeds.length > 1 ? `Added ${seeds.length} songs to the queue` : where === 'next' ? `“${first!.title}” plays next` : `Added “${first!.title}” to the queue`
+        let added: QueueEntry[] = []
+        let moves = 0
+        // One Undo takes the whole drop back. Undoing the enqueue removes its entries by id
+        // wherever they were moved, so the moves need no undo of their own. Each move is an edit
+        // on the server's stack too, so past `UNDO_LIMIT` of them the enqueue has fallen off it,
+        // and Undo takes the songs out itself.
+        undoable({ type: 'enqueue', tracks: seeds, placement: where }, message, commandId => {
+          if (moves < UNDO_LIMIT) {
+            dispatch({ type: 'undo', commandId })
+            return
+          }
+          const still = new Set(latest().queue.queue.map(entry => entry.id))
+          for (const entry of added) if (still.has(entry.id)) dispatch({ type: 'removeFromQueue', entryId: entry.id })
+        })
+        if (at === undefined || at === 0 || at === before.length) return
+        const known = new Set(latest().queue.queue.map(entry => entry.id))
+        for (const entry of before) known.delete(entry.id)
+        added = latest().queue.queue.filter(entry => known.has(entry.id))
+        added.forEach((entry, offset) => {
+          const list = latest().queue.queue
+          const target = shown(list)[at + offset]
+          if (target && target.id !== entry.id) {
+            dispatch({ type: 'moveInQueue', entryId: entry.id, toIndex: list.indexOf(target) })
+            moves += 1
+          }
+        })
       },
-      startRadio,
+      startRadio: seed => {
+        if (!hostChooses()) startRadio(seed)
+      },
       playEntry: entryId => {
+        if (hostChooses()) return
         const { queue: lists } = latest()
         const past = lists.history.find(entry => entry.id === entryId)
         if (!past) dispatch({ type: 'playQueueEntry', entryId })
@@ -290,25 +391,29 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         if (target) dispatch({ type: 'moveInQueue', entryId, toIndex: list.indexOf(target) })
       },
       clearQueue: () => {
+        if (followsJam(latest().session)) return
         if (latest().queue.queue.length) undoable({ type: 'clearQueue' }, 'Queue cleared')
         else dispatch({ type: 'clearQueue' })
       },
       clearHistory: () => {
-        if (!latest().queue.history.length) return
+        if (followsJam(latest().session) || !latest().queue.history.length) return
         dispatch({ type: 'clearHistory' })
         status.show({ message: 'History cleared', tone: 'info', key: ACTION_STATUS }, STATUS_EVENT_MS)
       },
       transfer: deviceId => dispatch({ type: 'transfer', deviceId }),
       prepareHere: () => client.prepareTakeover(),
+      jam: request => client.jam(request),
+      dismissJamInvite: () => invites.set(null),
       detach: () => client.detach(),
       attach: options => client.attach(options),
       renameDevice: name => {
         saveBrowserName(name)
         client.rename(browserName())
       },
+      forgetPlayback: trackId => client.forgetPlayback(trackId),
       tell: ({ tone, ...line }) => status.show({ ...line, tone, key: ACTION_STATUS }, tone === 'error' ? STATUS_ERROR_MS : STATUS_EVENT_MS),
     }
-  }, [client, engine, listening, clock, store, tab, startRadio, viewer, picked, status])
+  }, [client, engine, listening, clock, store, tab, startRadio, viewer, picked, status, invites])
 
   usePlaybackNotices(client, store, status)
   useFreshSummaries(client, store, socket!)
@@ -352,6 +457,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     sleepTimer: session.sleepTimer,
     canSetSleepTimer: snapshot.canSetSleepTimer,
     serverNow,
+    jam: session.jam,
+    canJam: snapshot.canJam,
+    jamInvite,
   }
   const nowPlaying = useNowPlayingStore(state)
 
@@ -360,7 +468,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       <PlayerContext value={{ state, controls }}>
         <RadioPendingContext value={radioPending}>
           <NowPlayingContext value={nowPlaying}>
-            <PositionContext value={clock}>{children}</PositionContext>
+            <JamContext value={session.jam}>
+              <PositionContext value={clock}>{children}</PositionContext>
+            </JamContext>
           </NowPlayingContext>
         </RadioPendingContext>
       </PlayerContext>
@@ -463,7 +573,7 @@ function useFreshSummaries(client: SessionClient, store: TrackStore, socket: Squ
 }
 
 /** A track the browser cannot play (gone, or a format it refuses) is reported and skipped, unless it was just picked. */
-function useEngineErrors(engine: WebPlayerEngine, client: SessionClient, store: TrackStore, status: StatusLine, picked: Picked) {
+function useEngineErrors(engine: BrowserEngine, client: SessionClient, store: TrackStore, status: StatusLine, picked: Picked) {
   useEffect(() => engine.subscribe(event => {
     if (event.type !== 'error' || event.message === AUDIO_BLOCKED_MESSAGE) return
     const { session, isActiveDevice, connection } = client.getSnapshot()
@@ -473,7 +583,7 @@ function useEngineErrors(engine: WebPlayerEngine, client: SessionClient, store: 
 }
 
 /** The system's media controls show what this tab plays, and drive the session. */
-function useMediaSession(client: SessionClient, engine: WebPlayerEngine, controls: PlayerControls, snapshot: SessionClientSnapshot, audible: Audible, clock: PositionClock, track: TrackSummary | null) {
+function useMediaSession(client: SessionClient, engine: BrowserEngine, controls: PlayerControls, snapshot: SessionClientSnapshot, audible: Audible, clock: PositionClock, track: TrackSummary | null) {
   const adapter = useRef<MediaSessionAdapter | null>(null)
   useEffect(() => {
     const created = new MediaSessionAdapter({

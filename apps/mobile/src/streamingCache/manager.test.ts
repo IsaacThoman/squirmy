@@ -2,7 +2,9 @@ import { ApiError } from '@squirmy/client-core';
 import type { PlaybackDescriptor, StreamQuality, TrackSummary } from '@squirmy/contracts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NetworkKind } from '../downloads/model';
-import { StreamingCache, type CacheFiles, type CacheIndex, type CacheSettings, type CacheSource } from './manager';
+import {
+  StreamingCache, streamKeyOf, type CacheFiles, type CacheIndex, type CacheSettings, type CacheSource, type EngineStreams, type StreamReport,
+} from './manager';
 import type { CacheRow, ForeignRow, Near, Outlook } from './model';
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -133,6 +135,20 @@ class FakeFiles implements CacheFiles {
   freeBytes() {
     return this.free;
   }
+  /** Files outside the folder, such as the engine's streams, by URI. */
+  readonly outside = new Map<string, number>();
+  readonly discardedOutside: string[] = [];
+  adopt(uri: string, name: string) {
+    const bytes = this.outside.get(uri);
+    if (bytes === undefined) throw new Error(`No file at ${uri}`);
+    this.outside.delete(uri);
+    this.disk.set(name, bytes);
+    return bytes;
+  }
+  discardOutside(uri: string) {
+    this.outside.delete(uri);
+    this.discardedOutside.push(uri);
+  }
   /** Fetches still running. */
   active() {
     return this.fetches.filter(fetch => !fetch.cancelled && !fetch.failed && !this.disk.has(fetch.name));
@@ -171,22 +187,59 @@ class FakeSource implements CacheSource {
   artworkUrl = (artwork: { id: string }) => `https://music.test/api/v1/art/${artwork.id}/600`;
 }
 
+/** The native engine: what it downloads under a key, and its reports, which the test sends. */
+class FakeStreams implements EngineStreams {
+  readonly prefetches: { key: string; url: string }[] = [];
+  readonly cancelled: string[] = [];
+  private listener: ((report: StreamReport) => void) | null = null;
+  constructor(private readonly files: FakeFiles) {}
+  prefetch = (key: string, url: string) => {
+    this.prefetches.push({ key, url });
+  };
+  cancelPrefetch = (key: string) => {
+    this.cancelled.push(key);
+  };
+  subscribe = (listener: (report: StreamReport) => void) => {
+    this.listener = listener;
+    return () => {
+      this.listener = null;
+    };
+  };
+  /** The stream is whole in the engine's own folder. */
+  complete(key: string, bytes = 1000) {
+    const uri = `file:///engine/${key}`;
+    this.files.outside.set(uri, bytes);
+    this.listener?.({ key, uri, bytes });
+    return uri;
+  }
+  drop(key: string, message = 'The network connection was lost.') {
+    this.listener?.({ key, uri: null, message });
+  }
+  /** Keys being prefetched now. */
+  active() {
+    return this.prefetches.map(item => item.key).filter(key => !this.cancelled.includes(key));
+  }
+}
+
 /** Eight milliseconds of lossless audio is guessed at 1000 bytes, the size the fake server announces. */
 const entry = (n: number, state: Near['state'] = 'ready'): Near => ({ trackId: id(n), albumId: id(900), durationMs: 8, state });
 const outlook = (role: Outlook['role'], current: number | null, ...upcoming: (number | Near)[]): Outlook => ({
   role, current: current === null ? null : entry(current), upcoming: upcoming.map(item => typeof item === 'number' ? entry(item) : item),
 });
 
-function setup({ seed = [], settings = {}, account = 'a', online = true, files = new FakeFiles(), downloaded = () => false }: {
+function setup({ seed = [], settings = {}, account = 'a', online = true, files = new FakeFiles(), downloaded = () => false, native = false }: {
   seed?: CacheRow[]; settings?: Partial<CacheSettings>; account?: string; online?: boolean; files?: FakeFiles; downloaded?: (trackId: string) => boolean;
+  /** The native engine plays, and keeps what it streams. */
+  native?: boolean;
 } = {}) {
   const index = new MemoryIndex(account);
   index.put(seed);
   for (const item of seed) files.disk.set(item.file, item.bytes);
   const network = new FakeNetwork();
   const source = new FakeSource();
+  const streams = new FakeStreams(files);
   const cache = new StreamingCache({
-    index, files, network, source, downloaded, settleMs: 0,
+    index, files, network, source, downloaded, settleMs: 0, streams: native ? streams : undefined,
     settings: { limitBytes: 1_000_000, wifiQuality: 'original', cellularQuality: 'high', ...settings },
   });
   const changed: number[] = [];
@@ -204,8 +257,12 @@ function setup({ seed = [], settings = {}, account = 'a', online = true, files =
       await settle();
     }
   };
-  return { cache, index, files, network, source, changed, settle, finish };
+  /** The player streams track `n` from the server, as `resolvePlayback` asks for it: the key it hands the engine. */
+  const play = (n: number, quality: StreamQuality = 'original') => cache.streamKey(entry(n), quality, descriptorFor(id(n), quality));
+  return { cache, index, files, network, source, streams, changed, settle, finish, play };
 }
+
+const keyOf = (n: number, quality: StreamQuality = 'original') => streamKeyOf(descriptorFor(id(n), quality));
 
 /** Runs `then` after `turns` microtasks. */
 function later(turns: number, then: () => void): void {
@@ -273,6 +330,26 @@ describe('StreamingCache', () => {
     cache.clear();
     expect(cache.artworkUri(id(800))).toBeNull();
     expect([...files.disk.keys()]).toEqual([]);
+  });
+
+  it('forgets the copies of tracks the server now serves another file for, and fetches the near ones again', async () => {
+    const { cache, index, files, source, changed, settle, finish } = setup({ seed: [row(2), row(3), row(9)] });
+    cache.setOutlook(outlook('active', 1, 2, 3));
+    await settle();
+    // The stream being played is on its way when the user picks another version of it and of 2.
+    const playing = files.active()[0]!;
+    expect(playing.url).toContain(id(701));
+    source.fileIds.set(id(1), id(801));
+    source.fileIds.set(id(2), id(802));
+    cache.forget([id(1), id(2), id(9)]);
+    expect(playing.cancelled).toBe(true);
+    expect(changed).toEqual([2, 9]);
+    expect(index.tracks()).toEqual([3]);
+    expect(cache.playback(id(2), 'original')).toBeNull();
+    await finish();
+    expect(index.row(1)!.fileId).toBe(id(801));
+    expect(index.row(2)!.fileId).toBe(id(802));
+    expect(index.tracks()).toEqual([1, 2, 3]);
   });
 
   it('removes the least recently played files once a new one takes it over the limit', async () => {
@@ -665,5 +742,150 @@ describe('StreamingCache', () => {
     expect(listener).toHaveBeenCalled();
     expect(cache.getFilesVersion()).toBeGreaterThan(version);
     expect(cache.summary()).toEqual({ usedBytes: 2000, count: 2 });
+  });
+});
+
+describe('StreamingCache with the native engine', () => {
+  it('keeps the stream the engine plays instead of fetching it again, and fetches ahead through the engine', async () => {
+    const { cache, index, files, source, streams, settle, play } = setup({ native: true });
+    cache.setOutlook(outlook('active', 1, 2, 3, 4));
+    expect(play(1)).toBe(keyOf(1));
+    await settle();
+    // Only what comes next is asked for; the stream being played is the engine's.
+    expect(source.describes).toEqual(['2:original', '3:original']);
+    expect(files.fetches).toEqual([]);
+    expect(streams.prefetches).toEqual([
+      { key: keyOf(2), url: `https://music.test/api/v1/stream/${id(702)}?sig=x` },
+      { key: keyOf(3), url: `https://music.test/api/v1/stream/${id(703)}?sig=x` },
+    ]);
+
+    const played = streams.complete(keyOf(1), 1000);
+    await settle();
+    // The two fetches named their files first.
+    expect(index.row(1)).toMatchObject({ file: 'file-3.flac', bytes: 1000, quality: 'original', playedAt: Date.now(), art: `art-${id(800)}.webp` });
+    expect(files.disk.get('file-3.flac')).toBe(1000);
+    expect(files.outside.has(played)).toBe(false);
+    expect(cache.playback(id(1), 'original')?.url).toBe('file:///cache/file-3.flac');
+
+    streams.complete(keyOf(2));
+    streams.complete(keyOf(3));
+    await settle();
+    expect(index.tracks()).toEqual([1, 2, 3]);
+    expect(index.row(2)!.playedAt).toBeNull();
+    expect(cache.summary()).toEqual({ usedBytes: 3000, count: 3 });
+    // Nothing was fetched twice: each stream came once, from the engine.
+    expect(source.describes).toEqual(['2:original', '3:original']);
+    expect(files.fetches).toEqual([]);
+  });
+
+  it('keeps what plays on cellular too, even at Data Saver, where it fetches nothing ahead', async () => {
+    const { cache, index, network, source, streams, settle, play } = setup({ native: true, settings: { cellularQuality: 'data_saver' } });
+    network.set('cellular');
+    cache.setOutlook(outlook('active', 1, 2, 3));
+    const key = play(1, 'data_saver')!;
+    await settle();
+    expect(source.describes).toEqual([]);
+    expect(streams.prefetches).toEqual([]);
+    streams.complete(key, 400);
+    await settle();
+    expect(index.row(1, 'data_saver')).toMatchObject({ bytes: 400, quality: 'data_saver', playedAt: Date.now() });
+  });
+
+  it('leaves a fetch of the track that starts playing to finish, since the engine plays that very download', async () => {
+    const { cache, index, streams, settle, play } = setup({ native: true });
+    cache.setOutlook(outlook('active', 1, 2, 3));
+    await settle();
+    expect(streams.active()).toEqual([keyOf(2), keyOf(3)]);
+    // Track 1 ends; 2 plays while its fetch runs, and the player names the same stream.
+    cache.setOutlook(outlook('active', 2, 3, 4));
+    expect(play(2)).toBe(keyOf(2));
+    await settle();
+    expect(streams.cancelled).toEqual([]);
+    streams.complete(keyOf(2));
+    await settle();
+    expect(index.row(2)).toMatchObject({ playedAt: Date.now() });
+    expect(streams.active()).toContain(keyOf(4));
+  });
+
+  it('cancels a fetch the queue moved away from, and tries again later one the engine gave up', async () => {
+    const { cache, source, streams, settle } = setup({ native: true });
+    cache.setOutlook(outlook('active', 1, 2));
+    await settle();
+    streams.drop(keyOf(2));
+    await settle();
+    expect(cache.has(id(2))).toBe(false);
+    await vi.advanceTimersByTimeAsync(60_000);
+    await settle();
+    expect(source.describes.filter(item => item === '2:original')).toHaveLength(2);
+    cache.setOutlook(outlook('active', 1, 5));
+    await settle();
+    expect(streams.cancelled).toContain(keyOf(2));
+  });
+
+  it('deletes a file the engine hands over that it was not asked to keep, or that is bigger than the whole cache', async () => {
+    const { cache, index, files, streams, settle, play } = setup({ native: true, settings: { limitBytes: 5000 } });
+    cache.setOutlook(outlook('active', 1));
+    const stranger = streams.complete('somebody-else:original');
+    play(1);
+    const huge = streams.complete(keyOf(1), 6000);
+    await settle();
+    expect(files.discardedOutside).toEqual([stranger, huge]);
+    expect(index.tracks()).toEqual([]);
+  });
+
+  it('names no stream when it would keep nothing: the cache off or just cleared, or a downloaded track', async () => {
+    const off = setup({ native: true, settings: { limitBytes: 0 } });
+    off.cache.setOutlook(outlook('active', 1));
+    expect(off.play(1)).toBeNull();
+
+    const cleared = setup({ native: true });
+    cleared.cache.setOutlook(outlook('active', 1));
+    cleared.cache.clear();
+    expect(cleared.play(1)).toBeNull();
+
+    const downloaded = setup({ native: true, downloaded: trackId => trackId === id(1) });
+    expect(downloaded.play(1)).toBeNull();
+    expect(downloaded.play(2)).toBe(keyOf(2));
+
+    // The classic player streams by itself: nothing to name.
+    expect(setup().play(1)).toBeNull();
+  });
+
+  it('gives its file up to a download of exactly that stream, forgetting it without deleting it', async () => {
+    const { cache, index, files, changed } = setup({ native: true, seed: [row(2), row(3, { quality: 'high' })] });
+    cache.setOutlook(outlook('active', 2, 3));
+    expect(cache.take(id(2), { fileId: id(999), profile: 'original' })).toBeNull();
+    expect(cache.take(id(3), { fileId: id(703), profile: 'original' })).toBeNull();
+    // The native engine plays on through the open file, so even the playing track's can go.
+    expect(cache.take(id(2), { fileId: id(702), profile: 'original' })).toEqual({ uri: 'file:///cache/seed-2-original.flac', bytes: 1000 });
+    expect(index.row(2)).toBeUndefined();
+    expect(files.disk.has('seed-2-original.flac')).toBe(true);
+    expect(cache.has(id(2))).toBe(false);
+    expect(changed).toEqual([2]);
+  });
+
+  it('plays the native engine’s fragmented MP4 copies only with that engine, and the classic player replaces them', async () => {
+    const native = (n: number) => row(n, { quality: 'high', file: `native-${n}.mp4`, descriptor: { ...row(n, { quality: 'high' }).descriptor, profile: 'opus_mp4_192', mime: 'audio/mp4', codec: 'opus' } });
+    expect(setup({ native: true, seed: [native(2)] }).cache.playback(id(2), 'high')?.url).toBe('file:///cache/native-2.mp4');
+
+    const { cache, index, files, source, finish, settle } = setup({ seed: [native(2)], settings: { wifiQuality: 'high' } });
+    expect(cache.playback(id(2), 'high')).toBeNull();
+    expect(cache.has(id(2))).toBe(false);
+    cache.setOutlook(outlook('active', 1, 2));
+    await settle();
+    expect(source.describes).toContain('2:high');
+    await finish();
+    expect(index.row(2, 'high')).toMatchObject({ descriptor: { profile: 'aac_256' } });
+    // Its file goes once the player can no longer be holding it.
+    cache.setOutlook(outlook('active', 5, 6));
+    await settle();
+    expect(files.disk.has('native-2.mp4')).toBe(false);
+  });
+
+  it('with the classic player, keeps a file it may be playing rather than give it to a download', () => {
+    const { cache } = setup({ seed: [row(2), row(5)] });
+    cache.setOutlook(outlook('active', 2, 3));
+    expect(cache.take(id(2), { fileId: id(702), profile: 'original' })).toBeNull();
+    expect(cache.take(id(5), { fileId: id(705), profile: 'original' })?.uri).toBe('file:///cache/seed-5-original.flac');
   });
 });

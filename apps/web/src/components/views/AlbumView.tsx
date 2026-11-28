@@ -14,6 +14,7 @@ import { albumMenuEntries } from '@/components/music/album-menu'
 import { Rail, RailItem } from '@/components/music/Rail'
 import { TrackRowsSkeleton } from '@/components/music/Skeletons'
 import { TrackList } from '@/components/music/TrackList'
+import { VersionsMenu } from '@/components/music/VersionsMenu'
 import { Button } from '@/components/ui/button'
 import { Badge, EmptyState } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
@@ -125,11 +126,13 @@ export function AlbumView({ album, artist, onPlayAlbum, onRefresh }: AlbumViewPr
                   onToggleSaved: toggleSaved,
                   want: library.wantlistEnabled && dimmed ? { wanted, onToggle: want } : undefined,
                   onGoToArtist: artist => void navigate(`/artist/${artist.id}`),
+                  onShare: library.sharingEnabled ? () => library.share({ kind: 'album', id: album.id, title: album.title }) : undefined,
                 }),
                 ...(user.role === 'admin' && owned ? [{ kind: 'separator' }, { label: 'Fix match…', icon: <Wand2 />, onSelect: () => setFixing(true) }, { label: 'Edit tags…', icon: <Tags />, onSelect: () => setEditingTags(true) }] satisfies MenuEntry[] : []),
               ]}
               trigger={<IconButton label="More options" size="lg"><MoreHorizontal /></IconButton>}
             />
+            <VersionsMenu album={album} />
           </PlayActions>
         )}
       />

@@ -1,4 +1,23 @@
 import {
+  type LinkSsoRequest,
+  type SsoExchangeRequest,
+  SsoLinkStart,
+  SsoTestResult,
+  AccountSecurity,
+  Passkey,
+  type PasskeyLoginRequest,
+  PasskeyOptions,
+  type RegisterPasskeyRequest,
+  type RenamePasskeyRequest,
+  type StartPasskeyRequest,
+  AuthSessionList,
+  type ConfirmTwoFactorRequest,
+  type EnableTwoFactorRequest,
+  RecoveryCodes,
+  type StartTwoFactorRequest,
+  TwoFactorLoginRequest,
+  TwoFactorSetup,
+  UserSecurity,
   type AcquireQuery,
   AcquireResponse,
   AcquisitionJobList,
@@ -21,6 +40,13 @@ import {
   ArtistSummary,
   type Artwork,
   AuthResponse,
+  type ApproveTvPairing,
+  type LookupTvPairing,
+  type PollTvPairing,
+  type StartTvPairing,
+  TvPairing,
+  TvPairingPoll,
+  TvPairingPreview,
   CatalogIndexStatus,
   ClearProviderMissesResponse,
   type AddPlaylistItemsRequest,
@@ -32,11 +58,14 @@ import {
   CreateInviteRequest,
   CreateLibraryRootRequest,
   type CreatePlaylistRequest,
+  type CreateShareRequest,
   CreateUserRequest,
   DeviceInfo,
   DuplicatePage,
   type DuplicateQuery,
   HealthPage,
+  JamPerson,
+  JamPreview,
   QualityPage,
   type RemoveDuplicate,
   type TagEdit,
@@ -52,6 +81,12 @@ import {
   type ReplayQuery,
   ReplayStats,
   HomeResponse,
+  CreateWebhook,
+  IntegrationConfig,
+  type PlaybackControl,
+  type UpdateIntegrationConfig,
+  Webhook,
+  WebhookDelivery,
   type HomeQuery,
   MixDetail,
   Import,
@@ -83,7 +118,13 @@ import {
   MatchReviewList,
   type MatchReviewQuery,
   type MovePlaylistItemRequest,
+  type RatingRequest,
   Ok,
+  PublicShare,
+  ShareLink,
+  ShareLinkPage,
+  ShareTrackPlayback,
+  type ShareTrackQuery,
   OrganizeBatch,
   OrganizeBatchAccepted,
   OrganizeBatchList,
@@ -95,7 +136,14 @@ import {
   type PageQuery,
   PlaybackDescriptor,
   type PlaybackQuery,
+  PlaylistCollaborator,
+  type PlaylistCollaboratorRole,
+  PlaylistDedupeResult,
   PlaylistDetail,
+  PlaylistFolder,
+  type PlaylistFolderRequest,
+  PlaylistImportResult,
+  PlaylistPerson,
   PlaylistPage,
   PlaylistSummary,
   type RegisterRequest,
@@ -108,6 +156,8 @@ import {
   SearchResults,
   ScrobblingStatus,
   ServerSettings,
+  SmartPlaylistPreview,
+  type SmartPlaylistRules,
   SessionSnapshot,
   SetupStatus,
   type SetupRequest,
@@ -136,6 +186,10 @@ import {
   DeleteUploadsResponse,
   UploadAlbumPage,
   UploadFileList,
+  TrackVersions,
+  type TrackVersionsQuery,
+  type VersionPickRequest,
+  type VersionPickType,
 } from '@squirmy/contracts'
 import { z } from 'zod'
 
@@ -244,6 +298,7 @@ export type CallOptions = { signal?: AbortSignalLike }
 type Input<T extends z.ZodType> = z.input<T>
 
 const DeviceList = page(DeviceInfo)
+const JamPeople = page(JamPerson)
 const JobList = z.array(JobQueueStats)
 const likedPages = { track: TrackPage, album: AlbumPage, artist: ArtistPage } as const
 type SearchParams = SearchFacets & { q: string; limit?: number; type?: SearchResultKind; offset?: number; scope?: 'library' | 'server' }
@@ -345,6 +400,12 @@ export function createApiClient(options: ApiClientOptions) {
     auth: {
       setupStatus: () => get('/setup/status', SetupStatus),
       setup: (body: SetupRequest) => send('POST', '/setup', AuthResponse, body),
+      startTvPairing: (body: Input<typeof StartTvPairing>, options?: CallOptions) =>
+        request('POST', '/auth/tv-pairing/start', { body, schema: TvPairing, signal: options?.signal }),
+      pollTvPairing: (body: Input<typeof PollTvPairing>, options?: CallOptions) =>
+        request('POST', '/auth/tv-pairing/poll', { body, schema: TvPairingPoll, signal: options?.signal }),
+      lookupTvPairing: (body: Input<typeof LookupTvPairing>) => send('POST', '/auth/tv-pairing/lookup', TvPairingPreview, body),
+      approveTvPairing: (body: Input<typeof ApproveTvPairing>) => send('POST', '/auth/tv-pairing/approve', Ok, body),
       login: (body: LoginRequest) => send('POST', '/auth/login', AuthResponse, body),
       logout: () => send('POST', '/auth/logout', Ok),
       register: (body: RegisterRequest) => send('POST', '/auth/register', AuthResponse, body),
@@ -354,6 +415,30 @@ export function createApiClient(options: ApiClientOptions) {
       /** The response is the only time `secret` is returned. */
       createAppPassword: (body: CreateAppPasswordRequest) => send('POST', '/auth/app-passwords', AppPassword, body),
       deleteAppPassword: (passwordId: string) => send('DELETE', `/auth/app-passwords/${id(passwordId)}`, Ok),
+      /** The second step after `login` answered `two_factor_required`, with the challenge it gave. */
+      loginTwoFactor: (body: Input<typeof TwoFactorLoginRequest>) => send('POST', '/auth/login/two-factor', AuthResponse, body),
+      sessions: () => get('/auth/sessions', AuthSessionList),
+      revokeSession: (sessionId: string) => send('DELETE', `/auth/sessions/${id(sessionId)}`, Ok),
+      revokeOtherSessions: () => send('POST', '/auth/sessions/revoke-others', Ok),
+      security: () => get('/auth/security', AccountSecurity),
+      startTwoFactor: (body: StartTwoFactorRequest) => send('POST', '/auth/two-factor/setup', TwoFactorSetup, body),
+      /** The response is the only time the recovery codes are returned. */
+      enableTwoFactor: (body: Input<typeof EnableTwoFactorRequest>) => send('POST', '/auth/two-factor/enable', RecoveryCodes, body),
+      disableTwoFactor: (body: ConfirmTwoFactorRequest) => send('POST', '/auth/two-factor/disable', Ok, body),
+      regenerateRecoveryCodes: (body: ConfirmTwoFactorRequest) => send('POST', '/auth/two-factor/recovery-codes', RecoveryCodes, body),
+      /** Creation options for `navigator.credentials.create`, and the challenge to send back with its answer. */
+      startPasskey: (body: StartPasskeyRequest) => send('POST', '/auth/passkeys/options', PasskeyOptions, body),
+      addPasskey: (body: RegisterPasskeyRequest) => send('POST', '/auth/passkeys', Passkey, body),
+      renamePasskey: (passkeyId: string, body: RenamePasskeyRequest) => send('PATCH', `/auth/passkeys/${id(passkeyId)}`, Passkey, body),
+      deletePasskey: (passkeyId: string) => send('DELETE', `/auth/passkeys/${id(passkeyId)}`, Ok),
+      /** Request options for `navigator.credentials.get`, for any passkey of this server. */
+      passkeyLoginOptions: () => send('POST', '/auth/passkey-login/options', PasskeyOptions),
+      loginWithPasskey: (body: PasskeyLoginRequest) => send('POST', '/auth/passkey-login', AuthResponse, body),
+      /** Where to send the browser to link the single sign-on account; it comes back to `/settings/security`. */
+      linkSso: (body: LinkSsoRequest) => send('POST', '/auth/sso/link', SsoLinkStart, body),
+      unlinkSso: (identityId: string) => send('DELETE', `/auth/sso/identities/${id(identityId)}`, Ok),
+      /** The app's half of single sign-on: the one-time code from `/auth/sso/start`'s redirect. */
+      ssoExchange: (body: SsoExchangeRequest) => send('POST', '/auth/sso/exchange', AuthResponse, body),
     },
     admin: {
       duplicates: (query: Partial<DuplicateQuery> = {}) =>
@@ -376,6 +461,11 @@ export function createApiClient(options: ApiClientOptions) {
       createUser: (body: Input<typeof CreateUserRequest>) => send('POST', '/admin/users', User, body),
       updateUser: (userId: string, body: UpdateUserRequest) => send('PATCH', `/admin/users/${id(userId)}`, User, body),
       deleteUser: (userId: string) => send('DELETE', `/admin/users/${id(userId)}`, Ok),
+      userSecurity: (userId: string) => get(`/admin/users/${id(userId)}/security`, UserSecurity),
+      revokeUserSession: (userId: string, sessionId: string) => send('DELETE', `/admin/users/${id(userId)}/sessions/${id(sessionId)}`, Ok),
+      revokeUserSessions: (userId: string) => send('DELETE', `/admin/users/${id(userId)}/sessions`, Ok),
+      resetTwoFactor: (userId: string) => send('DELETE', `/admin/users/${id(userId)}/two-factor`, Ok),
+      testSso: () => send('POST', '/admin/sso/test', SsoTestResult),
       invites: () => get('/admin/invites', InviteList),
       createInvite: (body: Input<typeof CreateInviteRequest> = {}) => send('POST', '/admin/invites', Invite, body),
       deleteInvite: (inviteId: string) => send('DELETE', `/admin/invites/${id(inviteId)}`, Ok),
@@ -447,6 +537,13 @@ export function createApiClient(options: ApiClientOptions) {
       /** Tempo, key, energy and per-file timing (for transitions); see `TrackSonic`. */
       sonic: (trackId: string) => get(`/tracks/${id(trackId)}/sonic`, TrackSonic),
       trackSummaries: (body: TrackSummariesRequest) => send('POST', '/tracks/summaries', TrackSummariesResponse, body),
+      /** Every version of a song the server holds, with the user's picks: Track info's list. */
+      trackVersions: (trackId: string, query: TrackVersionsQuery = {}) => get(`/tracks/${id(trackId)}/versions`, TrackVersions, query),
+      /** Makes a version the one that plays by default for an album or a song, for this user everywhere. */
+      pickVersion: (type: VersionPickType, entityId: string, versionId: string) =>
+        send('PUT', `/me/versions/${type}/${id(entityId)}`, Ok, { versionId } satisfies VersionPickRequest),
+      /** Back to Automatic: the album's own edition, each song from its best copy. */
+      clearVersion: (type: VersionPickType, entityId: string) => send('DELETE', `/me/versions/${type}/${id(entityId)}`, Ok),
     },
     streaming: {
       playback: (trackId: string, query: Partial<PlaybackQuery> = {}) =>
@@ -466,6 +563,8 @@ export function createApiClient(options: ApiClientOptions) {
        * passes it back to `like` so the item returns to its place.
        */
       unlike: (type: LikeEntityType, entityId: string) => send('DELETE', `/me/likes/${type}/${id(entityId)}`, UnlikeResponse),
+      /** The user's 1 to 5 stars for a track, album or artist; 0 removes them. */
+      rate: (type: LikeEntityType, entityId: string, rating: number) => send('PUT', `/me/ratings/${type}/${id(entityId)}`, Ok, { rating } satisfies RatingRequest),
       likes: <T extends LikeEntityType>(type: T, query: Partial<PageQuery> = {}) =>
         get(`/me/likes/${type}`, likedPages[type] as unknown as z.ZodType<Page<LikedItems[T]>>, query),
       /** Pins an item to the top of the Library's All, on every device; Liked Songs by `LIKED_SONGS_ID`. */
@@ -473,6 +572,8 @@ export function createApiClient(options: ApiClientOptions) {
       unpin: (kind: LibraryPinKind, entityId: string) => send('DELETE', `/me/pins/${kind}/${id(entityId)}`, Ok),
       playlists: (query: Partial<PageQuery> = {}) => get('/playlists', PlaylistPage, query),
       createPlaylist: (body: CreatePlaylistRequest) => send('POST', '/playlists', PlaylistSummary, body),
+      /** How many songs smart playlist rules find right now, for the rule editor. */
+      previewSmartPlaylist: (body: SmartPlaylistRules) => send('POST', '/playlists/smart/preview', SmartPlaylistPreview, body),
       playlist: (playlistId: string) => get(`/playlists/${id(playlistId)}`, PlaylistDetail),
       updatePlaylist: (playlistId: string, body: UpdatePlaylistRequest) => send('PATCH', `/playlists/${id(playlistId)}`, PlaylistSummary, body),
       deletePlaylist: (playlistId: string) => send('DELETE', `/playlists/${id(playlistId)}`, Ok),
@@ -482,6 +583,19 @@ export function createApiClient(options: ApiClientOptions) {
         send('POST', `/playlists/${id(playlistId)}/items/move`, PlaylistDetail, body),
       removePlaylistItem: (playlistId: string, itemId: string) =>
         send('DELETE', `/playlists/${id(playlistId)}/items/${id(itemId)}`, PlaylistDetail),
+      playlistFolders: () => get('/playlists/folders', PlaylistFolder.array()),
+      createPlaylistFolder: (body: PlaylistFolderRequest) => send('POST', '/playlists/folders', PlaylistFolder, body),
+      deletePlaylistFolder: (folderId: string) => send('DELETE', `/playlists/folders/${id(folderId)}`, Ok),
+      playlistCollaborators: (playlistId: string) => get(`/playlists/${id(playlistId)}/collaborators`, PlaylistCollaborator.array()),
+      playlistPeople: (playlistId: string, q: string, options?: CallOptions) => get(`/playlists/${id(playlistId)}/people`, PlaylistPerson.array(), { q }, options),
+      setPlaylistCollaborator: (playlistId: string, userId: string, role: PlaylistCollaboratorRole) =>
+        send('PUT', `/playlists/${id(playlistId)}/collaborators/${id(userId)}`, Ok, { role }),
+      removePlaylistCollaborator: (playlistId: string, userId: string) =>
+        send('DELETE', `/playlists/${id(playlistId)}/collaborators/${id(userId)}`, Ok),
+      uploadPlaylistCover: (playlistId: string, file: UploadFile) => upload(`/playlists/${id(playlistId)}/cover`, [file], PlaylistSummary),
+      resetPlaylistCover: (playlistId: string) => send('DELETE', `/playlists/${id(playlistId)}/cover`, PlaylistSummary),
+      importPlaylist: (file: UploadFile) => upload('/playlists/import', [file], PlaylistImportResult),
+      dedupePlaylist: (playlistId: string, editions: boolean) => send('POST', `/playlists/${id(playlistId)}/items/dedupe`, PlaylistDedupeResult, { editions }),
       history: (query: Partial<PageQuery> = {}) => get('/me/history', HistoryPage, query),
       replay: (query: Partial<ReplayQuery> = {}) => get('/me/replay', ReplayStats, query),
       historyImports: () => get('/me/history/imports', HistoryImports),
@@ -493,11 +607,27 @@ export function createApiClient(options: ApiClientOptions) {
     },
     sessions: {
       session: () => get('/me/session', SessionSnapshot),
+      controlPlayback: (body: PlaybackControl) => send('POST', '/me/session/command', SessionSnapshot, body),
       devices: () => get('/me/devices', DeviceList),
+      jam: (jamId: string) => get(`/jams/${id(jamId)}`, JamPreview),
+      jamPeople: () => get('/jams/people', JamPeople),
     },
     search: {
       library: (query: SearchParams & { genre?: string }, options?: CallOptions) => get('/search/library', SearchResults, query, options),
       catalog: (query: SearchParams, options?: CallOptions) => get('/search/catalog', SearchResults, query, options),
+    },
+    integrations: {
+      personalWebhooks: () => get('/me/webhooks', Webhook.array()),
+      createPersonalWebhook: (body: CreateWebhook) => send('POST', '/me/webhooks', Webhook, body),
+      deletePersonalWebhook: (id: string) => send('DELETE', `/me/webhooks/${encodeURIComponent(id)}`, Ok),
+      testPersonalWebhook: (id: string) => send('POST', `/me/webhooks/${encodeURIComponent(id)}/test`, Ok),
+      webhooks: () => get('/admin/webhooks', Webhook.array()),
+      createWebhook: (body: CreateWebhook) => send('POST', '/admin/webhooks', Webhook, body),
+      deleteWebhook: (id: string) => send('DELETE', `/admin/webhooks/${encodeURIComponent(id)}`, Ok),
+      testWebhook: (id: string) => send('POST', `/admin/webhooks/${encodeURIComponent(id)}/test`, Ok),
+      deliveries: () => get('/admin/webhook-deliveries', WebhookDelivery.array()),
+      config: () => get('/admin/integrations', IntegrationConfig),
+      saveConfig: (body: UpdateIntegrationConfig) => send('PUT', '/admin/integrations', IntegrationConfig, body),
     },
     scrobble: {
       status: () => get('/me/scrobbling', ScrobblingStatus),
@@ -554,6 +684,21 @@ export function createApiClient(options: ApiClientOptions) {
       adminDeleteAlbum: (albumId: string, query: AdminUploadAlbumQuery = {}) =>
         request('DELETE', `/admin/uploads/albums/${id(albumId)}`, { schema: DeleteUploadsResponse, query }),
       adminDeleteFile: (fileId: string) => send('DELETE', `/admin/uploads/files/${id(fileId)}`, DeleteUploadsResponse),
+    },
+    share: {
+      /** Your share links, newest first, expired ones included until they are cleaned up. */
+      list: (query: Partial<PageQuery> = {}) => get('/me/shares', ShareLinkPage, query),
+      /** The answer's `url` (`/s/<token>`) is the only time the link is returned. */
+      create: (body: Input<typeof CreateShareRequest>) => send('POST', '/me/shares', ShareLink, body),
+      revoke: (shareId: string) => send('DELETE', `/me/shares/${id(shareId)}`, Ok),
+      /** Admins: everyone's links. */
+      adminList: (query: Partial<PageQuery> = {}) => get('/admin/shares', ShareLinkPage, query),
+      adminRevoke: (shareId: string) => send('DELETE', `/admin/shares/${id(shareId)}`, Ok),
+      /** The public page of a link, without a session. 404 `share_not_found` for any link that does not work. */
+      page: (token: string) => get(`/share/${id(token)}`, PublicShare),
+      /** A short-lived URL for one song of a shared item; resolve it with `streamUrl`. */
+      trackPlayback: (token: string, trackId: string, query: ShareTrackQuery = {}) =>
+        get(`/share/${id(token)}/tracks/${id(trackId)}/playback`, ShareTrackPlayback, query),
     },
     acquisition: {
       providers: () => get('/admin/acquisition/providers', AcquisitionProviderList),

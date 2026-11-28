@@ -15,6 +15,8 @@ import { specialPurposeArtists } from '../metadata/musicbrainz.js'
 import { canStartArtistRadio, similarArtists } from '../radio/index.js'
 import { editionFreeTitle, labelFreeKey, prefixEnd, printedTitleKey, releaseKey } from '../search/keys.js'
 import { canonicalRelease, collectionCounts, collectionFile } from './availability.js'
+import { cleanTrackList } from './explicit.js'
+import { editionOf, shownVersion } from './versions.js'
 import { resolveOne } from './redirects.js'
 import { alignedTrackSummaries, albumSummaries, artistSummaries, trackSummaries } from './summaries.js'
 
@@ -86,23 +88,29 @@ async function resolveOrThrow(table: 'artists' | 'albums' | 'recordings', id: st
 export type AlbumTrack = { recordingId: string; disc: number; position: number | null; discTitle: string | null }
 
 /**
- * The album's track list, the one every view of an album uses: the canonical release's
- * tracks in disc and track order, then owned recordings filed under the album that are
- * not on that release (bonus tracks of another edition, files matching attached with no
- * track), in path order on the last disc. Those have no position: the release does not
- * number them, and a number from their tags could repeat one of its own.
+ * The album's track list, the one every view of an album uses: the tracks of `editionId`
+ * (the edition the viewer's version is of, `shownVersion`), else of the album's display
+ * release, in disc and track order, then owned recordings of files of that edition that
+ * it does not list (bonus tracks of a pressing, files matching attached with no track), in
+ * path order on the last disc. Those have no position: the release does not number them,
+ * and a number from their tags could repeat one of its own. Recordings only another
+ * edition holds are not listed: they are that edition's (docs/architecture.md, "Editions
+ * and versions").
  */
-export async function albumTrackList(albumId: string): Promise<AlbumTrack[]> {
+export async function albumTrackList(albumId: string, editionId?: string | null): Promise<AlbumTrack[]> {
   return db.execute<AlbumTrack>(sql`
-    with canonical as (
+    with shown as (
+      select coalesce(${editionId ?? null}::uuid, ${canonicalRelease('a')}) as id from albums a where a.id = ${albumId}
+    ),
+    canonical as (
       select rt.recording_id, rt.disc, rt.position, rt.disc_title
-      from albums a join release_tracks rt on rt.release_id = ${canonicalRelease('a')}
-      where a.id = ${albumId}
+      from release_tracks rt where rt.release_id = (select id from shown)
     ),
     extras as (
       select f.recording_id, min(f.rel_path collate "C") as first_path from media_files f
       where f.album_id = ${albumId} and f.recording_id is not null and f.missing_since is null
         and f.recording_id not in (select recording_id from canonical)
+        and ${editionOf('f')} = (select id from shown)
       group by f.recording_id
     )
     select "recordingId", disc, position, "discTitle" from (
@@ -176,14 +184,18 @@ export async function albumVersionIds(albumId: string): Promise<string[]> {
 }
 
 /**
- * The album page: its summary plus the album's track list (`albumTrackList`) grouped by
- * disc, every track with its own availability, whether and why the album is in the
- * user's library, and its other versions (`albumVersionIds`). Fetches missing detail first.
+ * The album page: its summary plus the album's track list (`albumTrackList`, of the
+ * edition the viewer picked, else the album's own) grouped by disc, every track with its
+ * own availability, whether and why the album is in the user's library, the versions the
+ * server holds (`shownVersion`) and its other versions (`albumVersionIds`). Fetches missing
+ * detail first.
  */
 export async function albumDetail(userId: string, id: string): Promise<AlbumDetail> {
   const settled = await ensureAlbumDetail(await resolveOrThrow('albums', id, 'album'))
   // Completing a stub may merge it into the album's existing row.
   const albumId = await resolveOrThrow('albums', id, 'album')
+  // The edition whose songs the page lists: the viewer's pick, else the album's own.
+  const shown = await shownVersion(userId, albumId)
   const [[summary], [extra], tracks, { wantlistEnabled }, versions] = await Promise.all([
     albumSummaries([albumId]),
     db.execute<{
@@ -199,15 +211,16 @@ export async function albumDetail(userId: string, id: string): Promise<AlbumDeta
           when ${collectionCounts(userId)} and exists (select 1 from media_files f where f.album_id = a.id and ${collectionFile('f')}) then 'collection'
           when exists (select 1 from likes li where li.user_id = ${userId} and li.entity_type = 'album' and li.entity_id = a.id) then 'saved'
         end as library
-      from albums a left join releases rl on rl.id = ${canonicalRelease('a')}
+      from albums a left join releases rl on rl.id = coalesce(${shown.editionId}::uuid, ${canonicalRelease('a')})
       where a.id = ${albumId}`),
-    albumTrackList(albumId),
+    albumTrackList(albumId, shown.editionId),
     getServerSettings(),
     albumVersionIds(albumId).then(albumSummaries),
   ])
   if (!summary || !extra) throw notFound('No such album', 'album_not_found')
 
-  const summaries = await alignedTrackSummaries(userId, tracks.map((track) => ({ id: track.recordingId, albumId })))
+  // Clean versions stand in for explicit songs for a user who has explicit content off.
+  const summaries = await cleanTrackList(userId, await alignedTrackSummaries(userId, tracks.map((track) => ({ id: track.recordingId, albumId }))), albumId)
   await queueAlbumResolve(summaries.flatMap((track) => track?.availability === 'on_demand' ? [track.id] : []), albumId)
   const discs: AlbumDisc[] = []
   for (const [index, track] of tracks.entries()) {
@@ -224,7 +237,11 @@ export async function albumDetail(userId: string, id: string): Promise<AlbumDeta
   }
   const durationMs = discs.reduce((total, disc) => total + disc.tracks.reduce((sum, track) => sum + track.durationMs, 0), 0)
   // A switched-off wantlist keeps its rows but marks nothing as wanted.
-  return { ...summary, ...extra, wanted: wantlistEnabled && extra.wanted, durationMs, discs, versions, ...(settled ? {} : { detailPending: true as const }) }
+  return {
+    ...summary, ...extra, wanted: wantlistEnabled && extra.wanted, durationMs, discs, versions,
+    ownedVersions: shown.versions, versionId: shown.pickedId,
+    ...(settled ? {} : { detailPending: true as const }),
+  }
 }
 
 /** Headings of the artist page's sections, for clients that do not know a key. */
@@ -483,12 +500,16 @@ export async function trackDetail(userId: string, id: string, albumId?: string):
 }
 
 /** Stored lyrics, looked up first when the track has none yet. 404 `lyrics_not_found` when none are stored or the lookup found none. */
-export async function trackLyrics(id: string): Promise<Lyrics> {
+export async function storedTrackLyrics(id: string): Promise<Omit<Lyrics, 'lines'>> {
   const recordingId = await resolveOrThrow('recordings', id, 'track')
   await ensureLyrics(recordingId)
   const [row] = await db.execute<Lyrics>(sql`
     select recording_id as "trackId", synced, plain, instrumental, source from lyrics
     where recording_id = ${recordingId} and (synced is not null or plain is not null or instrumental)`)
   if (!row) throw notFound('No lyrics for this track', 'lyrics_not_found')
-  return servedLyrics(row)
+  return row
+}
+
+export async function trackLyrics(id: string): Promise<Lyrics> {
+  return servedLyrics(await storedTrackLyrics(id))
 }

@@ -1,11 +1,13 @@
 import type { TrackSummary } from '@squirmy/contracts';
 import { useMemo, useRef, type ReactElement } from 'react';
+import type { SharedValue } from 'react-native-reanimated';
 import type { SongListProps } from './SongList';
 
 /** One row of a song list. It holds no callbacks, so a row redraws only when its own data changes. */
 export type SongRowItem = {
   key: string;
   track: TrackSummary;
+  addedByName?: string | null;
   /** Its index in the list's `tracks`. */
   index: number;
   /** The position shown instead of the cover, in a numbered list. */
@@ -40,7 +42,33 @@ export type SongListItems = {
   rowHeight: number;
 };
 
-export function songRows({ tracks, numbered, playlist, album, artist, kind, opens = false }: Pick<SongListProps, 'tracks' | 'numbered' | 'playlist' | 'album' | 'artist' | 'kind'> & {
+/** How close to the end of a list, in points, its next page starts loading. */
+export const endThreshold = 900;
+
+/** Whether a list scrolled to `offset`, showing `visible` of its `content` points, is near its end. */
+export function nearListEnd(offset: number, visible: number, content: number) {
+  'worklet';
+  return visible + offset > content - endThreshold;
+}
+
+/** A page that is mostly a long list of songs: Liked Songs, a playlist, a mix. */
+export type LongSongListProps = {
+  songs: SongListProps;
+  /** Scrolls above the rows: the page's cover, title, buttons and the songs' heading. */
+  header: ReactElement;
+  /** Under the rows, such as a spinner while the next page loads. */
+  footer?: ReactElement | false;
+  /** Called as the end of the rows comes near, to load the next page. */
+  onEndReached?: () => void;
+  /** Set to the list's scroll offset on the UI thread, for the page's status bar edge and its overscroll fill. */
+  scrollOffset: SharedValue<number>;
+  /** Space under the last row, for the mini-player and the tab bar. */
+  bottomInset: number;
+  /** The rows' inset from each side of the screen. */
+  inset: number;
+};
+
+export function songRows({ tracks, numbered, playlist, album, artist, kind, addedByNames, opens = false }: Pick<SongListProps, 'tracks' | 'numbered' | 'playlist' | 'album' | 'artist' | 'kind' | 'addedByNames'> & {
   /** The list has `onUnavailable`. */
   opens?: boolean;
 }): SongRowItem[] {
@@ -49,6 +77,7 @@ export function songRows({ tracks, numbered, playlist, album, artist, kind, open
     return {
       key: itemId ?? `${track.id}:${index}`,
       track,
+      addedByName: addedByNames?.[index],
       index,
       number: numbered ? track.position ?? index + 1 : undefined,
       playlist: playlist && itemId ? { id: playlist.id, itemId } : undefined,
@@ -103,5 +132,5 @@ export function pressVerb(current: 'playing' | 'paused' | null): string {
 export function sameRow(a: SongRowItem, b: SongRowItem) {
   return a === b || (a.key === b.key && a.track === b.track && a.index === b.index && a.number === b.number
     && a.playlist?.itemId === b.playlist?.itemId && a.playlist?.id === b.playlist?.id && a.showArtist === b.showArtist && a.album === b.album && a.artist === b.artist && a.kind === b.kind
-    && a.opens === b.opens);
+    && a.opens === b.opens && a.addedByName === b.addedByName);
 }

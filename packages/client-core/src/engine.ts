@@ -1,3 +1,5 @@
+import type { PlaybackDescriptor } from '@squirmy/contracts'
+
 /**
  * The audio output each platform implements: `HTMLAudioElement` plus Web Audio on the
  * web, `expo-audio` on mobile. `SessionClient` is its only caller and drives it only
@@ -36,6 +38,11 @@ export interface PlayerEngine {
    * entry), followed by `status` for the new one. The preload slot is then empty.
    * Without a preload, it emits `ended` and stays on the finished entry in state
    * `ended` at its end position.
+   *
+   * An engine that crossfades starts the preloaded entry up to the fade's length before the
+   * loaded one ends, and emits `ended` for the loaded one when the preloaded one's first
+   * sample plays; `getStatus()` reports the new entry from then on. It never crossfades into
+   * an entry that `continuesAlbum`.
    */
   preload(request: EnginePreload | null): void
   /** Starts or resumes the loaded entry. No-op without one or while `loading`/`playing`. */
@@ -55,6 +62,12 @@ export interface PlayerEngine {
   getStatus(): EngineStatus
   /** Adds an event listener; returns a function that removes it. */
   subscribe(listener: (event: EngineEvent) => void): () => void
+  /**
+   * Optional. A level from 0 to 1 over everything the engine plays, whichever entries those
+   * are: the sleep timer's fade. An engine with it can fade both entries of a crossfade;
+   * `SessionClient` then leaves the fade out of the gains it sets. Others get it in the gain.
+   */
+  setFade?(level: number): void
 }
 
 export type EngineLoad = {
@@ -64,6 +77,7 @@ export type EngineLoad = {
   startMs: number
   autoplay: boolean
   gain: number
+  media?: EngineMedia
 }
 
 export type EnginePreload = {
@@ -71,7 +85,37 @@ export type EnginePreload = {
   url: string
   /** Applied when the preloaded entry starts. */
   gain: number
+  media?: EngineMedia
+  /**
+   * The preloaded entry is the next song of the loaded one's album in album order (the
+   * session's context is that album and shuffle is off), so it follows gaplessly, never
+   * crossfaded.
+   */
+  continuesAlbum?: boolean
 }
+
+/**
+ * What the playback descriptor says about the stream, for engines that decode it themselves
+ * (the iOS native engine) or demux and trim it (Media Source Extensions on the web). Engines
+ * that hand the URL to a player ignore it.
+ */
+export type EngineMedia = {
+  /** A server transcode rather than the original file. */
+  transcoded: boolean
+  /** The stream's exact length and priming, when the server knows them. */
+  gapless?: PlaybackDescriptor['gapless']
+  /**
+   * Names the stream in the app's streaming cache, for an engine that keeps what it streams
+   * (see `ResolvedPlayback`). Engines that do not ignore it.
+   */
+  cacheKey?: string | null
+} & Partial<Pick<PlaybackDescriptor, 'profile' | 'mime' | 'codec' | 'sampleRate' | 'durationMs'>>
+
+/**
+ * What `SessionPlayer.resolvePlayback` gives: the descriptor, and the key under which the
+ * app's streaming cache keeps the stream when the engine fills a file as it plays.
+ */
+export type ResolvedPlayback = PlaybackDescriptor & { cacheKey?: string | null }
 
 /**
  * - `idle`: nothing loaded.

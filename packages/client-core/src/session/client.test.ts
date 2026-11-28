@@ -18,7 +18,7 @@ import type {
   SignalReport,
 } from '@squirmy/contracts'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { FakeEngine } from '../engine.js'
+import { FakeEngine, type ResolvedPlayback } from '../engine.js'
 import { ApiError } from '../api/client.js'
 import { type SavedSession, SessionClient, type SessionPlayer } from './client.js'
 import { diffQueue, queueLengths } from './queue-ops.js'
@@ -342,19 +342,28 @@ function descriptor(entry: QueueEntry): PlaybackDescriptor {
   }
 }
 
-function setup({ canPlay = true, connect = true, restore, server = new FakeServer(), id = PHONE, onLoadError, systemVolume }: {
+/** An engine that fades everything it plays itself (`setFade`), as the native one does across a crossfade. */
+class FadingEngine extends FakeEngine {
+  readonly fades: number[] = []
+  setFade(level: number): void {
+    this.calls.push(['setFade', level])
+    this.fades.push(level)
+  }
+}
+
+function setup({ canPlay = true, connect = true, restore, server = new FakeServer(), id = PHONE, onLoadError, systemVolume, canBoost, limiter, fading }: {
   canPlay?: boolean; connect?: boolean; restore?: SavedSession; server?: FakeServer; id?: string
-  onLoadError?: SessionPlayer['onLoadError']; systemVolume?: boolean
+  onLoadError?: SessionPlayer['onLoadError']; systemVolume?: boolean; canBoost?: boolean; limiter?: boolean; fading?: boolean
 } = {}) {
   const transport = new FakeTransport(server)
-  const engine = new FakeEngine()
+  const engine = fading ? new FadingEngine() : new FakeEngine()
   engine.durationMs = 200_000
-  const resolvePlayback = vi.fn(async (entry: QueueEntry) => descriptor(entry))
+  const resolvePlayback = vi.fn(async (entry: QueueEntry): Promise<ResolvedPlayback> => descriptor(entry))
   const ended = vi.fn()
   const client = new SessionClient({
     transport,
     device: { id, name: 'Phone', kind: 'ios' },
-    player: canPlay ? { engine, resolvePlayback, baseUrl: 'https://music.test', normalization: 'off', onLoadError, systemVolume } : undefined,
+    player: canPlay ? { engine, resolvePlayback, baseUrl: 'https://music.test', normalization: 'off', onLoadError, systemVolume, canBoost, limiter } : undefined,
     restore,
     onDetachedEnded: ended,
   })
@@ -818,8 +827,48 @@ describe('SessionClient engine', () => {
       startMs: 0,
       autoplay: true,
       gain: 1,
+      media: { transcoded: false, gapless: null, cacheKey: null, profile: 'original', mime: 'audio/flac', codec: 'flac', sampleRate: 44100, durationMs: session.current!.durationMs },
     }]])
-    expect(engine.preloaded).toMatchObject({ entryId: queue.queue[0]!.id, url: `https://music.test/api/v1/stream/${track(2)}` })
+    expect(engine.preloaded).toMatchObject({ entryId: queue.queue[0]!.id, url: `https://music.test/api/v1/stream/${track(2)}`, media: { codec: 'flac' } })
+  })
+
+  it('tells the engine which streams are transcodes, for engines that decode them themselves', async () => {
+    const context = setup()
+    const gapless = { sampleRate: 44_100, primingFrames: 1_024, frames: 8_000_000 }
+    context.resolvePlayback.mockImplementation(async entry => entry.trackId === track(2)
+      ? { ...descriptor(entry), transcoded: true, profile: 'aac_256', gapless }
+      : descriptor(entry))
+    await context.settle()
+    context.client.dispatch({ type: 'playTracks', tracks: seeds(1, 2), seed: 1 })
+    await context.settle()
+    expect(context.calls('load').at(-1)?.[1]).toMatchObject({ media: { transcoded: false } })
+    expect(context.calls('preload').at(-1)?.[1]).toMatchObject({ media: { transcoded: true, gapless } })
+  })
+
+  it('says when the preloaded entry is the next song of the album playing, which an engine never crossfades into', async () => {
+    const context = setup()
+    await context.settle()
+    const ALBUM = '00000000-0000-4000-8000-0000000000a1'
+    const album = (...ns: number[]) => seeds(...ns).map(seed => ({ ...seed, albumId: ALBUM }))
+    context.client.dispatch({ type: 'playTracks', tracks: album(1, 2, 3), seed: 1, context: { type: 'album', id: ALBUM, title: 'One' } })
+    await context.settle()
+    expect(context.calls('preload').at(-1)?.[1]).toMatchObject({ continuesAlbum: true })
+    context.client.dispatch({ type: 'playTracks', tracks: album(1, 2, 3), seed: 1, shuffle: true, context: { type: 'album', id: ALBUM, title: 'One' } })
+    await context.settle()
+    expect(context.calls('preload').at(-1)?.[1]).toMatchObject({ continuesAlbum: false })
+    context.client.dispatch({ type: 'playTracks', tracks: album(1, 2, 3), seed: 1, context: { type: 'playlist', id: 'list-1', title: 'Mix' } })
+    await context.settle()
+    expect(context.calls('preload').at(-1)?.[1]).toMatchObject({ continuesAlbum: false })
+  })
+
+  it('passes the cache key the app gave a stream on to the engine', async () => {
+    const context = setup()
+    context.resolvePlayback.mockImplementation(async entry => ({ ...descriptor(entry), cacheKey: `${entry.trackId}:original` }))
+    await context.settle()
+    context.client.dispatch({ type: 'playTracks', tracks: seeds(1, 2), seed: 1 })
+    await context.settle()
+    expect(context.calls('load').at(-1)?.[1]).toMatchObject({ media: { cacheKey: `${track(1)}:original` } })
+    expect(context.calls('preload').at(-1)?.[1]).toMatchObject({ media: { cacheKey: `${track(2)}:original` } })
   })
 
   it('does nothing with the engine while another device is active', async () => {
@@ -1427,8 +1476,8 @@ describe('SessionClient engine', () => {
 })
 
 describe('SessionClient signal path', () => {
-  async function playingHere(server = new FakeServer()) {
-    const context = setup({ server })
+  async function playingHere(server = new FakeServer(), player: { canBoost?: boolean; limiter?: boolean } = {}) {
+    const context = setup({ server, ...player })
     await context.settle()
     context.client.dispatch({ type: 'playTracks', tracks: seeds(1, 2), seed: 1 })
     await context.settle()
@@ -1456,11 +1505,25 @@ describe('SessionClient signal path', () => {
     expect(server.signals).toHaveLength(1)
     client.setNormalization('track')
     await settle()
-    expect(server.signals.at(-1)!.normalization).toEqual({ mode: 'track', applied: 'track', gainDb: -6 })
+    expect(server.signals.at(-1)!.normalization).toEqual({ mode: 'track', applied: 'track', gainDb: -6, targetLufs: -18 })
     engine.finish()
     await settle()
     expect(server.signals.at(-1)!.entryId).toBe(client.getSnapshot().session.current!.id)
     expect(server.signals).toHaveLength(3)
+  })
+
+  it('moves the gain and the report with the target, and says what the limiter does', async () => {
+    const { client, server, engine, settle } = await playingHere(new FakeServer(), { canBoost: true, limiter: true })
+    client.setNormalization('track')
+    client.setNormalizationTarget(-14)
+    await settle()
+    // -6 dB toward -18 LUFS is -2 dB toward -14; the song's peak is unknown.
+    expect(engine.loaded!.gain).toBeCloseTo(10 ** (-2 / 20))
+    expect(server.signals.at(-1)!.normalization).toEqual({ mode: 'track', applied: 'track', gainDb: -2, targetLufs: -14, limitDb: null })
+    const reports = server.signals.length
+    client.setNormalizationTarget(-14)
+    await settle()
+    expect(server.signals).toHaveLength(reports)
   })
 
   it('reports again after a reconnect', async () => {
@@ -1956,6 +2019,45 @@ describe('SessionClient sleep timer', () => {
     expect(server.session.sleepTimer).toBeUndefined()
   })
 
+  it('hands an engine that fades everything the fade on its own, leaving it out of the gains', async () => {
+    const context = setup({ fading: true })
+    await context.settle()
+    context.client.dispatch({ type: 'playTracks', tracks: seeds(1, 2, 3), seed: 1 })
+    await context.settle()
+    const { client, server, transport, settle } = context
+    const engine = context.engine as FadingEngine
+    expect(engine.fades).toEqual([1])
+    client.dispatch({ type: 'setSleepTimer', timer: { kind: 'time', durationMs: 60_000 } })
+    await settle()
+    await vi.advanceTimersByTimeAsync(55_000)
+    expect(engine.fades.at(-1)).toBeCloseTo(0.5, 1)
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(engine.fades.at(-1)).toBe(0)
+    // The gains never had it: in a crossfade both entries keep theirs, under the engine's fade.
+    expect(context.calls('setGain')).toEqual([])
+    expect(engine.loaded!.gain).toBe(1)
+    server.apply({ type: 'endSleepTimer' })
+    transport.flush()
+    expect(engine.getStatus().state).toBe('paused')
+    expect(engine.fades.at(-1)).toBe(1)
+  })
+
+  it('keeps fading through a skip, loading the next song at its own gain', async () => {
+    const context = setup({ fading: true })
+    await context.settle()
+    context.client.dispatch({ type: 'playTracks', tracks: seeds(1, 2, 3), seed: 1 })
+    await context.settle()
+    const engine = context.engine as FadingEngine
+    context.client.dispatch({ type: 'setSleepTimer', timer: { kind: 'time', durationMs: 60_000 } })
+    await context.settle()
+    await vi.advanceTimersByTimeAsync(57_500)
+    context.client.dispatch({ type: 'next' })
+    await context.settle()
+    expect(trackOf(context.client.getSnapshot().session.current)).toBe(2)
+    expect(context.calls('load').at(-1)).toMatchObject(['load', { gain: 1 }])
+    expect(engine.fades.at(-1)).toBeCloseTo(0.25, 1)
+  })
+
   it('pauses itself past the end while offline, where the server’s pause cannot reach it', async () => {
     const { client, transport, engine, settle } = await playingHere()
     client.dispatch({ type: 'setSleepTimer', timer: { kind: 'time', durationMs: 60_000 } })
@@ -1967,5 +2069,35 @@ describe('SessionClient sleep timer', () => {
     await vi.advanceTimersByTimeAsync(1500)
     expect(client.getSnapshot().session.playing).toBe(false)
     expect(engine.getStatus().state).toBe('paused')
+  })
+})
+
+describe('SessionClient crossfade', () => {
+  const album = track(700)
+  const fromAlbum = (...ns: number[]): QueueSeed[] => ns.map(n => ({ trackId: track(n), albumId: album, durationMs: 200_000 }))
+  const albumContext = { type: 'album' as const, id: album, title: 'An album' }
+
+  async function preloaded(command: SessionCommand, then: SessionCommand[] = []) {
+    const context = setup()
+    await context.settle()
+    context.client.dispatch(command)
+    for (const next of then) context.client.dispatch(next)
+    await context.settle()
+    return context.engine.preloaded as (FakeEngine['preloaded'] & { continuesAlbum?: boolean }) | null
+  }
+
+  it('marks the next song of the album it plays in order, which is never crossfaded into', async () => {
+    const preload = await preloaded({ type: 'playTracks', tracks: fromAlbum(1, 2, 3), seed: 1, context: albumContext })
+    expect(preload).toMatchObject({ continuesAlbum: true })
+  })
+
+  it('crossfades anything else: another context, shuffle, a song slotted in with Play next', async () => {
+    expect(await preloaded({ type: 'playTracks', tracks: fromAlbum(1, 2, 3), seed: 1, context: { type: 'playlist', id: 'p', title: 'P' } }))
+      .toMatchObject({ continuesAlbum: false })
+    expect(await preloaded({ type: 'playTracks', tracks: fromAlbum(1, 2, 3), seed: 1, shuffle: true, context: albumContext }))
+      .toMatchObject({ continuesAlbum: false })
+    expect(await preloaded({ type: 'playTracks', tracks: fromAlbum(1, 2, 3), seed: 1, context: albumContext }, [
+      { type: 'enqueue', tracks: fromAlbum(3), placement: 'next' },
+    ])).toMatchObject({ continuesAlbum: false })
   })
 })

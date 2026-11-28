@@ -1,0 +1,11 @@
+{
+  "platforms": [
+    "apple"
+  ],
+  "apple": {
+    "modules": [
+      "AppIntentsModule"
+    ],
+    "podspecPath": "SquirmyAppIntents.podspec"
+  }
+}

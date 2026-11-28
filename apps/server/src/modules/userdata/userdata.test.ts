@@ -128,6 +128,24 @@ describe('userdata', () => {
       expect(errorCode(await app.inject({ url: '/api/v1/me/likes/track' }), 401)).toBe('unauthorized')
     })
 
+    it('rates through the native API: the summary carries it, and the user\'s devices hear it', async () => {
+      const album = await createAlbum({ owned: true })
+      const track = album.tracks[0]!.recordingId
+      // Off by default: the heart stays the one control unless the user asks for stars.
+      expect(body(await call(mira, { url: '/me/settings' }), UserSettings).showRatings).toBe(false)
+      changed.mockClear()
+      body(await call(mira, { method: 'PUT', url: `/me/ratings/track/${track}`, payload: { rating: 4 } }), Ok)
+      expect(changed).toHaveBeenCalledWith({ user: mira.id }, [{ kind: 'patch', entity: 'track', id: track, fields: { rating: 4 } }])
+      expect(body(await call(mira, { url: `/tracks/${track}` }), TrackSummary).rating).toBe(4)
+      expect(body(await call(lune, { url: `/tracks/${track}` }), TrackSummary).rating).toBeNull()
+      body(await call(mira, { method: 'PUT', url: `/me/ratings/track/${track}`, payload: { rating: 0 } }), Ok)
+      expect(changed).toHaveBeenLastCalledWith({ user: mira.id }, [{ kind: 'patch', entity: 'track', id: track, fields: { rating: null } }])
+      expect(body(await call(mira, { url: `/tracks/${track}` }), TrackSummary).rating).toBeNull()
+      expect(errorCode(await call(mira, { method: 'PUT', url: `/me/ratings/track/${track}`, payload: { rating: 6 } }), 400)).toBe('invalid_request')
+      expect(errorCode(await call(mira, { method: 'PUT', url: `/me/ratings/track/${newId()}`, payload: { rating: 3 } }), 404)).toBe('track_not_found')
+      expect(body(await call(mira, { method: 'PATCH', url: '/me/settings', payload: { showRatings: true } }), UserSettings).showRatings).toBe(true)
+    })
+
     // The app reads ratings in Subsonic's queries only; this reads what setRating stored.
     const trackRatings = async (userId: string, ids: string[]) => new Map((await db.select({ id: ratings.entityId, rating: ratings.rating }).from(ratings)
       .where(and(eq(ratings.userId, userId), eq(ratings.entityType, 'recording'), inArray(ratings.entityId, ids)))).map((row) => [row.id, row.rating]))
@@ -449,6 +467,15 @@ describe('userdata', () => {
       body(await call(person, { method: 'PATCH', url: '/me/settings', payload: { secrets: 'nope' } }), UserSettings)
       const [after] = await db.select({ settings: users.settings }).from(users).where(eq(users.id, person.id))
       expect((after!.settings as { secrets: unknown }).secrets).toEqual({ lastFm: 'cipher' })
+    })
+
+    it('keeps a normalization target, Standard until one is chosen, and refuses one it does not offer', async () => {
+      const person = await signIn()
+      expect(body(await call(person, { url: '/me/settings' }), UserSettings).normalizationTarget).toBe(-18)
+      expect(body(await call(person, { method: 'PATCH', url: '/me/settings', payload: { normalizationTarget: -14 } }), UserSettings).normalizationTarget).toBe(-14)
+      expect(body(await call(person, { url: '/me/settings' }), UserSettings).normalizationTarget).toBe(-14)
+      expect(errorCode(await call(person, { method: 'PATCH', url: '/me/settings', payload: { normalizationTarget: -15 } }), 400)).toBe('invalid_request')
+      expect(errorCode(await call(person, { method: 'PATCH', url: '/me/settings', payload: { normalizationTarget: '-14' } }), 400)).toBe('invalid_request')
     })
 
     it('refreshes the scrobbling status when a service is switched', async () => {

@@ -1,9 +1,13 @@
+import { planChanges } from '@squirmy/client-core';
 import type { TrackSummary } from '@squirmy/contracts';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigationContainerRef, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef } from 'react';
-import { useSignedInApi, useWantlistEnabled } from '../account/AccountProvider';
+import { useServerUrl, useSharingEnabled, useSignedInApi, useWantlistEnabled } from '../account/AccountProvider';
 import { closeSheet } from '../closeSheet';
 import { useLibraryActions, useLiked, useLikeFailure, usePlaylistActions, useWanted, useWantFailure } from '../data/library';
+import { useRatingsEnabled } from '../data/queries';
+import { applyChanges } from '../data/changes';
 import { useRealtime } from '../data/realtime';
 import { useCanPlay, useDownloadManager, useTrackDownload, useViewer } from '../downloads/DownloadsProvider';
 import { songsId, type TrackDownload } from '../downloads/model';
@@ -14,12 +18,33 @@ import { pageHref } from './links';
 import { tabIn } from './tabs';
 import { createStartGuard } from './pending';
 import { confirmQueued } from './queued';
+import { shareLink } from './shareLink';
 import { queuedNotice, radioStartingNotice, trackActions, type TrackAction, type TrackActionOptions } from './trackActionList';
 
 export { trackActionKey, trackActions, type TrackAction, type TrackActionId, type TrackActionOptions, type TrackActionState } from './trackActionList';
 
 /** Radios started from a song's menu, which closes before the radio arrives. */
 const radioStarts = createStartGuard();
+
+/**
+ * Rates a song 1 to 5 stars, or takes its rating away with 0. It shows at once in every cached
+ * answer that has the song (the patch the server then sends this user's other devices); a
+ * refusal puts the old rating back and the player's status line says so, as the menu has closed.
+ */
+export function useSetRating() {
+  const api = useSignedInApi();
+  const queryClient = useQueryClient();
+  return useCallback((track: TrackSummary, stars: number) => {
+    if (!api) return;
+    const patch = (rating: number | null) =>
+      applyChanges(queryClient, planChanges([{ kind: 'patch', entity: 'track', id: track.id, fields: { rating } }]), { own: true });
+    patch(stars || null);
+    api.userdata.rate('track', track.id, stars).catch(() => {
+      patch(track.rating ?? null);
+      playbackStatus.report({ message: `Couldn’t rate “${track.title}”` });
+    });
+  }, [api, queryClient]);
+}
 
 /** Whether the track was downloaded on its own, as opposed to with an album or playlist. */
 export function useDownloadedOnItsOwn(trackId: string | undefined, download: TrackDownload | undefined) {
@@ -41,11 +66,13 @@ export function useTrackActionRunner(inSheet = false) {
   const actions = usePlaybackActions();
   const { setLiked, setWanted } = useLibraryActions();
   const manager = useDownloadManager();
-  const live = useRef({ api, actions, setLiked, setWanted, manager, close });
-  live.current = { api, actions, setLiked, setWanted, manager, close };
+  const serverUrl = useServerUrl();
+  const setRating = useSetRating();
+  const live = useRef({ api, actions, setLiked, setWanted, manager, close, serverUrl, setRating });
+  live.current = { api, actions, setLiked, setWanted, manager, close, serverUrl, setRating };
 
   const perform = useCallback((track: TrackSummary, action: TrackAction, { playlist }: TrackActionOptions = {}) => {
-    const { api, actions, setLiked, setWanted, manager } = live.current;
+    const { api, actions, setLiked, setWanted, manager, serverUrl, setRating } = live.current;
     switch (action.id) {
       case 'play': return actions.playNow(track);
       case 'resume': return actions.play();
@@ -60,12 +87,14 @@ export function useTrackActionRunner(inSheet = false) {
       case 'download': return void manager?.addTrack(track);
       case 'retryDownload': return void manager?.retry();
       case 'removeDownload': return void manager?.removeTrack(track.id);
-      case 'radio': {
+      case 'radio':
+      case 'sonicRadio': {
         // The menu has closed by the time the server answers, so the player says it is on its
         // way until it plays, and a failure shows there too.
         if (!api) return undefined;
+        const start = action.id === 'radio' ? api.radio.track : api.radio.sonic;
         let starting: number | null = null;
-        if (radioStarts.run('radio', () => api.radio.track(track.id).then(radio => {
+        if (radioStarts.run('radio', () => start(track.id).then(radio => {
           if (starting !== null) playbackStatus.withdraw(starting);
           actions.playRadio(radio);
         }, () => playbackStatus.report({ message: `Couldn’t start a radio from “${track.title}”` })))) {
@@ -73,6 +102,8 @@ export function useTrackActionRunner(inSheet = false) {
         }
         return undefined;
       }
+      case 'rate': return setRating(track, action.rating ?? 0);
+      case 'share': return api ? shareLink(api, serverUrl, { kind: 'track', id: track.id, albumId: track.album?.id ?? null, title: track.title }) : undefined;
       case 'want': return setWanted('track', track.id, true, track.title);
       case 'unwant': return setWanted('track', track.id, false, track.title);
       case 'remove': return playlist?.onRemove?.(playlist.itemId);
@@ -121,6 +152,8 @@ export function useTrackActions(track: TrackSummary | undefined, options: TrackA
   const onItsOwn = useDownloadedOnItsOwn(track?.id, download);
   const current = useCurrentTrackState(track?.id);
   const wantlist = useWantlistEnabled();
+  const sharing = useSharingEnabled();
+  const ratings = useRatingsEnabled();
   const wanted = useWanted(track?.id);
   const likeFailure = useLikeFailure('track', track?.id);
   const wantFailure = useWantFailure(track?.id);
@@ -131,8 +164,10 @@ export function useTrackActions(track: TrackSummary | undefined, options: TrackA
     ...options.playlist,
     onRemove: options.playlist.onRemove ?? ((itemId: string) => playlists.removeItem(options.playlist!.id, itemId)),
   };
-  return trackActions(track, { liked, likeFailure, playable, offline, current, download, onItsOwn, wantlist, wanted, wantFailure, viewer }, { playlist })
-    .map(action => ({ ...action, run: () => perform(track, action, { playlist }) }));
+  return trackActions(track, { liked, likeFailure, playable, offline, current, download, onItsOwn, wantlist, wanted, wantFailure, viewer, sharing, ratings }, { playlist })
+    .map(function bind(action): TrackAction {
+      return { ...action, run: () => perform(track, action, { playlist }), children: action.children?.map(bind) };
+    });
 }
 
 /** Carries out an action from `useTrackActions`: its command, then the page or sheet it leads to. */

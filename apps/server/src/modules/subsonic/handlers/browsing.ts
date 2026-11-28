@@ -8,6 +8,7 @@ import { sql } from 'drizzle-orm'
 import { db } from '../../../database/client.js'
 import { matchKey } from '../../../lib/text.js'
 import { albumTrackList } from '../../catalog/pages.js'
+import { shownVersion } from '../../catalog/versions.js'
 import { resolveOne, type MergeableTable } from '../../catalog/redirects.js'
 import { uuidArray } from '../../catalog/sql.js'
 import { similarArtists } from '../../radio/index.js'
@@ -16,7 +17,8 @@ import { albumAsChild, albums } from '../albums.js'
 import { allLibraryArtists, artistID3, artistRows, artUrl, IGNORED_ARTICLES, indexArtist, indexByLetter } from '../artists.js'
 import { rootParam } from '../folders.js'
 import { albumId, artistId, expectId, trackId, type IdKind } from '../ids.js'
-import { notFound, type Context, type Handler, type Payload } from '../protocol.js'
+import { sonicNeighbours } from '../../sonic/index.js'
+import { ErrorCode, SubsonicError, notFound, type Context, type Handler, type Payload } from '../protocol.js'
 import { songs } from '../songs.js'
 import { libraryAlbum, libraryAlbumIds, libraryFile, libraryRecording, presentFiles, servableArt } from '../sql.js'
 
@@ -43,13 +45,14 @@ async function artistAlbumIds(userId: string, artist: string, rootId?: string): 
 }
 
 /**
- * Library and collection songs filed under an album, in the order of the catalog's track list. Songs the release does
+ * Library and collection songs filed under an album, in the order of the catalog's track list
+ * (of the edition the user picked, as the album page lists it). Songs the release does
  * not number (bonus tracks) are numbered after the last track of their disc, so clients that
  * sort by number put them last and no two songs share one.
  */
 async function albumSongs(userId: string, album: string): Promise<Payload[]> {
   const [listed, filed] = await Promise.all([
-    albumTrackList(album),
+    shownVersion(userId, album).then((shown) => albumTrackList(album, shown.editionId)),
     db.execute<{ id: string }>(sql`
       select distinct f.recording_id as id from media_files f
       where f.album_id = ${album} and f.recording_id is not null and ${libraryFile('f', userId, undefined, 'server')}`),
@@ -134,19 +137,21 @@ async function artistOf(value: string): Promise<string> {
 }
 
 /**
- * Biography, images and similar artists. Similar artists come from the radio module and
- * are always library artists: `includeNotPresent` is ignored, as nothing catalog-only is shown.
+ * Biography, images and similar artists. Similar artists come from sonic analysis and
+ * radio, and are always library artists: `includeNotPresent` is ignored, as nothing catalog-only is shown.
  */
 async function artistInfo({ user, params, baseUrl }: Context, id3: boolean): Promise<Payload> {
   const artist = await artistOf(params.required('id'))
   const count = params.int('count', 20, { min: 0, max: 100 })
-  const [[row], similar] = await Promise.all([
+  const [[row], sonic] = await Promise.all([
     db.execute<{ bio: string | null; bioUrl: string | null; mbid: string | null; imageId: string | null }>(sql`
       select bio, bio_url as "bioUrl", mbid, ${servableArt('image_asset_id')} as "imageId" from artists where id = ${artist}`),
-    count > 0 ? similarArtists(artist, { limit: count * 2 }) : [],
+    count > 0 ? sonicArtists(user.id, artist, count) : [],
   ])
   if (!row) throw notFound('Artist')
-  const owned = (await artistRows(user.id, similar.map((one) => one.artistId))).slice(0, count)
+  const fallback = sonic.length < count ? await similarArtists(artist, { limit: count * 2 }) : []
+  const owned = [...sonic, ...(await artistRows(user.id, fallback.map((one) => one.artistId)))
+    .filter((one) => !sonic.some((match) => match.id === one.id))].slice(0, count)
   return {
     biography: row.bio ?? undefined,
     musicBrainzId: row.mbid ?? undefined,
@@ -190,6 +195,22 @@ async function topTrackIds(userId: string, artist: string, limit: number): Promi
   return rows.map((row) => row.id)
 }
 
+/** Rank artists by the closest playable track to the source artist's seed tracks. */
+async function sonicArtists(userId: string, artist: string, count: number) {
+  const seeds = await topTrackIds(userId, artist, 10)
+  const visible = await songs(userId, seeds.map((id) => ({ id })))
+  const neighbours = await sonicNeighbours(visible.map((entry) => expectId(String(entry.id), 'track').id), { limit: count * 5 })
+  if (!neighbours.length) return []
+  const rows = await db.execute<{ id: string; artist: string }>(sql`
+    select r.id, r.primary_artist_id as artist from recordings r
+    where r.id = any(${uuidArray(neighbours.map((match) => match.id))})
+      and r.primary_artist_id <> ${artist} and ${libraryRecording('r.id', userId)}`)
+  const artists = new Map(rows.map((row) => [row.id, row.artist]))
+  const eligible = await songs(userId, neighbours.filter(({ id }) => artists.has(id)))
+  const ranked = new Set(eligible.map((entry) => artists.get(expectId(String(entry.id), 'track').id)!))
+  return (await artistRows(userId, [...ranked])).slice(0, count)
+}
+
 async function getTopSongs({ user, params }: Context): Promise<Payload> {
   const count = params.int('count', 50, { min: 0, max: 500 })
   let artist: string | undefined
@@ -212,11 +233,14 @@ async function getTopSongs({ user, params }: Context): Promise<Payload> {
  * tracks that are in the library, or, while there are none, random library tracks by the
  * same artist.
  */
-async function similarSongs({ user, params }: Context): Promise<Payload[]> {
+export async function similarSongs({ user, params }: Context): Promise<Payload[]> {
   const parsed = expectId(params.required('id'), 'artist', 'album', 'track')
   const count = params.int('count', 50, { min: 0, max: 500 })
   const id = await resolve(parsed.kind, parsed.id)
-  const artist = await artistOf(params.required('id'))
+  const artist = await artistOf(params.required('id')).catch((error: unknown) => {
+    if (parsed.kind === 'track' && error instanceof SubsonicError && error.code === ErrorCode.notFound) return null
+    throw error
+  })
   const seeds = parsed.kind === 'track' ? [id]
     : parsed.kind === 'album' ? (await db.execute<{ id: string }>(sql`
         select distinct f.recording_id as id from media_files f where f.album_id = ${id} and f.recording_id is not null and ${presentFiles('f')}`)).map((row) => row.id)
@@ -230,6 +254,7 @@ async function similarSongs({ user, params }: Context): Promise<Payload[]> {
       and ${libraryRecording('r.id', user.id)}`)).map((row) => row.id))
   const inLibrary = suggested.filter((seed) => kept.has(seed.trackId))
   if (inLibrary.length > 0) return songs(user.id, inLibrary.map((seed) => ({ id: seed.trackId, albumId: seed.albumId })))
+  if (!artist) return []
   const rows = await db.execute<{ id: string }>(sql`
     select r.id from recordings r
     where r.id in (select ra.recording_id from recording_artists ra where ra.artist_id = ${artist})

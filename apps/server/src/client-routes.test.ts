@@ -24,10 +24,16 @@ const notForClients = new Set([
   // Signed URLs from a playback descriptor; `streamUrl` resolves them.
   'GET /stream/:',
   'GET /stream/:/:',
+  // Sealed song URLs of a share page (`share.trackPlayback`); `streamUrl` resolves them.
+  'GET /share/stream',
   // Plain image URLs, built by `artworkUrl`.
   'GET /art/:/:',
   // A browser attachment download streams directly to disk.
   'GET /me/history/export',
+  'GET /playlists/:/export',
+  // Browser navigations of single sign-on: the sign-in page links to start, the provider redirects to the callback.
+  'GET /auth/sso/start',
+  'GET /auth/sso/callback',
   // Last.fm sends the browser here after the user approves the connection.
   'GET /scrobbling/lastfm/callback',
   // Acquisition providers deliver here with their job's token (docs/provider-protocol.md).

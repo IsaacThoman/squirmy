@@ -1,9 +1,9 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
-import { APP_PASSWORD_LIMIT, type AppPassword, type ClientDevice, type User } from '@squirmy/contracts'
+import { APP_PASSWORD_LIMIT, type AppPassword, type AuthSession, type ClientDevice, type SignInMethod, type User } from '@squirmy/contracts'
 import argon2 from 'argon2'
 import { and, count, desc, eq, getTableColumns, gt, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import { db, type Executor } from '../../database/client.js'
-import { appPasswords, authSessions, devices, users } from '../../database/schema.js'
+import { appPasswords, authSessions, devices, ssoIdentities, users } from '../../database/schema.js'
 import type { AuthUser } from '../../lib/auth.js'
 import { AppError, conflict } from '../../lib/errors.js'
 import { decrypt, encrypt, hashToken, randomToken } from '../../lib/crypto.js'
@@ -20,6 +20,14 @@ export function usernameKey(username: string) {
   return username.trim().toLowerCase()
 }
 
+/**
+ * Whether explicit songs play for the user: their own `allowExplicit` setting, unless an admin
+ * restricted it. `catalog/explicit.ts` applies the same rule in SQL (`explicitAllowed`).
+ */
+function allowsExplicit(row: Pick<AuthUser, 'explicitRestricted' | 'settings'>): boolean {
+  return !row.explicitRestricted && row.settings.allowExplicit !== false
+}
+
 export function toUser(row: AuthUser): User {
   return {
     id: row.id,
@@ -30,6 +38,9 @@ export function toUser(row: AuthUser): User {
     canAcquire: row.canAcquire,
     createdAt: row.createdAt.toISOString(),
     disabled: row.disabledAt !== null,
+    email: row.email,
+    explicitRestricted: row.explicitRestricted,
+    allowsExplicit: allowsExplicit(row),
   }
 }
 
@@ -67,7 +78,7 @@ let dummyHash: Promise<string> | undefined
  * Checks a username and password. An unknown username still costs one argon2 verification,
  * so response time does not reveal which usernames exist.
  */
-export async function verifyCredentials(username: string, password: string): Promise<(AuthUser & { passwordHash: string }) | null> {
+export async function verifyCredentials(username: string, password: string): Promise<(AuthUser & { passwordHash: string | null }) | null> {
   const [row] = await db.select().from(users).where(eq(users.usernameKey, usernameKey(username)))
   dummyHash ??= hashPassword(randomToken()).catch((error: unknown) => {
     dummyHash = undefined
@@ -78,7 +89,8 @@ export async function verifyCredentials(username: string, password: string): Pro
     if (error instanceof AppError) throw error
     return false
   })
-  return row && valid ? row : null
+  // An account without a password (made by single sign-on) never matches, at the same cost.
+  return row?.passwordHash && valid ? row : null
 }
 
 export type NewSession = { token: string; sessionId: string }
@@ -89,6 +101,7 @@ export async function createSession(executor: Executor, input: {
   device?: ClientDevice
   clientKind: string
   userAgent?: string
+  method?: SignInMethod
 }): Promise<NewSession> {
   const token = randomToken()
   const sessionId = newId()
@@ -99,6 +112,7 @@ export async function createSession(executor: Executor, input: {
     deviceId: input.device?.id,
     clientKind: input.clientKind,
     userAgent: input.userAgent?.slice(0, 500),
+    method: input.method,
     expiresAt: new Date(Date.now() + sessionLifetimeMs),
   })
   if (input.device) await rememberDevice(executor, input.userId, input.device)
@@ -155,6 +169,34 @@ export async function revokeSession(sessionId: string) {
   await db.delete(authSessions).where(eq(authSessions.id, sessionId))
 }
 
+/** A user's live sessions, most recently used first, with the name of the device each came from. */
+export async function listSessions(userId: string, currentSessionId: string | null): Promise<AuthSession[]> {
+  const rows = await db.select({ session: authSessions, deviceName: devices.name })
+    .from(authSessions)
+    .leftJoin(devices, and(eq(devices.userId, authSessions.userId), eq(devices.id, authSessions.deviceId)))
+    .where(and(eq(authSessions.userId, userId), gt(authSessions.expiresAt, new Date())))
+    .orderBy(desc(authSessions.lastSeenAt))
+  return rows.map(({ session, deviceName }) => ({
+    id: session.id,
+    current: session.id === currentSessionId,
+    clientKind: session.clientKind,
+    deviceName: deviceName ?? null,
+    userAgent: session.userAgent,
+    method: session.method,
+    createdAt: session.createdAt.toISOString(),
+    lastSeenAt: session.lastSeenAt.toISOString(),
+    expiresAt: session.expiresAt.toISOString(),
+  }))
+}
+
+/** Ends one of a user's sessions. Resolves to whether it was theirs and still open. */
+export async function revokeUserSession(userId: string, sessionId: string): Promise<boolean> {
+  const deleted = await db.delete(authSessions)
+    .where(and(eq(authSessions.id, sessionId), eq(authSessions.userId, userId)))
+    .returning({ id: authSessions.id })
+  return deleted.length > 0
+}
+
 /** Ends every session of a user, or every one but `except`. */
 export async function revokeUserSessions(executor: Executor, userId: string, except?: string) {
   await executor.delete(authSessions)
@@ -167,6 +209,8 @@ export async function revokeUserSessions(executor: Executor, userId: string, exc
 
 const appPasswordPurpose = 'app-password'
 
+type TokenOptions = { scopes?: import('@squirmy/contracts').ApiTokenScope[]; expiresAt?: Date }
+
 function toAppPassword(row: typeof appPasswords.$inferSelect, secret?: string): AppPassword {
   return {
     id: row.id,
@@ -174,6 +218,8 @@ function toAppPassword(row: typeof appPasswords.$inferSelect, secret?: string): 
     createdAt: row.createdAt.toISOString(),
     lastUsedAt: row.lastUsedAt?.toISOString() ?? null,
     ...(secret !== undefined && { secret }),
+    ...(row.scopes && { scopes: row.scopes }),
+    ...(row.expiresAt && { expiresAt: row.expiresAt.toISOString() }),
   }
 }
 
@@ -183,8 +229,8 @@ export async function listAppPasswords(userId: string): Promise<AppPassword[]> {
 }
 
 /** Creates an app password. The response is the only time the secret is shown. */
-export async function createAppPassword(userId: string, name: string): Promise<AppPassword> {
-  const secret = randomToken(18)
+export async function createAppPassword(userId: string, name: string, options: TokenOptions = {}): Promise<AppPassword> {
+  const secret = options.scopes ? `sq_${randomToken(32)}` : randomToken(18)
   return db.transaction(async (tx) => {
     // Subsonic auth decrypts every app password of the user on each request; bound them.
     await tx.select({ id: users.id }).from(users).where(eq(users.id, userId)).for('update')
@@ -196,7 +242,9 @@ export async function createAppPassword(userId: string, name: string): Promise<A
       id: newId(),
       userId,
       name,
-      secretEncrypted: encrypt(appPasswordPurpose, secret),
+      scopes: options.scopes ? [...new Set(options.scopes)] : null,
+      expiresAt: options.expiresAt,
+      secretEncrypted: options.scopes ? '' : encrypt(appPasswordPurpose, secret),
       keyHash: hashToken(secret),
     }).returning()
     return toAppPassword(row!, secret)
@@ -225,14 +273,29 @@ async function touchAppPassword(id: string) {
 }
 
 /** OpenSubsonic `apiKey` auth: the key is an app password's secret. */
-export async function findAppPasswordByKey(apiKey: string): Promise<AuthUser | null> {
+export async function findAppPasswordByKey(apiKey: string): Promise<(AuthUser & { appPasswordId: string }) | null> {
   const [row] = await db.select({ user: userColumns, id: appPasswords.id })
     .from(appPasswords)
     .innerJoin(users, eq(users.id, appPasswords.userId))
-    .where(eq(appPasswords.keyHash, hashToken(apiKey)))
+    .where(and(eq(appPasswords.keyHash, hashToken(apiKey)), isNull(appPasswords.scopes), validExpiry()))
   if (!row || row.user.disabledAt) return null
   await touchAppPassword(row.id)
-  return row.user
+  return { ...row.user, appPasswordId: row.id }
+}
+
+function validExpiry() {
+  return or(isNull(appPasswords.expiresAt), gt(appPasswords.expiresAt, new Date()))
+}
+
+export async function authenticateApiToken(token: string) {
+  if (!/^sq_[A-Za-z0-9_-]{43}$/.test(token)) return null
+  const [row] = await db.select({ user: userColumns, id: appPasswords.id, scopes: appPasswords.scopes })
+    .from(appPasswords)
+    .innerJoin(users, eq(users.id, appPasswords.userId))
+    .where(and(eq(appPasswords.keyHash, hashToken(token)), validExpiry()))
+  if (!row?.scopes || row.user.disabledAt) return null
+  await touchAppPassword(row.id)
+  return { user: row.user, scopes: row.scopes }
 }
 
 const md5 = (value: string) => createHash('md5').update(value).digest('hex')
@@ -250,11 +313,11 @@ function sameText(a: string, b: string) {
 export async function verifyAppPassword(
   username: string,
   credential: { password: string } | { token: string; salt: string },
-): Promise<AuthUser | null> {
+): Promise<(AuthUser & { appPasswordId: string }) | null> {
   const rows = await db.select({ user: userColumns, id: appPasswords.id, secretEncrypted: appPasswords.secretEncrypted })
     .from(appPasswords)
     .innerJoin(users, eq(users.id, appPasswords.userId))
-    .where(eq(users.usernameKey, usernameKey(username)))
+    .where(and(eq(users.usernameKey, usernameKey(username)), isNull(appPasswords.scopes), validExpiry()))
   for (const row of rows) {
     if (row.user.disabledAt) return null
     const secret = decrypt(appPasswordPurpose, row.secretEncrypted)
@@ -263,7 +326,7 @@ export async function verifyAppPassword(
       : sameText(md5(secret + credential.salt), credential.token.toLowerCase())
     if (matches) {
       await touchAppPassword(row.id)
-      return row.user
+      return { ...row.user, appPasswordId: row.id }
     }
   }
   return null
@@ -275,21 +338,77 @@ function isUniqueViolation(error: unknown) {
   return candidate.code === '23505' || candidate.cause?.code === '23505'
 }
 
-/** Creates an account. A taken username is a 409 `username_taken`. */
+/** The unique key of an email address, or null for none. */
+export function emailKey(email: string | null | undefined): string | null {
+  return email ? email.trim().toLowerCase() : null
+}
+
+function isUniqueViolationOf(error: unknown, constraint: string) {
+  const candidate = error as { constraint_name?: unknown; cause?: { constraint_name?: unknown } }
+  return isUniqueViolation(error) && (candidate.constraint_name === constraint || candidate.cause?.constraint_name === constraint)
+}
+
+/** A taken username or email as the 409 that says which. */
+export function uniqueUserConflict(error: unknown): never {
+  if (isUniqueViolationOf(error, 'users_email_key')) throw conflict('Another account has that email address', 'email_taken')
+  if (isUniqueViolation(error)) throw conflict('That username is taken', 'username_taken')
+  throw error
+}
+
+/** Creates an account. A taken username is a 409 `username_taken`, a taken email `email_taken`. */
 export async function insertUser(
   executor: Executor,
-  input: Omit<typeof users.$inferInsert, 'id' | 'usernameKey' | 'passwordHash'> & { password: string },
+  input: Omit<typeof users.$inferInsert, 'id' | 'usernameKey' | 'passwordHash' | 'emailKey'> & { password: string },
 ): Promise<typeof users.$inferSelect> {
   const { password, ...values } = input
   try {
     const [row] = await executor.insert(users)
-      .values({ ...values, id: newId(), usernameKey: usernameKey(values.username), passwordHash: await hashPassword(password) })
+      .values({ ...values, id: newId(), usernameKey: usernameKey(values.username), emailKey: emailKey(values.email), passwordHash: await hashPassword(password) })
       .returning()
     return row!
   } catch (error) {
-    if (isUniqueViolation(error)) throw conflict('That username is taken', 'username_taken')
-    throw error
+    return uniqueUserConflict(error)
   }
+}
+
+/**
+ * Creates a member for someone single sign-on let in, with no password, linked to their
+ * provider account. The email is kept only when the provider verified it and no one has it.
+ */
+export async function insertSsoUser(input: {
+  username: string
+  displayName: string | null
+  email: string | null
+  identity: { issuer: string; subject: string; claims: Record<string, unknown> }
+}): Promise<typeof users.$inferSelect> {
+  return db.transaction(async (tx) => {
+    const key = emailKey(input.email)
+    const [owner] = key ? await tx.select({ id: users.id }).from(users).where(eq(users.emailKey, key)) : []
+    let row
+    try {
+      [row] = await tx.insert(users).values({
+        id: newId(),
+        username: input.username,
+        usernameKey: usernameKey(input.username),
+        displayName: input.displayName,
+        email: owner ? null : input.email,
+        emailKey: owner ? null : key,
+        passwordHash: null,
+        role: 'member',
+      }).returning()
+    } catch (error) {
+      return uniqueUserConflict(error)
+    }
+    const reported = typeof input.identity.claims.email === 'string' ? input.identity.claims.email : null
+    await tx.insert(ssoIdentities).values({ id: newId(), userId: row!.id, issuer: input.identity.issuer, subject: input.identity.subject, email: reported, lastUsedAt: new Date() })
+    return row!
+  })
+}
+
+/** Whether the account has a password to sign in or confirm things with. */
+export async function hasPassword(userId: string): Promise<boolean> {
+  const [row] = await db.select({ passwordHash: users.passwordHash }).from(users).where(eq(users.id, userId))
+  return !!row?.passwordHash
 }
 
 export async function countUsers(executor: Executor = db): Promise<number> {

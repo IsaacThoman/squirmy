@@ -2,7 +2,7 @@ import { contextLabel } from '@squirmy/client-core'
 import type { Artwork } from '@squirmy/contracts'
 import { ChevronDown, Info, ListMusic, Maximize2, MessageSquareQuote, MonitorSpeaker } from 'lucide-react'
 import { Dialog as DialogPrimitive } from 'radix-ui'
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { ArtistLinks } from '@/components/music/ArtistLinks'
 import { Cover } from '@/components/music/Cover'
 import { SaveHeart } from '@/components/music/LibrarySave'
@@ -11,7 +11,8 @@ import { IconButton } from '@/components/ui/icon-button'
 import { AMBIENT_WASH } from '@/lib/ambient'
 import { cn } from '@/lib/utils'
 import { useLibrary } from '@/player/library-context'
-import { playingElsewhere, usePlayer, type Player } from '@/player/player-context'
+import { hostControls, playingElsewhere, usePlayer, type Player } from '@/player/player-context'
+import { letterIsTaken } from '@/player/shortcuts'
 import { STILL_LOADING_LABEL, useStillLoading } from '@/player/use-still-loading'
 import { AmbientArtwork } from './AmbientArtwork'
 import { DevicesPopover } from './Devices'
@@ -20,7 +21,7 @@ import { LyricsPane } from './Lyrics'
 import { PlayerStatusLine } from './PlayerStatus'
 import { QueueContent } from './Queue'
 import { SleepTimerButton } from './SleepTimer'
-import { SongMenuButton } from './SongMenu'
+import { SongContextMenu, SongMenuButton } from './SongMenu'
 import { QualityBadge, TrackInfoDialog } from './TrackInfo'
 import { SeekBar, TransportButtons, VolumeControl } from './Transport'
 import { useNowPlayingWheel } from './use-now-playing-wheel'
@@ -43,9 +44,6 @@ const wash = `linear-gradient(to bottom, color-mix(in srgb, var(--background) ${
  * theme's muted text, which can fall under 4.5:1 over a bright cover (color-themes.test.ts).
  */
 const mutedOverArt = '[--muted-foreground:color-mix(in_oklab,var(--foreground)_80%,var(--background))]'
-
-/** Whether a key goes to text being typed, which F must not leave. */
-const typing = (target: EventTarget) => target instanceof Element && Boolean(target.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]'))
 
 /**
  * Lean-back mode fills the screen when the browser lets a page do that, and the window
@@ -85,7 +83,10 @@ function NowPlayingStage({ player, pane, artwork, onClose }: { player: Player; p
   return (
     <div data-pane={pane} className="now-playing-stage relative grid min-h-0 flex-1 px-6 py-4 md:px-8 lg:px-10 short-landscape:self-stretch short-landscape:py-2">
       <div className="now-playing-art relative flex min-h-0 min-w-0 items-center justify-center [container-type:size]">
-        <Cover artwork={artwork} size={1200} crossfade className="size-[min(100cqw,100cqh,34rem)] rounded-xl shadow-[0_32px_80px_-24px_rgb(0_0_0/0.6)]" />
+        {player.state.current
+          // A right-click (or a long press) on the artwork opens the song's menu, as on a row.
+          ? <SongContextMenu track={player.state.current.track} onNavigate={onClose}><div><Cover artwork={artwork} size={1200} crossfade className="size-[min(100cqw,100cqh,34rem)] rounded-xl shadow-[0_32px_80px_-24px_rgb(0_0_0/0.6)]" /></div></SongContextMenu>
+          : <Cover artwork={artwork} size={1200} crossfade className="size-[min(100cqw,100cqh,34rem)] rounded-xl shadow-[0_32px_80px_-24px_rgb(0_0_0/0.6)]" />}
       </div>
       <div className="now-playing-details relative min-h-0 min-w-0">
         <div data-now-playing-scroll id="now-playing-lyrics" inert={pane !== 'lyrics'} aria-hidden={pane !== 'lyrics'} className="now-playing-pane now-playing-lyrics overflow-clip">
@@ -107,11 +108,22 @@ function NowPlayingStage({ player, pane, artwork, onClose }: { player: Player; p
 export function NowPlaying({ open, onOpenChange, pane, onPaneChange }: NowPlayingProps) {
   const lean = useLeanBack(open)
   const onWheel = useNowPlayingWheel('down', () => onOpenChange(false))
+  // F is a letter key like the shell's (`letterIsTaken`): a field, a menu (whose letters pick an
+  // item, and whose keys bubble here through its portal) and a dialog over this one keep it.
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key.toLowerCase() !== 'f' || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey || typing(event.target)) return
-    event.preventDefault()
-    if (lean.leanBack) lean.exit()
-    else lean.enter()
+    if (event.shiftKey || letterIsTaken(event.nativeEvent)) return
+    const key = event.key.toLowerCase()
+    if (key === 'f') {
+      event.preventDefault()
+      if (lean.leanBack) lean.exit()
+      else lean.enter()
+    } else if (lean.leanBack && (key === 'q' || key === 'y')) {
+      // Full screen shows no queue and its own lyrics: Q and Y leave it for that pane, rather than
+      // change what it hides. The shell sees the key handled (`letterIsTaken`) and does nothing more.
+      event.preventDefault()
+      lean.exit()
+      onPaneChange(key === 'q' ? 'queue' : 'lyrics')
+    }
   }
   // Opened from the player rather than a dialog trigger, Radix has nothing to give focus back to on close.
   const opener = useRef<HTMLElement | null>(null)
@@ -168,6 +180,7 @@ function NowPlayingContent({ pane, onPaneChange, onOpenChange, leanBack, onLeanB
   const label = contextLabel(state.context)
   const late = useStillLoading(item?.entry, state.waiting)
   const toggle = (next: NowPlayingPane) => onPaneChange(pane === next ? 'art' : next)
+  const song = (children: ReactNode) => (item ? <SongContextMenu track={item.track} onNavigate={() => onOpenChange(false)}>{children}</SongContextMenu> : children)
   const onToggleLike = () => {
     if (!item) return
     const { id, title, liked } = item.track
@@ -183,7 +196,7 @@ function NowPlayingContent({ pane, onPaneChange, onOpenChange, leanBack, onLeanB
 
       <DialogPrimitive.Title className="sr-only">Now Playing</DialogPrimitive.Title>
       {leanBack
-        ? <LeanBack player={player} onExit={onLeaveLeanBack} />
+        ? <LeanBack player={player} onExit={onLeaveLeanBack} onNavigate={() => onOpenChange(false)} />
         : (
           <>
             <div className="relative flex h-14 shrink-0 items-center justify-between gap-3 px-3 md:px-5">
@@ -219,7 +232,7 @@ function NowPlayingContent({ pane, onPaneChange, onOpenChange, leanBack, onLeanB
                   <div aria-hidden data-show={pane !== 'art'} className="now-playing-small-cover shrink-0 overflow-clip lg:hidden">
                     <Cover artwork={artwork} size={96} crossfade className="size-12 max-w-none" />
                   </div>
-                  <div className="min-w-0 flex-1">
+                  {song(<div className="min-w-0 flex-1">
                     <h2 className="truncate text-2xl font-semibold tracking-tight">{item?.track.title ?? 'Nothing playing'}</h2>
                     {item && (
                       // A line of words, cut short; the song's menu goes to each artist too (`data-inline-links`).
@@ -230,19 +243,19 @@ function NowPlayingContent({ pane, onPaneChange, onOpenChange, leanBack, onLeanB
                       </p>
                     )}
                     <PlayerStatusLine status={state.status} className="mt-1 text-sm" />
-                  </div>
+                  </div>)}
                   {/* Named after the song, as in the player bar: never the page's own heart. */}
                   {item && <SaveHeart id={item.track.id} liked={item.track.liked} onToggle={onToggleLike} title={item.track.title} size="lg" className="max-md:size-11 pointer-coarse:size-11" />}
                   {item && <SongMenuButton track={item.track} onNavigate={() => onOpenChange(false)} extraMenu={infoEntries} size="lg" className="-ml-2 text-foreground max-md:size-11 pointer-coarse:size-11" />}
                 </div>
-                <SeekBar stacked durationMs={item?.entry.durationMs ?? 0} onSeek={controls.seek} disabled={!item} center={<QualityBadge signal={state.signal} onOpen={() => setInfo(true)} />} />
+                <SeekBar stacked durationMs={item?.entry.durationMs ?? 0} onSeek={controls.seek} disabled={!item || hostControls(player.state)} center={<QualityBadge signal={state.signal} onOpen={() => setInfo(true)} />} />
                 <div className="mt-1 flex flex-col items-center gap-3 md:flex-row md:justify-between short-landscape:flex-col!">
                   <div className="order-2 flex gap-8 md:order-1 md:w-40 md:gap-1 short-landscape:order-2! short-landscape:w-auto! short-landscape:gap-8!">
                     <IconButton label={pane === 'lyrics' ? 'Hide lyrics' : 'Show lyrics'} aria-controls="now-playing-lyrics" pressed={pane === 'lyrics'} onClick={() => toggle('lyrics')} className="max-md:size-11 pointer-coarse:size-11"><MessageSquareQuote /></IconButton>
                     <IconButton label={pane === 'queue' ? 'Hide queue' : 'Show queue'} aria-controls="now-playing-queue" pressed={pane === 'queue'} onClick={() => toggle('queue')} className="max-md:size-11 pointer-coarse:size-11"><ListMusic /></IconButton>
                     <SleepTimerButton player={player} className="max-md:size-11 pointer-coarse:size-11" />
                   </div>
-                  <div className="order-1 md:order-2 short-landscape:order-1!"><TransportButtons player={player} large disabled={!item} /></div>
+                  <div className="order-1 md:order-2 short-landscape:order-1!"><TransportButtons player={player} large disabled={!item || hostControls(player.state)} /></div>
                   <VolumeControl volume={state.volume} deviceId={state.activeDeviceId ?? state.thisDeviceId} onChange={controls.setVolume} fill className="order-3 hidden w-40 md:flex short-landscape:hidden!" />
                 </div>
               </div>

@@ -3,7 +3,7 @@ import { homedir } from 'node:os'
 import path from 'node:path'
 import {
   CreateInviteRequest, CreateUserRequest, DirectoryQuery, Id, queryKeys, UpdateServerSettings, UpdateUserRequest,
-  type DirectoryListing, type Invite, type InviteList, type JobQueueStats, type Ok, type ServerSettings, type User, type UserList,
+  type DirectoryListing, type Invite, type InviteList, type JobQueueStats, type Ok, type ServerSettings, type SsoTestResult, type User, type UserList, type UserSecurity,
 } from '@squirmy/contracts'
 import { and, asc, desc, eq, isNull, ne, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
@@ -18,13 +18,24 @@ import { newId } from '../../lib/ids.js'
 import { getServerSettings, invalidateServerSettings, updateServerSettings } from '../../lib/settings.js'
 import { getQueueStats } from '../../jobs/index.js'
 import { disconnectSockets, invalidate } from '../../realtime/index.js'
-import { hashPassword, insertUser, revokeAppPasswords, revokeUserSessions, toUser } from '../auth/service.js'
+import { dropUserChallenges } from '../auth/challenges.js'
+import { forgetSsoDiscovery, hasSsoIdentity, ssoProvider, testSsoProvider } from '../auth/sso.js'
+import { emailKey, hashPassword, insertUser, listSessions, uniqueUserConflict, revokeAppPasswords, revokeUserSession, revokeUserSessions, toUser } from '../auth/service.js'
+import { listPasskeys, revokePasskeys } from '../auth/passkeys.js'
+import { disableTwoFactor, twoFactorEnabled } from '../auth/two-factor.js'
 import { markEnrichmentStale } from '../enrichment/stale.js'
+import { explicitRoots } from '../userdata/settings.js'
 import { queueNewlyPossibleMatching } from '../matching/retry.js'
 import { queueSonicSweep } from '../sonic/index.js'
 import { checkImportSettings } from '../imports/settings.js'
 
 const IdParams = z.object({ id: Id })
+const SessionParams = z.object({ id: Id, sessionId: Id })
+
+async function requireUserRow(id: string) {
+  const [row] = await db.select({ id: users.id }).from(users).where(eq(users.id, id))
+  if (!row) throw notFound('No such user')
+}
 
 /**
  * Fails unless another enabled admin would remain once `userId` stops being one. Holds a
@@ -106,6 +117,9 @@ export async function adminRoutes(app: FastifyInstance) {
     const { id } = IdParams.parse(request.params)
     const body = UpdateUserRequest.parse(request.body)
     const updated = await db.transaction(async (tx) => {
+      if (body.email !== undefined) {
+        await tx.update(users).set({ email: body.email, emailKey: emailKey(body.email) }).where(eq(users.id, id)).catch(uniqueUserConflict)
+      }
       const [current] = await tx.select().from(users).where(eq(users.id, id)).for('update')
       if (!current) throw notFound('No such user')
       const losesAdmin = current.role === 'admin' && !current.disabledAt && (body.role === 'member' || body.disabled === true)
@@ -115,21 +129,24 @@ export async function adminRoutes(app: FastifyInstance) {
         role: body.role,
         canUpload: body.canUpload,
         canAcquire: body.canAcquire,
+        explicitRestricted: body.explicitRestricted,
         ...(body.disabled !== undefined && { disabledAt: body.disabled ? current.disabledAt ?? new Date() : null }),
         ...(body.password !== undefined && { passwordHash: await hashPassword(body.password) }),
         updatedAt: new Date(),
       }).where(eq(users.id, id)).returning()
       if (body.password !== undefined || body.disabled) {
         await revokeUserSessions(tx, id)
-        // An app password minted by whoever had the account would survive the reset.
+        await dropUserChallenges(tx, id)
+        // An app password or a passkey added by whoever had the account would survive the reset.
         await revokeAppPasswords(tx, id)
+        await revokePasskeys(tx, id)
       }
       return row!
     })
     // Sockets carry the role and session they connected with; make them reconnect.
     if (body.role !== undefined || body.disabled || body.password !== undefined) await disconnectSockets(id)
     await invalidate('admins', [queryKeys.adminUsers()])
-    await invalidate({ user: id }, [queryKeys.me()])
+    await invalidate({ user: id }, body.explicitRestricted !== undefined ? explicitRoots : [queryKeys.me()])
     return toUser(updated)
   })
 
@@ -143,6 +160,40 @@ export async function adminRoutes(app: FastifyInstance) {
     })
     await disconnectSockets(id)
     await invalidate('admins', [queryKeys.adminUsers()])
+    return { ok: true }
+  })
+
+  app.get('/admin/users/:id/security', async (request): Promise<UserSecurity> => {
+    const { id } = IdParams.parse(request.params)
+    await requireUserRow(id)
+    return { twoFactorEnabled: await twoFactorEnabled(id), sessions: await listSessions(id, request.authSessionId), passkeys: await listPasskeys(id) }
+  })
+
+  app.delete('/admin/users/:id/sessions/:sessionId', async (request): Promise<Ok> => {
+    const { id, sessionId } = SessionParams.parse(request.params)
+    if (!await revokeUserSession(id, sessionId)) throw notFound('No such session')
+    await disconnectSockets(id, { only: sessionId })
+    return { ok: true }
+  })
+
+  app.delete('/admin/users/:id/sessions', async (request): Promise<Ok> => {
+    const { id } = IdParams.parse(request.params)
+    await requireUserRow(id)
+    // An admin signing themselves out everywhere keeps the session they are using.
+    const keep = id === request.user!.id ? request.authSessionId ?? undefined : undefined
+    await revokeUserSessions(db, id, keep)
+    await disconnectSockets(id, keep ? { except: keep } : {})
+    return { ok: true }
+  })
+
+  /** For someone who lost their authenticator and their recovery codes. Their sessions stay. */
+  app.delete('/admin/users/:id/two-factor', async (request): Promise<Ok> => {
+    const { id } = IdParams.parse(request.params)
+    // An admin's own second factor is turned off from their settings, with their password and a
+    // code, so a borrowed admin session cannot remove it here.
+    if (id === request.user!.id) throw forbidden('Turn off your own two-factor authentication in Settings → Security', 'own_two_factor')
+    await requireUserRow(id)
+    await disableTwoFactor(db, id)
     return { ok: true }
   })
 
@@ -180,9 +231,20 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get('/admin/settings', async (): Promise<ServerSettings> => getServerSettings())
 
   app.patch('/admin/settings', async (request): Promise<ServerSettings> => {
+    const admin = requireAdmin(request)
     const patch = await checkImportSettings(UpdateServerSettings.parse(request.body))
     invalidateServerSettings()
     const before = await getServerSettings()
+    // Password sign-in goes off only while single sign-on works and this admin can use it, so
+    // nobody locks the server's admins out with one switch.
+    const next = { ...before, ...patch }
+    if (next.passwordLoginDisabled && (patch.passwordLoginDisabled || patch.ssoEnabled === false || patch.ssoIssuerUrl !== undefined || patch.ssoClientId !== undefined)) {
+      const ready = next.ssoEnabled && next.ssoIssuerUrl && next.ssoClientId && before.ssoCallbackUrl
+      if (!ready || !await hasSsoIdentity(admin.id)) {
+        throw conflict('Turn password sign-in off once single sign-on is set up and you have signed in with it (Settings → Security → Connect).', 'sso_required')
+      }
+    }
+    if (Object.keys(patch).some((key) => key.startsWith('sso'))) forgetSsoDiscovery()
     const settings = await updateServerSettings(patch)
     // Owned by the enrichment module: music enriched without a source that is now on.
     await markEnrichmentStale(before, settings)
@@ -191,12 +253,29 @@ export async function adminRoutes(app: FastifyInstance) {
     // Owned by the sonic module: analysis switched on starts now.
     await queueSonicSweep(before, settings)
     await invalidate('admins', [queryKeys.admin()])
+    if (before.ssoEnabled !== settings.ssoEnabled || before.ssoName !== settings.ssoName || before.passwordLoginDisabled !== settings.passwordLoginDisabled) {
+      await invalidate('all', [queryKeys.setupStatus()])
+    }
     // Clients read the switch from the setup status, and Home and the wantlist answer
     // differently with it off, so open apps show or hide the wantlist without a reload.
     if (before.wantlistEnabled !== settings.wantlistEnabled) {
       await invalidate('all', [queryKeys.setupStatus(), queryKeys.home(), queryKeys.wants()])
     }
+    // Owned by the share module: clients offer Share from the setup status.
+    if (before.sharingEnabled !== settings.sharingEnabled) await invalidate('all', [queryKeys.setupStatus(), queryKeys.shares()])
     return settings
+  })
+
+  /** Loads the provider's discovery document with the saved settings, so the admin knows before anyone signs in. */
+  app.post('/admin/sso/test', async (): Promise<SsoTestResult> => {
+    const provider = await ssoProvider({ evenIfOff: true })
+    if (!provider) return { ok: false, issuer: null, message: 'Set the issuer URL and the client ID first. PUBLIC_URL must be set too, for the callback address.' }
+    try {
+      const { issuer } = await testSsoProvider(provider)
+      return { ok: true, issuer, message: `Found ${issuer}.` }
+    } catch (error) {
+      return { ok: false, issuer: null, message: `Couldn’t load the provider’s configuration: ${(error as Error).message}` }
+    }
   })
 
   app.get('/admin/jobs', async (): Promise<JobQueueStats[]> => getQueueStats())

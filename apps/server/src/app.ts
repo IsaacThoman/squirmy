@@ -18,7 +18,8 @@ import { AppError, forbidden } from './lib/errors.js'
 import { loggerOptions } from './lib/log.js'
 import { headerAddress, trustFunction } from './lib/proxy.js'
 import { modules } from './modules/index.js'
-import { authenticateToken } from './modules/auth/service.js'
+import { authenticateApiToken, authenticateToken } from './modules/auth/service.js'
+import { allowedApiToken } from './modules/auth/scopes.js'
 
 /** Paths the web app's SPA fallback must never answer. */
 const reservedPrefixes = ['/api', '/rest', '/socket.io', '/health', '/ready']
@@ -57,9 +58,10 @@ export async function buildApp(options: { logStream?: { write(line: string): voi
 
   // The web app loads only its own files: no inline scripts (the appearance script is a file of
   // its own), so script-src is 'self'. Inline styles stay allowed for `style=` and the theme's
-  // <style> element. No upgrade-insecure-requests, so the app keeps working over plain HTTP on a
-  // LAN. Artwork and streams are also loaded by Subsonic web clients on other origins, which the
-  // default same-origin CORP blocks.
+  // <style> element. Media may also come from blob: URLs, which is how an <audio> element is
+  // given a MediaSource the page fills itself. No upgrade-insecure-requests, so the app keeps
+  // working over plain HTTP on a LAN. Artwork and streams are also loaded by Subsonic web clients
+  // on other origins, which the default same-origin CORP blocks.
   await app.register(helmet, {
     contentSecurityPolicy: {
       useDefaults: false,
@@ -68,7 +70,7 @@ export async function buildApp(options: { logStream?: { write(line: string): voi
         scriptSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", 'data:'],
-        mediaSrc: ["'self'"],
+        mediaSrc: ["'self'", 'blob:'],
         connectSrc: ["'self'"],
         fontSrc: ["'self'", 'data:'],
         workerSrc: ["'none'"],
@@ -116,6 +118,13 @@ export async function buildApp(options: { logStream?: { write(line: string): voi
   app.addHook('onRequest', async (request) => {
     if (!request.url.startsWith(`${API_PREFIX}/`)) return
     const bearer = bearerToken(request)
+    if (bearer?.startsWith('sq_')) {
+      const token = await authenticateApiToken(bearer)
+      if (!token) return
+      if (!allowedApiToken(request, token.scopes)) throw forbidden('This token cannot access this endpoint', 'insufficient_scope')
+      request.user = token.user
+      return
+    }
     const token = bearer ?? request.cookies[SESSION_COOKIE]
     const session = token ? await authenticateToken(token) : null
     if (!session) return

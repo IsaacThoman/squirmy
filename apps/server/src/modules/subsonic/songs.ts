@@ -2,17 +2,21 @@
  * Builds Subsonic songs (`Child` objects) in batches with a fixed number of queries.
  *
  * Subsonic describes files, so each song is shown through one present file of its
- * recording: the one on the requested album when there is one, then the file the stream
- * endpoint would pick (lossless, then higher bitrate, then newest). The album, disc and
- * track number are that file's. Recordings without a present file are left out.
+ * recording, chosen as the stream endpoint chooses (`selectFile`) with no codec list: the
+ * file in the user's pick for the song, then the one on the requested album, then one in
+ * the user's pick for its album, then lossless, higher bitrate and newest. The album, disc
+ * and track number are that file's. Recordings without a present file are left out.
  */
 import path from 'node:path'
 import { sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { trackCredits, trackExplicit, trackWorks } from '../catalog/credits.js'
+import { explicitAllowed } from '../catalog/explicit.js'
 import { isoTime, uuidArray } from '../catalog/sql.js'
 import { resolveMerged } from '../catalog/redirects.js'
+import { pickedBy } from '../catalog/versions.js'
 import { normalizationValues } from '../loudness/normalization.js'
+import { sonicPoints } from '../sonic/index.js'
 import { mimeFor } from '../streaming/index.js'
 import { albumId, artistId, coverArtId, trackId } from './ids.js'
 import type { Payload } from './protocol.js'
@@ -100,13 +104,16 @@ function replayGain(row: SongRow): Payload {
 
 /**
  * Songs for `refs`, in their order and with duplicates kept. Ids follow merge
- * redirects; ids that do not exist or have no present file are left out.
+ * redirects; ids that do not exist or have no present file are left out, and so are
+ * explicit songs (by the file's advisory, else the catalog's) for a user who has explicit
+ * content off.
  */
 export async function songs(userId: string, refs: readonly SongRef[]): Promise<Payload[]> {
   if (refs.length === 0) return []
-  const [recordingIds, albumIds] = await Promise.all([
+  const [recordingIds, albumIds, allowsExplicit] = await Promise.all([
     resolveMerged('recordings', refs.map((ref) => ref.id)),
     resolveMerged('albums', refs.flatMap((ref) => ref.albumId ? [ref.albumId] : [])),
+    explicitAllowed(userId),
   ])
   const resolved = refs.flatMap((ref) => {
     const id = recordingIds.get(ref.id)
@@ -138,8 +145,8 @@ export async function songs(userId: string, refs: readonly SongRef[]): Promise<P
     join lateral (
       select * from media_files candidate
       where candidate.recording_id = r.id and candidate.missing_since is null
-      order by (candidate.album_id = req.album_id) is true desc, candidate.lossless desc,
-        candidate.bitrate desc nulls last, candidate.added_at desc
+      order by ${pickedBy(userId, 'recording', 'candidate', sql`r.id`)} desc, (candidate.album_id = req.album_id) is true desc,
+        ${pickedBy(userId, 'album', 'candidate')} desc, candidate.lossless desc, candidate.bitrate desc nulls last, candidate.added_at desc
       limit 1
     ) f on true
     left join albums al on al.id = f.album_id
@@ -152,16 +159,18 @@ export async function songs(userId: string, refs: readonly SongRef[]): Promise<P
     ) stats on true`)
 
   const ids = [...new Set(rows.map((row) => row.id))]
-  const [trackArtists, albumArtists, contributors, works] = await Promise.all([
+  const [trackArtists, albumArtists, contributors, works, sonic] = await Promise.all([
     credits('recording_artists', ids),
     credits('album_artists', rows.flatMap((row) => row.albumId ? [row.albumId] : [])),
     trackCredits(ids),
     trackWorks(ids),
+    sonicPoints(ids),
   ])
   const byPair = new Map(rows.map((row) => [`${row.requestId}|${row.requestAlbumId ?? ''}`, row]))
   return resolved.flatMap((ref) => {
     const row = byPair.get(`${ref.id}|${ref.albumId ?? ''}`)
-    if (!row) return []
+    // Subsonic clients have no way to gray a song, so explicit ones are left out for a user who has them off.
+    if (!row || (row.explicit === true && !allowsExplicit)) return []
     const artists = trackArtists.get(row.id) ?? (row.primaryArtistId ? [{ id: row.primaryArtistId, name: row.artistCredit }] : [])
     const albumCredits = row.albumId
       ? albumArtists.get(row.albumId) ?? (row.albumArtistId ? [{ id: row.albumArtistId, name: row.albumCredit! }] : [])
@@ -169,6 +178,7 @@ export async function songs(userId: string, refs: readonly SongRef[]): Promise<P
     const genres = row.genres ?? []
     const credits = contributors.get(row.id) ?? []
     const compositions = works.get(row.id) ?? []
+    const sound = sonic.get(row.id)
     return [{
       id: trackId(row.id),
       parent: row.albumId ? albumId(row.albumId) : undefined,
@@ -200,7 +210,9 @@ export async function songs(userId: string, refs: readonly SongRef[]): Promise<P
       type: 'music',
       mediaType: 'song',
       played: row.played ?? undefined,
-      musicBrainzId: row.mbid ?? undefined,
+      musicBrainzId: row.mbid ?? '',
+      bpm: Math.round(sound?.bpm ?? 0),
+      moods: sound?.moods ?? [],
       isrc: row.isrcs,
       genres: genres.map((name) => ({ name })),
       artists: toArtists(artists),

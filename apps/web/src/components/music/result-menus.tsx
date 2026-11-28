@@ -1,7 +1,7 @@
 import type { SearchItem } from '@squirmy/client-core'
 import type { AlbumSummary, TrackSummary } from '@squirmy/contracts'
 import { useQueryClient } from '@tanstack/react-query'
-import { ListMusic, MicVocal, Play, Radio } from 'lucide-react'
+import { ListMusic, MicVocal, Play, Radio, Share2 } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { albumQuery } from '@/api/queries'
 import { useApi } from '@/api/services'
@@ -55,6 +55,7 @@ export function useResultMenus() {
       const { playlist } = item
       return [
         { label: 'Play', icon: <Play />, disabled: playlist.trackCount === 0, onSelect: () => void playPlaylist(playlist) },
+        ...(library.sharingEnabled ? [{ label: 'Share…', icon: <Share2 />, onSelect: () => library.share({ kind: 'playlist', id: playlist.id, title: playlist.name }) }] : []),
         { kind: 'separator' },
         { label: 'Go to playlist', icon: <ListMusic />, onSelect: () => navigate(`/playlist/${playlist.id}`) },
       ]
@@ -81,6 +82,7 @@ export function useResultMenus() {
       // The Wantlist is for music that does not play, while the server has it on.
       want: library.wantlistEnabled && !plays ? { wanted, onToggle: want } : undefined,
       onGoToArtist: artist => navigate(`/artist/${artist.id}`),
+      onShare: library.sharingEnabled ? () => library.share({ kind: 'album', id: album.id, title: album.title }) : undefined,
     })
   }
 }

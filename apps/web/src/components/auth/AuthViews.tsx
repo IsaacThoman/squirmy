@@ -1,8 +1,9 @@
-import { CreateLibraryRootRequest, LoginRequest, RegisterRequest, SetupRequest, UpdateLibraryRootRequest, type DirectoryListing, type LibraryRoot } from '@squirmy/contracts'
-import { ArrowRight, Check, Folder, FolderOpen, FolderPlus, Info, RotateCw, ServerCrash } from 'lucide-react'
+import { CreateLibraryRootRequest, LoginRequest, RegisterRequest, SecondFactorCode, SetupRequest, UpdateLibraryRootRequest, type DirectoryListing, type LibraryRoot } from '@squirmy/contracts'
+import { ArrowLeft, ArrowRight, Check, Folder, FolderOpen, FolderPlus, Info, KeyRound, LogIn, RotateCw, ServerCrash } from 'lucide-react'
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router'
-import { useFormSubmit, type FormErrors } from '@/api/errors'
+import { z } from 'zod'
+import { errorMessage, useFormSubmit, type FormErrors } from '@/api/errors'
 import { rootPathErrors } from '@/api/folders'
 import { ManagedConfirmation, ManagedSwitch } from '@/components/admin/ManagedSwitch'
 import { Logo } from '@/components/layout/Logo'
@@ -31,7 +32,7 @@ type AuthFrameProps = {
 }
 
 /** The logo over a centered card, for every page shown before the app itself. */
-function AuthFrame({ title, description, header, footer, version, wide, children }: AuthFrameProps) {
+export function AuthFrame({ title, description, header, footer, version, wide, children }: AuthFrameProps) {
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-background px-4 py-10">
       <Logo className="mb-8" />
@@ -97,11 +98,33 @@ type LoginProps = {
   /** Why sign-in is showing, when the visitor did not sign out themselves: their session ended. */
   notice?: string | null
   onSubmit: (credentials: Credentials) => Promise<unknown>
+  /** Offered when the server and this browser can both use passkeys. Resolves once signed in, or quietly when cancelled. */
+  onPasskey?: () => Promise<unknown>
+  /** The single sign-on provider, when the server has one: "Sign in with <name>". */
+  sso?: { name: string; onStart: () => void }
+  /** False when the server turned password sign-in off: only the other ways show. */
+  passwordLogin?: boolean
+  /** Why single sign-on sent the visitor back here. */
+  ssoError?: string | null
 }
 
-export function LoginView({ serverName, version, inviteRequired, notice, onSubmit }: LoginProps) {
+export function LoginView({ serverName, version, inviteRequired, notice, onSubmit, onPasskey, sso, passwordLogin = true, ssoError }: LoginProps) {
   const [value, setValue] = useState<Credentials>({ username: '', password: '' })
   const form = useFormSubmit(LoginRequest, onSubmit)
+  const [passkeyPending, setPasskeyPending] = useState(false)
+  const [passkeyError, setPasskeyError] = useState<string>()
+  const signInWithPasskey = async () => {
+    setPasskeyPending(true)
+    setPasskeyError(undefined)
+    form.reset()
+    try {
+      await onPasskey!()
+    } catch (error) {
+      setPasskeyError(errorMessage(error))
+    } finally {
+      setPasskeyPending(false)
+    }
+  }
   const submit = (event: FormEvent) => {
     event.preventDefault()
     void form.submit(value)
@@ -111,7 +134,8 @@ export function LoginView({ serverName, version, inviteRequired, notice, onSubmi
       title={`Sign in to ${serverName}`}
       description="Welcome back. Your music is where you left it."
       version={version}
-      footer={<>{inviteRequired ? 'Have an invite?' : 'New here?'} <Link to="/register" className={quietLinkClass}>Create an account</Link></>}
+      // Registration makes a password account, which cannot sign in while passwords are off.
+      footer={passwordLogin ? <>{inviteRequired ? 'Have an invite?' : 'New here?'} <Link to="/register" className={quietLinkClass}>Create an account</Link></> : undefined}
     >
       <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
         {notice && (
@@ -120,9 +144,59 @@ export function LoginView({ serverName, version, inviteRequired, notice, onSubmi
             <span>{notice}</span>
           </div>
         )}
-        <CredentialFields value={value} onChange={setValue} errors={form.errors} />
+        {ssoError && <FormError message={ssoError} />}
+        {sso && <Button variant={passwordLogin ? 'outline' : 'primary'} className="w-full" onClick={sso.onStart}><LogIn />Sign in with {sso.name}</Button>}
+        {sso && passwordLogin && <Divider />}
+        {passwordLogin && (
+          <>
+            <CredentialFields value={value} onChange={setValue} errors={form.errors} />
+            <FormError message={form.errors.form ?? passkeyError} />
+            <Button type="submit" variant="primary" className="mt-2 w-full" pending={form.pending}>Sign in</Button>
+          </>
+        )}
+        {!passwordLogin && <FormError message={passkeyError} />}
+        {onPasskey && (
+          <>
+            {(passwordLogin || sso) && <Divider />}
+            <Button variant="outline" className="w-full" pending={passkeyPending} onClick={() => void signInWithPasskey()}><KeyRound />Sign in with a passkey</Button>
+          </>
+        )}
+      </form>
+    </AuthFrame>
+  )
+}
+
+function Divider() {
+  return <div aria-hidden className="flex items-center gap-3 text-xs text-muted-foreground"><span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" /></div>
+}
+
+const TwoFactorForm = z.object({ code: SecondFactorCode })
+
+type TwoFactorProps = {
+  serverName: string
+  version: string
+  onSubmit: (code: string) => Promise<unknown>
+  /** Back to the password, for a different account or an expired step. */
+  onBack: () => void
+}
+
+/** The second step of a password sign-in, for an account with two-factor authentication on. */
+export function TwoFactorView({ serverName, version, onSubmit, onBack }: TwoFactorProps) {
+  const [code, setCode] = useState('')
+  const form = useFormSubmit(TwoFactorForm, value => onSubmit(value.code), { invalid_code: 'code' })
+  return (
+    <AuthFrame
+      title="Enter your code"
+      description={`Open your authenticator app and enter the code it shows for ${serverName}.`}
+      version={version}
+      footer={<button type="button" onClick={onBack} className={cn(quietLinkClass, 'inline-flex items-center gap-1')}><ArrowLeft aria-hidden className="size-3.5" />Back to sign in</button>}
+    >
+      <form onSubmit={event => { event.preventDefault(); void form.submit({ code }) }} className="flex flex-col gap-4" noValidate>
+        <Field label="Authentication code" htmlFor="code" error={form.errors.code} hint="Lost your phone? Enter one of your recovery codes.">
+          <Input id="code" autoComplete="one-time-code" autoCapitalize="none" spellCheck={false} className="font-mono tracking-wider" value={code} onChange={event => setCode(event.target.value)} aria-invalid={!!form.errors.code} aria-describedby="code-message" required autoFocus />
+        </Field>
         <FormError message={form.errors.form} />
-        <Button type="submit" variant="primary" className="mt-2 w-full" pending={form.pending}>Sign in</Button>
+        <Button type="submit" variant="primary" className="mt-2 w-full" pending={form.pending}>Verify</Button>
       </form>
     </AuthFrame>
   )

@@ -1,6 +1,6 @@
 import type { TrackSummary } from '@squirmy/contracts';
 import { describe, expect, it } from 'vitest';
-import { queuedNotice, radioStartingNotice, trackActionKey, trackActions, trackLinks, type TrackActionState } from './trackActionList';
+import { queuedNotice, radioStartingNotice, ratingAction, trackActionKey, trackActions, trackLinks, type TrackActionState } from './trackActionList';
 
 const track = (parts: Partial<TrackSummary> = {}): TrackSummary => ({
   id: 't', mbid: null, title: 'Song', artistCredit: 'Artist', artists: [{ id: 'ar', name: 'Artist' }], durationMs: 1,
@@ -13,8 +13,34 @@ const state = (parts: Partial<TrackActionState> = {}): TrackActionState => ({
 const ids = (...args: Parameters<typeof trackActions>) => trackActions(...args).map(action => action.id);
 
 describe('trackActions', () => {
+  it('offers a radio of songs that sound like it beside the usual radio, online only', () => {
+    expect(ids(track(), state())).toContain('sonicRadio');
+    expect(ids(track(), state({ offline: true }))).not.toContain('sonicRadio');
+    expect(trackActions(track(), state()).find(action => action.id === 'sonicRadio')?.title).toBe('Songs that sound like this');
+  });
+
+  it('offers stars after the heart only to a user who shows ratings', () => {
+    expect(ids(track(), state())).not.toContain('rating');
+    expect(ids(track(), state({ ratings: true })).slice(3, 5)).toEqual(['like', 'rating']);
+    expect(ids(track(), state({ ratings: true, offline: true }))).not.toContain('rating');
+  });
+
+  it('opens the credits of a song that has some', () => {
+    const credits = [{ artist: { id: 'p', name: 'Producer' }, role: 'producer' as const }];
+    expect(ids(track(), state())).not.toContain('credits');
+    expect(trackActions(track({ credits }), state()).find(action => action.id === 'credits')?.href)
+      .toEqual({ pathname: '/track-credits', params: { id: 't', albumId: 'al' } });
+  });
+
   it('offers everything for a playable track on the server', () => {
-    expect(ids(track(), state())).toEqual(['play', 'next', 'last', 'like', 'download', 'playlist', 'radio', 'album', 'artist']);
+    expect(ids(track(), state())).toEqual(['play', 'next', 'last', 'like', 'download', 'playlist', 'radio', 'sonicRadio', 'album', 'artist']);
+  });
+
+  it('offers Share after the radio while the server allows links, online only', () => {
+    expect(ids(track(), state({ sharing: true }))).toEqual(['play', 'next', 'last', 'like', 'download', 'playlist', 'radio', 'sonicRadio', 'share', 'album', 'artist']);
+    // A gray song can be shared too: the page shows it as not available.
+    expect(ids(track({ availability: 'none' }), state({ sharing: true, playable: false }))).toContain('share');
+    expect(ids(track(), state({ sharing: true, offline: true }))).not.toContain('share');
   });
 
   it('offers to add a song to the wantlist, or to take it off once it is on it', () => {
@@ -36,9 +62,9 @@ describe('trackActions', () => {
   });
 
   it('offers the current track only Play while paused, and never Play next', () => {
-    expect(ids(track(), state({ current: 'paused' }))).toEqual(['resume', 'last', 'like', 'download', 'playlist', 'radio', 'album', 'artist', 'info']);
+    expect(ids(track(), state({ current: 'paused' }))).toEqual(['resume', 'last', 'like', 'download', 'playlist', 'radio', 'sonicRadio', 'album', 'artist', 'info']);
     expect(trackActions(track(), state({ current: 'paused' }))[0]?.title).toBe('Play');
-    expect(ids(track(), state({ current: 'playing' }))).toEqual(['last', 'like', 'download', 'playlist', 'radio', 'album', 'artist', 'info']);
+    expect(ids(track(), state({ current: 'playing' }))).toEqual(['last', 'like', 'download', 'playlist', 'radio', 'sonicRadio', 'album', 'artist', 'info']);
   });
 
   it('offers Track info for the current track only, as a sheet', () => {
@@ -160,5 +186,20 @@ describe('queuedNotice and radioStartingNotice', () => {
 
   it('says a radio is on its way, as the web does', () => {
     expect(radioStartingNotice).toEqual({ message: 'Starting radio…' });
+  });
+});
+
+describe('ratingAction', () => {
+  it('lists 5 to 1 stars with the song\'s own checked, and No rating once it has one', () => {
+    const unrated = ratingAction({ rating: null });
+    expect(unrated.title).toBe('Rating');
+    expect(unrated.children?.map(child => [child.title, child.rating, Boolean(child.checked)])).toEqual([
+      ['5 stars', 5, false], ['4 stars', 4, false], ['3 stars', 3, false], ['2 stars', 2, false], ['1 star', 1, false],
+    ]);
+    const rated = ratingAction({ rating: 4 });
+    expect(rated.title).toBe('Rating: 4 stars');
+    expect(rated.children?.filter(child => child.checked).map(child => child.rating)).toEqual([4]);
+    expect(rated.children?.at(-1)).toMatchObject({ title: 'No rating', rating: 0 });
+    expect(rated.children?.map(trackActionKey)).toEqual(['rate:5', 'rate:4', 'rate:3', 'rate:2', 'rate:1', 'rate:0']);
   });
 });

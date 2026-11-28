@@ -16,7 +16,7 @@ export type TrackAvailability = z.infer<typeof TrackAvailability>
 
 /**
  * `full` and `partial` count owned tracks against the album's track list: its canonical
- * release, plus owned tracks filed under the album that the release does not list.
+ * release, plus owned tracks of that edition that the release does not list.
  * Presentation by viewer (`albumPresentation` and `albumNote` in client-core):
  * - `full`: normal for everyone.
  * - `partial`: normal for everyone; a non-requester's album page says "N of M songs
@@ -155,6 +155,11 @@ export const TrackSummary = z.object({
    * entry from it; current clients read `liked` and `inLibrary`. Optional for older servers.
    */
   library: TrackLibrary.nullable().optional(),
+  /**
+   * The viewer's star rating, 1 to 5, or null when they gave none (`PUT /me/ratings/track/:id`).
+   * Clients show it only for a viewer with `showRatings` on. Optional so older servers still parse.
+   */
+  rating: z.number().int().min(1).max(5).nullable().optional(),
 })
 export type TrackSummary = z.infer<typeof TrackSummary>
 
@@ -164,6 +169,95 @@ export const AlbumDisc = z.object({
   tracks: z.array(TrackSummary),
 })
 export type AlbumDisc = z.infer<typeof AlbumDisc>
+
+/**
+ * How good a held copy is, where music apps draw the line: `hi_res_lossless` is lossless
+ * above 48 kHz or 16 bits, `lossless` any other lossless file, `lossy` the rest.
+ */
+export const AudioTier = z.enum(['hi_res_lossless', 'lossless', 'lossy'])
+export type AudioTier = z.infer<typeof AudioTier>
+
+/**
+ * A version's id: an edition (release) and a tier, `<release id>:<tier>`. Opaque to
+ * clients, which only send it back.
+ */
+export const VersionId = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:(hi_res_lossless|lossless|lossy)$/)
+export type VersionId = z.infer<typeof VersionId>
+
+/** The files of a version: their tier, the most common codec, sample rate and bit depth, and the mean bitrate. */
+export const VersionQuality = z.object({
+  tier: AudioTier,
+  /** In the vocabulary of `PlaybackSource.codec`: flac, alac, mp3, aac… */
+  codec: z.string(),
+  sampleRate: z.number().int().nullable(),
+  bitDepth: z.number().int().nullable(),
+  bitrate: z.number().int().nullable(),
+})
+export type VersionQuality = z.infer<typeof VersionQuality>
+
+/** What tells one edition from another, as MusicBrainz describes the release. */
+const editionFacts = {
+  id: VersionId,
+  title: z.string(),
+  /** MusicBrainz's note that tells pressings apart ("2011 remaster"). */
+  disambiguation: z.string().nullable(),
+  releaseDate: z.string().nullable(),
+  country: z.string().nullable(),
+  label: z.string().nullable(),
+  catalogNumber: z.string().nullable(),
+  /** The release's media as MusicBrainz lists them: "CD", "2×12\" Vinyl", "Digital Media". */
+  format: z.string().nullable(),
+  /**
+   * The files were matched to this edition. False for files on a track list built from tags
+   * or a store: the release facts are then those of the release the album is shown as.
+   */
+  identified: z.boolean(),
+  quality: VersionQuality,
+}
+
+/**
+ * An edition of the album the server holds files of, in one quality tier: the 1973 LP rip,
+ * the 2011 remaster in FLAC, the same remaster as MP3. See `AlbumDetail.ownedVersions`.
+ */
+export const AlbumVersion = z.object({
+  ...editionFacts,
+  /** Tracks on the edition. */
+  trackCount: z.number().int().nonnegative(),
+  /** Of those, the ones with a file in this version. */
+  ownedTrackCount: z.number().int().nonnegative(),
+})
+export type AlbumVersion = z.infer<typeof AlbumVersion>
+
+/** A version of one song: an edition of an album it is on, in one tier, with the quality of the best file. */
+export const TrackVersion = z.object({
+  ...editionFacts,
+  albumId: Id,
+  albumTitle: z.string(),
+})
+export type TrackVersion = z.infer<typeof TrackVersion>
+
+/** `GET /tracks/:id/versions`: every version of the song the server holds, for Track info. */
+export const TrackVersions = z.object({
+  trackId: Id,
+  /** The album asked about first, then the best tier first. */
+  versions: z.array(TrackVersion),
+  /** The user's pick for this song (`PUT /me/versions/track/:id`), or null for Automatic. */
+  versionId: VersionId.nullable(),
+  /** The user's pick for the album asked about (`albumId`), or null. */
+  albumVersionId: VersionId.nullable(),
+})
+export type TrackVersions = z.infer<typeof TrackVersions>
+
+export const TrackVersionsQuery = z.object({ albumId: Id.optional() })
+export type TrackVersionsQuery = z.infer<typeof TrackVersionsQuery>
+
+/** What a pick names: an album's default version, or one song's. */
+export const VersionPickType = z.enum(['album', 'track'])
+export type VersionPickType = z.infer<typeof VersionPickType>
+
+/** `PUT /me/versions/:type/:id`. `DELETE` goes back to Automatic. */
+export const VersionPickRequest = z.object({ versionId: VersionId })
+export type VersionPickRequest = z.infer<typeof VersionPickRequest>
 
 export const AlbumDetail = AlbumSummary.extend({
   releaseDate: z.string().nullable(),
@@ -198,6 +292,19 @@ export const AlbumDetail = AlbumSummary.extend({
    * release once, so these are not in its discography. Optional for older servers.
    */
   versions: z.array(AlbumSummary).optional(),
+  /**
+   * The editions of this album the server holds files of, one per quality tier (see
+   * `AlbumVersion`), oldest edition first and best tier first within one. Clients show a
+   * Versions control when there are two or more. Not to be confused with `versions`, which
+   * are other album rows. Optional for older servers.
+   */
+  ownedVersions: z.array(AlbumVersion).optional(),
+  /**
+   * The version the viewer picked to play by default (`PUT /me/versions/album/:id`): the
+   * track list is its edition's, and its files play. Null for Automatic: the album's own
+   * edition is listed and each song plays from its best copy. Optional for older servers.
+   */
+  versionId: VersionId.nullable().optional(),
 })
 export type AlbumDetail = z.infer<typeof AlbumDetail>
 

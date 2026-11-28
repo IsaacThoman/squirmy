@@ -18,6 +18,7 @@ import { appearsOnKey, isArtistSectionKey, releaseGroups } from '../data/artists
 import { useAlbum, useArtist, useArtistReleases, useGenreAlbums, useHistory, useHome, useLikedTracks, useMix, usePlaylist } from '../data/queries';
 import type { BrowseProps } from '../Library';
 import { useRealtime } from '../data/realtime';
+import { useShareItem, type ShareLinkTarget } from './shareLink';
 import {
   useAvailability, useDownloadActions, useDownloadedAlbum, useDownloadedLikes, useDownloadedPlaylist,
 } from '../downloads/DownloadsProvider';
@@ -38,15 +39,17 @@ import {
 } from './shared';
 import { albumPlaylistSheet, useCollectionActions } from './collectionActions';
 import { albumActions, playActions } from './albumActions';
+import { useVersionPick } from './useVersionPick';
+import { versionFailure, versionsButton } from './versions';
 import { confirmQueued } from './queued';
 import { uniqueTracks } from './loadAll';
 import { useStartGuard } from './pending';
 import { displayFontScale, secondaryFontScale } from '../fontScale';
 import { scrollEdgeFade } from '../edgeFade';
 import { ScrollEdge } from '../ScrollEdge';
-import { SongList, useSongListItems, type SongListProps } from './SongList';
+import { LongSongList, SongList, type SongListProps } from './SongList';
 import { besideArtist } from './collectionMenu';
-import { chunk, type SongListItems, type SongRowItem } from './rows';
+import { chunk } from './rows';
 import { usePlayAll } from './usePlayAll';
 import { ZoomTarget } from './ZoomLink';
 
@@ -79,10 +82,10 @@ type DetailProps = {
   onBack: () => void;
   onEndReached?: () => void;
   bottomInset: number;
-  /** Shown under the header; with `list`, above its rows. */
+  /** Shown under the header; with `songs`, above its rows. */
   children?: ReactNode;
-  /** A long list of songs, drawn as it scrolls into view rather than all at once. */
-  list?: SongListItems & { footer?: ReactElement | false };
+  /** A long list of songs (`LongSongList`), drawn as it scrolls into view rather than all at once. */
+  songs?: { props: SongListProps; footer?: ReactElement | false };
 };
 
 /**
@@ -91,7 +94,7 @@ type DetailProps = {
  * the content scrolls on under the floating buttons, with no bar behind them.
  */
 function DetailPage({
-  item, tint, title, artist, artistLinks, info, buttons, nav, status, description, onBack, onEndReached, bottomInset, children, list,
+  item, tint, title, artist, artistLinks, info, buttons, nav, status, description, onBack, onEndReached, bottomInset, children, songs,
 }: DetailProps) {
   const colors = useColors();
   const styles = useStyles();
@@ -115,8 +118,6 @@ function DetailPage({
   const artSize = Math.min(238, Math.floor(width * 0.60));
   const artRadius = item.round ? artSize / 2 : 17;
   const headerColor = tint ? interpolateColor(colors.albumTint, [0, 1], [colors.background, tint], 'RGB', { gamma: 1 }) : colors.background;
-  const renderRow = list?.renderItem;
-  const renderItem = useCallback((info: { item: SongRowItem }) => <View style={styles.trackList}>{renderRow!(info)}</View>, [renderRow, styles]);
   const header = <>
     <View style={[styles.header, { paddingTop: top + albumNavSize + 12 }]}>
       {tint && <LinearGradient pointerEvents="none" colors={[headerColor, colors.background]}
@@ -133,12 +134,9 @@ function DetailPage({
 
   return <View style={styles.page}>
     {/* The native stack finds its content scroll view through the first child. */}
-    {list ? (
-      <Animated.FlatList data={list.data} renderItem={renderItem} keyExtractor={list.keyExtractor}
-        ListHeaderComponent={header} ListFooterComponent={list.footer || undefined}
-        initialNumToRender={listBatch} maxToRenderPerBatch={listBatch} windowSize={listWindow}
-        contentInsetAdjustmentBehavior="never" onScroll={onScroll} scrollEventThrottle={16}
-        contentContainerStyle={{ paddingBottom: bottomInset }} showsVerticalScrollIndicator={false} />
+    {songs ? (
+      <LongSongList songs={songs.props} header={header} footer={songs.footer} onEndReached={onEndReached} scrollOffset={scrollOffset}
+        bottomInset={bottomInset} inset={gutter - 4} />
     ) : (
       <Animated.ScrollView contentInsetAdjustmentBehavior="never" onScroll={onScroll} scrollEventThrottle={16}
         contentContainerStyle={{ paddingBottom: bottomInset }} showsVerticalScrollIndicator={false}>
@@ -212,6 +210,15 @@ function share(message: string) {
   void Share.share({ message }).catch(() => Alert.alert('Sharing unavailable'));
 }
 
+/** Share for an album or playlist page: a public link where the server allows it, else its name. */
+function useShare() {
+  const shareItem = useShareItem();
+  return (target: ShareLinkTarget, text: string) => {
+    tapFeedback();
+    shareItem(target, text);
+  };
+}
+
 /** True once the page has waited `trackListWaitMs` for the songs of the album `id`. As on web. */
 function useOverdue(awaiting: boolean, id: string): boolean {
   const [overdue, setOverdue] = useState<string | null>(null);
@@ -238,6 +245,7 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const wantFailure = useWantFailure(id);
   const { setLiked, setWanted } = useLibraryActions();
   const wantlist = useWantlistEnabled();
+  const shareAlbum = useShare();
   const control = useDownloadControl(albumCollectionId(id), data?.title ?? '',
     album.data?.discs.flatMap(disc => disc.tracks), () => download.album(album.data!));
   const [checking, setChecking] = useState(false);
@@ -251,6 +259,11 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const lead = useArtist(leadId ?? '', { enabled: Boolean(leadId), poll: false });
   const leadData = lead.isPlaceholderData ? undefined : lead.data;
   const related = useMemo(() => data ? relatedAlbums(data, leadData) : { versions: [], more: [] }, [data, leadData]);
+  const pickVersion = useVersionPick();
+  const versionPicks = useStartGuard();
+  // A pick the server refused says so on the Versions button and under the buttons for a few
+  // seconds, as a radio that didn't start does; the menu opens again to try again.
+  const versionFailures = useBriefFailures<true>();
   if (!data) return <PageFallback query={album} what="this album" onBack={onBack} />;
   const tracks = data.discs.flatMap(disc => disc.tracks);
   const context: PlaybackContext = { type: 'album', id: data.id, title: data.title };
@@ -300,18 +313,34 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
     setSaved: saved => setLiked('album', data.id, saved, data.title),
     setWanted: want => setWanted('album', data.id, want, data.title),
     goToArtist: index => onOpen(link('artist', data.artists[index]!.id)),
-    share: () => share(`${data.title} · ${data.artistCredit}`),
+    share: () => shareAlbum({ kind: 'album', id: data.id, title: data.title }, `${data.title} · ${data.artistCredit}`),
   });
+
+  // Which edition plays by default, for every song of the album. The page is read again with the
+  // pick, whose edition may list other songs; the songs already loaded to play are loaded again.
+  const versionFailed = versionFailures.failures.has('version');
+  const chooseVersion = (versionId: string | null) => {
+    tapFeedback();
+    versionFailures.drop('version');
+    versionPicks.run('version', () => pickVersion('album', data.id, versionId).catch(() => {
+      versionFailures.fail('version', true);
+      announce(versionFailure(data.title));
+    }));
+  };
+  // Only from the server's answer, never from a download kept offline: the versions are the server's.
+  const versions = album.data && !album.isPlaceholderData && !offline
+    ? versionsButton(album.data, { busy: versionPicks.pending('version'), failed: versionFailed }, chooseVersion) : false;
 
   return <DetailPage item={albumCollection(data, link)} tint={data.artwork?.color ?? fallbackTint} title={data.title}
     artist={data.artistCredit} artistLinks={artistLinks}
     info={[albumTypeLabels[data.type], data.genres[0], data.year, albumNote(data, viewer)].filter(Boolean).join('  ·  ')}
-    buttons={buttons} status={control.status}
+    buttons={buttons} status={<>{control.status}{versionFailed && <FailureLine message={versionFailure(data.title)} />}</>}
     nav={[
       // The heart saves the album to the library. The placeholder does not know whether it is saved.
       !album.isPlaceholderData && { ...heartButton(liked, data.title, likeFailure),
         onPress: () => { tapFeedback(); setLiked('album', data.id, !liked, data.title); } },
       control.nav,
+      versions,
       { icon: 'ellipsis', label: `More options for ${data.title}`, menu },
     ]}
     onBack={onBack} bottomInset={bottomInset}>
@@ -424,8 +453,8 @@ function TrackListPage({ item, title, info, tracks, complete = true, playAll, co
     tapFeedback();
     withAll(Boolean(shuffle), start, all => actions.playTracks(all, { start, shuffle, context }));
   };
-  const songs = useSongListItems({ tracks, artist: context.type === 'artist' ? context.id ?? undefined : undefined,
-    onPlay: start => play(undefined, start), onTrackMenu: track => props.onTrackMenu(track) });
+  const songs: SongListProps = { tracks, artist: context.type === 'artist' ? context.id ?? undefined : undefined,
+    onPlay: start => play(undefined, start), onTrackMenu: track => props.onTrackMenu(track) };
   // The ⋯ menu plays the whole list, as an album's does.
   const menu = playActions(tracks.some(canPlay), {
     play: shuffle => play(shuffle),
@@ -441,7 +470,7 @@ function TrackListPage({ item, title, info, tracks, complete = true, playAll, co
       menu.length > 0 && { icon: 'ellipsis', label: playAll?.busy ? `Loading ${title}` : `More options for ${title}`, busy: Boolean(playAll?.busy), menu },
     ]} status={<>{playAll?.failed && <FailureLine message={playAllFailure} />}{download?.status}</>}
     onBack={props.onBack} onEndReached={loadMore} bottomInset={props.bottomInset ?? 155}
-    list={tracks.length ? { ...songs, footer: loadingMore && <ActivityIndicator style={{ marginVertical: 20 }} /> } : undefined}>
+    songs={tracks.length ? { props: songs, footer: loadingMore && <ActivityIndicator style={{ marginVertical: 20 }} /> } : undefined}>
     {tracks.length ? <TrackSection title="Songs" detail={songCount(tracks, undefined, complete)} />
       : <EmptyState icon={item.special === 'liked' ? 'heart' : 'clock.arrow.circlepath'} {...empty} />}
   </DetailPage>;
@@ -478,6 +507,7 @@ function HistoryScreen(props: PageProps) {
 
 function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset = 155 }: PageProps) {
   const { state } = useAccount();
+  const sharePlaylist = useShare();
   const playlist = usePlaylist(id);
   const kept = useDownloadedPlaylist(id);
   // Deleted on another device: the server's 404 wins over the copy loaded before it and over
@@ -498,6 +528,9 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const tracks = useMemo(() => items?.map(item => item.track) ?? [], [items]);
   // The kept copy has no item ids, and edits need the server.
   const mine = Boolean(data) && state.status === 'signedIn' && data!.ownerId === state.user.id && Boolean(playlist.data) && !offline;
+  // A smart playlist's songs come from its rules (Edit Rules): none are moved or removed here.
+  const smart = Boolean(data?.smart);
+  const editsItems = !smart && (mine || (Boolean(playlist.data) && !offline && data?.collaboratorRole === 'edit'));
   const play = (shuffle?: boolean, start?: number) => {
     if (!data) return;
     tapFeedback();
@@ -506,15 +539,20 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const itemIds = useMemo(() => items?.map(item => item.itemId) ?? [], [items]);
   const songListProps: SongListProps = {
     tracks,
+    addedByNames: data?.collaborative ? items?.map(item => item.addedByName) : undefined,
     onPlay: start => play(undefined, start),
-    onTrackMenu: (track, index) => onTrackMenu(track, mine ? { id, itemId: itemIds[index]! } : undefined),
-    playlist: mine ? {
+    onTrackMenu: (track, index) => onTrackMenu(track, editsItems ? { id, itemId: itemIds[index]! } : undefined),
+    playlist: editsItems ? {
       id, itemIds, editing,
-      onMove: (itemId, toIndex) => edits.move(id, itemId, toIndex),
+      onMove: (itemId, toIndex) => {
+        const from = itemIds.indexOf(itemId);
+        const target = itemIds[toIndex];
+        if (from < 0 || !target || target === itemId) return;
+        edits.move(id, itemId, toIndex, { itemId: target, side: from < toIndex ? 'after' : 'before' });
+      },
       onRemove: itemId => edits.removeItem(id, itemId),
     } : undefined,
   };
-  const songs = useSongListItems(songListProps);
   if (!data) return <PageFallback query={playlist} what="this playlist" onBack={onBack} />;
   const rename = () => onOpen({ pathname: '/name-playlist', params: { mode: 'rename', id: data.id, name: data.name } });
   const remove = () => Alert.alert(`Delete “${data.name}”?`, 'This can’t be undone.', [
@@ -535,29 +573,29 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
       },
     }),
     ...mine ? [
+      // A smart playlist's rules, with its name and visibility, are edited in one sheet.
+      ...smart ? [{ title: 'Edit Rules', icon: 'slider.horizontal.3', onPress: () => onOpen({ pathname: '/smart-playlist', params: { id: data.id } }) }] : [],
       { title: 'Rename', icon: 'pencil', onPress: rename },
       { title: 'Delete Playlist', icon: 'trash', destructive: true, onPress: remove },
     ] : [],
   ];
 
   return <DetailPage item={playlistCollection(data, link)} tint={data.artworks[0]?.color ?? null} title={data.name}
-    artist={state.status === 'signedIn' && data.ownerId === state.user.id ? undefined : data.ownerName} info="Playlist"
+    artist={state.status === 'signedIn' && data.ownerId === state.user.id ? undefined : data.ownerName} info={data.collaborative ? 'Collaborative Playlist' : smart ? 'Smart Playlist' : 'Playlist'}
     description={data.description}
     status={<>{failure && <FailureLine message={failure} />}{control.status}</>}
     nav={[
       control.nav,
-      mine && Platform.OS === 'ios' && tracks.length > 1 && { icon: editing ? 'checkmark' : 'arrow.up.arrow.down',
+      editsItems && Platform.OS === 'ios' && tracks.length > 1 && { icon: editing ? 'checkmark' : 'arrow.up.arrow.down',
         label: editing ? 'Finish reordering' : 'Reorder songs', selected: editing, onPress: () => { tapFeedback(); setEditing(!editing); } },
       // While the playlist is deleted the button waits for the server, with nothing to choose.
       deleting ? { icon: 'ellipsis', label: `Deleting ${data.name}`, busy: true, onPress: () => undefined }
         : menu.length > 0 && { icon: 'ellipsis', label: `More options for ${data.name}`, menu },
-      { icon: 'square.and.arrow.up', label: `Share ${data.name}`, onPress: () => share(data.name) },
+      (mine || data.isPublic) && { icon: 'square.and.arrow.up', label: `Share ${data.name}`, onPress: () => sharePlaylist({ kind: 'playlist', id: data.id, title: data.name }, data.name) },
     ]}
-    // Reordering drags rows within one native list, so while editing every row is drawn.
-    onBack={onBack} bottomInset={bottomInset} list={tracks.length && !editing ? songs : undefined}>
-    {tracks.length ? <TrackSection title="Songs" detail={songCount(tracks, data.durationMs)}>
-      {editing && <SongList {...songListProps} />}
-    </TrackSection> : <EmptyState icon="music.note.list" title="No songs yet"
+    onBack={onBack} bottomInset={bottomInset} songs={tracks.length ? { props: songListProps } : undefined}>
+    {tracks.length ? <TrackSection title="Songs" detail={songCount(tracks, data.durationMs)} /> : smart ? <EmptyState icon="music.note.list" title="No songs match yet"
+      description="Songs show up here as soon as music that fits its rules arrives." /> : <EmptyState icon="music.note.list" title="No songs yet"
       description="Add songs from any song’s menu with Add to playlist." />}
   </DetailPage>;
 }

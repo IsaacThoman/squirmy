@@ -9,7 +9,7 @@ import { expect } from 'vitest'
 export type XmlNode = { name: string; attributes: Record<string, string>; children: XmlNode[]; text: string }
 
 const entities: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" }
-const decode = (value: string) => value.replace(/&(amp|lt|gt|quot|apos);/g, (_, name: string) => entities[name]!)
+const decode = (value: string) => value.replace(/&(amp|lt|gt|quot|apos|#\d+);/g, (_, name: string) => name.startsWith('#') ? String.fromCharCode(Number(name.slice(1))) : entities[name]!)
 
 /** Reads the XML this server writes: elements, attributes and text; no CDATA, comments or DTDs. */
 export function parseXml(xml: string): XmlNode {
@@ -45,7 +45,7 @@ type Shape = { [key: string]: string | Shape[] }
 
 export function xmlShape(element: XmlNode): Shape {
   const shape: Shape = { ...element.attributes }
-  if (element.text.trim()) shape.value = element.text
+  if (element.text.trim() || (element.name === 'cue' && element.text)) shape.value = element.text
   for (const child of element.children) shape[child.name] = [...(shape[child.name] as Shape[] | undefined) ?? [], xmlShape(child)]
   return shape
 }
@@ -74,6 +74,7 @@ export type CallOptions = {
   /** Replaces the default token credentials. */
   auth?: Record<string, string>
   headers?: Record<string, string>
+  jsonBody?: Record<string, unknown>
 }
 
 type ParamValue = string | number | boolean | (string | number)[] | undefined
@@ -93,6 +94,9 @@ export function subsonicClient(app: FastifyInstance, credentials: Credentials) {
       for (const item of [value].flat()) search.append(key, String(item))
     }
     const url = `/rest/${endpoint}${options.view ? '.view' : ''}`
+    if (options.jsonBody) {
+      return app.inject({ method: 'POST', url: `${url}?${search}`, headers: { 'content-type': 'application/json', ...options.headers }, payload: options.jsonBody })
+    }
     if (options.method === 'POST') {
       return app.inject({ method: 'POST', url, headers: { 'content-type': 'application/x-www-form-urlencoded', ...options.headers }, payload: search.toString() })
     }

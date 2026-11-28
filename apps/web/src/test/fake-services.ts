@@ -4,7 +4,7 @@ import {
   DEFAULT_ORGANIZE_TEMPLATE, ORGANIZE_TEMPLATE_TOKENS,
   type AcquisitionPolicy, type AlbumPage, type CommandEnvelope, type DeviceInfo, type Import, type LibraryItemPage, type LibraryRoot, type LibraryStats, type OrganizeTemplateInfo, type PlaylistSummary,
   type DuplicatePage, type HealthPage, type QualityPage, type RemoveDuplicate, type TagEdit, type TagEditResult, type TagEditor,
-  type ScrobblingStatus, type SearchKind, type SessionHello, type SetupStatus, type TrackSummariesRequest, type UploadAlbum, type UploadFile, type User, type WantItem,
+  type ScrobblingStatus, type SearchKind, type SessionHello, type SetupStatus, type TrackSummariesRequest, type TrackVersions, type UploadAlbum, type UploadFile, type User, type WantItem,
 } from '@squirmy/contracts'
 import { vi } from 'vitest'
 import type { Services } from '@/api/services'
@@ -12,7 +12,7 @@ import {
   albumDetail, allTracks, artistDetail, genres, home, libraryAlbums, mixDetail, libraryArtists, libraryTracks, likedTracks, lyricsFor, playlistDetail, playlistSummaries,
   searchFixtures, searchPage, wantlist,
 } from '@/fixtures/catalog'
-import { appPasswords, currentUser, invites, jobs, serverSettings, userSettings, users } from '@/fixtures/server'
+import { accountSecurity, appPasswords, authSessions, currentUser, invites, jobs, publicShare, serverSettings, shareLinks, userSettings, users } from '@/fixtures/server'
 
 type Listener = (...args: never[]) => void
 
@@ -224,8 +224,12 @@ export type FakeOptions = { status?: Partial<SetupStatus>; user?: User | null }
 export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
   const socket = new FakeSocket()
   const api = {
+    sessions: {
+      jam: vi.fn(async (jamId: string) => ({ id: jamId, hostName: 'Robin', members: [{ userId: users[0]!.id, name: 'Robin' }], trackId: null })),
+      jamPeople: vi.fn(async () => list([{ userId: '01900000-0000-7000-8000-0000000000f1', name: 'Sam' }])),
+    },
     auth: {
-      setupStatus: vi.fn(async () => ({ needsSetup: false, version: '0.0.0', serverName: 'Squirmy', registrationRequiresInvite: true, wantlistEnabled: true, ...status })),
+      setupStatus: vi.fn(async () => ({ needsSetup: false, version: '0.0.0', serverName: 'Squirmy', registrationRequiresInvite: true, wantlistEnabled: true, sharingEnabled: true, ...status })),
       me: vi.fn(async () => {
         if (user) return user
         throw new ApiError(401, 'unauthorized', 'Sign in to continue')
@@ -238,6 +242,26 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
       appPasswords: vi.fn(async () => list(appPasswords)),
       createAppPassword: vi.fn(async ({ name }: { name: string }) => ({ ...appPasswords[0], name, secret: 'sq-secret' })),
       deleteAppPassword: vi.fn(async () => ({ ok: true as const })),
+      lookupTvPairing: vi.fn(async (_body: { code: string }) => ({ id: users[0]!.id, deviceName: 'Living Room Apple TV', ipAddress: '192.168.1.20' })),
+      approveTvPairing: vi.fn(async (_body: { code: string; id: string }) => ({ ok: true as const })),
+      loginTwoFactor: vi.fn(async () => ({ user: currentUser, token: 'token' })),
+      sessions: vi.fn(async () => list(authSessions)),
+      revokeSession: vi.fn(async () => ({ ok: true as const })),
+      revokeOtherSessions: vi.fn(async () => ({ ok: true as const })),
+      security: vi.fn(async () => accountSecurity),
+      startTwoFactor: vi.fn(async () => ({ secret: 'JBSWY3DPEHPK3PXP', otpauthUrl: 'otpauth://totp/Squirmy:alex?secret=JBSWY3DPEHPK3PXP', qrCode: 'data:image/svg+xml;base64,PHN2Zy8+' })),
+      enableTwoFactor: vi.fn(async () => ({ recoveryCodes: ['abcde-fghjk', 'mnpqr-stuvw'] })),
+      disableTwoFactor: vi.fn(async () => ({ ok: true as const })),
+      regenerateRecoveryCodes: vi.fn(async () => ({ recoveryCodes: ['abcde-fghjk', 'mnpqr-stuvw'] })),
+      startPasskey: vi.fn(async () => ({ challenge: 'passkey-challenge', options: { challenge: 'abc' } })),
+      addPasskey: vi.fn(async () => accountSecurity.passkeys[0]),
+      renamePasskey: vi.fn(async () => accountSecurity.passkeys[0]),
+      deletePasskey: vi.fn(async () => ({ ok: true as const })),
+      passkeyLoginOptions: vi.fn(async () => ({ challenge: 'login-challenge', options: { challenge: 'abc' } })),
+      loginWithPasskey: vi.fn(async () => ({ user: currentUser, token: 'token' })),
+      linkSso: vi.fn(async () => ({ url: 'https://sso.example.com/authorize' })),
+      unlinkSso: vi.fn(async () => ({ ok: true as const })),
+      ssoExchange: vi.fn(async () => ({ user: currentUser, token: 'token' })),
     },
     admin: {
       duplicates: vi.fn(async (): Promise<DuplicatePage> => list([])),
@@ -252,6 +276,11 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
       createUser: vi.fn(async () => users[1]),
       updateUser: vi.fn(async (id: string, patch: Partial<User>) => ({ ...users.find(candidate => candidate.id === id)!, ...patch })),
       deleteUser: vi.fn(async () => ({ ok: true as const })),
+      userSecurity: vi.fn(async () => ({ twoFactorEnabled: true, sessions: authSessions.map(session => ({ ...session, current: false })), passkeys: accountSecurity.passkeys })),
+      revokeUserSession: vi.fn(async () => ({ ok: true as const })),
+      revokeUserSessions: vi.fn(async () => ({ ok: true as const })),
+      resetTwoFactor: vi.fn(async () => ({ ok: true as const })),
+      testSso: vi.fn(async () => ({ ok: true, issuer: 'https://sso.example.com', message: 'Found https://sso.example.com.' })),
       invites: vi.fn(async () => list(invites)),
       createInvite: vi.fn(async () => invites[0]),
       deleteInvite: vi.fn(async () => ({ ok: true as const })),
@@ -304,6 +333,10 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
       track: vi.fn(async (id: string) => found(allTracks.find(track => track.id === id))),
       lyrics: vi.fn(async (id: string) => found(lyricsFor(id))),
       trackSummaries: vi.fn(async ({ tracks }: TrackSummariesRequest) => ({ tracks: tracks.flatMap(({ id }) => allTracks.filter(track => track.id === id).slice(0, 1)) })),
+      // One copy of every song: Track info shows no versions unless a test gives some.
+      trackVersions: vi.fn(async (id: string): Promise<TrackVersions> => ({ trackId: id, versions: [], versionId: null, albumVersionId: null })),
+      pickVersion: vi.fn(async () => ok),
+      clearVersion: vi.fn(async () => ok),
     },
     streaming: {
       // No audio in tests: a failure that may pass, which the session client retries. A test of a
@@ -321,6 +354,8 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
       playlists: vi.fn(async () => list(playlistSummaries.map(playlist => ({ ...playlist, ownerId: currentUser.id })))),
       playlist: vi.fn(async (id: string) => ({ ...found(playlistDetail(id)), ownerId: currentUser.id })),
       createPlaylist: vi.fn(async ({ name }: { name: string }): Promise<PlaylistSummary> => ({ ...playlistSummaries[0], id: '00000000-0000-4000-8400-0000000000ff', name, trackCount: 0 })),
+      previewSmartPlaylist: vi.fn(async () => ({ trackCount: 12, durationMs: 45 * 60_000 })),
+      rate: vi.fn(async () => ok),
       wants: vi.fn(async () => list(wants)),
       want: vi.fn(async () => ok),
       unwant: vi.fn(async () => ok),
@@ -351,9 +386,19 @@ export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
       adminDeleteAlbum: vi.fn(async () => ({ deletedFiles: 2, deletedBytes: 20 * 1024 ** 2, keptFiles: 0 })),
       adminDeleteFile: vi.fn(async () => ({ deletedFiles: 1, deletedBytes: 10 * 1024 ** 2, keptFiles: 0 })),
     },
+    share: {
+      list: vi.fn(async () => list(shareLinks)),
+      create: vi.fn(async () => ({ ...shareLinks[0], url: '/s/fixture-token' })),
+      revoke: vi.fn(async () => ({ ok: true as const })),
+      adminList: vi.fn(async () => list(shareLinks.map(link => ({ ...link, createdBy: { id: users[1].id, username: users[1].username } })))),
+      adminRevoke: vi.fn(async () => ({ ok: true as const })),
+      page: vi.fn(async () => publicShare),
+      trackPlayback: vi.fn(async () => ({ url: '/api/v1/share/stream?key=k', expiresAt: '2026-11-27T21:00:00.000Z', mime: 'audio/mpeg', preview: true, durationMs: 30_000 })),
+    },
     radio: {
       mix: vi.fn(async (id: string) => found(mixDetail(id))),
       track: vi.fn(async (id: string) => ({ context: { type: 'radio' as const, id: `track:${id}`, title: null }, tracks: [{ trackId: id, durationMs: 1000 }] })),
+      sonic: vi.fn(async (id: string) => ({ context: { type: 'radio' as const, id: `sonic:${id}`, title: null }, tracks: [{ trackId: id, durationMs: 1000 }] })),
       artist: vi.fn(async (id: string) => ({ context: { type: 'radio' as const, id: `artist:${id}`, title: null }, tracks: libraryTracks.slice(0, 3).map(item => ({ trackId: item.id, durationMs: item.durationMs })) })),
     },
     acquisition: {

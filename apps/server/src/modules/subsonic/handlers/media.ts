@@ -1,5 +1,6 @@
+import { playlistVisibleTo } from '../../userdata/playlist-access.js'
 /** Media retrieval: stream, download, cover art and lyrics. */
-import { stripWordStamps } from '@squirmy/client-core'
+import { parseLrc as parseEnhancedLrc, stripWordStamps } from '@squirmy/client-core'
 import { ART_SIZES, type ArtSize } from '@squirmy/contracts'
 import { sql } from 'drizzle-orm'
 import { db } from '../../../database/client.js'
@@ -7,12 +8,14 @@ import { AppError } from '../../../lib/errors.js'
 import { matchKey } from '../../../lib/text.js'
 import { readOriginal } from '../../artwork/recover.js'
 import { rendition } from '../../artwork/renditions.js'
-import { trackLyrics } from '../../catalog/pages.js'
+import { assertFileAllowed } from '../../catalog/explicit.js'
+import { storedTrackLyrics } from '../../catalog/pages.js'
 import { openStream, selectFile } from '../../streaming/index.js'
 import { streamSignal } from '../../streaming/files.js'
 import { profiles } from '../../streaming/profiles.js'
 import { expectId } from '../ids.js'
 import { notFound, sent, type Context, type Handler, type Payload } from '../protocol.js'
+import { xmlText } from '../serialize.js'
 import { hasPresentFile, servableArt } from '../sql.js'
 import { exactLength, liveEncode, liveMime, planStream } from '../transcode.js'
 import { resolve } from './browsing.js'
@@ -25,9 +28,11 @@ function rangeHeaders(context: Context) {
 async function stream(context: Context): Promise<typeof sent> {
   const { params, reply } = context
   const recordingId = await resolve('track', expectId(params.required('id'), 'track').id)
-  const selection = await selectFile(recordingId, { quality: 'original' })
+  const selection = await selectFile(recordingId, { quality: 'original', userId: context.user.id })
   if (!selection) throw notFound('Song')
   const { file } = selection
+  // A 403, error 50: a client that saved the id before explicit content was turned off.
+  await assertFileAllowed(context.user.id, file)
   const plan = planStream(file, {
     format: params.string('format'),
     maxBitRateKbps: params.int('maxBitRate', 0, { min: 0 }),
@@ -68,8 +73,9 @@ async function stream(context: Context): Promise<typeof sent> {
 async function download(context: Context): Promise<typeof sent> {
   const { params, reply } = context
   const recordingId = await resolve('track', expectId(params.required('id'), 'track').id)
-  const selection = await selectFile(recordingId, { quality: 'original' })
+  const selection = await selectFile(recordingId, { quality: 'original', userId: context.user.id })
   if (!selection) throw notFound('Song')
+  await assertFileAllowed(context.user.id, selection.file)
   const response = await openStream(selection.file, 'original', { ...rangeHeaders(context), download: true })
   reply.code(response.status).headers(response.headers)
   await reply.send(response.body ?? undefined)
@@ -101,10 +107,11 @@ async function artworkAsset(value: string, viewerId: string): Promise<string | n
       break
     case 'playlist':
       query = sql`
-        select ${servableArt('a.artwork_asset_id')} as id from playlist_items i join albums a on a.id = i.album_id
-        join playlists p on p.id = i.playlist_id
-        where i.playlist_id = ${parsed.id} and (p.owner_id = ${viewerId} or p.is_public)
-          and ${servableArt('a.artwork_asset_id')} is not null order by i.position limit 1`
+        select coalesce(${servableArt('p.artwork_asset_id')}, (
+          select ${servableArt('a.artwork_asset_id')} from playlist_items i join albums a on a.id = i.album_id
+          where i.playlist_id = p.id and ${servableArt('a.artwork_asset_id')} is not null order by i.position, i.id limit 1
+        )) as id
+        from playlists p where p.id = ${parsed.id} and ${playlistVisibleTo(viewerId)}`
       break
   }
   const [row] = await db.execute<{ id: string | null }>(query)
@@ -166,24 +173,50 @@ export function parseLrc(text: string): { lines: { start: number; value: string 
   return { lines: lines.sort((a, b) => a.start - b.start), offset }
 }
 
-async function getLyricsBySongId({ params }: Context): Promise<Payload> {
+function enhancedLyrics(synced: string, display: Payload): Payload[] {
+  const timed = parseEnhancedLrc(synced, { inferWordEnds: false })
+  if (!timed.length) return []
+  const cueLine = timed.flatMap(({ words, startMs }, index) => {
+    let byteStart = 0
+    const cue = (words ?? []).flatMap((word) => {
+      const value = xmlText(word.text)
+      if (!value) return []
+      const start = byteStart
+      byteStart += Buffer.byteLength(value)
+      return [{ start: word.startMs, end: word.endMs, value, byteStart: start, byteEnd: byteStart - 1 }]
+    })
+    return cue.length ? [{ index, start: startMs, value: cue.map((word) => word.value).join(''), cue }] : []
+  })
+  const main = { ...display, kind: 'main', synced: true, line: timed.map(({ startMs, text }) => ({ start: startMs, value: xmlText(text) })), cueLine }
+  const translated = timed.flatMap(({ startMs, translation }) => translation ? [{ start: startMs, value: xmlText(translation) }] : [])
+  return translated.length ? [main, { ...display, kind: 'translation', synced: true, line: translated }] : [main]
+}
+
+async function getLyricsBySongId({ params, user }: Context): Promise<Payload> {
   const recordingId = await resolve('track', expectId(params.required('id'), 'track').id)
+  const enhanced = params.bool('enhanced') === true
+  const selection = await selectFile(recordingId, { quality: 'original', userId: user.id })
+  if (!selection) throw notFound('Song')
+  await assertFileAllowed(user.id, selection.file)
   const [info] = await db.execute<{ title: string; artistCredit: string }>(sql`
     select title, artist_credit as "artistCredit" from recordings r
     where r.id = ${recordingId} and ${hasPresentFile('recording_id', 'r.id')}`)
   if (!info) throw notFound('Song')
-  const lyrics = await trackLyrics(recordingId).catch((error: unknown) => {
+  const lyrics = await storedTrackLyrics(recordingId).catch((error: unknown) => {
     if (error instanceof AppError && error.status === 404) return null
     throw error
   })
   const display = { displayArtist: info.artistCredit, displayTitle: info.title, lang: 'und' }
   const structured: Payload[] = []
   if (lyrics?.synced) {
-    const { lines, offset } = parseLrc(lyrics.synced)
-    if (lines.length > 0) structured.push({ ...display, offset: offset || undefined, synced: true, line: lines })
+    if (enhanced) structured.push(...enhancedLyrics(lyrics.synced, display))
+    else {
+      const { lines, offset } = parseLrc(stripWordStamps(lyrics.synced))
+      if (lines.length > 0) structured.push({ ...display, offset: offset || undefined, synced: true, line: lines })
+    }
   }
   if (structured.length === 0 && lyrics?.plain) {
-    structured.push({ ...display, synced: false, line: lyrics.plain.split(/\r?\n/).map((value) => ({ value })) })
+    structured.push({ ...display, kind: enhanced ? 'main' : undefined, synced: false, line: stripWordStamps(lyrics.plain).split(/\r?\n/).map((value) => ({ value })) })
   }
   return { lyricsList: { structuredLyrics: structured } }
 }

@@ -10,7 +10,7 @@ import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { albums, appPasswords, mediaFiles, plays, recordings, releaseLoudness, users } from '../../database/schema.js'
+import { albums, appPasswords, mediaFiles, plays, recordings, releaseLoudness, sonicAnalyses, users } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { startJobs } from '../../jobs/index.js'
 import { createAsset } from '../../test/catalog.js'
@@ -132,8 +132,10 @@ describe('subsonic', () => {
       expect(response.json()['subsonic-response'].openSubsonicExtensions).toEqual(extensions)
       const body = await mira.client.call('getOpenSubsonicExtensions')
       expect(body.openSubsonicExtensions.map((extension: { name: string }) => extension.name)).toEqual([
-        'apiKeyAuthentication', 'formPost', 'indexBasedQueue', 'songLyrics', 'topSongsByArtistId', 'transcodeOffset',
+        'apiKeyAuthentication', 'formPost', 'indexBasedQueue', 'playbackReport', 'songLyrics',
+        'sonicSimilarity', 'topSongsByArtistId', 'transcodeOffset', 'transcoding',
       ])
+      expect(body.openSubsonicExtensions.find((extension: { name: string }) => extension.name === 'songLyrics').versions).toEqual([1, 2])
       // The endpoints each extension needs exist.
       for (const name of ['tokenInfo', 'getPlayQueueByIndex', 'savePlayQueueByIndex', 'getLyricsBySongId']) expect(methodNames).toContain(name)
     })
@@ -259,7 +261,7 @@ describe('subsonic', () => {
         artist: 'Mira Vale', track: 1, year: 2021, genre: 'Dream Pop', coverArt: `ca-${coverId}`, size: 1_000_000,
         contentType: 'audio/flac', suffix: 'flac', duration: 180, bitRate: 900, bitDepth: 16, samplingRate: 44_100, channelCount: 2,
         path: 'Mira Vale/Blue Hour/01 Night Swimming.flac', isVideo: false, playCount: 0, discNumber: 1, created: expect.any(String),
-        albumId: `al-${blueHour.albumId}`, artistId: `ar-${blueHour.artist.id}`, type: 'music', mediaType: 'song',
+        albumId: `al-${blueHour.albumId}`, artistId: `ar-${blueHour.artist.id}`, type: 'music', mediaType: 'song', bpm: 0, moods: [],
         musicBrainzId: '1a2b3c4d-0000-4000-8000-0000000000a1', isrc: ['USX9P2100001'],
         genres: [{ name: 'Dream Pop' }, { name: 'Ambient' }], artists: [{ id: `ar-${blueHour.artist.id}`, name: 'Mira Vale' }],
         displayArtist: 'Mira Vale', albumArtists: [{ id: `ar-${blueHour.artist.id}`, name: 'Mira Vale' }], displayAlbumArtist: 'Mira Vale',
@@ -584,6 +586,28 @@ describe('subsonic', () => {
       expect(await mira.client.error('getPlaylist', { id: playlist.id })).toBe(70)
     })
 
+    it('lists smart playlists with the songs their rules find, read-only', async () => {
+      const smart = await createPlaylist(mira.id, {
+        name: 'Dreamy', isPublic: true,
+        rules: { source: 'server', match: 'all', conditions: [{ field: 'genre', op: 'is', value: 'dream pop' }], sort: 'title', limit: null },
+      })
+      const id = `pl-${smart.id}`
+      const listed = (await mira.client.call('getPlaylists')).playlists.playlist.find((row: { id: string }) => row.id === id)
+      expect(listed).toMatchObject({ name: 'Dreamy', songCount: 3, readonly: true, coverArt: `ca-${coverId}` })
+      const read = (await mira.client.call('getPlaylist', { id })).playlist
+      expect(read).toMatchObject({ songCount: 3, readonly: true })
+      expect(read.entry.map((entry: { title: string }) => entry.title)).toEqual(['Glass', 'Night Swimming', 'Tidal'])
+      // Its songs come from its rules: every change but deleting it is refused, and it stays as it was.
+      expect(await mira.client.error('updatePlaylist', { playlistId: id, songIdToAdd: [song(kites, 0)] })).toBe(50)
+      expect(await mira.client.error('updatePlaylist', { playlistId: id, name: 'Renamed' })).toBe(50)
+      expect(await mira.client.error('createPlaylist', { playlistId: id, songId: [song(kites, 0)] })).toBe(50)
+      expect((await getPlaylist(mira.id, smart.id)).name).toBe('Dreamy')
+      expect((await lune.client.call('getPlaylist', { id })).playlist.entry).toHaveLength(3)
+      expect(await lune.client.error('deletePlaylist', { id })).toBe(50)
+      await mira.client.json('deletePlaylist', { id })
+      expect(await mira.client.error('getPlaylist', { id })).toBe(70)
+    })
+
     it('keeps private playlists private, and lets admins list another user', async () => {
       const own = await createPlaylist(lune.id, { name: 'Secret' })
       expect(await mira.client.error('getPlaylist', { id: `pl-${own.id}` })).toBe(70)
@@ -669,6 +693,99 @@ describe('subsonic', () => {
     })
   })
 
+  describe('modern extensions', () => {
+    it('uses the listening clock, closes skips and completed plays, and deduplicates legacy submissions', async () => {
+      const user = await person('timeline')
+      const id = song(blueHour, 0)
+      const params = { mediaType: 'song', mediaId: id }
+      const rows = () => db.select().from(plays).where(eq(plays.userId, user.id))
+      const report = (state: string, positionMs: number, extra = {}) => user.client.json('reportPlayback', { ...params, state, positionMs, ...extra })
+      let now = Date.now()
+      const clock = vi.spyOn(Date, 'now').mockImplementation(() => now)
+      try {
+        const started = now
+        await user.client.call('reportPlayback', { ...params, state: 'starting', positionMs: 0 }, { method: 'POST' })
+        now += 40_000
+        expect((await user.client.call('getNowPlaying')).nowPlaying.entry[0]).toMatchObject({ state: 'starting', positionMs: 0 })
+        expect((await lune.client.call('getNowPlaying')).nowPlaying.entry).toEqual([])
+        await report('playing', 0, { playbackRate: 2 })
+        now += 10_000
+        expect((await user.client.call('getNowPlaying')).nowPlaying.entry[0]).toMatchObject({ state: 'playing', positionMs: 20_000, playbackRate: 2 })
+        await report('paused', 100_000)
+        now += 10_000
+        expect((await user.client.call('getNowPlaying')).nowPlaying.entry[0]).toMatchObject({ state: 'paused', positionMs: 100_000 })
+        await report('playing', 100_000)
+        now += 70_000
+        await user.client.json('scrobble', { id })
+        expect(await rows()).toEqual([])
+        await report('stopped', 170_000)
+        await report('stopped', 170_000)
+        await user.client.json('scrobble', { id, time: started - 1000 })
+        expect(await rows()).toEqual([expect.objectContaining({ msPlayed: 90_000, completed: true, skipped: false, client: 'subsonic', albumId: blueHour.albumId })])
+        expect((await user.client.call('getNowPlaying')).nowPlaying.entry).toEqual([])
+
+        await report('starting', 0)
+        await report('playing', 0)
+        now += 2000
+        await report('stopped', 2000)
+        expect(await rows()).toEqual(expect.arrayContaining([expect.objectContaining({ msPlayed: 2000, completed: false, skipped: true })]))
+
+        await report('starting', 0, { ignoreScrobble: true })
+        await report('playing', 0, { ignoreScrobble: true })
+        now += 100_000
+        await report('stopped', 100_000, { ignoreScrobble: true })
+        expect(await rows()).toHaveLength(2)
+
+        await report('starting', 0)
+        await report('playing', 0)
+        now += 180_000 + 30 * 60_000 + 1
+        await report('stopped', 180_000)
+        expect(await rows()).toHaveLength(2)
+        await user.client.json('scrobble', { id })
+        expect(await rows()).toHaveLength(3)
+
+        expect(await user.client.error('reportPlayback', { ...params, state: 'playing' })).toBe(10)
+        expect(await user.client.error('reportPlayback', { ...params, state: 'bad', positionMs: 0 })).toBe(0)
+      } finally {
+        clock.mockRestore()
+      }
+    })
+
+    it('returns closest library tracks and an ordered path with both endpoints', async () => {
+      const user = await person('sonic')
+      const album = await createAlbum({ title: 'Timbre', rootId, owned: true, tracks: [
+        { title: 'Start' }, { title: 'Middle' }, { title: 'End' }, { title: 'Unanalysed' },
+      ] })
+      const [start, middle, end, unanalysed] = album.tracks
+      await db.insert(sonicAnalyses).values([start!, middle!, end!].map((track, i) => ({
+        fileId: track.fileId!, version: 1, vector: [i, ...Array<number>(33).fill(0)],
+      })))
+      const peer = await createAlbum({ title: 'Peer', artist: await createArtist({ name: 'Peer Artist' }), rootId, owned: true })
+      await db.insert(sonicAnalyses).values({ fileId: peer.tracks[0]!.fileId!, version: 1, vector: [1.5, ...Array<number>(33).fill(0)] })
+      const artist = (await user.client.call('getArtistInfo2', { id: `ar-${album.artist.id}`, count: 1 })).artistInfo2
+      expect(artist.similarArtist).toEqual([expect.objectContaining({ id: `ar-${peer.artist.id}` })])
+      await db.update(mediaFiles).set({ tags: { bpm: 127.6, key: '8A', moods: ['Happy', 'Dreamy'] } }).where(eq(mediaFiles.id, start!.fileId!))
+      const source = (await user.client.call('getSong', { id: song(album, 0) })).song
+      expect(source).toMatchObject({ bpm: 128, moods: ['Happy', 'Dreamy'] })
+      expect(source).not.toHaveProperty('key')
+      const similar = (await user.client.call('getSonicSimilarTracks', { id: song(album, 0), count: 1 })).sonicMatch
+      expect(similar).toEqual([{ entry: expect.objectContaining({ id: `tr-${middle!.recordingId}` }), similarity: expect.any(Number) }])
+      expect(similar[0].similarity).toBeGreaterThanOrEqual(0)
+      const route = (await user.client.call('findSonicPath', { startSongId: song(album, 0), endSongId: song(album, 2), count: 3 })).sonicMatch
+      expect(route.map((item: { entry: { id: string } }) => item.entry.id)).toEqual([song(album, 0), song(album, 1), song(album, 2)])
+      expect(route[0].similarity).toBe(1)
+      const fallback = (await user.client.call('getSonicSimilarTracks', { id: `tr-${unanalysed!.recordingId}`, count: 2 }, { varies: true })).sonicMatch
+      expect(fallback.length).toBeGreaterThan(0)
+      expect(fallback.every((item: { similarity: number }) => item.similarity === -1)).toBe(true)
+      expect(await user.client.error('findSonicPath', { startSongId: song(album, 0), endSongId: song(album, 2), count: 1 })).toBe(0)
+
+      await updateUserSettings(user.id, { libraryIncludesServerMusic: false })
+      await likeEntity(user.id, 'track', end!.recordingId)
+      const limited = (await user.client.call('getSonicSimilarTracks', { id: song(album, 0) })).sonicMatch
+      expect(limited.map((item: { entry: { id: string } }) => item.entry.id)).toEqual([song(album, 2)])
+    })
+  })
+
   describe('every method, every way', () => {
     let playlistForCases = ''
     beforeAll(async () => {
@@ -737,7 +854,7 @@ describe('subsonic', () => {
 
     it('covers every method it implements', () => {
       const tested = new Set(cases.map(([name]) => name))
-      const elsewhere = ['startScan', 'updatePlaylist', 'deletePlaylist', 'stream', 'download', 'getCoverArt', 'getNewestPodcasts', 'getShares']
+      const elsewhere = ['startScan', 'updatePlaylist', 'deletePlaylist', 'stream', 'download', 'getCoverArt', 'getNewestPodcasts', 'getShares', 'getTranscodeDecision', 'getTranscodeStream', 'getSonicSimilarTracks', 'findSonicPath', 'reportPlayback']
       expect(methodNames.filter((name) => !tested.has(name) && !elsewhere.includes(name))).toEqual([])
     })
   })

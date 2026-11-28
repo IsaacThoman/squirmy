@@ -3,6 +3,7 @@ import type { LikeEntityType } from '@squirmy/contracts'
 import { selectFile } from '../../streaming/index.js'
 import { recordExternalPlay } from '../../sessions/index.js'
 import { likeEntity, setRating, unlikeEntity } from '../../userdata/likes.js'
+import { reportPlayback, reportedByTimeline, serialPlayback } from '../playback-report.js'
 import { expectId } from '../ids.js'
 import { endNowPlaying, reportNowPlaying } from '../now-playing.js'
 import { invalidParameter, missingParameter, notFound, type Context, type Handler } from '../protocol.js'
@@ -21,7 +22,8 @@ function starTargets({ params }: Context): { type: LikeEntityType; id: string }[
   return targets.map((target) => ({ type: likeTypes[target.kind], id: target.id }))
 }
 
-async function scrobble({ user, params, client }: Context) {
+async function scrobble(context: Context) {
+  const { user, params, client } = context
   const ids = params.all('id').map((value) => expectId(value, 'track').id)
   if (ids.length === 0) throw missingParameter('id')
   // Milliseconds since the epoch, from 1970 to a day ahead (clocks drift); anything else is a mistake.
@@ -30,18 +32,21 @@ async function scrobble({ user, params, client }: Context) {
     return new Date(Number(value))
   })
   const submission = params.bool('submission') ?? true
-  for (const [index, value] of ids.entries()) {
-    const recordingId = await resolve('track', value)
-    if (!submission) {
-      reportNowPlaying(user.id, recordingId, client)
-      continue
+  return serialPlayback(context, async () => {
+    for (const [index, value] of ids.entries()) {
+      const recordingId = await resolve('track', value)
+      if (reportedByTimeline(user, client, recordingId, times[index])) continue
+      if (!submission) {
+        reportNowPlaying(user.id, recordingId, client)
+        continue
+      }
+      const selection = await selectFile(recordingId, { quality: 'original', userId: user.id })
+      const recorded = await recordExternalPlay(user.id, recordingId, { playedAt: times[index] ?? new Date(), albumId: selection?.file.albumId ?? null })
+      if (!recorded) throw notFound('Song')
+      endNowPlaying(user.id, recordingId)
     }
-    const selection = await selectFile(recordingId, { quality: 'original' })
-    const recorded = await recordExternalPlay(user.id, recordingId, { playedAt: times[index] ?? new Date(), albumId: selection?.file.albumId ?? null })
-    if (!recorded) throw notFound('Song')
-    endNowPlaying(user.id, recordingId)
-  }
-  return {}
+    return {}
+  })
 }
 
 export const annotationEndpoints: Record<string, Handler> = {
@@ -62,4 +67,5 @@ export const annotationEndpoints: Record<string, Handler> = {
     return {}
   },
   scrobble,
+  reportPlayback,
 }

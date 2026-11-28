@@ -1,6 +1,6 @@
 import { type AwayDevice, deviceLabel, idleHint, listedDevices, reconnectingText, UNAVAILABLE_LABEL, type Viewer } from '@squirmy/client-core';
 import type {
-  DeviceInfo, QueueEntry, QueueSeed, RepeatMode, SessionQueue, SessionState, StreamQuality, TrackSummary,
+  DeviceInfo, PlaybackQuery, QueueEntry, QueueSeed, RepeatMode, SessionQueue, SessionState, StreamQuality, TrackSummary,
   UserSettings,
 } from '@squirmy/contracts';
 import { unavailableReason } from '../downloads/model';
@@ -111,6 +111,18 @@ export function codecsFor(platform: string): string {
   return platform === 'ios' ? 'flac,alac,aac,mp3,wav,aiff' : 'flac,aac,mp3,opus,vorbis,wav';
 }
 
+export type PlaybackRequest = Pick<PlaybackQuery, 'codecs' | 'containers' | 'engine'>;
+
+/**
+ * What `/tracks/:id/playback` asks for. The native engine, given its codec probe, reads the
+ * server's fragmented MP4 transcodes, with exact gapless numbers and Opus where the device
+ * decodes it; it says `engine: 'native'` so a device without Opus is not taken for a browser.
+ * Any other player gets what `codecsFor` lists, in today's profiles.
+ */
+export function playbackRequestFor(platform: string, probeCodecs?: () => readonly string[]): PlaybackRequest {
+  return probeCodecs ? { codecs: probeCodecs().join(','), containers: 'fmp4', engine: 'native' } : { codecs: codecsFor(platform) };
+}
+
 /** `none` is catalog only: shown gray, never queued. */
 export function isPlayable(track: Pick<TrackSummary, 'availability'>): boolean {
   return track.availability !== 'none';
@@ -160,7 +172,7 @@ function allEntries(session: Entries): QueueEntry[] {
  * one that is not on the phone says "Not downloaded". An entry whose summary has not loaded
  * yet is not grayed, so rows do not flash.
  */
-export function queueRow(entry: Pick<QueueEntry, 'state'>, track: Pick<TrackSummary, 'availability' | 'artistCredit'> | undefined, {
+export function queueRow(entry: Pick<QueueEntry, 'state'>, track: (Pick<TrackSummary, 'availability' | 'artistCredit'> & { explicit?: boolean | null }) | undefined, {
   playable, offline, viewer,
 }: { playable: boolean; offline: boolean; viewer: Viewer | null | undefined }): { detail: string; unavailable: boolean } {
   if (entry.state === 'failed') return { detail: UNAVAILABLE_LABEL, unavailable: true };

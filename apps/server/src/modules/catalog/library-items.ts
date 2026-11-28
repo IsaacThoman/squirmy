@@ -19,6 +19,7 @@
  * recently pinned first, and every page leaves them out of the list after them. Each branch
  * reads as many rows more as the user has pins, so a page still fills once they are left out.
  */
+import { playlistVisibleTo } from '../userdata/playlist-access.js'
 import { LIKED_SONGS_ID, type LibraryItem, type LibraryItemPage, type LibraryItemsQuery, type LibraryItemsSort } from '@squirmy/contracts'
 import { sql, type SQL } from 'drizzle-orm'
 import { db } from '../../database/client.js'
@@ -81,9 +82,9 @@ function artistIsMember(artist: string, userId: string): SQL {
   ))`
 }
 
-/** Condition: the user may see the playlist (expression): theirs, or public. */
+/** Condition: the user may see the playlist (expression). */
 function playlistIsVisible(playlist: string, userId: string): SQL {
-  return sql`exists (select 1 from playlists visible where visible.id = ${sql.raw(playlist)} and (visible.owner_id = ${userId} or visible.is_public))`
+  return sql`exists (select 1 from playlists visible where visible.id = ${sql.raw(playlist)} and ${playlistVisibleTo(userId, 'visible')})`
 }
 
 /** Artists by name (`title`), as creators (`artist`, ahead of their albums) or without a year (`year`). */
@@ -185,7 +186,7 @@ async function collections(userId: string): Promise<Collection[]> {
     db.execute<{ id: string; name: string; owner: string; at: string }>(sql`
       select p.id, p.name, coalesce(u.display_name, u.username) as owner, ${isoTime('p.created_at')} as at
       from playlists p join users u on u.id = p.owner_id
-      where p.owner_id = ${userId} or p.is_public`),
+      where ${playlistVisibleTo(userId)}`),
     db.execute<{ owner: string; at: string | null }>(sql`
       select coalesce(u.display_name, u.username) as owner, (
         select (s.created_at)::text from likes s where s.user_id = u.id and s.entity_type = 'recording' order by s.created_at desc limit 1
@@ -321,7 +322,7 @@ export async function listLibraryItems(userId: string, query: LibraryItemsQuery)
   const [albums, artists, playlists, played] = await Promise.all([
     albumSummaries(ids('album')),
     artistSummaries(ids('artist'), userId),
-    playlistSummaries(ids('playlist')),
+    playlistSummaries(ids('playlist'), userId),
     shown.length === 0 ? [] : db.execute<{ kind: Kind; id: string; at: string }>(sql`
       select entity_type as kind, entity_id as id, ${isoTime('played_at')} as at from collection_plays
       where user_id = ${userId} and entity_id = any(${uuidArray(shown.map((row) => row.id))})`),

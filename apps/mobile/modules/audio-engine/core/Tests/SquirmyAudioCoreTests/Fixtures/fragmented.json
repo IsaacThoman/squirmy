@@ -1,0 +1,104 @@
+{
+  "flac_mp4.a.mp4": {
+    "gapless": {
+      "sampleRate": 44100,
+      "primingFrames": 0,
+      "frames": 58211
+    }
+  },
+  "flac_mp4.b.mp4": {
+    "gapless": {
+      "sampleRate": 44100,
+      "primingFrames": 0,
+      "frames": 74089
+    }
+  },
+  "opus_mp4_192.a.mp4": {
+    "gapless": {
+      "sampleRate": 48000,
+      "primingFrames": 312,
+      "frames": 63359
+    }
+  },
+  "opus_mp4_192.b.mp4": {
+    "gapless": {
+      "sampleRate": 48000,
+      "primingFrames": 312,
+      "frames": 80642
+    }
+  },
+  "opus_mp4_96.a.mp4": {
+    "gapless": {
+      "sampleRate": 48000,
+      "primingFrames": 312,
+      "frames": 63359
+    }
+  },
+  "opus_mp4_96.b.mp4": {
+    "gapless": {
+      "sampleRate": 48000,
+      "primingFrames": 312,
+      "frames": 80642
+    }
+  },
+  "aac_mp4_256.a.mp4": {
+    "gapless": {
+      "sampleRate": 44100,
+      "primingFrames": 1024,
+      "frames": 58211
+    }
+  },
+  "aac_mp4_256.b.mp4": {
+    "gapless": {
+      "sampleRate": 44100,
+      "primingFrames": 1024,
+      "frames": 74089
+    }
+  },
+  "aac_mp4_128.a.mp4": {
+    "gapless": {
+      "sampleRate": 44100,
+      "primingFrames": 1024,
+      "frames": 58211
+    }
+  },
+  "aac_mp4_128.b.mp4": {
+    "gapless": {
+      "sampleRate": 44100,
+      "primingFrames": 1024,
+      "frames": 74089
+    }
+  },
+  "opus_mp4_96.whole.mp4": {
+    "gapless": {
+      "sampleRate": 48000,
+      "primingFrames": 312,
+      "frames": 144000
+    }
+  },
+  "opus_mp4_96.from-2000.mp4": {
+    "gapless": {
+      "sampleRate": 48000,
+      "primingFrames": 312,
+      "frames": 144000
+    },
+    "startMs": 2000,
+    "startFrame": 96000
+  },
+  "aac_mp4_256.whole.mp4": {
+    "gapless": {
+      "sampleRate": 44100,
+      "primingFrames": 1024,
+      "frames": 132300
+    }
+  },
+  "aac_mp4_256.from-1500.mp4": {
+    "gapless": {
+      "sampleRate": 44100,
+      "primingFrames": 1024,
+      "frames": 132300
+    },
+    "startMs": 1500,
+    "startFrame": 66150
+  }
+}

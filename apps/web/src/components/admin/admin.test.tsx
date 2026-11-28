@@ -3,8 +3,10 @@ import { DEFAULT_ORGANIZE_TEMPLATE, ORGANIZE_TAGS_NOT_REVERTED } from '@squirmy/
 import { ApiError } from '@squirmy/client-core'
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { root, templateInfo } from '@/test/fake-services'
+import { authSessions } from '@/fixtures/server'
 import { renderWithApp } from '@/test/render'
 import { LibraryAdmin } from './LibraryAdmin'
 import { FixMatchView } from './FixMatchDialog'
@@ -313,9 +315,53 @@ describe('users admin', () => {
   const user: User = {
     id: id(50), username: 'sam', displayName: 'Sam', role: 'member', disabled: true, canUpload: false, canAcquire: false, createdAt: '2026-11-01T10:00:00.000Z',
   } as User
+  const securityProps = { security: null, onShowSecurity: vi.fn(), onRevokeUserSession: ok(), onRevokeUserSessions: ok(), onResetTwoFactor: ok() }
   const render = (onUpdateUser: (userId: string, patch: object) => Promise<unknown>) => renderWithApp(
-    <UsersAdmin users={[user]} invites={[]} currentUserId={id(51)} inviteLink={() => ''} onCreateUser={ok()} onUpdateUser={onUpdateUser} onDeleteUser={ok()} onCreateInvite={vi.fn()} onRevokeInvite={ok()} />,
+    <UsersAdmin users={[user]} invites={[]} currentUserId={id(51)} inviteLink={() => ''} onCreateUser={ok()} onUpdateUser={onUpdateUser} onDeleteUser={ok()} onCreateInvite={vi.fn()} onRevokeInvite={ok()} {...securityProps} />,
   )
+
+  it('sets a user\'s email, for single sign-on to find them', async () => {
+    const onUpdateUser = vi.fn(async () => user)
+    render(onUpdateUser)
+    await userEvent.click(screen.getByRole('button', { name: 'Manage sam' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Edit…' }))
+    await userEvent.type(await screen.findByLabelText('Email'), 'sam@example.com')
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onUpdateUser).toHaveBeenCalledWith(user.id, expect.objectContaining({ email: 'sam@example.com' }))
+  })
+
+  it('shows someone\'s sign-ins, signs one out and turns off their second factor', async () => {
+    const onShowSecurity = vi.fn()
+    const onRevokeUserSession = vi.fn(async () => {})
+    const onResetTwoFactor = vi.fn(async () => {})
+    const data = { twoFactorEnabled: true, sessions: authSessions.map(session => ({ ...session, current: false })), passkeys: [] }
+    // Holds the open dialog's user, as the page does.
+    function Harness() {
+      const [shown, setShown] = useState<string | null>(null)
+      return (
+        <UsersAdmin
+          users={[user]} invites={[]} currentUserId={id(51)} inviteLink={() => ''} onCreateUser={ok()} onUpdateUser={ok()} onDeleteUser={ok()} onCreateInvite={vi.fn()} onRevokeInvite={ok()}
+          {...securityProps} onRevokeUserSession={onRevokeUserSession} onResetTwoFactor={onResetTwoFactor}
+          security={shown ? { userId: shown, data } : null}
+          onShowSecurity={next => { onShowSecurity(next); setShown(next) }}
+        />
+      )
+    }
+    renderWithApp(<Harness />)
+    await userEvent.click(screen.getByRole('button', { name: 'Manage sam' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Sign-ins and security…' }))
+    expect(onShowSecurity).toHaveBeenCalledWith(user.id)
+    const dialog = await screen.findByRole('dialog', { name: 'Sign-ins of @sam' })
+    const list = within(dialog).getByRole('list', { name: 'Signed-in devices' })
+    expect(within(list).getAllByRole('listitem')).toHaveLength(3)
+    expect(within(list).getByText('Chrome on Windows')).toBeInTheDocument()
+    await userEvent.click(within(list).getAllByRole('button', { name: 'Sign out' })[0]!)
+    await userEvent.click(within(await screen.findByRole('dialog', { name: 'Sign out Firefox on macOS?' })).getByRole('button', { name: 'Sign out' }))
+    expect(onRevokeUserSession).toHaveBeenCalledWith(user.id, authSessions[0]!.id)
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Turn off' }))
+    await userEvent.click(within(await screen.findByRole('dialog', { name: 'Turn off two-factor authentication for @sam?' })).getByRole('button', { name: 'Turn off' }))
+    expect(onResetTwoFactor).toHaveBeenCalledWith(user.id)
+  })
 
   it('says on the user\'s row why the account could not be enabled', async () => {
     render(refused('The account is locked'))
@@ -335,5 +381,20 @@ describe('users admin', () => {
     expect(onUpdateUser).toHaveBeenCalledWith(user.id, { password: 'a long new password' })
     const row = screen.getByText('@sam').closest('tr')!
     expect(await within(row).findByText('Password changed. They were signed out everywhere.')).toBeInTheDocument()
+  })
+
+  it('turns explicit content off for a user, and marks their row', async () => {
+    const onUpdateUser = vi.fn(async () => user)
+    render(onUpdateUser)
+    await userEvent.click(screen.getByRole('button', { name: 'Manage sam' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Edit…' }))
+    await userEvent.click(await screen.findByRole('switch', { name: 'Turn off explicit content' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onUpdateUser).toHaveBeenCalledWith(user.id, expect.objectContaining({ explicitRestricted: true }))
+  })
+
+  it('shows which users have explicit content turned off', () => {
+    renderWithApp(<UsersAdmin users={[{ ...user, explicitRestricted: true }]} invites={[]} currentUserId={id(51)} inviteLink={() => ''} onCreateUser={ok()} onUpdateUser={ok()} onDeleteUser={ok()} onCreateInvite={vi.fn()} onRevokeInvite={ok()} {...securityProps} />)
+    expect(within(screen.getByText('@sam').closest('tr')!).getAllByText('No explicit').length).toBeGreaterThan(0)
   })
 })
