@@ -16,7 +16,8 @@ function devAudio(): Plugin {
     configureServer(server) {
       server.middlewares.use('/dev-audio', (request, response, next) => {
         const name = decodeURIComponent((request.url ?? '').split('?')[0].slice(1))
-        if (!/^[\w-]+\.flac$/.test(name)) return next()
+        const type = /^[\w-]+\.(flac|mp4)$/.exec(name)?.[1]
+        if (!type) return next()
         let size: number
         try {
           size = statSync(folder + name).size
@@ -27,7 +28,7 @@ function devAudio(): Plugin {
         const range = /^bytes=(\d+)-(\d*)$/.exec(request.headers.range ?? '')
         const start = range ? Number(range[1]) : 0
         const end = range?.[2] ? Math.min(Number(range[2]), size - 1) : size - 1
-        response.setHeader('Content-Type', 'audio/flac')
+        response.setHeader('Content-Type', type === 'mp4' ? 'audio/mp4' : 'audio/flac')
         response.setHeader('Accept-Ranges', 'bytes')
         response.setHeader('Content-Length', end - start + 1)
         if (range) {

@@ -818,8 +818,9 @@ describe('SessionClient engine', () => {
       startMs: 0,
       autoplay: true,
       gain: 1,
+      media: { profile: 'original', mime: 'audio/flac', codec: 'flac', sampleRate: 44100, durationMs: session.current!.durationMs, gapless: null },
     }]])
-    expect(engine.preloaded).toMatchObject({ entryId: queue.queue[0]!.id, url: `https://music.test/api/v1/stream/${track(2)}` })
+    expect(engine.preloaded).toMatchObject({ entryId: queue.queue[0]!.id, url: `https://music.test/api/v1/stream/${track(2)}`, media: { codec: 'flac' } })
   })
 
   it('does nothing with the engine while another device is active', async () => {

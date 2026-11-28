@@ -19,7 +19,7 @@ import {
   type SignalPath,
 } from '@squirmy/contracts'
 import { ApiError, streamUrl } from '../api/client.js'
-import type { EngineEvent, EngineState, EngineStatus, PlayerEngine } from '../engine.js'
+import { engineMedia, type EngineEvent, type EngineState, type EngineStatus, type PlayerEngine } from '../engine.js'
 import { appliedGain } from '../normalization.js'
 import { signalReport } from '../signal.js'
 import { clearRepeating, setRepeating, setTimer } from '../timers.js'
@@ -1155,6 +1155,7 @@ export class SessionClient {
       startMs: waited ? unloaded.startMs : this.startPosition(session),
       autoplay: session.playing,
       gain: this.gain,
+      media: engineMedia(descriptor),
     })
     this.preloadNext()
     // The signal path follows what the engine now holds.
@@ -1197,7 +1198,7 @@ export class SessionClient {
       descriptor => {
         if (token !== this.preloadToken || this.preloadTarget !== next.id || !this.isActive()) return
         this.hold(next.id, descriptor)
-        engine.preload({ entryId: next.id, url: streamUrl(baseUrl, descriptor), gain: this.gainOf(next, descriptor, predicted) })
+        engine.preload({ entryId: next.id, url: streamUrl(baseUrl, descriptor), gain: this.gainOf(next, descriptor, predicted), media: engineMedia(descriptor) })
       },
       error => {
         // A refusal is the server's answer for this entry; asking again on every session

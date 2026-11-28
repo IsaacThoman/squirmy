@@ -57,9 +57,10 @@ export async function buildApp(options: { logStream?: { write(line: string): voi
 
   // The web app loads only its own files: no inline scripts (the appearance script is a file of
   // its own), so script-src is 'self'. Inline styles stay allowed for `style=` and the theme's
-  // <style> element. No upgrade-insecure-requests, so the app keeps working over plain HTTP on a
-  // LAN. Artwork and streams are also loaded by Subsonic web clients on other origins, which the
-  // default same-origin CORP blocks.
+  // <style> element. Media may also come from blob: URLs, which is how an <audio> element is
+  // given a MediaSource the page fills itself. No upgrade-insecure-requests, so the app keeps
+  // working over plain HTTP on a LAN. Artwork and streams are also loaded by Subsonic web clients
+  // on other origins, which the default same-origin CORP blocks.
   await app.register(helmet, {
     contentSecurityPolicy: {
       useDefaults: false,
@@ -68,7 +69,7 @@ export async function buildApp(options: { logStream?: { write(line: string): voi
         scriptSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", 'data:'],
-        mediaSrc: ["'self'"],
+        mediaSrc: ["'self'", 'blob:'],
         connectSrc: ["'self'"],
         fontSrc: ["'self'", 'data:'],
         workerSrc: ["'none'"],

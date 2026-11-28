@@ -10,13 +10,12 @@ import { useApi } from '@/api/services'
 import { useCurrentUser } from '@/auth/session'
 import { apiArtUrl } from '@/lib/artwork'
 import { isPlayable } from '@/lib/catalog'
-import { playableCodecs } from '@/lib/codecs'
 import { browserName, claimTabDevice, saveBrowserName } from '@/lib/device'
 import { useDocumentTitle } from '@/lib/document-title'
 import { useRealtime } from '@/realtime/realtime-context'
 import { useEngine } from './engine/engine-context'
 import { AUDIO_BLOCKED_MESSAGE } from './engine/errors'
-import type { WebPlayerEngine } from './engine/web-engine'
+import type { BrowserEngine } from './engine/types'
 import { MediaSessionAdapter, mediaArtwork, type MediaSessionTrack } from './engine/media-session'
 import { Listening, type Audible } from './listening'
 import { NowPlayingContext, PlayerContext, PlayerControlsContext, PositionClock, PositionContext, RadioPendingContext, useNowPlayingStore, type PlayerControls, type PlayerState, type QueueItem, type RadioSeed } from './player-context'
@@ -56,9 +55,9 @@ function failCurrent(client: SessionClient, status: StatusLine, picked: Picked, 
 
 /**
  * The session client of this tab. Playback is resolved with the user's streaming quality,
- * which `setQuality` keeps current, and the codecs this browser plays.
+ * which `setQuality` keeps current, and the streams the page's engine plays.
  */
-function createSession(api: ApiClient, socket: SquirmySocket, device: ClientDevice, engine: WebPlayerEngine, store: TrackStore, status: StatusLine, picked: Picked) {
+function createSession(api: ApiClient, socket: SquirmySocket, device: ClientDevice, engine: BrowserEngine, store: TrackStore, status: StatusLine, picked: Picked) {
   let quality: StreamQuality = 'original'
   const client = new SessionClient({
     transport: createSocketTransport(socket),
@@ -73,7 +72,7 @@ function createSession(api: ApiClient, socket: SquirmySocket, device: ClientDevi
       engine,
       baseUrl: '',
       canBoost: engine.canBoost,
-      resolvePlayback: entry => api.streaming.playback(entry.trackId, { albumId: entry.albumId ?? undefined, quality, codecs: playableCodecs().join(',') }),
+      resolvePlayback: entry => api.streaming.playback(entry.trackId, { albumId: entry.albumId ?? undefined, quality, ...engine.playbackQuery() }),
       // A failure that may pass is retried by the client. A track the server refused to stream
       // (gone, or not allowed) is told once and skipped, as one the browser cannot play.
       onLoadError: (entry, _error, willRetry) => {
@@ -463,7 +462,7 @@ function useFreshSummaries(client: SessionClient, store: TrackStore, socket: Squ
 }
 
 /** A track the browser cannot play (gone, or a format it refuses) is reported and skipped, unless it was just picked. */
-function useEngineErrors(engine: WebPlayerEngine, client: SessionClient, store: TrackStore, status: StatusLine, picked: Picked) {
+function useEngineErrors(engine: BrowserEngine, client: SessionClient, store: TrackStore, status: StatusLine, picked: Picked) {
   useEffect(() => engine.subscribe(event => {
     if (event.type !== 'error' || event.message === AUDIO_BLOCKED_MESSAGE) return
     const { session, isActiveDevice, connection } = client.getSnapshot()
@@ -473,7 +472,7 @@ function useEngineErrors(engine: WebPlayerEngine, client: SessionClient, store: 
 }
 
 /** The system's media controls show what this tab plays, and drive the session. */
-function useMediaSession(client: SessionClient, engine: WebPlayerEngine, controls: PlayerControls, snapshot: SessionClientSnapshot, audible: Audible, clock: PositionClock, track: TrackSummary | null) {
+function useMediaSession(client: SessionClient, engine: BrowserEngine, controls: PlayerControls, snapshot: SessionClientSnapshot, audible: Audible, clock: PositionClock, track: TrackSummary | null) {
   const adapter = useRef<MediaSessionAdapter | null>(null)
   useEffect(() => {
     const created = new MediaSessionAdapter({
