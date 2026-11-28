@@ -11,8 +11,8 @@ describe('ImportListQuery', () => {
 
 describe('importFileKind', () => {
   it('takes audio, album sidecars and zips by name, from a path or a bare name', () => {
-    expect(['Album/01 One.FLAC', 'b.mp3', 'Album/cover.jpg', 'Folder.PNG', 'x.lrc', 'rip.log', 'Album.zip'].map(importFileKind))
-      .toEqual(['audio', 'audio', 'sidecar', 'sidecar', 'sidecar', 'sidecar', 'archive'])
+    expect(['Album/01 One.FLAC', 'b.mp3', 'Album/cover.jpg', 'Folder.PNG', 'x.lrc', 'x.ttml', 'rip.log', 'Album.zip'].map(importFileKind))
+      .toEqual(['audio', 'audio', 'sidecar', 'sidecar', 'sidecar', 'sidecar', 'sidecar', 'archive'])
   })
 
   it('refuses anything else, and names that are only an extension', () => {

@@ -64,7 +64,7 @@ export type OrganizeBatchStatus = z.infer<typeof OrganizeBatchStatus>
 export const OrganizeMoveStatus = z.enum(['planned', 'applied', 'reverted', 'failed', 'skipped'])
 export type OrganizeMoveStatus = z.infer<typeof OrganizeMoveStatus>
 
-/** `audio`: a library file. `sidecar`: a cover, `.lrc`, `.cue` or other file travelling with its album. */
+/** `audio`: a library file. `sidecar`: a cover, `.lrc`, `.ttml`, `.cue` or other file travelling with its album. */
 export const OrganizeMoveKind = z.enum(['audio', 'sidecar'])
 export type OrganizeMoveKind = z.infer<typeof OrganizeMoveKind>
 

@@ -19,6 +19,12 @@
     var own = (dark ? /:root\.dark\{[^}]*--background:(#[0-9a-f]+)/ : /:root:not\(\.dark\)\{[^}]*--background:(#[0-9a-f]+)/).exec(saved.css)
     if (own) background = own[1]
   }
+  // The display density (src/lib/density.ts), so a compact list does not jump in after load.
+  try {
+    document.documentElement.dataset.density = localStorage.getItem('squirmy.density') === 'compact' ? 'compact' : 'comfortable'
+  } catch {
+    document.documentElement.dataset.density = 'comfortable'
+  }
   var meta = document.querySelector('meta[name="theme-color"]')
   if (meta) meta.setAttribute('content', background)
 })()

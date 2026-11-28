@@ -4,6 +4,17 @@
 @custom-variant dark (&:is(.dark *));
 /* A phone on its side: too short to stack a pane over the player's controls. */
 @custom-variant short-landscape (@media (orientation: landscape) and (max-height: 32rem));
+/*
+ * The compact display density (lib/density.ts), with a mouse or trackpad only: on a touch screen
+ * rows keep the 44px a finger needs. Sizes set under it must match density.ts's for virtualized lists.
+ */
+@custom-variant compact {
+  @media (pointer: fine) {
+    &:where([data-density='compact'] *) {
+      @slot;
+    }
+  }
+}
 
 /*
  * The colors of the default theme, Squirmy. Other themes replace them through a stylesheet
