@@ -524,6 +524,11 @@ export const mediaFiles = pgTable('media_files', {
   // Measured loudness (EBU R128). Null until the loudness job has run.
   loudnessLufs: real('loudness_lufs'),
   truePeakDb: real('true_peak_db'),
+  // Frames per channel after source trimming, at the decoder's sample rate.
+  decodedFrames: bigint('decoded_frames', { mode: 'number' }),
+  decodedRate: integer('decoded_rate'),
+  primingFrames: integer('priming_frames'),
+  paddingFrames: integer('padding_frames'),
   // ReplayGain values read from the file's own tags, when present.
   tagTrackGainDb: real('tag_track_gain_db'),
   tagTrackPeak: real('tag_track_peak'),

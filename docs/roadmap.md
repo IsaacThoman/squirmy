@@ -109,7 +109,7 @@ Designed in [audio-engine.md](./audio-engine.md); each item is a pull request fr
 
 - [x] Design, with measurements of today's gaps and spikes of the new engine and formats
 - [x] S1. Transcode priorities and cancelling abandoned encodes
-- [ ] S2. Exact lengths and priming per file, estimated gains for unmeasured files
+- [x] S2. Exact lengths and priming per file, estimated gains for unmeasured files
 - [ ] S3. Fragmented MP4 profiles (FLAC, Opus, AAC) with exact gapless numbers, and seeking live transcodes
 - [ ] C1. Queue diffs with checkpoints on the session socket
 - [ ] C2. Undoing queue edits

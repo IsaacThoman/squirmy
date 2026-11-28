@@ -1,5 +1,5 @@
 {
-  "id": "c81deb64-b97c-4d3b-9458-608f69d4a736",
+  "id": "eeb3233a-dbe9-4ad6-97e7-521364f05db7",
   "prevId": "2c2427d1-a5cf-4324-bfc5-0d28538e667e",
   "version": "7",
   "dialect": "postgresql",
@@ -850,21 +850,6 @@
           "method": "gin",
           "with": {}
         },
-        "albums_match_key_unicode": {
-          "name": "albums_match_key_unicode",
-          "columns": [
-            {
-              "expression": "search_unicode_bigrams(\"match_key\")",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "gin",
-          "with": {}
-        },
         "albums_title_key_prefix": {
           "name": "albums_title_key_prefix",
           "columns": [
@@ -1358,21 +1343,6 @@
               "asc": true,
               "nulls": "last",
               "opclass": "gin_trgm_ops"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "gin",
-          "with": {}
-        },
-        "artists_name_key_unicode": {
-          "name": "artists_name_key_unicode",
-          "columns": [
-            {
-              "expression": "search_unicode_bigrams(\"name_key\")",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
             }
           ],
           "isUnique": false,
@@ -3513,24 +3483,7 @@
           "default": "now()"
         }
       },
-      "indexes": {
-        "lyrics_search": {
-          "name": "lyrics_search",
-          "columns": [
-            {
-              "expression": "to_tsvector('simple', search_lyric_text(\"plain\", \"synced\"))",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "not \"lyrics\".\"instrumental\"",
-          "concurrently": false,
-          "method": "gin",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "lyrics_recording_id_recordings_id_fk": {
           "name": "lyrics_recording_id_recordings_id_fk",
@@ -3798,6 +3751,30 @@
         "true_peak_db": {
           "name": "true_peak_db",
           "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decoded_frames": {
+          "name": "decoded_frames",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decoded_rate": {
+          "name": "decoded_rate",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "priming_frames": {
+          "name": "priming_frames",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "padding_frames": {
+          "name": "padding_frames",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false
         },
@@ -5595,21 +5572,6 @@
               "asc": true,
               "nulls": "last",
               "opclass": "gin_trgm_ops"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "gin",
-          "with": {}
-        },
-        "recordings_match_key_unicode": {
-          "name": "recordings_match_key_unicode",
-          "columns": [
-            {
-              "expression": "search_unicode_bigrams(\"match_key\")",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
             }
           ],
           "isUnique": false,
