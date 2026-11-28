@@ -14,6 +14,7 @@ import { makeSplitTone } from '../../test/audio.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createLibraryRoot } from '../../test/factories.js'
 import { measureLoudness } from '../loudness/measure.js'
+import { sampleDurations } from './mp4.js'
 import { cacheRoot, isTranscoding, setTranscodeSlotLimit } from './transcode.js'
 
 const encoder = vi.hoisted(() => ({ throttle: false }))
@@ -61,12 +62,17 @@ function lag(actual: Float32Array, actualFrame: number, reference: Float32Array,
   return winner
 }
 
-async function finalPacket(file: string) {
-  const { stdout } = await exec(process.env.FFPROBE_PATH ?? 'ffprobe', [
-    '-v', 'error', '-select_streams', 'a:0', '-show_entries', 'packet=duration', '-of', 'json', file,
-  ])
-  const { packets } = JSON.parse(stdout) as { packets: { duration: number }[] }
-  return Number(packets.at(-1)?.duration)
+function finalPacketDuration(bytes: Buffer) {
+  let fragment: Buffer | undefined
+  for (let offset = 0; offset < bytes.length;) {
+    const size = bytes.readUInt32BE(offset)
+    if (size < 8 || offset + size > bytes.length) throw new Error('Incomplete top-level MP4 box')
+    if (bytes.toString('ascii', offset + 4, offset + 8) === 'moof') fragment = bytes.subarray(offset, offset + size)
+    offset += size
+  }
+  if (!fragment) throw new Error('No MP4 fragments in the stream')
+  const { first, last } = sampleDurations(fragment)
+  return fragment.readUInt32BE(last ?? first)
 }
 
 describe('fragmented MP4 delivery', () => {
@@ -173,7 +179,7 @@ describe('fragmented MP4 delivery', () => {
         const delay = priming - applied
         expect(decoded.length / 2 - delay).toBeGreaterThanOrEqual(frames)
         if (packet) {
-          expect(await finalPacket(file)).toBe(packet)
+          expect(finalPacketDuration(bytes)).toBe(packet)
           expect(decoded.length / 2 - delay - frames).toBeLessThan(packet)
         } else {
           expect(decoded.length / 2).toBe(frames)
@@ -191,18 +197,20 @@ describe('fragmented MP4 delivery', () => {
   })
 
   it.each([
-    { inputRate: 32_000, aacRate: 32_000 },
-    { inputRate: 48_000, aacRate: 48_000 },
-    { inputRate: 88_200, aacRate: 44_100 },
-    { inputRate: 96_000, aacRate: 48_000 },
-    { inputRate: 176_400, aacRate: 44_100 },
-    { inputRate: 192_000, aacRate: 48_000 },
-  ])('preserves the playable frame count at $inputRate Hz', async ({ inputRate, aacRate }) => {
+    { inputRate: 32_000, aacRate: 32_000, flacRate: 32_000 },
+    { inputRate: 48_000, aacRate: 48_000, flacRate: 48_000 },
+    { inputRate: 88_200, aacRate: 44_100, flacRate: 88_200 },
+    { inputRate: 96_000, aacRate: 48_000, flacRate: 96_000 },
+    { inputRate: 176_400, aacRate: 44_100, flacRate: 176_400 },
+    { inputRate: 192_000, aacRate: 48_000, flacRate: 192_000 },
+    { inputRate: 352_800, aacRate: 44_100, flacRate: 176_400 },
+    { inputRate: 384_000, aacRate: 48_000, flacRate: 192_000 },
+  ])('preserves the playable frame count at $inputRate Hz', async ({ inputRate, aacRate, flacRate }) => {
     const { tracks, lengths } = await source('alac', `rate-${inputRate}`, inputRate)
     for (const [query, rate, delay, packet] of [
       ['quality=high&codecs=aac', aacRate, 1024, 1024],
       ['quality=high&codecs=opus', 48_000, 312, 960],
-      ['quality=original&codecs=flac', inputRate, 0, 0],
+      ['quality=original&codecs=flac', flacRate, 0, 0],
     ] as const) {
       const playback = await descriptor(tracks[0]!.recordingId, query)
       const frames = Math.ceil(lengths[0]! * rate / inputRate)

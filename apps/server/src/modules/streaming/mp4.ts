@@ -17,7 +17,7 @@ function* boxes(data: Buffer, start: number, end: number): Generator<Box> {
  * FFmpeg writes one audio traf and trun per moof. Sample durations are explicit when
  * they differ, or inherited from tfhd when all packets are the same size in time.
  */
-function sampleDurations(moof: Buffer) {
+export function sampleDurations(moof: Buffer) {
   const traf = [...boxes(moof, headerSize, moof.length)].find(({ type }) => type === 'traf')
   if (!traf) throw new Error('Missing MP4 track fragment')
   const children = [...boxes(moof, traf.offset, traf.end)]

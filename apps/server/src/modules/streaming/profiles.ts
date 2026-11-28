@@ -54,11 +54,9 @@ export type FragmentedProfile = keyof typeof fragmentedEncoders | 'copy_mp4'
 export type LegacyProfile = Exclude<TranscodeProfile, FragmentedProfile>
 
 /**
- * Every transcode profile. Encoders are ffmpeg's native `aac`, `libopus` and `libmp3lame`,
- * which the macOS builds and Ubuntu's `ffmpeg` package all include.
+ * Legacy profiles use containers that play on existing clients:
  *
- * - AAC goes in ADTS rather than MP4: an MP4 needs its index written after the audio, so
- *   the bytes streamed during encoding would not be the bytes cached.
+ * - AAC goes in ADTS, whose packets can be streamed directly.
  * - Opus goes in Ogg: Chrome and Firefox always played it, Safari since 18.4, and an Ogg
  *   stream is final as written. WebM would need its header rewritten at the end.
  * - MP3 is constant bitrate without a Xing frame, which ffmpeg can only fill in by seeking.
@@ -148,9 +146,9 @@ export function mimeFor(file: Pick<MediaFile, 'relPath'>): string {
 }
 
 export function sourceSampleRate(file: Pick<MediaFile, 'sampleRate' | 'decodedRate' | 'container'>): number | null {
-  const rate = file.decodedRate ?? file.sampleRate
+  const rate = file.sampleRate
   // Tag readers can report the DSD bit rate, while the decoder reports its PCM rate.
-  return file.container.toLowerCase() === 'dsf' && rate && rate >= 2_822_400 ? rate / 8 : rate
+  return file.decodedRate ?? (file.container.toLowerCase() === 'dsf' && rate && rate >= 2_822_400 ? rate / 8 : rate)
 }
 
 /**

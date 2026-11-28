@@ -192,7 +192,7 @@ ${line}`.slice(-2000)
           ?? (this.profile === 'copy_mp4' && codecFamily(this.file) === 'aac' ? 'source' : undefined)
         const pipe = child.stdout as AsyncIterable<Buffer>
         const output = packetFrames ? rewritePacketDurations(pipe, packetFrames) : pipe
-        const packetStart = remuxSeek ? firstPacketFrame(child.stdio[3] as Readable, exited) : undefined
+        const packetStart = remuxSeek ? firstPacketFrame(child.stdio[3] as Readable) : undefined
         for await (const chunk of output) {
           signal.throwIfAborted()
           if (packetStart && this.written === 0) {
@@ -376,7 +376,7 @@ function ffmpegArgs(input: string, file: MediaFile, profile: TranscodeProfile, s
 }
 
 /** Observes the first copied packet in the framecrc side output, then drains that pipe. */
-function firstPacketFrame(pipe: Readable, exited: Promise<number | null>): Promise<number | undefined> {
+function firstPacketFrame(pipe: Readable): Promise<number | undefined> {
   return new Promise((resolve) => {
     let timeBase: number | undefined
     let rate: number | undefined
@@ -392,7 +392,8 @@ function firstPacketFrame(pipe: Readable, exited: Promise<number | null>): Promi
       lines.close()
       pipe.resume()
     })
-    void exited.then(() => resolve(undefined))
+    lines.once('close', () => resolve(undefined))
+    lines.once('error', () => resolve(undefined))
   })
 }
 
@@ -453,7 +454,10 @@ async function openEither(job: Transcode): Promise<FileHandle> {
     try {
       return await open(file, 'r')
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT' || job.tempPath === file) throw error
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      // The rename may have moved the file before its promise updated tempPath.
+      if (job.tempPath === file && !job.finished) await job.done
+      if (job.tempPath === file) throw error
     }
   }
 }

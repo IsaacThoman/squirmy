@@ -7,7 +7,7 @@ import { newId } from '../../lib/ids.js'
 import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createLibraryRoot } from '../../test/factories.js'
 import { buildPlaybackDescriptor } from './playback.js'
-import { codecFamily, mimeFor, parseCodecs } from './profiles.js'
+import { codecFamily, mimeFor, outputSampleRate, parseCodecs } from './profiles.js'
 import { chooseProfile, selectFile } from './select.js'
 
 const flac = { codec: 'FLAC', container: 'FLAC', relPath: 'a/01.flac', lossless: true, bitrate: 900_000 }
@@ -66,6 +66,14 @@ describe('profile decisions', () => {
     expect(mimeFor({ relPath: 'a/b.opus' })).toBe('audio/ogg')
     expect(mimeFor({ relPath: 'a/b.xyz' })).toBe('application/octet-stream')
     expect([...parseCodecs(' FLAC, mp3 ,,')]).toEqual(['flac', 'mp3'])
+  })
+
+  it('converts DSD to PCM in the 44.1 kHz family before or after measurement', () => {
+    const dsd = { container: 'dsf', sampleRate: 2_822_400, decodedRate: null }
+    expect(outputSampleRate(dsd, 'flac_mp4')).toBe(88_200)
+    expect(outputSampleRate({ ...dsd, decodedRate: 352_800 }, 'flac_mp4')).toBe(88_200)
+    expect(outputSampleRate({ ...dsd, sampleRate: 5_644_800 }, 'flac_mp4')).toBe(176_400)
+    expect(outputSampleRate({ ...dsd, decodedRate: 705_600 }, 'flac_mp4')).toBe(176_400)
   })
 })
 
