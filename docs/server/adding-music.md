@@ -18,7 +18,7 @@ Imports need a [managed folder](./organizing.md#make-a-folder-managed) to file m
 receiving → extracting → moving → identifying → filing → completed
 ```
 
-1. **Receiving.** Files arrive in the data folder's `staging/` area. Accepted are audio files, `cover.*` and `folder.*` images, `.lrc`, `.cue` and `.log` files, and `.zip` archives. Paths are checked: nothing absolute, no `..`, at most 8 levels deep counting the file name.
+1. **Receiving.** Files arrive in the data folder's `staging/` area. Accepted are audio files, `cover.*` and `folder.*` images, `.lrc`, `.ttml`, `.cue` and `.log` files, and `.zip` archives. Paths are checked: nothing absolute, no `..`, at most 8 levels deep counting the file name.
 2. **Extracting.** Zip archives are unpacked. An archive with an unsafe path, a symbolic link, encryption, more than 10,000 entries, more data than the import may hold, or contents more than 20 times its own size is refused whole. Zips inside zips are skipped.
 3. **Moving.** The files move into `<managed folder>/_Incoming/<import id>/`.
 4. **Identifying.** That folder is scanned. Once every file's audio has been hashed, duplicates are deleted and counted under `duplicatesSkipped`: a file is a **duplicate** when the library already has its audio, when an earlier import that is still processing has it, or when another file in the same import does. Retagged copies count as duplicates too, because the comparison is on the audio, not the tags. The rest is then identified like any other music. This step waits until every file is identified, or for an hour at most.
@@ -44,6 +44,14 @@ Two limits are fixed:
 - **Zip expansion.** A zip whose contents would be more than 20 times its own size (beyond the first 64 MiB) is refused as unsafe. Zipped music is about its own size; that ratio is a zip bomb.
 
 An import that receives no files for a day is failed and cleaned up.
+
+## Lyrics files
+
+A song's lyrics come from, in order: a `.lrc` file with the audio file's name next to it, a `.ttml` file the same way, the lyrics in the file's tags, then LRCLIB. Synced lyrics beat plain ones, and lyrics from your files are never replaced by fetched ones.
+
+- **LRC** times each line (`[01:02.50]A line`). A translation or romanization goes on a second line with the same time.
+- **Enhanced LRC** also times each word (`[01:02.50]<01:02.50>A <01:02.90>line<01:03.60>`), and the apps light the line word by word. The last stamp, after the last word, says when it ends.
+- **TTML**, as Apple Music writes it, times each word with a `<span begin end>` (or only each line with `<p begin>`). Background vocals are left out; translations are kept.
 
 ## Uploading
 
