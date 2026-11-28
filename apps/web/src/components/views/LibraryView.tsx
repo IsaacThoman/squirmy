@@ -103,6 +103,7 @@ export type LibraryViewProps = {
   onPlayPlaylist: (playlist: PlaylistSummary) => void
   onPlayLiked: () => void
   onPlaySong: (index: number) => void
+  playlistFolders?: React.ReactNode
   onNewPlaylist: () => void
   onNewSmartPlaylist: () => void
   /** Pins an item whose `pinned` is known to the top of All, or unpins it; a failure is said on the menu entry. */
@@ -199,6 +200,7 @@ export function LibraryView(props: LibraryViewProps) {
           </div>
         </div>
 
+        {props.playlistFolders}
         {playlistsFailure && !searchFailure && <PlaylistsFailed {...playlistsFailure} />}
 
         {searchFailure

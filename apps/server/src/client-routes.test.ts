@@ -30,6 +30,7 @@ const notForClients = new Set([
   'GET /art/:/:',
   // A browser attachment download streams directly to disk.
   'GET /me/history/export',
+  'GET /playlists/:/export',
   // Browser navigations of single sign-on: the sign-in page links to start, the provider redirects to the callback.
   'GET /auth/sso/start',
   'GET /auth/sso/callback',
