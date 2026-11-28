@@ -3,8 +3,8 @@ import type { Artwork, PlaybackDescriptor, StreamQuality, TrackSummary } from '@
 import type { DownloadNetwork } from '../downloads/manager';
 import { extensionFor, retryDelay, sizeMatches } from '../downloads/model';
 import {
-  estimateBytes, evictions, inUse, maxAttempts, nothingNear, pick, plan, reconcile, sameOutlook, type CacheRow, type Outlook,
-  type Plan, type Target,
+  estimateBytes, evictionsAcross, inUse, maxAttempts, nothingNear, pick, plan, reconcile, sameOutlook, type CacheRow, type ForeignRow,
+  type Outlook, type Plan, type Target,
 } from './model';
 
 /** The index of the cache, for one account. Writes are synchronous so a row and its file change together. */
@@ -12,8 +12,13 @@ export type CacheIndex = {
   load(): CacheRow[];
   put(rows: readonly CacheRow[]): void;
   remove(rows: readonly Pick<CacheRow, 'trackId' | 'quality'>[]): void;
-  /** Forgets every other account's rows. One account is signed in at a time, so they are left over from one that left. */
-  removeOthers(): void;
+  /**
+   * Every other account's rows. They stay for when that account is opened again, and count
+   * toward the device's limit.
+   */
+  others(): ForeignRow[];
+  /** Forgets rows of other accounts. */
+  removeOthers(rows: readonly ForeignRow[]): void;
   /** Every file any account's rows use; the rest of the folder can go. */
   referencedFiles(): Set<string>;
 };
@@ -75,6 +80,8 @@ const keyOf = (row: Pick<CacheRow, 'trackId' | 'quality'>) => `${row.trackId}:${
  */
 export class StreamingCache {
   private rows = new Map<string, CacheRow>();
+  /** Other accounts' rows, read at start: the limit applies to all of them together. */
+  private foreign: ForeignRow[] = [];
   private readonly jobs = new Map<string, Job>();
   /** File sizes the server has announced, for tracks that are near. */
   private readonly sizes = new Map<string, number>();
@@ -116,10 +123,14 @@ export class StreamingCache {
   /** Loads the index and reconciles it with the folder, which the system may have emptied. */
   start(): void {
     const { index, files, network } = this.ports;
-    index.removeOthers();
     const rows = index.load();
     const onDisk = files.list();
     const { orphans, lost, updates } = reconcile(rows, onDisk, index.referencedFiles());
+    // Another account's file the system purged is forgotten too, so it no longer counts toward the limit.
+    const others = index.others();
+    const othersLost = others.filter(row => onDisk.get(row.file) !== row.bytes);
+    if (othersLost.length) index.removeOthers(othersLost);
+    this.foreign = others.filter(row => !othersLost.includes(row));
     if (lost.length) index.remove(lost);
     if (updates.length) index.put(updates);
     for (const name of [...orphans, ...lost.map(row => row.file)]) files.remove(name);
@@ -139,6 +150,13 @@ export class StreamingCache {
     clearTimeout(this.settleTimer);
     clearTimeout(this.retryTimer);
     for (const trackId of [...this.jobs.keys()]) this.cancel(trackId);
+  }
+
+  /** Removes what another account keeps here, when it is removed from the device. */
+  forgetAccount(account: string): void {
+    const gone = this.foreign.filter(row => row.account === account);
+    if (!gone.length) return;
+    this.dropForeign(gone);
   }
 
   /** Whether the server can be reached. Nothing is fetched without it. */
@@ -279,7 +297,9 @@ export class StreamingCache {
       this.retired.delete(file);
       this.ports.files.remove(file);
     }
-    this.drop(evictions([...this.rows.values()], this.ports.settings.limitBytes, keep));
+    const evicted = evictionsAcross([...this.rows.values()], this.foreign, this.ports.settings.limitBytes, keep);
+    this.drop(evicted.own);
+    this.dropForeign(evicted.foreign);
     if (!this.held) for (const target of start) void this.fetch(target);
 
     const waits = [...this.failures.values()].map(failure => failure.retryAt).filter(at => Number.isFinite(at) && at > this.now);
@@ -376,6 +396,15 @@ export class StreamingCache {
     if (announce) this.changed(new Set(rows.map(row => row.trackId)));
   }
 
+  /** Removes other accounts' rows and their files; no player here holds those. */
+  private dropForeign(rows: readonly ForeignRow[]): void {
+    if (!rows.length) return;
+    this.foreign = this.foreign.filter(row => !rows.includes(row));
+    this.ports.index.removeOthers(rows);
+    for (const row of rows) this.ports.files.remove(row.file);
+    this.pruneArt();
+  }
+
   /** Deletes a file no row names any more, or sets it aside while the player may hold it. */
   private discard(file: string, trackId: string): void {
     if (inUse(this.outlook).has(trackId)) this.retired.set(file, trackId);
@@ -421,7 +450,7 @@ export class StreamingCache {
 
   /** Removes covers no row uses, sparing one a fetch is about to attach to its row. */
   private pruneArt(): void {
-    const used = new Set([...this.rows.values(), ...this.jobs.values()].map(item => item.art));
+    const used = new Set([...this.rows.values(), ...this.jobs.values(), ...this.foreign].map(item => item.art));
     for (const name of [...this.art]) {
       if (used.has(name)) continue;
       this.art.delete(name);

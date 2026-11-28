@@ -37,6 +37,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Live invalidations on web and mobile
 - [x] Signal path: each device reports what it plays; Lossless badge and Track info on web, iOS and Apple TV
 - [x] Sleep timer held by the session: set anywhere, enforced by the server, faded out on the device that plays
+- [x] Queue changes as small diffs against a queue version, with the whole queue as a checkpoint
 
 ## 4. Identify and reorganize
 
@@ -46,6 +47,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Managed roots: preview, apply, journal, undo (server and API)
 - [x] Admin screens (web): library folders, review queue, Fix match, Organize, users and invites, server settings, jobs
 - [x] Tag writing with verification
+- [x] Admin tag editor, duplicate and bitrate review, and scheduled file health checks
 
 ## 5. OpenSubsonic
 
@@ -76,6 +78,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] A personal library: the library is what you heart (uploads hearted for their uploader), the server's music on Home and On this server, an opt-in to include all of it; Your uploads and Admin → Uploads to delete uploaded music (web; iOS next)
 - [x] Fingerprinting for untagged files
 - [x] Offline downloads on mobile, with their lyrics, and search over what the phone holds while offline
+- [x] Several accounts on one phone or Apple TV: a switcher, and each account's downloads, streaming cache and saved library kept on the device for switching back
 
 ## 8. Providers and extras
 

@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { usePathname, useRouter } from 'expo-router';
 import { useEffect, useRef, useState, type PropsWithChildren } from 'react';
-import { BackHandler, Platform, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { BackHandler, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, useCompetingGestures, usePanGesture } from 'react-native-gesture-handler';
 import Animated, {
   Easing, Extrapolation, interpolate, interpolateColor, useAnimatedProps, useAnimatedReaction, useAnimatedStyle, useReducedMotion,
@@ -385,6 +385,11 @@ export default function Player() {
             : <Text numberOfLines={compact ? 1 : 2} maxFontSizeMultiplier={secondaryFontScale} style={compact ? styles.compactTrackArtist : styles.artist}>{subtitle}</Text>}
         </TrackLinksMenu>
       </View>
+      {/* A queue edit the status line tells can be taken back from here, beside what it says. */}
+      {status?.action && <Pressable accessibilityRole="button" accessibilityLabel={status.action.label} onPress={status.action.run} hitSlop={6}
+        style={({ pressed }) => [styles.statusAction, pressed && { opacity: 0.5 }]}>
+        <Text maxFontSizeMultiplier={secondaryFontScale} style={styles.statusActionLabel}>{status.action.label}</Text>
+      </Pressable>}
       {track && <PlayerButton
         icon={heart.icon}
         label={heart.label}
@@ -762,6 +767,8 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   compactTitle: { fontSize: 25 },
   artist: { marginTop: 3, color: colors.muted, fontWeight: '500', fontSize: 16 },
   status: { color: colors.accent, fontWeight: '600' },
+  statusAction: { minWidth: 44, minHeight: 44, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' },
+  statusActionLabel: { color: colors.accent, fontSize: 15, fontWeight: '600' },
   statusDetail: { color: colors.muted, fontWeight: '500' },
   transport: { width: '100%', maxWidth: 500, alignSelf: 'center', paddingHorizontal: edgeInset, paddingTop: 8, paddingBottom: 6 },
   transportCompact: { paddingTop: 2, paddingBottom: 2 },

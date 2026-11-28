@@ -19,6 +19,19 @@ describe('PlaybackStatusStore', () => {
     expect(store.current()).toBeNull();
   });
 
+  it('keeps the action an event offers, and withdraws it once taken', () => {
+    const store = new PlaybackStatusStore();
+    const run = vi.fn();
+    const id = store.report({ message: 'Removed from queue', detail: 'Roygbiv', action: { label: 'Undo', run } });
+    expect(store.current()).toMatchObject({ message: 'Removed from queue', detail: 'Roygbiv', action: { label: 'Undo' } });
+    store.current()!.action!.run();
+    expect(run).toHaveBeenCalledOnce();
+    store.withdraw(id);
+    expect(store.current()).toBeNull();
+    store.report({ message: 'Skipped “A” — not available' });
+    expect(store.current()).not.toHaveProperty('action');
+  });
+
   it('shows the newest event, for its own full time', () => {
     const store = new PlaybackStatusStore();
     store.report({ message: 'Skipped “A” — not available' });
