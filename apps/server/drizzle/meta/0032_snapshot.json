@@ -1,5 +1,5 @@
 {
-  "id": "21c86df0-cdd9-49b6-ab8f-a5a247ab46e6",
+  "id": "eeb3233a-dbe9-4ad6-97e7-521364f05db7",
   "prevId": "2c2427d1-a5cf-4324-bfc5-0d28538e667e",
   "version": "7",
   "dialect": "postgresql",
@@ -728,13 +728,6 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
-        },
-        "artwork_locked": {
-          "name": "artwork_locked",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
         },
         "canonical_release_id": {
           "name": "canonical_release_id",
@@ -3761,6 +3754,30 @@
           "primaryKey": false,
           "notNull": false
         },
+        "decoded_frames": {
+          "name": "decoded_frames",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decoded_rate": {
+          "name": "decoded_rate",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "priming_frames": {
+          "name": "priming_frames",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "padding_frames": {
+          "name": "padding_frames",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "tag_track_gain_db": {
           "name": "tag_track_gain_db",
           "type": "real",
@@ -3896,30 +3913,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "health_checked_at": {
-          "name": "health_checked_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "health_status": {
-          "name": "health_status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "health_detail": {
-          "name": "health_detail",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "health_requested_at": {
-          "name": "health_requested_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
         "missing_since": {
           "name": "missing_since",
           "type": "timestamp with time zone",
@@ -3980,44 +3973,6 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "media_files_health_due": {
-          "name": "media_files_health_due",
-          "columns": [
-            {
-              "expression": "coalesce(\"health_checked_at\", '-infinity'::timestamptz)",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "\"media_files\".\"missing_since\" is null and not \"media_files\".\"cached\"",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "media_files_health_requested": {
-          "name": "media_files_health_requested",
-          "columns": [
-            {
-              "expression": "health_requested_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "\"media_files\".\"health_requested_at\" is not null",
           "concurrently": false,
           "method": "btree",
           "with": {}
