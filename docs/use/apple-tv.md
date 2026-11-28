@@ -17,7 +17,7 @@ When a field opens the keyboard, Apple TV also offers it on your iPhone: accept 
 
 The tabs are in the sidebar at the left, as in Apple's own apps: **Search**, **Home**, **Library**, **Now Playing** and **Settings**. Once you browse into a page the sidebar folds away; press **Back** on a tab's first page to bring it back.
 
-- **Home** has what you played lately, your playlists and what is new on the server, as rows of covers.
+- **Home** has the same rows as the phone, as rows of covers: **Jump back in**, your mixes under **Made for you**, the artists you play and artists like them, your playlists and what is new on the server ([Home](./web.md#home)). Choose a mix for its songs, with **Play** and **Shuffle**.
 - **Library** has your albums, artists, playlists and songs.
 - **Search** searches your library and the catalog as you type, with the one-row tvOS keyboard or your iPhone.
 

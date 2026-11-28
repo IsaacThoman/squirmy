@@ -46,10 +46,25 @@ function usePrime() {
   };
 }
 
+/** The device's time zone, by which the server orders Home for the time of day. */
+function timeZone(): string | undefined {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function useHome() {
   const prime = usePrime();
-  return useApiQuery(queryKeys.home(), async api => prime(await api.catalog.home(),
+  return useApiQuery(queryKeys.home(), async api => prime(await api.catalog.home({ layout: 'personal', tz: timeZone() }),
     home => home.sections.flatMap(section => section.kind === 'tracks' ? section.tracks : [])));
+}
+
+/** A mix made for the user, from Home's Made for you. Under Home's key, so a new day's mixes refresh it too. */
+export function useMix(id: string) {
+  const prime = usePrime();
+  return useApiQuery(queryKeys.mix(id), async api => prime(await api.radio.mix(id), mix => mix.tracks));
 }
 
 /** Albums, artists, playlists and Liked Songs in one list, in `sort`'s order. */

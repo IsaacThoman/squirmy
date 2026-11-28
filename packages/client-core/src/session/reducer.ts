@@ -214,6 +214,9 @@ function apply(s: Session, command: AnySessionCommand, context: Context): Sessio
       return s.queue.length || s.playOrder.length ? { ...s, queue: [], playOrder: [] } : s
     case 'clearHistory':
       return s.history.length ? { ...s, history: [] } : s
+    case 'undo':
+      // Only the server keeps what an edit replaced; its answer brings the change.
+      return s
     case 'transfer': {
       const playing = (command.play ?? s.playing) && s.current !== null && s.current.state !== 'failed'
       if (command.deviceId === s.activeDeviceId && playing === s.playing) return s

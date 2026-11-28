@@ -41,3 +41,22 @@ export const sortKeys = {
   /** Artist name, from `name_key`. */
   name: (alias: string) => sql.raw(`regexp_replace(${alias}.name_key, '^(the|a|an) ', '')`),
 }
+
+/**
+ * Which plays count, everywhere plays are counted (Home, history, Subsonic's lists):
+ * `listened` is any play but an early skip (Recently played, Jump back in, history,
+ * Subsonic `recent`); `completedPlay` one that also passed the scrobble threshold, half
+ * the track or four minutes (Most played, top artists, mixes, Rediscover, Subsonic
+ * `frequent`). The play row's alias is given.
+ */
+export const listened = (alias: string) => sql.raw(`not ${alias}.skipped`)
+export const completedPlay = (alias: string) => sql.raw(`(${alias}.completed and not ${alias}.skipped)`)
+
+/**
+ * The artist a play counts for, over a recording row (alias given): its lead artist, else
+ * its first credit, since older rows and catalog stubs can lack one or the other.
+ */
+export function playArtist(recording: string): SQL {
+  return sql.raw(`coalesce(${recording}.primary_artist_id, (
+    select ra.artist_id from recording_artists ra where ra.recording_id = ${recording}.id order by ra.position limit 1))`)
+}

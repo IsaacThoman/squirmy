@@ -14,6 +14,7 @@ export function contextLabel(context: PlaybackContext | null | undefined): Conte
     case 'playlist':
     case 'artist':
     case 'radio':
+    case 'mix':
       return title ? { heading: `Playing from ${context.type}`, title } : null
     case 'search':
       return title ? { heading: 'Playing from search', title: `“${title}”` } : null

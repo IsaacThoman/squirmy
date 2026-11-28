@@ -1,5 +1,5 @@
 {
-  "id": "271c3e29-f60c-4d08-bc0d-6c59f0428864",
+  "id": "ef0c2409-4de6-44e5-9554-afb74173d755",
   "prevId": "75205c3a-6824-41ac-8783-ff1f55839205",
   "version": "7",
   "dialect": "postgresql",
@@ -2759,6 +2759,92 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.home_picks": {
+      "name": "home_picks",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "generated_at": {
+          "name": "generated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "because_artist_id": {
+          "name": "because_artist_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "because_artist_ids": {
+          "name": "because_artist_ids",
+          "type": "uuid[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::uuid[]"
+        },
+        "top_artist_ids": {
+          "name": "top_artist_ids",
+          "type": "uuid[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::uuid[]"
+        },
+        "rediscover": {
+          "name": "rediscover",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "hourly": {
+          "name": "hourly",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "home_picks_user_id_users_id_fk": {
+          "name": "home_picks_user_id_users_id_fk",
+          "tableFrom": "home_picks",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "home_picks_because_artist_id_artists_id_fk": {
+          "name": "home_picks_because_artist_id_artists_id_fk",
+          "tableFrom": "home_picks",
+          "tableTo": "artists",
+          "columnsFrom": [
+            "because_artist_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.http_cache": {
       "name": "http_cache",
       "schema": "",
@@ -4395,6 +4481,98 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.mixes": {
+      "name": "mixes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "artist_ids": {
+          "name": "artist_ids",
+          "type": "uuid[]",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tracks": {
+          "name": "tracks",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "generated_at": {
+          "name": "generated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "mixes_user_position": {
+          "name": "mixes_user_position",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "position",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "mixes_user_id_users_id_fk": {
+          "name": "mixes_user_id_users_id_fk",
+          "tableFrom": "mixes",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.organize_batches": {
       "name": "organize_batches",
       "schema": "",
@@ -4892,6 +5070,40 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "plays_user_completed": {
+          "name": "plays_user_completed",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "started_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "recording_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "album_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "completed and not skipped",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -6668,13 +6880,6 @@
         },
         "can_acquire": {
           "name": "can_acquire",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "explicit_restricted": {
-          "name": "explicit_restricted",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,

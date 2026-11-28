@@ -1,12 +1,14 @@
 import { CircleAlert } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/feedback'
 import { cn } from '@/lib/utils'
 import type { PlayerStatus } from '@/player/status'
 
 /**
  * The player's status line, under the song: a song skipped, playback stopped and why, a
- * radio starting. A polite live region that stays mounted while empty, so screen readers
- * announce what appears in it; it takes no room while there is nothing to say.
+ * radio starting, a queue edit with its Undo. A polite live region that stays mounted while
+ * empty, so screen readers announce what appears in it; it takes no room while there is
+ * nothing to say.
  */
 export function PlayerStatusLine({ status, className }: { status: PlayerStatus | null | undefined; className?: string }) {
   const text = status && (status.detail ? `${status.message}. ${status.detail}` : status.message)
@@ -17,6 +19,11 @@ export function PlayerStatusLine({ status, className }: { status: PlayerStatus |
           {status.tone === 'busy' && <Spinner label={null} className="size-3 shrink-0 text-current" />}
           {status.tone === 'error' && <CircleAlert aria-hidden className="size-3 shrink-0 text-destructive" />}
           <span className="truncate">{text}</span>
+          {status.action && (
+            <Button variant="link" size="sm" onClick={status.action.run} className="text-xs font-medium">
+              {status.action.label}
+            </Button>
+          )}
         </p>
       )}
     </div>

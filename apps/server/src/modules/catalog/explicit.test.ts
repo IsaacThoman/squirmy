@@ -1,14 +1,14 @@
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { AlbumDetail, HomeResponse, PlaybackDescriptor, RadioResponse, SearchResults, User, UserList, UserSettings } from '@squirmy/contracts'
+import { AlbumDetail, HomeResponse, MixDetail, PlaybackDescriptor, RadioResponse, SearchResults, User, UserList, UserSettings } from '@squirmy/contracts'
 import { eq } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { buildApp } from '../../app.js'
 import { resetConfig } from '../../config.js'
 import { db } from '../../database/client.js'
-import { mediaFiles, recordingCredits } from '../../database/schema.js'
+import { homePicks, mediaFiles, recordingCredits } from '../../database/schema.js'
 import { clearReadCache } from '../../lib/read-cache.js'
 import { updateServerSettings } from '../../lib/settings.js'
 import { startJobs, stopJobs } from '../../jobs/index.js'
@@ -19,6 +19,7 @@ import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createArtist, createLibraryRoot } from '../../test/factories.js'
 import { subsonicClient, type SubsonicClient } from '../../test/subsonic-client.js'
 import { createAppPassword } from '../auth/service.js'
+import { listMixes, saveMixes } from '../radio/index.js'
 import { suggest } from '../radio/ranking.js'
 import { trustSeeds } from '../sessions/entries.js'
 import { signStreamUrl } from '../streaming/playback.js'
@@ -230,6 +231,25 @@ describe('explicit content controls', () => {
       }
       expect(await mostPlayed(kid)).toEqual([loud.tracks[1]!.recordingId])
       expect(await mostPlayed(adult)).toEqual([curses.tracks[0]!.recordingId, loud.tracks[1]!.recordingId].sort())
+    })
+
+    it('hides explicit songs from the personal Home\'s Rediscover and from mixes', async () => {
+      const songs = [curses.tracks[0]!, loud.tracks[1]!].map((track) => ({ id: track.recordingId, albumId: track.albumId }))
+      for (const user of [kid, adult]) {
+        await db.insert(homePicks).values({ userId: user.id, generatedAt: new Date(), rediscover: songs })
+          .onConflictDoUpdate({ target: homePicks.userId, set: { generatedAt: new Date(), rediscover: songs } })
+        await saveMixes(user.id, [{ label: 'Wren', artistIds: [loud.artist.id], tracks: songs.map((song) => ({ ...song, durationMs: 1000 })) }])
+      }
+      const seen = async (user: { id: string; headers: Record<string, string> }) => {
+        const section = body(await get(user, '/home?layout=personal'), HomeResponse).sections.find((one) => one.id === 'rediscover')
+        const [mix] = await listMixes(user.id)
+        return {
+          rediscover: section?.kind === 'tracks' ? section.tracks.map((track) => track.id) : [],
+          mix: body(await get(user, `/mixes/${mix!.mix.id}`), MixDetail).tracks.map((track) => track.id),
+        }
+      }
+      expect(await seen(kid)).toEqual({ rediscover: [loud.tracks[1]!.recordingId], mix: [loud.tracks[1]!.recordingId] })
+      expect(await seen(adult)).toEqual({ rediscover: songs.map((song) => song.id), mix: songs.map((song) => song.id) })
     })
 
     it('leaves explicit songs out of Subsonic and refuses their stream', async () => {
