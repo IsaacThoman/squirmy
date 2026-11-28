@@ -41,13 +41,15 @@ export const libraryModule: ServerModule = {
     })
     jobs.define('library.check-health', { timeoutSeconds: 20 * 60, retryLimit: 1 }, scrubFiles)
     jobs.define('library.health-tick', {}, kickHealthCheck)
-    await schedule('library.health-tick', '* * * * *')
     await schedule('library.scan-all', '0 4 * * *')
     await schedule('library.purge-missing', '30 5 * * *')
   },
   async start({ role }) {
     await addConfiguredRoots()
-    if (role !== 'api') await startWatching()
+    if (role !== 'api') {
+      await schedule('library.health-tick', '* * * * *')
+      await startWatching()
+    }
   },
   async stop() {
     await stopWatching()
