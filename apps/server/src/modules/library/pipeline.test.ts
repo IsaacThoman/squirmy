@@ -257,12 +257,18 @@ describe('library pipeline', () => {
   it('re-reads a retagged file and a replaced one', async () => {
     const relPath = 'Daft Punk/Random Access Memories/03 Contact.flac'
     const before = (await fileAt(relPath))!
+    await db.update(mediaFiles).set({
+      loudnessLufs: -20, truePeakDb: -6, decodedFrames: 44100, decodedRate: 44100, primingFrames: 0, paddingFrames: 0,
+    }).where(eq(mediaFiles.id, before.id))
     await makeTone(library, { path: relPath, durationSec: 1, frequency: 300, tags: { title: 'Contact (Edit)', artist: 'Daft Punk', album_artist: 'Daft Punk', album: 'Random Access Memories', track: 3 } })
     expect(await scan()).toMatchObject({ filesChanged: 1, filesAdded: 0 })
     const after = (await fileAt(relPath))!
     expect(after.id).toBe(before.id)
     expect(after.recordingId).toBe(before.recordingId)
     expect(after.audioHash).not.toBe(before.audioHash)
+    expect(after).toMatchObject({
+      loudnessLufs: null, truePeakDb: null, decodedFrames: null, decodedRate: null, primingFrames: null, paddingFrames: null,
+    })
     const [recording] = await db.select().from(recordings).where(eq(recordings.id, after.recordingId!))
     expect(recording!.title).toBe('Contact (Edit)')
     expect((await tracksOf(after.albumId!)).map((track) => track.title)).toEqual(['Get Lucky', 'Instant Crush', 'Contact (Edit)'])

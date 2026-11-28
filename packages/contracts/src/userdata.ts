@@ -138,16 +138,92 @@ export type HistoryItem = z.infer<typeof HistoryItem>
 export const HistoryPage = page(HistoryItem)
 export type HistoryPage = z.infer<typeof HistoryPage>
 
-/** One rail on the Home screen. */
+/**
+ * A mix made for the user (Home's Made for you): a few artists they play who belong together,
+ * by the artists' genres, similar-artist data and what the user plays side by side, with
+ * songs they love and songs like them. Made once a day, so a mix stays the same all day; its
+ * id stays the same from day to day (it is a slot, "Mix 1"), while its songs change.
+ */
+export const MixSummary = z.object({
+  id: Id,
+  /** "Mix 1 · Indie, Folk": the slot and the mix's leading genres, or its first artists without genres. */
+  name: z.string(),
+  /** Its leading artists: "Mira Vale, Low Tide and more". */
+  description: z.string(),
+  /** Up to four covers of different albums, for a mosaic. */
+  artworks: z.array(Artwork),
+  trackCount: z.number().int(),
+  durationMs: z.number().int(),
+  /** When its songs were picked. */
+  generatedAt: IsoDateTime,
+})
+export type MixSummary = z.infer<typeof MixSummary>
+
+/**
+ * `GET /mixes/:id`: the mix with its songs in play order, only those the user can play now.
+ * Play it with `playTracks` and the context `{ type: 'mix', id, title: name }`. Another
+ * user's mix, or one gone since, is 404.
+ */
+export const MixDetail = MixSummary.extend({ tracks: z.array(TrackSummary) })
+export type MixDetail = z.infer<typeof MixDetail>
+
+/**
+ * A radio the user played, for Jump back in: started from a track or an artist (the radio's
+ * context id is `track:<id>` or `artist:<id>`). Started again with `POST /radio/track/:id`
+ * or `/radio/artist/:id`. `title` is the track's or artist's name, `subtitle` the track's
+ * artist; `albumId` the track's album, the page a track radio's card opens.
+ */
+export const RadioSummary = z.object({
+  seed: z.enum(['track', 'artist']),
+  id: Id,
+  title: z.string(),
+  subtitle: z.string().nullable(),
+  albumId: Id.nullable(),
+  artwork: Artwork.nullable(),
+})
+export type RadioSummary = z.infer<typeof RadioSummary>
+
+/** One card of a Home rail that holds several kinds of things (Jump back in, Made for you). */
+export const HomeItem = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('album'), album: AlbumSummary }),
+  z.object({ kind: z.literal('artist'), artist: ArtistSummary }),
+  z.object({ kind: z.literal('playlist'), playlist: PlaylistSummary }),
+  z.object({ kind: z.literal('liked') }),
+  z.object({ kind: z.literal('mix'), mix: MixSummary }),
+  z.object({ kind: z.literal('radio'), radio: RadioSummary }),
+])
+export type HomeItem = z.infer<typeof HomeItem>
+
+/**
+ * One rail on the Home screen. Every kind is a titled row of one sort of card, so each app
+ * draws a section by its kind alone; the id only says which rail it is (for a See all, and
+ * for tests). Apps skip a kind they do not know, which is how older apps take a newer server.
+ */
 export const HomeSection = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('albums'), id: z.string(), title: z.string(), albums: z.array(AlbumSummary) }),
   z.object({ kind: z.literal('artists'), id: z.string(), title: z.string(), artists: z.array(ArtistSummary) }),
   z.object({ kind: z.literal('tracks'), id: z.string(), title: z.string(), tracks: z.array(TrackSummary) }),
   z.object({ kind: z.literal('playlists'), id: z.string(), title: z.string(), playlists: z.array(PlaylistSummary) }),
+  z.object({ kind: z.literal('items'), id: z.string(), title: z.string(), items: z.array(HomeItem) }),
 ])
 export type HomeSection = z.infer<typeof HomeSection>
 export const HomeResponse = z.object({ sections: z.array(HomeSection) })
 export type HomeResponse = z.infer<typeof HomeResponse>
+
+/**
+ * Query of `GET /home`.
+ *
+ * - `layout`: `personal` is the Home of this release (Jump back in, Made for you, Because you
+ *   listened to, Your top artists, Rediscover…). Without it the server answers the rails of
+ *   earlier releases (Recently played first), which app builds from before it know how to draw.
+ * - `tz`: the device's IANA time zone ("Europe/Berlin"). With it, the personal Home puts first
+ *   the rails that hold what the user plays at this time of day. An unknown zone is ignored.
+ */
+export const HomeQuery = z.object({
+  layout: z.enum(['personal']).optional(),
+  tz: z.string().max(64).optional(),
+})
+export type HomeQuery = z.infer<typeof HomeQuery>
 
 /** `PUT/DELETE /me/wants/:type/:id`. */
 export const WantEntityType = z.enum(['album', 'track'])

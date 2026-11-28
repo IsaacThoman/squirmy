@@ -61,6 +61,12 @@ export async function enqueue<T extends object>(name: string, data: T, options: 
   return id
 }
 
+/** Queues a singleton at play priority, or raises an existing waiting job to that priority. */
+export async function enqueueAtPriority<T extends object>(name: string, data: T, singletonKey: string, priority: number): Promise<void> {
+  await ensureQueue(name)
+  await running().upsert(name, data, { singletonKey, priority })
+}
+
 /**
  * NOTIFY wakes workers when a job is inserted, not when a deferred one becomes due, so a
  * job deferred by five seconds would otherwise wait for the next 30 second poll. When this
