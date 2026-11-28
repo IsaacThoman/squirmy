@@ -1,3 +1,4 @@
+import { CrossfadeEngine } from './crossfade-engine'
 import { MseEngine } from './mse-engine'
 import type { BrowserEngine } from './types'
 import { WebPlayerEngine } from './web-engine'
@@ -17,7 +18,11 @@ export function playsGaplessThroughMse(navigator: Pick<Navigator, 'userAgent'> &
   return /\bChrom(e|ium)\/\d/.test(navigator.userAgent) && !/\b(CriOS|EdgiOS|FxiOS)\//.test(navigator.userAgent)
 }
 
-/** The page's engine: one gapless timeline where the browser measured exact, today's two elements elsewhere. */
+/**
+ * The page's engine: one gapless timeline where the browser measured exact, today's two
+ * elements elsewhere, either of them twice over so songs can crossfade.
+ */
 export function createBrowserEngine(): BrowserEngine {
-  return typeof navigator !== 'undefined' && playsGaplessThroughMse(navigator) && MseEngine.isSupported() ? new MseEngine() : new WebPlayerEngine()
+  const mse = typeof navigator !== 'undefined' && playsGaplessThroughMse(navigator) && MseEngine.isSupported()
+  return new CrossfadeEngine({ createEngine: options => (mse ? new MseEngine(options) : new WebPlayerEngine(options)) })
 }

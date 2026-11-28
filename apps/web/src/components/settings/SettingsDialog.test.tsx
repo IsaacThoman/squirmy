@@ -245,6 +245,17 @@ describe('SettingsDialog', () => {
       expect(screen.getByText(/Quiet songs are turned up to it, with a limiter/)).toBeInTheDocument()
     })
 
+    it('crossfades songs over the time chosen, kept in this browser', async () => {
+      renderSettings()
+      const crossfade = screen.getByRole('combobox', { name: 'Crossfade' })
+      expect(crossfade).toHaveTextContent('Off')
+      await userEvent.click(crossfade)
+      expect((await screen.findAllByRole('option')).map(option => option.textContent)).toEqual(['Off', ...[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(seconds => `${seconds} seconds`)])
+      await userEvent.click(screen.getByRole('option', { name: '6 seconds' }))
+      expect(JSON.parse(localStorage.getItem(AUDIO_STORAGE_KEY)!).crossfadeSeconds).toBe(6)
+      expect(crossfade).toHaveTextContent('6 seconds')
+    })
+
     describe('equalizer', () => {
       const stored = () => JSON.parse(localStorage.getItem(AUDIO_STORAGE_KEY) ?? 'null') as { equalizer: { preset: string; custom: number[] } } | null
       const bands = () => screen.queryAllByRole('slider')

@@ -14,6 +14,9 @@ const tones = [
   { name: 'a', frequency: 440, seconds: 4 },
   { name: 'b', frequency: 660, seconds: 3 },
   { name: 'c', frequency: 550, seconds: 1.5 },
+  // Long enough to crossfade.
+  { name: 'd', frequency: 880, seconds: 8 },
+  { name: 'e', frequency: 330, seconds: 8 },
 ]
 for (const tone of tones) {
   execFileSync('ffmpeg', [

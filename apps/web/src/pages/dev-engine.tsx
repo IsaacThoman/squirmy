@@ -9,6 +9,8 @@ import { Row, Section } from '@/components/ui/section'
 import { Slider } from '@/components/ui/slider'
 import { formatDuration } from '@/lib/format'
 import { playsGaplessThroughMse } from '@/player/engine/choose'
+import { setAudioSettings } from '@/player/audio-settings'
+import { CrossfadeEngine } from '@/player/engine/crossfade-engine'
 import { useEngineOverride } from '@/player/engine/engine-context'
 import { MediaSessionAdapter } from '@/player/engine/media-session'
 import { MseEngine } from '@/player/engine/mse-engine'
@@ -20,6 +22,8 @@ const tones = [
   { id: 'a', label: 'Tone A', detail: '440 Hz, 4 s', durationMs: 4000 },
   { id: 'b', label: 'Tone B', detail: '660 Hz, 3 s', durationMs: 3000 },
   { id: 'c', label: 'Tone C', detail: '550 Hz, 1.5 s', durationMs: 1500 },
+  { id: 'd', label: 'Tone D', detail: '880 Hz, 8 s', durationMs: 8000 },
+  { id: 'e', label: 'Tone E', detail: '330 Hz, 8 s', durationMs: 8000 },
 ]
 const mediaTracks = new Map(tones.map(tone => [tone.id, { title: `${tone.label} (${tone.detail})`, artist: 'Squirmy test tones', album: 'Engine check', artwork: [] }]))
 const TONE_RATE = 44_100
@@ -101,7 +105,10 @@ function base64(samples: Float32Array): string {
  * reopening the page reuses it. `?rate=` sets the output's sample rate (a recording at the
  * stream's own rate is not resampled); `?lead=` and `?behind=` shrink the MSE engine's
  * buffer, so short tones reach seeks outside it; `?muted=1` silences what follows the
- * recorder, so a measurement makes no sound; `?limiter=0` leaves the limiter out, to compare.
+ * recorder, so a measurement makes no sound; `?limiter=0` leaves the limiter out, to compare;
+ * `?crossfade=` sets this browser's crossfade setting, in seconds, which the page's engine
+ * follows as the app's does. The engine is the page's kind twice over in a `CrossfadeEngine`,
+ * as the app's is.
  */
 function instrumentedEngine(): Instruments {
   if (created) return created
@@ -131,9 +138,14 @@ function instrumentedEngine(): Instruments {
       return analyser
     },
   }
-  const engine: BrowserEngine = kind === 'mse'
-    ? new MseEngine({ ...options, leadSeconds: Number(params.get('lead')) || undefined, keepBehindSeconds: Number(params.get('behind')) || undefined })
-    : new WebPlayerEngine(options)
+  const engine = new CrossfadeEngine({
+    ...options,
+    createEngine: shared => kind === 'mse'
+      ? new MseEngine({ ...shared, leadSeconds: Number(params.get('lead')) || undefined, keepBehindSeconds: Number(params.get('behind')) || undefined })
+      : new WebPlayerEngine(shared),
+  })
+  const crossfade = params.get('crossfade')
+  if (crossfade !== null) setAudioSettings({ crossfadeSeconds: Number(crossfade) || 0 })
   const events: LoggedEvent[] = []
   engine.subscribe(event => events.push({ at: performance.now(), event }))
   const level = () => {
@@ -146,7 +158,7 @@ function instrumentedEngine(): Instruments {
   const instruments: Instruments = {
     engine, kind, events, level, source, recorder: null,
     sampleRate: () => (context as AudioContext | null)?.sampleRate ?? null,
-    inspect: engine instanceof MseEngine ? () => engine.inspect() : undefined,
+    inspect: kind === 'mse' ? () => (engine.activeEngine() as MseEngine).inspect() : undefined,
     offline: renderOffline,
   }
   created = instruments

@@ -1292,7 +1292,10 @@ export class SessionClient {
       descriptor => {
         if (token !== this.preloadToken || this.preloadTarget !== next.id || !this.isActive()) return
         this.hold(next.id, descriptor)
-        engine.preload({ entryId: next.id, url: streamUrl(baseUrl, descriptor), gain: this.gainOf(next, descriptor, predicted), media: mediaOf(descriptor) })
+        engine.preload({
+          entryId: next.id, url: streamUrl(baseUrl, descriptor), gain: this.gainOf(next, descriptor, predicted), media: mediaOf(descriptor),
+          continuesAlbum: this.inAlbumContext(current, session) && this.inAlbumContext(next, predicted),
+        })
       },
       error => {
         // A refusal is the server's answer for this entry; asking again on every session
