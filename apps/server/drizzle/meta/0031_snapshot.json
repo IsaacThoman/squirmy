@@ -1,5 +1,5 @@
 {
-  "id": "e10f1da5-5ca4-42ef-b7f2-4c6f1e2e1853",
+  "id": "2c2427d1-a5cf-4324-bfc5-0d28538e667e",
   "prevId": "55dbbd60-54bb-414a-80b0-c0bbe5bba4d2",
   "version": "7",
   "dialect": "postgresql",
@@ -6208,6 +6208,223 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.sonic_analyses": {
+      "name": "sonic_analyses",
+      "schema": "",
+      "columns": {
+        "file_id": {
+          "name": "file_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "audio_hash": {
+          "name": "audio_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "version": {
+          "name": "version",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error": {
+          "name": "error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "analyzed_ms": {
+          "name": "analyzed_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bpm": {
+          "name": "bpm",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bpm_confidence": {
+          "name": "bpm_confidence",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "beat_offset_ms": {
+          "name": "beat_offset_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "key": {
+          "name": "key",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mode": {
+          "name": "mode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "key_strength": {
+          "name": "key_strength",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tuning_cents": {
+          "name": "tuning_cents",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "level_db": {
+          "name": "level_db",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dynamic_range_db": {
+          "name": "dynamic_range_db",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "onset_rate": {
+          "name": "onset_rate",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "centroid_hz": {
+          "name": "centroid_hz",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "energy": {
+          "name": "energy",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "danceability": {
+          "name": "danceability",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "audible_start_ms": {
+          "name": "audible_start_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "audible_end_ms": {
+          "name": "audible_end_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "intro_end_ms": {
+          "name": "intro_end_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "outro_start_ms": {
+          "name": "outro_start_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "vector": {
+          "name": "vector",
+          "type": "real[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "analyzed_at": {
+          "name": "analyzed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "sonic_analyses_file_id_media_files_id_fk": {
+          "name": "sonic_analyses_file_id_media_files_id_fk",
+          "tableFrom": "sonic_analyses",
+          "tableTo": "media_files",
+          "columnsFrom": [
+            "file_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.sonic_hints": {
+      "name": "sonic_hints",
+      "schema": "",
+      "columns": {
+        "recording_id": {
+          "name": "recording_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "deezer_bpm": {
+          "name": "deezer_bpm",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deezer_checked_at": {
+          "name": "deezer_checked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "sonic_hints_recording_id_recordings_id_fk": {
+          "name": "sonic_hints_recording_id_recordings_id_fk",
+          "tableFrom": "sonic_hints",
+          "tableTo": "recordings",
+          "columnsFrom": [
+            "recording_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.transcodes": {
       "name": "transcodes",
       "schema": "",
@@ -6365,13 +6582,6 @@
         },
         "can_acquire": {
           "name": "can_acquire",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "explicit_restricted": {
-          "name": "explicit_restricted",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,

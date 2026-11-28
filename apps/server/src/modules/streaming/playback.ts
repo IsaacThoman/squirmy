@@ -92,6 +92,9 @@ export async function buildPlaybackDescriptor(userId: string, recordingId: strin
       sampleRate: file.sampleRate,
       bitDepth: file.bitDepth,
       bytes: file.size,
+      gapless: file.decodedFrames !== null && file.decodedRate !== null && file.primingFrames !== null
+        ? { sampleRate: file.decodedRate, primingFrames: file.primingFrames, frames: file.decodedFrames }
+        : null,
       transcodeReason: null,
     }
   }
@@ -107,6 +110,7 @@ export async function buildPlaybackDescriptor(userId: string, recordingId: strin
     sampleRate: outputSampleRate(file, profile) ?? file.sampleRate,
     bitDepth: null,
     bytes: cached?.bytes ?? null,
+    gapless: null,
     // A client that decodes the file is only given a transcode for the quality it asked for.
     transcodeReason: parseCodecs(query.codecs).has(codecFamily(file)) ? 'quality' : 'codec',
   }

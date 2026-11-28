@@ -8,7 +8,8 @@ import { explicitAllowed, recordingExplicit } from '../catalog/explicit.js'
 import { resolveOne } from '../catalog/redirects.js'
 import { trackSummaries } from '../catalog/summaries.js'
 import { ensureAlbumDetail } from '../enrichment/detail.js'
-import { isRequester, suggest, type SuggestOptions } from './ranking.js'
+import { analyzeSoon } from '../sonic/index.js'
+import { isRequester, suggest, type SuggestOptions, type SuggestRequest } from './ranking.js'
 
 /** Tracks in a new radio, the seed included. */
 export const RADIO_LENGTH = 50
@@ -20,7 +21,7 @@ const TRACK_LIST_FETCHES = 2
 
 const nothingPlayable = () => new AppError(409, 'nothing_playable', 'Nothing by this artist can be played')
 
-async function radioFrom(userId: string, seedId: string, context: RadioResponse['context'], options: SuggestOptions): Promise<RadioResponse> {
+async function radioFrom(userId: string, seedId: string, context: RadioResponse['context'], options: SuggestOptions, mode: SuggestRequest['mode'] = 'default'): Promise<RadioResponse> {
   const [[track], requester, allowsExplicit] = await Promise.all([trackSummaries(userId, [{ id: seedId }]), isRequester(userId), explicitAllowed(userId)])
   // The rule the queue applies: a file plays for everyone, `on_demand` only for a user who
   // may have tracks fetched, and an explicit song not for a user who has explicit content
@@ -34,7 +35,7 @@ async function radioFrom(userId: string, seedId: string, context: RadioResponse[
     durationMs: track.durationMs,
     state: track.availability === 'server' ? 'ready' : 'preparing',
   }
-  const rest = await suggest({ userId, seeds: [track.id], exclude: [], limit: RADIO_LENGTH - 1 }, options)
+  const rest = await suggest({ userId, seeds: [track.id], exclude: [], limit: RADIO_LENGTH - 1, mode }, options)
   return { context: { ...context, title: context.title ?? track.title }, tracks: [seed, ...rest] }
 }
 
@@ -43,6 +44,18 @@ export async function trackRadio(userId: string, trackId: string, options: Sugge
   const id = await resolveOne('recordings', trackId)
   if (!id) throw notFound('No such track')
   return radioFrom(userId, id, { type: 'radio', id: `track:${id}`, title: null }, options)
+}
+
+/**
+ * A radio of tracks that sound like this one: the track radio with sound weighing far
+ * more (`mode: 'sonic'`). A seed that is not analysed yet gets an ordinary track radio,
+ * and its analysis is queued ahead of the background backlog for next time.
+ */
+export async function sonicRadio(userId: string, trackId: string, options: SuggestOptions = {}): Promise<RadioResponse> {
+  const id = await resolveOne('recordings', trackId)
+  if (!id) throw notFound('No such track')
+  await analyzeSoon([id])
+  return radioFrom(userId, id, { type: 'radio', id: `sonic:${id}`, title: null }, options, 'sonic')
 }
 
 /**
