@@ -76,7 +76,7 @@ export async function seedLargeLibrary(options: LargeLibrary) {
       insert into plays (id, user_id, recording_id, album_id, started_at, ms_played, completed)
       select gen_random_uuid(), ${userId}, st.recording_id, st.album_id, now() - n * interval '3 minutes', 60000, true
       from generate_series(1, ${plays}) n
-      join seed_tracks st on st.album_i = 1 + (n * 7919) % ${albums} and st.position = 1 + n % ${tracksPerAlbum}`)
+      join seed_tracks st on st.album_i = 1 + (n::bigint * 7919) % ${albums} and st.position = 1 + n % ${tracksPerAlbum}`)
     await tx.execute(sql`
       insert into likes (user_id, entity_type, entity_id, created_at)
       select ${userId}, 'recording', st.recording_id, now() - n * interval '1 hour'

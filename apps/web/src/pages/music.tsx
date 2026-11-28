@@ -13,7 +13,7 @@ import { moveItem } from '@/lib/reorder'
 import { useCachedSummary } from '@/api/prefetch'
 import {
   isNotFound, itemsOf, LIBRARY_MATCH_LIMIT, searchesServer, useNextPage, useAlbum, useArtist, useArtistReleases, useCollectionList, useGenres, useHome, useLibraryList, useLibraryMatches,
-  useLikedTracks, usePlaylist, usePlaylists, useWants,
+  useLikedTracks, useMix, usePlaylist, usePlaylists, useWants,
 } from '@/api/queries'
 import { useApi } from '@/api/services'
 import { matchingPlaylists, useMergedSearch, useSearchPages } from '@/api/use-search'
@@ -33,7 +33,8 @@ import {
   defaultSort, isLibraryFilter, isLibrarySort, matches, pinTarget, readLibraryFilter, readLibraryLayout, sortFor, sortsFor, writeLibraryFilter, writeLibraryLayout,
   type LibraryFilterName,
 } from '@/components/views/library-state'
-import { LikedView, PlaylistView } from '@/components/views/PlaylistView'
+import { mixMenuEntries } from '@/components/music/mix-menu'
+import { LikedView, MixView, PlaylistView } from '@/components/views/PlaylistView'
 import { AlbumPreview, ArtistPreview } from '@/components/views/Previews'
 import { SearchView, type SearchList } from '@/components/views/SearchView'
 import { WantlistView } from '@/components/views/WantlistView'
@@ -93,7 +94,11 @@ function useScanProgress(): ScanProgress | null {
 }
 
 export function HomePage() {
-  const { playAlbum, playPlaylist } = usePlayCollections()
+  const { playAlbum, playPlaylist, playMix, playLoaded } = usePlayCollections()
+  const controls = usePlayerControls()
+  // The sidebar's Liked Songs keeps this list loaded already.
+  const liked = useLikedTracks()
+  const playLiked = () => void playLoaded(liked, 5000, tracks => controls.playTracks(tracks, 0, { type: 'liked', id: null, title: 'Liked Songs' }, { collection: true }))
   const user = useCurrentUser()
   const home = useHome()
   const scan = useScanProgress()
@@ -108,16 +113,51 @@ export function HomePage() {
       scan={scan}
       onPlayAlbum={album => void playAlbum(album)}
       onPlayPlaylist={playlist => void playPlaylist(playlist)}
+      onPlayMix={mix => void playMix(mix)}
+      onPlayLiked={playLiked}
+      onStartRadio={radio => controls.startRadio({ type: radio.seed, id: radio.id })}
     />
   )
 }
 
-const isEmptySection = (section: HomeSection) => (
-  section.kind === 'albums' ? !section.albums.length
-    : section.kind === 'artists' ? !section.artists.length
-      : section.kind === 'playlists' ? !section.playlists.length
-        : !section.tracks.length
-)
+const isEmptySection = (section: HomeSection) => {
+  switch (section.kind) {
+    case 'albums': return !section.albums.length
+    case 'artists': return !section.artists.length
+    case 'playlists': return !section.playlists.length
+    case 'tracks': return !section.tracks.length
+    case 'items': return !section.items.length
+    // A kind from a newer server than this app shows nothing.
+    default: return true
+  }
+}
+
+/** `/mix/:id`: a mix made for the user, read-only, from Home's Made for you. */
+export function MixPage() {
+  const id = useParams().id ?? ''
+  const query = useMix(id)
+  const controls = usePlayerControls()
+  const library = useLibrary()
+  const viewer = useViewer()
+  return (
+    <Loaded query={query} skeleton={<CollectionSkeleton />}>
+      {mix => {
+        const playable = mix.tracks.filter(track => isPlayable(track, viewer))
+        return (
+          <MixView
+            key={mix.id}
+            mix={mix}
+            menu={mixMenuEntries({
+              onEnqueue: placement => controls.enqueue(playable, placement),
+              playlists: library.playlists,
+              onAddToPlaylist: playlist => (playlist ? library.addToPlaylist(playlist, mix.tracks) : library.newPlaylist(mix.tracks)),
+            })}
+          />
+        )
+      }}
+    </Loaded>
+  )
+}
 
 export function AlbumPage() {
   const { playAlbum } = usePlayCollections()

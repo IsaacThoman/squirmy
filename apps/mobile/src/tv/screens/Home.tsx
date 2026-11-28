@@ -9,7 +9,7 @@ import { useScanProgress } from '../../data/realtime';
 import { useCanPlay, useViewer } from '../../downloads/DownloadsProvider';
 import { homeEmpty } from '../../library/homeEmpty';
 import { pageHref } from '../../library/links';
-import { albumCollection, artistCollection, playlistCollection, useCollectionDim, type Collection } from '../../library/shared';
+import { albumCollection, artistCollection, homeItemCollection, playlistCollection, useCollectionDim, type Collection } from '../../library/shared';
 import { usePlaybackActions } from '../../playback';
 import { Icon } from '../../ui';
 import { CollectionLockup } from '../CollectionLockup';
@@ -31,6 +31,9 @@ function sectionSize(section: HomeSection) {
     case 'artists': return section.artists.length;
     case 'tracks': return section.tracks.length;
     case 'playlists': return section.playlists.length;
+    case 'items': return section.items.length;
+    // A kind from a newer server than this app shows nothing.
+    default: return 0;
   }
 }
 
@@ -59,13 +62,14 @@ export function HomeScreen() {
       <EmptyMessage icon={<Icon name={empty.icon} size={96} color={colors.secondary} />} title={empty.title} description={empty.description} />
     </Page>;
   }
-  const heroIndex = sections.findIndex(section => section.kind === 'albums' || section.kind === 'playlists');
+  const heroIndex = sections.findIndex(section => section.kind === 'albums' || section.kind === 'playlists' || section.kind === 'items');
   return <Page onFocusCapture={first.onFocusCapture}>
     {sections.map((section, index) => {
       const hero = index === heroIndex;
       const collections: Collection[] | null = section.kind === 'albums' ? section.albums.map(album => dim(albumCollection(album, link)))
         : section.kind === 'artists' ? section.artists.map(artist => artistCollection(artist, link))
-          : section.kind === 'playlists' ? section.playlists.map(playlist => playlistCollection(playlist, link)) : null;
+          : section.kind === 'playlists' ? section.playlists.map(playlist => playlistCollection(playlist, link))
+            : section.kind === 'items' ? section.items.flatMap(item => homeItemCollection(item, link) ?? []).map(dim) : null;
       if (collections) {
         return <Shelf key={section.id} title={section.title} items={collections} keyOf={item => item.key} lift={hero ? 60 : 40}
           render={(item, at) => <CollectionLockup item={item} menu={menu} size={hero ? heroSize : section.kind === 'artists' ? 220 : tv.tile}
