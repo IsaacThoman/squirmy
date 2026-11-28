@@ -48,15 +48,17 @@ function PairingForm({ initialCode, account, onClose }: { initialCode?: string; 
   const error = lookup.error ?? approve.error;
   const preview = lookup.data;
   const code = lookup.variables ?? '';
+  // A Squirmy speaker pairs the same way; older servers pair TVs only.
+  const speaker = preview?.deviceKind === 'speaker';
   return (
     <SheetFrame title="Sign in a TV" onClose={onClose}>
       {approve.isSuccess ? <>
-        <SheetNote>Your Apple TV will finish signing in automatically.</SheetNote>
+        <SheetNote>{speaker ? 'Your speaker will finish signing in by itself, then shows up in your devices.' : 'Your Apple TV will finish signing in automatically.'}</SheetNote>
         <SheetAction title="Done" onPress={onClose} />
       </> : preview ? <>
-        <SheetInfo title={`Sign in ${preview.deviceName}?`} subtitle={`IP address ${preview.ipAddress}`} icon="appletv" />
-        <SheetNote>{`Approve only if your TV shows ${code.slice(0, 4)}-${code.slice(4)}. It will sign in as ${account}.`}</SheetNote>
-        <SheetAction title={approve.isPending ? 'Approving…' : 'Approve TV'} disabled={approve.isPending}
+        <SheetInfo title={`Sign in ${preview.deviceName}?`} subtitle={`IP address ${preview.ipAddress}`} icon={speaker ? 'hifispeaker' : 'appletv'} />
+        <SheetNote>{`Approve only if your ${speaker ? 'speaker' : 'TV'} shows ${code.slice(0, 4)}-${code.slice(4)}. It will sign in as ${account}.`}</SheetNote>
+        <SheetAction title={approve.isPending ? 'Approving…' : speaker ? 'Approve Speaker' : 'Approve TV'} disabled={approve.isPending}
           onPress={() => approve.mutate({ id: preview.id, code })} />
         <SheetAction title="Enter Another Code" disabled={approve.isPending} onPress={() => {
           approve.reset();
@@ -64,7 +66,7 @@ function PairingForm({ initialCode, account, onClose }: { initialCode?: string; 
           setInput('');
         }} />
       </> : <>
-        <SheetNote>Enter the code shown on your Apple TV.</SheetNote>
+        <SheetNote>Enter the code shown on your Apple TV, or in your Squirmy speaker’s log or status page.</SheetNote>
         <SheetField label="TV code" value={input} maxLength={9} onChange={value => { setInput(value.toUpperCase()); setInvalid(false); lookup.reset(); }} onSubmit={submit} />
         <SheetAction title={lookup.isPending ? 'Looking Up TV…' : 'Continue'} disabled={!input.trim() || lookup.isPending} onPress={submit} />
       </>}

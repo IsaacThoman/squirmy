@@ -1,0 +1,34 @@
+# The Squirmy speaker, on the computer with the speakers (a Raspberry Pi with a DAC, say).
+# From a clone of the repository: `docker compose -f apps/speaker/compose.yaml up -d --build`,
+# then `docker compose -f apps/speaker/compose.yaml logs` shows the code to approve.
+# Guide: docs/server/speaker.md
+name: squirmy-speaker
+
+services:
+  speaker:
+    image: squirmy-speaker
+    build:
+      context: ../..
+      dockerfile: apps/speaker/Dockerfile
+    restart: unless-stopped
+    # mDNS (finding the server, being found) and the status page need the host's network.
+    network_mode: host
+    devices:
+      - /dev/snd
+    # The image's node user is in the container's audio group; this adds the host's, whose
+    # number can differ.
+    group_add:
+      - audio
+    environment:
+      # Leave empty to find the server on the LAN.
+      SQUIRMY_SERVER: ${SQUIRMY_SERVER:-}
+      SQUIRMY_SPEAKER_NAME: ${SQUIRMY_SPEAKER_NAME:-Living room}
+      # `aplay -L` on the host lists the choices; hw:… plays bit-perfect.
+      SQUIRMY_SPEAKER_DEVICE: ${SQUIRMY_SPEAKER_DEVICE:-}
+      SQUIRMY_SPEAKER_MIXER: ${SQUIRMY_SPEAKER_MIXER:-}
+    volumes:
+      # The speaker's id and sign-in.
+      - speaker_data:/data
+
+volumes:
+  speaker_data:

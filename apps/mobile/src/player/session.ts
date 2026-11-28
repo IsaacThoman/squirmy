@@ -13,6 +13,7 @@ export function deviceIcon(kind: DeviceInfo['kind']): string {
     case 'tv': return 'appletv.fill';
     case 'web':
     case 'desktop': return 'laptopcomputer';
+    case 'speaker':
     case 'other': return 'hifispeaker.fill';
   }
 }
@@ -84,6 +85,7 @@ function kindName(kind: DeviceInfo['kind']): string {
     case 'tv': return 'Apple TV';
     case 'web': return 'Web browser';
     case 'desktop': return 'Computer';
+    case 'speaker': return 'Squirmy speaker';
     case 'other': return 'Speaker';
   }
 }

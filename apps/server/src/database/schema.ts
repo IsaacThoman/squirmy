@@ -43,7 +43,8 @@ const updatedAt = () => at('updated_at').notNull().defaultNow()
 const textArray = (name: string) => text(name).array().notNull().default(sql`'{}'::text[]`)
 
 export type UserRole = 'admin' | 'member'
-export type SignInMethod = 'password' | 'two_factor' | 'recovery_code' | 'passkey' | 'sso' | 'tv_pairing'
+export type SignInMethod = 'password' | 'two_factor' | 'recovery_code' | 'passkey' | 'sso' | 'tv_pairing' | 'speaker_pairing'
+export type PairingDeviceKind = 'tv' | 'speaker'
 export type AuthChallengeKind = 'two_factor' | 'passkey_register' | 'passkey_login' | 'sso' | 'sso_exchange'
 export type CatalogEntityType = 'artist' | 'album' | 'release' | 'recording'
 export type LikeEntityType = 'recording' | 'album' | 'artist'
@@ -165,13 +166,14 @@ export const authSessions = pgTable('auth_sessions', {
   index('auth_sessions_user').on(t.userId),
 ])
 
-/** Short-lived TV sign-in requests. Only the hashes of both codes are stored. */
+/** Short-lived TV and speaker sign-in requests. Only the hashes of both codes are stored. */
 export const tvPairings = pgTable('tv_pairings', {
   id: id(),
   deviceCodeHash: text('device_code_hash').notNull().unique(),
   userCodeHash: text('user_code_hash').notNull().unique(),
   deviceId: text('device_id').notNull(),
   deviceName: text('device_name').notNull(),
+  deviceKind: text('device_kind').$type<PairingDeviceKind>().notNull().default('tv'),
   ipAddress: text('ip_address').notNull(),
   userAgent: text('user_agent'),
   // Checked against the live session at redemption, so signing out or revoking it cancels approval.
