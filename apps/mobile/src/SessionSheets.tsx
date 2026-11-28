@@ -11,7 +11,7 @@ import { useRealtime } from './data/realtime';
 import { useCanPlay, useViewer } from './downloads/DownloadsProvider';
 import { unavailableReason } from './downloads/model';
 import { awaitsTrackList } from './data/albums';
-import { useAlbum, useAllPlaylists } from './data/queries';
+import { useAlbum, useAllPlaylists, useTrackVersions } from './data/queries';
 import { usePageLinks } from './library/links';
 import { matches } from './library/shared';
 import { trackActionKey, useRunTrackAction, useTrackActionRunner, useTrackActions } from './library/trackActions';
@@ -22,11 +22,12 @@ import NowPlaying, { SystemVolumeSlider } from '../modules/now-playing';
 import {
   SheetAction, SheetFacts, SheetField, SheetFrame, SheetInfo, SheetNote, SheetRows, SheetRow, SheetScroll, SheetSlider, SheetSystemVolume, TrackSummary,
 } from './SheetUI';
-import { trackInfoNote, trackInfoSections } from './player/trackInfo';
+import { trackInfoNote, trackInfoSections, trackVersionRows, versionPickFailure, versionsNote, type VersionRow } from './player/trackInfo';
 import { DETACHED_SYMBOL, detachedHeader, hasQueueToBring, moveFailure, separateRows } from './player/detach';
 import { announce } from './inlineFeedback';
 import { playlistAddFailure } from './library/failures';
 import { repeatedAddPrompt } from './library/albumActions';
+import { useVersionPick } from './library/useVersionPick';
 import { useColors } from './theme';
 
 /** Up to this many playlists the sheet fits them all; beyond, they scroll under a search field. */
@@ -194,11 +195,12 @@ export function TrackCreditsSheet({ id, albumId }: { id: string; albumId?: strin
 
 /**
  * Track info for the song playing: where it plays, its file, how it reaches that device (the
- * file as it is, or a transcode and why) and the normalization applied. The audio facts are the
- * playing device's own report, so a phone controlling a TV says what the TV plays.
+ * file as it is, or a transcode and why) and the normalization applied, then the versions of
+ * the song the server holds. The audio facts are the playing device's own report, so a phone
+ * controlling a TV says what the TV plays.
  */
 export function TrackInfoSheet() {
-  const { track, signal, output, session } = usePlaybackState();
+  const { track, signal, output, session, current } = usePlaybackState();
   const where = { signal, output: session.activeDeviceId ? output : null };
   const note = trackInfoNote(where);
   return (
@@ -206,8 +208,50 @@ export function TrackInfoSheet() {
       <TrackSummary track={track} subtitle={track ? [track.artistCredit, track.album?.title].filter(Boolean).join(' · ') : undefined} />
       {trackInfoSections(where).map(section => <SheetFacts key={section.title} title={section.title} rows={section.rows} />)}
       {note && <SheetNote>{note}</SheetNote>}
+      {current && <TrackVersionsSection trackId={current.trackId} albumId={current.albumId ?? null}
+        playing={signal?.trackId === current.trackId ? signal.source?.versionId : undefined} />}
     </Sheet>
   );
+}
+
+/**
+ * The versions of the song playing, when the server holds two or more: which one plays by
+ * default for this user, on every device, and which one plays now. A pick reaches the song the
+ * next time it starts; the play under way goes on. Nothing offline.
+ */
+function TrackVersionsSection({ trackId, albumId, playing }: { trackId: string; albumId: string | null; playing: string | undefined }) {
+  const { offline } = useRealtime();
+  const versions = useTrackVersions(trackId, albumId, { enabled: !offline });
+  const pickVersion = useVersionPick();
+  // The row being picked: it waits for the server with a spinner in place of its check mark.
+  const [picking, setPicking] = useState<string | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+  const open = useOpenRef();
+  // Another song started under the sheet: what failed was about the last one.
+  useEffect(() => setFailure(null), [trackId]);
+  const rows = trackVersionRows(versions.data, { albumId, playing });
+  if (offline || !rows.length) return null;
+  const choose = (row: VersionRow) => {
+    if (picking || row.picked) return;
+    void Haptics.selectionAsync();
+    setPicking(row.key);
+    setFailure(null);
+    pickVersion('track', trackId, row.versionId).then(() => {
+      if (open.current) setPicking(null);
+    }, () => {
+      if (!open.current) return;
+      setPicking(null);
+      setFailure(versionPickFailure);
+      announce(versionPickFailure);
+    });
+  };
+  return <>
+    <SheetRows title="Versions">
+      {rows.map(row => <SheetRow key={row.key} title={row.title} subtitle={row.subtitle} icon={row.icon} selected={row.picked}
+        busy={picking === row.key} onPress={() => choose(row)} />)}
+    </SheetRows>
+    <SheetNote error={Boolean(failure)}>{failure ?? versionsNote}</SheetNote>
+  </>;
 }
 
 /**

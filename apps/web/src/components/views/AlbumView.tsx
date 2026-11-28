@@ -14,6 +14,7 @@ import { albumMenuEntries } from '@/components/music/album-menu'
 import { Rail, RailItem } from '@/components/music/Rail'
 import { TrackRowsSkeleton } from '@/components/music/Skeletons'
 import { TrackList } from '@/components/music/TrackList'
+import { VersionsMenu } from '@/components/music/VersionsMenu'
 import { Button } from '@/components/ui/button'
 import { Badge, EmptyState } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
@@ -131,6 +132,7 @@ export function AlbumView({ album, artist, onPlayAlbum, onRefresh }: AlbumViewPr
               ]}
               trigger={<IconButton label="More options" size="lg"><MoreHorizontal /></IconButton>}
             />
+            <VersionsMenu album={album} />
           </PlayActions>
         )}
       />

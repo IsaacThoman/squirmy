@@ -409,6 +409,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         saveBrowserName(name)
         client.rename(browserName())
       },
+      forgetPlayback: trackId => client.forgetPlayback(trackId),
       tell: ({ tone, ...line }) => status.show({ ...line, tone, key: ACTION_STATUS }, tone === 'error' ? STATUS_ERROR_MS : STATUS_EVENT_MS),
     }
   }, [client, engine, listening, clock, store, tab, startRadio, viewer, picked, status, invites])

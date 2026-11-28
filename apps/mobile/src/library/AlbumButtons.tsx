@@ -5,12 +5,21 @@ import { Icon } from '../ui';
 import { createThemedStyles, useColors } from '../theme';
 import { useBrowseBackLabel } from './links';
 
+/**
+ * One of the choices a nav button offers, such as a version of an album: `checked` on the one
+ * in force; `subtitle` tells it from the others, on lines of its own. `id` keys it, since two
+ * choices can share a title (one edition in two qualities).
+ */
+export type NavChoice = { id: string; title: string; subtitle?: string; checked: boolean; onPress: () => void };
+
 export type AlbumNavProps = {
   icon: string;
   label: string;
   onPress?: () => void;
   /** The button opens these as a menu, such as an album's ⋯, instead of running `onPress`. */
   menu?: readonly RowAction[];
+  /** The button opens these as a menu of choices instead: groups, each under its heading when it has one. */
+  choices?: readonly { heading?: string; options: readonly NavChoice[] }[];
   selected?: boolean;
   /** Shows activity in place of the icon, such as a download running. */
   busy?: boolean;
@@ -30,11 +39,16 @@ export type AlbumPlaybackProps = {
   actions: readonly { label: string; symbol: string; onPress: () => void; busy?: boolean; disabled?: boolean; failed?: boolean; spoken?: string }[];
 };
 
-export function AlbumNavButton({ icon, label, onPress, menu, selected, busy, failed }: AlbumNavProps) {
+export function AlbumNavButton({ icon, label, onPress, menu, choices, selected, busy, failed }: AlbumNavProps) {
   const colors = useColors();
   const styles = useStyles();
   const sheet = useMenuSheet();
-  const open = menu ? () => sheet.open(label, menu) : onPress;
+  // The choices in one list, the chosen one checked; the first heading says what they choose.
+  const open = menu ? () => sheet.open(label, menu)
+    : choices ? () => sheet.open(label, choices.flatMap(group => group.options.map(choice => ({
+      title: choice.title, subtitle: choice.subtitle, icon: choice.checked ? 'checkmark' : undefined, onPress: choice.onPress,
+    }))), choices.find(group => group.heading)?.heading)
+      : onPress;
   return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={selected === undefined ? { busy } : { selected, busy }}
     style={({ pressed }) => [styles.nav, pressed && styles.pressed]} onPress={open}>
     {busy ? <ActivityIndicator color={colors.text} /> : <Icon name={icon} size={20} color={failed ? colors.danger : selected ? colors.accent : colors.text} />}

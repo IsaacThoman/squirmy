@@ -45,6 +45,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 
 - [x] Metadata clients with cache and rate limits
 - [x] Album matching tiers, review queue, fix match, merges
+- [x] Album editions: each owned edition keeps its own release, a Versions control on web and iOS picks which edition and quality plays by default, and Track info switches one song's copy
 - [x] Enrichment: covers, artist images, bios, lyrics, external ids
 - [x] Managed roots: preview, apply, journal, undo (server and API)
 - [x] Admin screens (web): library folders, review queue, Fix match, Organize, users and invites, server settings, jobs
