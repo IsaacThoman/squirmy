@@ -43,7 +43,7 @@ Until the key is set, users see "An admin of this server has to add a Last.fm AP
 
 ### Compatible ListenBrainz servers
 
-In web Settings, choose **Change connection** to use a different server. Supply its user token and the complete versioned path in **API URL**, for example `https://listens.example.com/1/`. Compatible servers need to implement token validation and listen submission. Heart sync also requires recording feedback endpoints. Leaving the field blank uses ListenBrainz. The token, now-playing updates, completed plays and feedback for the account all go to the selected server. A change of destination starts a new connection.
+In web Settings, choose **Change connection** to use a different server. Supply its user token and the complete versioned path in **API URL**, for example `https://listens.example.com/1/` for a self-hosted ListenBrainz instance. For [Maloja](https://github.com/krateng/maloja/blob/master/API.md#scrobbling) and [Koito](https://koito.io/guides/scrobbler/), append `/apis/listenbrainz/1/` to the server address. Compatible servers need to implement token validation and listen submission. Heart sync also requires recording feedback endpoints. Leaving the field blank uses ListenBrainz. The token, now-playing updates, completed plays and feedback for the account all go to the selected server. A change of destination starts a new connection.
 
 The server checks destination addresses on connection. For a service on an RFC1918 network, an admin must enable **Allow local HTTP destinations** in [Integrations](./integrations.md#webhooks). Use HTTPS when sending credentials over an untrusted network.
 
