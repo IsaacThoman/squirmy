@@ -102,7 +102,8 @@ export type ServerModule = {
 | `search` | library search, search providers, stub rows, catalog resolve | 6 |
 | `imports` | web upload, inbox folder, staging, duplicate detection, filing into a managed root, managing and deleting uploads | 7 |
 | `acquisition` | provider protocol client, jobs, policy, on-demand playback | 8 |
-| `scrobble` | ListenBrainz and Last.fm submission | 8 |
+| `scrobble` | ListenBrainz and Last.fm submission and heart sync | 8 |
+| `integrations` | Webhooks, outbound connection policy and MQTT | 8 |
 | `radio` | autoplay suggestions from similar-artist data and sonic analysis, radios, the mixes made for each user | 8 |
 | `catalog-index` | optional local search index from MusicBrainz canonical dumps | 8 |
 
@@ -333,7 +334,7 @@ The replacement of this core (a native iOS and tvOS engine, fragmented MP4 trans
 - Transcodes are built when a stream first asks for them; nothing is converted ahead of time. `streaming.evict` runs hourly and at worker start: it reconciles rows with files on disk and deletes least-recently-used transcodes beyond `transcodeCacheMaxBytes`, sparing those used in the last half hour so a track being played keeps answering Range requests.
 - A descriptor describes what its URL delivers and, in `source`, the file it is made from (codec family, bit depth, channels, size), with `transcodeReason`: `codec` when the client does not decode the file, `quality` otherwise. Both are absent from older servers; client-core then takes an original's own fields as the file and knows nothing of a transcode's.
 - Normalization values prefer measured loudness (`-18 − loudness_lufs` gives the gain), then the file's ReplayGain tags. For a file awaiting measurement with no tagged gain, the playback descriptor uses the median track gain of the present library and marks it `estimated`. Album values come from `release_loudness` or the file's tags.
-- Loudness is EBU R128 from ffmpeg's `ebur128` filter. `loudness.measure` `{ fileId }` records integrated loudness, true peak, and the exact decoded frame count and sample rate after applying source priming and padding. It records the trim values from the same decode. Original playback descriptors expose the count, rate and priming in `gapless`. A stream request for audio awaiting measurement queues the job at high priority or raises the priority of its waiting singleton. When track loudness changes, measurement queues `loudness.album` `{ releaseId }`. The album job streams decoded audio from one track at a time into a continuous meter and stores the maximum measured track true peak. Silent and very short files store -70 LUFS, which yields no measured gain. A final decode failure sets `probe_error` and clears the file's measurement and its release's album measurement. Scanning a changed file clears stale measurements and the error. `loudness.sweep` runs every 10 minutes and at worker start, queuing present, probed files without a measurement or exact length in batches of 500 and releases that need an updated measurement. Files with recorded errors are skipped until a scan detects a change.
+- Loudness is EBU R128 from ffmpeg's `ebur128` filter. `loudness.measure` `{ fileId }` records integrated loudness, true peak, and the exact decoded frame count and sample rate after applying source priming and padding. It records the trim values from the same decode. Original playback descriptors expose the count, rate and priming in `gapless`. A stream request for audio awaiting measurement queues the job at high priority or raises the priority of its waiting singleton. When track loudness changes and the release’s present files have all been measured, measurement queues `loudness.album` `{ releaseId }`. A running album job may have read older measurements, so it cannot suppress this follow-up. The album job streams decoded audio from one track at a time into a continuous meter and stores the maximum measured track true peak. Silent and very short files store -70 LUFS, which yields no measured gain. A final decode failure sets `probe_error` and clears the file's measurement and its release's album measurement. Scanning a changed file clears stale measurements and the error. `loudness.sweep` runs every 10 minutes and at worker start, queuing present, probed files without a measurement or exact length in batches of 500 and releases that need an updated measurement. Files with recorded errors are skipped until a scan detects a change.
 
 ### Sessions
 
@@ -382,6 +383,10 @@ The server holds one shared session per user in memory, loaded on first use and 
 
 - **Imported history.** `userdata.history-import` reads a staged export incrementally and checks normalized recording credits and titles against the catalog. Matching album placements break ties. A batch commits its private import ledger, matched `plays` and progress together. The ledger deduplicates by user, source and fingerprint, and keeps unmatched metadata in private history to keep search results focused on the shared catalog. Scrobbling excludes imported plays. Replay aggregates matched and unmatched history, except early skips. API and worker processes share the data directory so either can reach staged uploads.
 - **Replay.** `userdata/replay.ts` builds calendar windows in the requested IANA time zone. It aggregates listening rows by recording and album before joining catalog credits and genres. Local hourly buckets feed the clock, totals and streaks. Existing history invalidations also refresh Replay.
+
+### Integrations
+
+[Integrations](./server/integrations.md) owns user and server webhook subscriptions and the administrator's MQTT broker configuration. Event producers enqueue a signed delivery with an event ID that stays stable across pg-boss retries. HTTP destinations are checked as sockets resolve DNS and redirects are disabled. The API process runs the MQTT bridge and applies broker commands through the same playback session reducer as connected clients. Scoped native bearer tokens share the app-password lifecycle and are authorized against a route allowlist. The existing Subsonic credentials retain their original access.
 
 ### Radio
 
@@ -677,7 +682,7 @@ apps/mobile/
 ## Testing
 
 - `vitest` everywhere. A test file sits next to the code it tests as `*.test.ts`.
-- **Database tests** call `useTestDatabase()` from `src/test/database.ts`, which clones a migrated template database for the file. They need `SQUIRMY_TEST_DATABASE_URL` (default `postgres://localhost:54329/postgres`). CI provides a Postgres service.
+- **Database tests** call `useTestDatabase()` from `src/test/database.ts`, which clones a migrated template database for the file. They need `SQUIRMY_TEST_DATABASE_URL` (default `postgres://localhost:54329/postgres`). CI provides a Postgres service. Server tests default to at most eight workers to leave room in PostgreSQL’s connection limit for setup and dedicated connections.
 - **Audio fixtures** are generated with ffmpeg by `src/test/audio.ts`: short, very quiet tones with real tags. No real music is committed. The native audio engine's Swift tests use a split sweep from it (`makeSplitTonePairs`), generated once and committed so `swift test` needs no ffmpeg.
 - **Swift.** `swift test --package-path apps/mobile/modules/audio-engine/core` runs the native engine's core on macOS, where the same AVFoundation and AudioToolbox APIs exist.
 - **HTTP fixtures** for external services are recorded JSON; no live calls in tests. A hand-written fixture may list `request.headers` that must match too, for requests that differ only in a header.

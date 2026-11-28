@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import dns, { type LookupAddress } from 'node:dns'
-import { isIP } from 'node:net'
+import { BlockList, isIP, isIPv4 } from 'node:net'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { and, eq, gt, sql } from 'drizzle-orm'
 import { Agent } from 'undici'
@@ -46,6 +46,7 @@ export type CachedFetchOptions = {
   cache?: 'default' | 'reload' | 'no-store'
   /** Abort a request that takes longer than this. Default 15 seconds. */
   timeoutMs?: number
+  outbound?: { allowLan: boolean }
   /** Retries after a throttled response. Default 3. */
   retries?: number
   /**
@@ -150,31 +151,56 @@ export async function request(provider: string, url: string, init: RequestInit &
   }
 }
 
-/**
- * `dns.lookup` that fails when a name resolves to any address off the public internet,
- * so a connection made with it cannot be pointed at this machine or its network, also
- * not by a name whose address changes between a check and the connection.
- */
-function publicLookup(
-  hostname: string,
-  options: dns.LookupOptions,
-  callback: (error: NodeJS.ErrnoException | null, address: string | LookupAddress[], family?: number) => void,
-): void {
-  dns.lookup(hostname, { ...options, all: true }, (error, addresses) => {
-    if (error) return callback(error, '')
-    const refused = addresses.find((entry) => !isPublicAddress(entry.address))
-    if (refused || addresses.length === 0) {
-      const failure: NodeJS.ErrnoException = new Error(`${hostname} resolves to ${refused?.address ?? 'no address'}, which is not public`)
-      failure.code = 'ERR_NON_PUBLIC_ADDRESS'
-      return callback(failure, '')
-    }
-    if (options.all) callback(null, addresses)
-    else callback(null, addresses[0]!.address, addresses[0]!.family)
-  })
+const lanAddresses = new BlockList()
+lanAddresses.addSubnet('10.0.0.0', 8)
+lanAddresses.addSubnet('172.16.0.0', 12)
+lanAddresses.addSubnet('192.168.0.0', 16)
+
+function permittedAddress(address: string, allowLan: boolean): boolean {
+  return isPublicAddress(address) || (allowLan && isIPv4(address) && lanAddresses.check(address))
+}
+
+/** Validate every resolved address in the socket lookup to avoid a second DNS resolution. */
+function guardedLookup(allowLan: boolean) {
+  return (
+    hostname: string,
+    options: dns.LookupOptions,
+    callback: (error: NodeJS.ErrnoException | null, address: string | LookupAddress[], family?: number) => void,
+  ): void => {
+    dns.lookup(hostname, { ...options, all: true }, (error, addresses) => {
+      if (error) return callback(error, '')
+      const refused = addresses.find((entry) => !permittedAddress(entry.address, allowLan))
+      if (refused || addresses.length === 0) {
+        const failure: NodeJS.ErrnoException = new Error(`${hostname} resolves to ${refused?.address ?? 'no address'}, which is outside the allowed networks`)
+        failure.code = 'ERR_NON_PUBLIC_ADDRESS'
+        return callback(failure, '')
+      }
+      if (options.all) callback(null, addresses)
+      else callback(null, addresses[0]!.address, addresses[0]!.family)
+    })
+  }
 }
 
 /** A fetch `dispatcher` that connects only to public addresses. */
-export const publicDispatcher = new Agent({ connect: { lookup: publicLookup } })
+export const publicDispatcher = new Agent({ connect: { lookup: guardedLookup(false) } })
+
+const lanDispatcher = new Agent({ connect: { lookup: guardedLookup(true) } })
+
+/** Sends data to a configured endpoint. Redirects are never followed with its payload or credentials. */
+export async function requestOutbound(provider: string, url: string, init: RequestInit & { timeoutMs?: number }, allowLan: boolean): Promise<Response> {
+  const target = new URL(url)
+  const host = target.hostname.replace(/^\[(.*)\]$/, '$1')
+  if (!['http:', 'https:'].includes(target.protocol) || target.username || target.password
+      || (isIP(host) && !permittedAddress(host, allowLan))) {
+    throw new RefusedUrlError(provider, 'destination is outside the allowed networks or uses an invalid URL')
+  }
+  try {
+    return await request(provider, url, { ...init, redirect: 'manual', dispatcher: allowLan ? lanDispatcher : publicDispatcher } as RequestInit)
+  } catch (error) {
+    if (refusedAddress(error)) throw new RefusedUrlError(provider, 'destination is outside the allowed networks', { cause: error })
+    throw error
+  }
+}
 
 function refusedAddress(error: unknown): boolean {
   for (let cause = error; cause instanceof Error; cause = cause.cause) {
@@ -266,12 +292,13 @@ export async function cachedFetch(provider: string, url: string, options: Cached
   const retries = options.retries ?? 3
   for (let attempt = 0; ; attempt++) {
     if (options.rateLimitKey && options.rateLimitMs && rateLimitsEnabled) await rateLimit(options.rateLimitKey, options.rateLimitMs)
-    const response = await request(provider, url, {
+    const init = {
       method,
       headers: options.headers,
       body: options.body,
       timeoutMs: options.timeoutMs,
-    })
+    }
+    const response = options.outbound ? await requestOutbound(provider, url, init, options.outbound.allowLan) : await request(provider, url, init)
     const result: HttpResult = { ...parse(response.status, await readBody(provider, response)), cached: false }
     const kind = options.classify?.(result) ?? classifyStatus(result.status, options.cacheErrors)
 

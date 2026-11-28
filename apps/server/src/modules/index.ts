@@ -14,6 +14,7 @@ import { enrichmentModule } from './enrichment/index.js'
 import { organizeModule } from './organize/index.js'
 import { subsonicModule } from './subsonic/index.js'
 import { searchModule } from './search/index.js'
+import { integrationsModule } from './integrations/index.js'
 import { importsModule } from './imports/index.js'
 import { acquisitionModule } from './acquisition/index.js'
 import { scrobbleModule } from './scrobble/index.js'
@@ -42,6 +43,7 @@ export const modules: ServerModule[] = [
   importsModule,
   acquisitionModule,
   scrobbleModule,
+  integrationsModule,
   radioModule,
   catalogIndexModule,
 ]

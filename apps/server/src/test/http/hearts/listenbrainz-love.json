@@ -1,0 +1,17 @@
+{
+  "note": "Hand-written from the API schema with synthetic credentials and feedback.",
+  "request": {
+    "method": "POST",
+    "url": "https://scrobbles.example/lb/1/feedback/recording-feedback",
+    "body": "{\"recording_mbid\":\"046f957e-30ea-477b-a078-e30f4da52d68\",\"score\":1}",
+    "headers": {
+      "authorization": "Token custom-token"
+    }
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "status": "ok"
+    }
+  }
+}
