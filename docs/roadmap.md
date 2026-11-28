@@ -24,6 +24,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Likes, ratings, playlists, history, user settings
 - [x] Lyrics: embedded, sidecar and LRCLIB, shown on web and iOS
 - [x] Web app: setup, login, library, album and artist pages, player, queue
+- [x] Now Playing's turning cover colors (web and iPhone), covers that crossfade, a lean-back full screen on the web and a Compact density
 - [x] Mobile app: connect, login, real data, real audio, lock-screen controls
 
 ## 3. Connect
