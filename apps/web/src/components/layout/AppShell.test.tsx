@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { useLocation, useNavigate } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from '@/App'
-import { album, likedTracks, playlistSummaries, track } from '@/fixtures/catalog'
+import { album, likedTracks, mixSummaries, personalHome, playlistSummaries, track } from '@/fixtures/catalog'
 import { users } from '@/fixtures/server'
 import { fakeServices, type FakeOptions } from '@/test/fake-services'
 import { renderWithApp } from '@/test/render'
@@ -148,12 +148,25 @@ describe('AppShell', () => {
       const places = within(await screen.findByRole('listbox', { name: 'Go to' }))
       // The places lead; the commands follow under their own heading.
       expect(places.getAllByRole('option').filter(option => !option.closest('[role="group"]')).map(option => option.textContent)).toEqual([
-        expect.stringMatching(/^Home/), 'Search and browse genres', 'Library', 'Albums', 'Artists', 'Songs', 'Playlists', 'Liked Songs', 'Wantlist', 'Add music', 'Admin panel',
+        expect.stringMatching(/^Home/), 'Search and browse genres', 'Library', 'Albums', 'Artists', 'Songs', 'Playlists', 'Liked Songs', 'Replay', 'Wantlist', 'Add music', 'Admin panel',
       ])
       expect(within(places.getByRole('group', { name: 'Commands' })).getByRole('option', { name: /^Keyboard shortcuts/ })).toBeInTheDocument()
       await userEvent.click(places.getByRole('option', { name: 'Artists' }))
       expect(where()).toBe('/library?filter=artists')
       expect(screen.queryByRole('dialog', { name: 'Search' })).not.toBeInTheDocument()
+    })
+
+    it('offers today’s mixes from Home’s Made for you among the places', async () => {
+      const fake = fakeServices()
+      fake.api.catalog.home.mockResolvedValue(personalHome)
+      renderWithApp(<><AppRoutes /><Where /></>, '/', fake.services)
+      await screen.findByRole('main', { hidden: true })
+      await press('k')
+      const places = within(await screen.findByRole('listbox', { name: 'Go to' }))
+      const [first, second] = mixSummaries
+      expect(await places.findByRole('option', { name: second!.name })).toBeInTheDocument()
+      await userEvent.click(places.getByRole('option', { name: first!.name }))
+      expect(where()).toBe(`/mix/${first!.id}`)
     })
 
     it('offers Add music and the admin panel only to those who may use them', async () => {
@@ -593,6 +606,19 @@ describe('AppShell', () => {
       const group = await screen.findByRole('group', { name: 'Commands and places' })
       await userEvent.click(within(group).getByRole('option', { name: /Keyboard shortcuts/ }))
       expect(await screen.findByRole('dialog', { name: 'Keyboard shortcuts' })).toBeInTheDocument()
+    })
+
+    it('starts a radio of songs that sound like the one playing', async () => {
+      const { api } = await renderShell()
+      await press('k')
+      await userEvent.type(await searchField(), 'amber')
+      await userEvent.click(await screen.findByRole('option', { name: 'Amber Song · Lune Park' }))
+      await press('k')
+      await userEvent.type(await searchField(), '>sound like')
+      const commands = screen.getByRole('listbox', { name: 'Commands' })
+      expect(within(commands).getAllByRole('option')[0]).toHaveTextContent('Songs that sound like “Amber”')
+      await userEvent.keyboard('{Enter}')
+      await waitFor(() => expect(api.radio.sonic).toHaveBeenCalledWith(track('amber').id))
     })
 
     it('says when no command matches', async () => {

@@ -2,7 +2,7 @@ import type { TrackSummary } from '@squirmy/contracts'
 
 /** Tracks dragged from a list onto a sidebar playlist, onto Liked Songs, the queue, the player, or within their own playlist. */
 const tracksType = 'application/x-squirmy-tracks'
-/** An album or playlist card dragged onto a sidebar playlist, the queue or the player. */
+/** An album, playlist or mix card dragged onto a sidebar playlist, the queue or the player. */
 const collectionType = 'application/x-squirmy-collection'
 
 export type TrackDrag = {
@@ -12,7 +12,11 @@ export type TrackDrag = {
   index: number
 }
 
-export type CollectionDrag = { kind: 'album' | 'playlist'; id: string; title: string }
+/**
+ * A card whose songs load when it is dropped. A radio's card is not one: its songs are picked
+ * when it starts, so there is nothing to load until it plays.
+ */
+export type CollectionDrag = { kind: 'album' | 'playlist' | 'mix'; id: string; title: string }
 
 /** What is being dragged: songs, or a collection whose songs are loaded when it is dropped. */
 export type MusicDrag = { kind: 'tracks'; drag: TrackDrag } | { kind: 'collection'; collection: CollectionDrag }

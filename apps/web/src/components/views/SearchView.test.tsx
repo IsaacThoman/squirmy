@@ -1,11 +1,11 @@
 import { ApiError, recentSearchesStorageKey } from '@squirmy/client-core'
 import type { SearchKind, SearchResults } from '@squirmy/contracts'
-import { act, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useLocation } from 'react-router'
 import { afterEach, describe, expect, it } from 'vitest'
 import { AppRoutes } from '@/App'
-import { artists, searchFixtures, searchPage, track } from '@/fixtures/catalog'
+import { artists, playlistSummaries, searchFixtures, searchPage, track } from '@/fixtures/catalog'
 import { currentUser } from '@/fixtures/server'
 import { fakeServices } from '@/test/fake-services'
 import { renderWithApp } from '@/test/render'
@@ -44,7 +44,72 @@ describe('search page', () => {
     expect(screen.queryByRole('heading', { name: /Top result|Artists|Albums|Songs/ })).toBeNull()
     expect(document.body.textContent).not.toMatch(/in your library|more to discover|deezer/i)
     expect(within(screen.getByRole('group', { name: 'Show' })).getAllByRole('button').map(button => button.textContent))
-      .toEqual(['All', 'Songs', 'Albums', 'Artists', 'Playlists'])
+      .toEqual(['All', 'Songs', 'Albums', 'Artists', 'Playlists', 'Lyrics', 'Credits'])
+  })
+
+  it('shows a visible playlist and a lyric snippet returned by the server', async () => {
+    const { services, api } = fakeServices()
+    const shared = { ...playlistSummaries[0]!, name: 'Harbor Songs', ownerName: 'Another listener', isPublic: true }
+    const lyrics = [{ track: track('amber'), snippet: 'A lantern in the harbor' }]
+    api.search.library.mockResolvedValue({ artists: [], albums: [], tracks: [], playlists: [shared], lyrics, provider: null })
+    api.search.catalog.mockResolvedValue({ artists: [], albums: [], tracks: [], provider: null })
+    renderWithApp(<AppRoutes />, '/search?q=harbor', services)
+    expect(await screen.findByRole('link', { name: 'Harbor Songs, Playlist · Another listener' })).toBeInTheDocument()
+    expect(within(screen.getByRole('list', { name: 'Matching lyrics' })).getByText('A lantern in the harbor')).toBeInTheDocument()
+    await userEvent.click(within(screen.getByRole('group', { name: 'Show' })).getByRole('button', { name: 'Lyrics' }))
+    expect(await screen.findByText('A lantern in the harbor')).toBeInTheDocument()
+    expect(api.search.library).toHaveBeenLastCalledWith(expect.objectContaining({ type: 'lyrics', offset: 0 }), expect.anything())
+  })
+
+  it('picks songs across the list and its lyric and credit matches, a song found twice once', async () => {
+    const { services, api, socket } = fakeServices()
+    const [nightSwimming, amber, staticBloom, tailLights] = ['night-swimming', 'amber', 'static-bloom', 'tail-lights'].map(track)
+    api.search.library.mockResolvedValue({
+      artists: [], albums: [], tracks: [nightSwimming!, amber!], playlists: [],
+      lyrics: [{ track: amber!, snippet: 'a line of amber' }, { track: staticBloom!, snippet: 'a line of static' }],
+      credits: [{ track: tailLights!, matched: [{ artist: { id: artists[0]!.id, name: 'Harbor Hale' }, role: 'composer' as const }] }],
+      provider: null,
+    })
+    api.search.catalog.mockResolvedValue({ artists: [], albums: [], tracks: [], provider: null })
+    renderWithApp(<AppRoutes />, '/search?q=line', services)
+    const lyrics = within(await screen.findByRole('list', { name: 'Matching lyrics' }))
+    const credits = within(screen.getByRole('list', { name: 'Matching credits' }))
+    const ctrlClick = (element: HTMLElement) => fireEvent.click(element, { ctrlKey: true })
+    ctrlClick(within(await results()).getByRole('button', { name: 'Play Night Swimming' }))
+    ctrlClick(lyrics.getByRole('button', { name: 'Play Static Bloom' }))
+    ctrlClick(credits.getByRole('button', { name: 'Play Tail Lights' }))
+    // Amber, matched by name and by its lyrics, is one song: picked in one place, it is picked in both.
+    ctrlClick(lyrics.getByRole('button', { name: 'Play Amber' }))
+    const bar = screen.getByRole('toolbar', { name: 'Selected songs' })
+    expect(bar).toHaveTextContent('4 songs selected')
+    const amberRows = screen.getAllByRole('button', { name: 'Play Amber' }).map(button => button.closest('li'))
+    expect(amberRows.every(row => row?.hasAttribute('data-selected'))).toBe(true)
+    // Nothing played: a click with Ctrl picks.
+    expect(socket.session.current).toBeNull()
+    await userEvent.click(within(bar).getByRole('button', { name: 'Add to queue' }))
+    // In the page's order: the list, then the lyric matches, then the credit matches.
+    await waitFor(() => expect(socket.session.queue.map(entry => entry.trackId)).toEqual([nightSwimming, amber, staticBloom, tailLights].map(item => item!.id)))
+  })
+
+  it('shows the matched composer on the Credits filter', async () => {
+    const { services, api } = fakeServices()
+    const credits = [{ track: track('amber'), matched: [{ artist: { id: artists[0]!.id, name: 'Harbor Hale' }, role: 'composer' as const }] }]
+    api.search.library.mockResolvedValue({ artists: [], albums: [], tracks: [], credits, provider: null })
+    renderWithApp(<AppRoutes />, '/search?q=harbor&type=credits', services)
+    expect(await screen.findByText('Composer · Harbor Hale')).toBeInTheDocument()
+    expect(api.search.library).toHaveBeenCalledWith(expect.objectContaining({ type: 'credits' }), expect.anything())
+  })
+
+  it('sends audio quality, decade and liked filters to the library search', async () => {
+    const { api, services } = fakeServices()
+    renderWithApp(<AppRoutes />, '/search?q=mira&quality=hi-res&decade=1990', services)
+    await results()
+    expect(api.search.catalog).not.toHaveBeenCalled()
+    expect(api.search.library).toHaveBeenCalledWith(expect.objectContaining({ quality: 'hi-res', decade: 1990 }), expect.anything())
+    await userEvent.click(screen.getByRole('button', { name: 'Liked only' }))
+    await waitFor(() => expect(api.search.library).toHaveBeenLastCalledWith(
+      expect.objectContaining({ quality: 'hi-res', decade: 1990, liked: true }), expect.anything(),
+    ))
   })
 
   it('opens an artist or an album from its row', async () => {

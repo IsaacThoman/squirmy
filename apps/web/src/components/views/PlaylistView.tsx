@@ -1,9 +1,10 @@
-import type { PlaybackContext, PlaylistDetail, TrackSummary } from '@squirmy/contracts'
-import { Globe, Heart, ListMusic, Lock, MoreHorizontal, Pencil, Play, Shuffle, Trash2 } from 'lucide-react'
+import type { MixDetail, PlaybackContext, PlaylistDetail, TrackSummary } from '@squirmy/contracts'
+import { AudioLines, Globe, Heart, ListMusic, Lock, MoreHorizontal, Pencil, Play, Shuffle, Trash2 } from 'lucide-react'
 import { useCallback, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import type { MoreFailure } from '@/api/queries'
-import { LikedCover, likedTint, PlaylistCover } from '@/components/music/CollectionArt'
+import { LikedCover, likedTint, MixCover, PlaylistCover } from '@/components/music/CollectionArt'
+import { mixSlot } from '@/components/music/mix-menu'
 import { CollectionHeader, PlayActions } from '@/components/music/CollectionHeader'
 import { VirtualTrackList } from '@/components/music/TrackList'
 import { Button } from '@/components/ui/button'
@@ -75,6 +76,30 @@ export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete
           action={owned && <Button asChild variant="primary"><Link to="/search">Find something</Link></Button>}
         />
       )}
+    />
+  )
+}
+
+type MixViewProps = {
+  mix: MixDetail
+  /** The ⋯ menu's entries, from `mixMenuEntries` (mix-menu.tsx). */
+  menu: MenuEntry[]
+}
+
+/** A mix made for the user: read-only, its songs in the order they were picked. */
+export function MixView({ mix, menu }: MixViewProps) {
+  return (
+    <TrackCollection
+      kind="Mix"
+      title={mix.name}
+      art={<MixCover artworks={mix.artworks} label={mixSlot(mix)} />}
+      tint={mix.artworks[0]?.color}
+      byline={<span className="text-muted-foreground">{mix.description}</span>}
+      tracks={mix.tracks}
+      durationMs={mix.durationMs}
+      context={{ type: 'mix', id: mix.id, title: mix.name }}
+      menuEntries={menu}
+      empty={<EmptyState icon={<AudioLines />} title="Nothing in this mix plays right now" description="Its songs are back once their music is on the server again." />}
     />
   )
 }

@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event'
 import { useState, type ComponentProps, type ReactNode } from 'react'
 import { useLocation } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { album, playlistSummaries, track } from '@/fixtures/catalog'
+import { album, mixes, playlistSummaries, track } from '@/fixtures/catalog'
 import { currentUser, users } from '@/fixtures/server'
 import { endTrackDrag, startCollectionDrag, startTrackDrag } from '@/lib/drag'
 import { LibraryContext, type LibraryActions } from '@/player/library-context'
@@ -306,6 +306,16 @@ describe('Sidebar', () => {
       fireEvent.drop(link, { dataTransfer: transfer })
       await waitFor(() => expect(library.addToPlaylist).toHaveBeenCalledWith(afterDark, glassCity.discs.flatMap(disc => disc.tracks)))
       expect(await within(link).findByText('Added')).toBeInTheDocument()
+    })
+
+    it('adds the songs of a mix card dropped on a playlist, once they load', async () => {
+      const { library } = renderSidebar()
+      const mix = mixes[0]!
+      const transfer = dataTransfer()
+      startCollectionDrag({ dataTransfer: transfer }, { kind: 'mix', id: mix.id, title: mix.name })
+      const link = playlistLink('After Dark')
+      fireEvent.drop(link, { dataTransfer: transfer })
+      await waitFor(() => expect(library.addToPlaylist).toHaveBeenCalledWith(afterDark, mix.tracks))
     })
 
     it('ignores a drag of anything else', () => {

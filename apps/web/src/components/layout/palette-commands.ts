@@ -1,6 +1,6 @@
 import { listedDevices, sleepTimerChoices } from '@squirmy/client-core'
 import {
-  Disc3, Heart, Infinity as InfinityIcon, Keyboard, ListMusic, ListPlus, ListX, MessageSquareQuote, MicVocal, MonitorSpeaker, PanelLeft, Pause, PictureInPicture2, Play, Radio, Repeat,
+  AudioWaveform, Disc3, Heart, Infinity as InfinityIcon, Keyboard, ListMusic, ListPlus, ListX, MessageSquareQuote, MicVocal, MonitorSpeaker, PanelLeft, Pause, PictureInPicture2, Play, Radio, Repeat,
   Moon, Repeat1, Settings, Shuffle, SkipBack, SkipForward, TimerOff, Volume2, VolumeX, Maximize2,
 } from 'lucide-react'
 import { useNavigate } from 'react-router'
@@ -55,6 +55,8 @@ export function usePaletteCommands(shell: ShellCommands): PaletteCommand[] {
         run: () => void library.setSaved({ type: 'track', id: track.id, title: track.title }, !track.liked),
       },
       { id: 'radio', label: `Start radio from “${track.title}”`, icon: Radio, keywords: ['station', 'similar'], run: () => controls.startRadio({ type: 'track', id: track.id }) },
+      // The song menu's Songs that sound like this: a radio that keeps to the song's sound.
+      { id: 'sonic-radio', label: `Songs that sound like “${track.title}”`, icon: AudioWaveform, keywords: ['sonic', 'radio', 'similar sound'], run: () => controls.startRadio({ type: 'sonic', id: track.id }) },
       ...(track.album ? [{ id: 'go-album', label: `Go to “${track.album.title}”`, icon: Disc3, keywords: ['album of the song playing'], run: () => void navigate(`/album/${track.album!.id}`) }] : []),
       ...track.artists.map(artist => ({ id: `go-artist:${artist.id}`, label: `Go to ${artist.name}`, icon: MicVocal, keywords: ['artist of the song playing'], run: () => void navigate(`/artist/${artist.id}`) })),
     ] : []),

@@ -26,7 +26,9 @@ export function besideArtist(collection: Collection, artistId: string): Collecti
 export function pinTarget(item: Collection): [LibraryPinKind, string] | null {
   switch (item.kind) {
     case 'liked': return ['liked', LIKED_SONGS_ID];
-    case 'recent': return null;
+    case 'recent':
+    case 'mix':
+    case 'radio': return null;
     default: return [item.kind, item.key];
   }
 }

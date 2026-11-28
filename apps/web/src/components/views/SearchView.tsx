@@ -1,5 +1,5 @@
 import { searchItemKey, tooShortToSearch, type RecentSearch, type SearchFilter, type SearchItem } from '@squirmy/client-core'
-import type { TrackSummary } from '@squirmy/contracts'
+import type { SearchFacets, TrackSummary } from '@squirmy/contracts'
 import { MoreHorizontal, Play, RotateCw, Search, X } from 'lucide-react'
 import { useContext, useEffect, useId, useMemo, useRef, useSyncExternalStore, type KeyboardEvent, type MouseEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
@@ -21,6 +21,7 @@ import { EmptyState, Skeleton, Spinner } from '@/components/ui/feedback'
 import { IconButton } from '@/components/ui/icon-button'
 import { ContextMenu, DropdownMenu, type MenuEntry } from '@/components/ui/menu'
 import { LoadError } from '@/components/ui/query-state'
+import { Select } from '@/components/ui/select'
 import { SearchField } from '@/components/ui/search-field'
 import { pillClass } from '@/components/ui/tabs'
 import { albumPresentation, canFetch, genreColor, isPlayable, UNAVAILABLE_LABEL } from '@/lib/catalog'
@@ -34,6 +35,8 @@ import { useTrackActions } from '@/player/use-track-actions'
 export type SearchList = {
   /** Null until an answer that may be shown has arrived. */
   items: SearchItem[] | null
+  lyricItems?: SearchItem[]
+  creditItems?: SearchItem[]
   /** The items answer an earlier query or filter and stay, faded, while the new answer loads. */
   stale: boolean
   /** More results for what is typed are on their way (the catalog's, or the next page). */
@@ -53,13 +56,15 @@ export type SearchList = {
   moreError?: unknown
 }
 
-const filterLabels: Record<SearchFilter, string> = { all: 'All', track: 'Songs', album: 'Albums', artist: 'Artists', playlist: 'Playlists' }
+const filterLabels: Record<SearchFilter, string> = { all: 'All', track: 'Songs', album: 'Albums', artist: 'Artists', playlist: 'Playlists', lyrics: 'Lyrics', credits: 'Credits' }
 
 type SearchViewProps = {
   query: string
   onQueryChange: (query: string) => void
   filter: SearchFilter
   onFilterChange: (filter: SearchFilter) => void
+  facets?: SearchFacets
+  onFacetsChange?: (facets: SearchFacets) => void
   list: SearchList
   recents: RecentSearch[]
   onRemoveRecent: (key: string) => void
@@ -88,7 +93,7 @@ const rowControls = (root: HTMLElement | null) => [...(root?.querySelectorAll<HT
  * recently viewed results and genres, or says what to do.
  */
 export function SearchView(props: SearchViewProps) {
-  const { query, onQueryChange, filter, onFilterChange, list, recents, onRemoveRecent, onClearRecents, genres, onBrowseGenre, onChoose } = props
+  const { query, onQueryChange, filter, onFilterChange, facets, onFacetsChange, list, recents, onRemoveRecent, onClearRecents, genres, onBrowseGenre, onChoose } = props
   const term = query.trim()
   const fieldId = useId()
   const rows = useRef<HTMLDivElement>(null)
@@ -103,7 +108,7 @@ export function SearchView(props: SearchViewProps) {
       first.focus()
     } else if (event.key === 'Enter') {
       // Results of an earlier query are not what Enter should open.
-      const best = term && !list.stale ? list.items?.[0] : undefined
+      const best = term && !list.stale ? (list.items?.[0] ?? list.lyricItems?.[0] ?? list.creditItems?.[0]) : undefined
       if (!best) return
       event.preventDefault()
       onChoose(best)
@@ -143,7 +148,10 @@ export function SearchView(props: SearchViewProps) {
         <div ref={rows} onKeyDown={onRowsKeyDown} className="contents">
           {term ? (
             <>
-              <Filters value={filter} onChange={onFilterChange} />
+              <div className="flex flex-col gap-3">
+                <Filters value={filter} onChange={onFilterChange} />
+                {filter !== 'playlist' && facets && onFacetsChange && <FacetControls value={facets} onChange={onFacetsChange} />}
+              </div>
               <Results term={term} filter={filter} list={list} onChoose={onChoose} />
             </>
           ) : hasRecents && (
@@ -196,6 +204,26 @@ function Filters({ value, onChange }: { value: SearchFilter; onChange: (filter: 
 }
 
 
+const currentDecade = Math.floor(new Date().getFullYear() / 10) * 10
+const decades = Array.from({ length: (currentDecade - 1900) / 10 + 1 }, (_, i) => currentDecade - i * 10)
+
+function FacetControls({ value, onChange }: { value: SearchFacets; onChange: (facets: SearchFacets) => void }) {
+  const shownDecades = value.decade && !decades.includes(value.decade) ? [value.decade, ...decades] : decades
+  return (
+    <div role="group" aria-label="Filter music" className="flex flex-wrap items-center gap-2">
+      <Select label="Audio quality" size="sm" value={value.quality ?? 'any'}
+        options={[{ value: 'any', label: 'Any quality' }, { value: 'lossless', label: 'Lossless' }, { value: 'hi-res', label: 'Hi-res' }]}
+        onValueChange={quality => onChange({ ...value, quality: quality === 'any' ? undefined : quality })} />
+      <Select label="Release decade" size="sm" value={value.decade?.toString() ?? 'any'}
+        options={[{ value: 'any', label: 'Any decade' }, ...shownDecades.map(decade => ({ value: String(decade), label: `${decade}s` }))]}
+        onValueChange={decade => onChange({ ...value, decade: decade === 'any' ? undefined : Number(decade) })} />
+      <button type="button" className={cn(pillClass, 'rounded-full border px-3.5 data-[state=active]:border-transparent')}
+        aria-pressed={Boolean(value.liked)} data-state={value.liked ? 'active' : undefined}
+        onClick={() => onChange({ ...value, liked: !value.liked })}>Liked only</button>
+    </div>
+  )
+}
+
 type ResultsProps = {
   term: string
   filter: SearchFilter
@@ -204,14 +232,25 @@ type ResultsProps = {
 }
 
 function Results({ term, filter, list, onChoose }: ResultsProps) {
-  const { items, stale, pending, failed, catalogFailed, unavailable, retry, retrying = false, loadMore, hasMore, moreFailed, moreError } = list
-  const tracks = useMemo(() => (items ?? []).flatMap(item => (item.type === 'track' ? [item.track] : [])), [items])
+  const { items, lyricItems, creditItems, stale, pending, failed, catalogFailed, unavailable, retry, retrying = false, loadMore, hasMore, moreFailed, moreError } = list
+  // Every song found, in the order the page lists them (the list, then lyric and credit matches),
+  // each once: a song whose title and lyrics both match is one song to pick, play or queue.
+  const tracks = useMemo(() => {
+    const seen = new Set<string>()
+    return [...(items ?? []), ...(lyricItems ?? []), ...(creditItems ?? [])].flatMap(item => {
+      if (item.type !== 'track' || seen.has(item.track.id)) return []
+      seen.add(item.track.id)
+      return [item.track]
+    })
+  }, [items, lyricItems, creditItems])
+  const songIndexes = useMemo(() => new Map(tracks.map((track, index) => [track.id, index])), [tracks])
   const actions = useTrackActions(tracks)
   const resultMenu = useResultMenus()
   const viewer = useViewer()
   const navigate = useNavigate()
-  // Songs found can be picked with ⌘/Ctrl-click and Shift-click, as in a track list; a click plays one.
-  const rowsList = useRef<HTMLOListElement>(null)
+  // Songs found can be picked with ⌘/Ctrl-click and Shift-click, as in a track list, across the
+  // list and its Lyrics and Credits sections; a click plays one.
+  const rowsList = useRef<HTMLDivElement>(null)
   const keys = useMemo(() => tracks.map(track => track.id), [tracks])
   const selection = useTrackSelection({ tracks, keys, batch: actions.batch, list: rowsList })
 
@@ -230,15 +269,36 @@ function Results({ term, filter, list, onChoose }: ResultsProps) {
   if (!items) return <ResultsSkeleton />
   const kind = filter === 'all' ? 'results' : filterLabels[filter].toLowerCase()
   // A catalog that could not be searched is no answer: "No results" would say there is nothing to find.
-  if (!items.length && !pending && !stale && !catalogFailed) {
+  if (!items.length && !lyricItems?.length && !creditItems?.length && !pending && !stale && !catalogFailed) {
     return (
       <EmptyState
         icon={<Search />}
         title={`No ${kind} for “${term}”`}
-        description={filter === 'all' ? 'Check the spelling, or try an artist, album or song name.' : 'Try All, or another spelling.'}
+        description={filter === 'lyrics' ? 'Try another line from the song.' : filter === 'credits' ? 'Try a composer or producer’s name.' : filter === 'all' ? 'Check the spelling, or try another search.' : 'Try All, or another spelling.'}
       />
     )
   }
+  const resultRows = (entries: SearchItem[]) => entries.map(item => {
+    const songIndex = item.type === 'track' ? (songIndexes.get(item.track.id) ?? -1) : undefined
+    return (
+      <ResultRow
+        key={searchItemKey(item)}
+        item={item}
+        songIndex={songIndex}
+        stale={stale}
+        onChoose={() => onChoose(item)}
+        trackMenu={item.type === 'track' ? track => trackMenuEntries(track, {
+          unavailable: !isPlayable(track, viewer),
+          wanted: actions.isWanted?.(track),
+          playlists: actions.playlists,
+          act: action => actions.onAction(action, track, songIndex!),
+          navigate: to => void navigate(to),
+        }) : undefined}
+        resultMenu={resultMenu}
+        onLike={item.type === 'track' ? () => actions.onAction('like', item.track, songIndex!) : undefined}
+      />
+    )
+  })
   return (
     // A row reads across: past this width its duration and menu drift away from its title.
     <div aria-busy={stale || pending || undefined} className="flex max-w-4xl flex-col gap-3">
@@ -251,30 +311,25 @@ function Results({ term, filter, list, onChoose }: ResultsProps) {
           className="[overflow-wrap:anywhere]"
         />
       )}
-      {items.length > 0 && selection.provide(
-        // Results of an earlier query stay, faded, while this one's load, but are not there to be opened.
-        <div>
-        <ol ref={rowsList} aria-label={`Results for ${term}`} inert={stale || undefined} onKeyDown={selection.onListKeyDown} className="-mx-2.5 flex flex-col">
-          {items.map(item => (
-            <ResultRow
-              key={searchItemKey(item)}
-              item={item}
-              songIndex={item.type === 'track' ? tracks.indexOf(item.track) : undefined}
-              stale={stale}
-              onChoose={() => onChoose(item)}
-              trackMenu={item.type === 'track' ? track => trackMenuEntries(track, {
-                unavailable: !isPlayable(track, viewer),
-                wanted: actions.isWanted?.(track),
-                playlists: actions.playlists,
-                act: action => actions.onAction(action, track, tracks.indexOf(track)),
-                navigate: to => void navigate(to),
-              }) : undefined}
-              resultMenu={resultMenu}
-              onLike={item.type === 'track' ? () => actions.onAction('like', item.track, tracks.indexOf(item.track)) : undefined}
-            />
-          ))}
-        </ol>
-        {selection.bar}
+      {selection.provide(
+        // One region for the songs of every section, so a press in any of them keeps the picked songs.
+        <div ref={rowsList} onKeyDown={selection.onListKeyDown} className="contents">
+          {items.length > 0 && (
+            // Results of an earlier query stay, faded, while this one's load, but are not there to be opened.
+            <ol aria-label={`Results for ${term}`} inert={stale || undefined} className="-mx-2.5 flex flex-col">
+              {resultRows(items)}
+            </ol>
+          )}
+          {([
+            { title: 'Lyrics', rows: lyricItems },
+            { title: 'Credits', rows: creditItems },
+          ]).map(({ title, rows }) => rows?.length ? (
+            <section key={title} inert={stale || undefined}>
+              <SectionHeader title={title} />
+              <ol aria-label={`Matching ${title.toLowerCase()}`} className="-mx-2.5 flex flex-col">{resultRows(rows)}</ol>
+            </section>
+          ) : null)}
+          {selection.bar}
         </div>,
       )}
       {moreFailed && !stale && loadMore
@@ -311,6 +366,7 @@ function ResultRow({ item, stale, onChoose, trackMenu, resultMenu, onLike, songI
   const controls = usePlayerControls()
   const detailId = useId()
   const { title, detail } = searchItemText(item)
+  const snippet = item.type === 'track' ? item.matchDetail : undefined
   const track = item.type === 'track' ? item.track : null
   const unavailable = track ? !isPlayable(track, viewer) : false
   const dimmed = item.type === 'album' ? albumPresentation(item.album, viewer) === 'dimmed'
@@ -371,7 +427,7 @@ function ResultRow({ item, stale, onChoose, trackMenu, resultMenu, onLike, songI
         title={unavailable ? UNAVAILABLE_LABEL : undefined}
         // Its own size container: the duration shows when the row, not the window, has room for it.
         data-selected={pickedCount > 0 || undefined}
-        className={cn('group/row @container relative h-14', searchRowClass(false, stale), focusedRow, pickedCount > 0 && 'bg-accent hover:bg-accent')}
+        className={cn('group/row @container relative', snippet ? 'min-h-16 py-2' : 'h-14', searchRowClass(false, stale), focusedRow, pickedCount > 0 && 'bg-accent hover:bg-accent')}
       >
         <div className="relative size-10 shrink-0">
           <SearchItemArt item={item} dimmed={dimmed} className="size-10" />
@@ -385,7 +441,7 @@ function ResultRow({ item, stale, onChoose, trackMenu, resultMenu, onLike, songI
             </div>
           )}
         </div>
-        <SearchRowBody art={null} title={title} detail={detail} detailId={detailId} dimmed={dimmed} current={current} explicit={track?.explicit ?? false} note={unavailable ? UNAVAILABLE_LABEL : pickedCount > 0 ? 'Selected' : undefined} />
+        <SearchRowBody art={null} title={title} detail={detail} snippet={snippet} detailId={detailId} dimmed={dimmed} current={current} explicit={track?.explicit ?? false} note={unavailable ? UNAVAILABLE_LABEL : pickedCount > 0 ? 'Selected' : undefined} />
         {primary}
         {/* A finger gets 44 px for the heart and the menu, with no gap between them. */}
         <div className="relative z-10 flex shrink-0 items-center gap-1 pointer-coarse:gap-0">

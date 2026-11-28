@@ -1,7 +1,7 @@
-import type { AlbumSummary, ArtistSummary, PlaylistSummary } from '@squirmy/contracts'
-import { BookmarkCheck, BookmarkPlus, MoreHorizontal, Pin, PinOff, Play } from 'lucide-react'
+import type { AlbumSummary, ArtistSummary, MixSummary, PlaylistSummary, RadioSummary } from '@squirmy/contracts'
+import { BookmarkCheck, BookmarkPlus, Disc3, MicVocal, MoreHorizontal, Pin, PinOff, Play, Radio } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { usePrefetch, type PrefetchHandlers } from '@/api/prefetch'
 import { IconButton } from '@/components/ui/icon-button'
 import { ContextMenu, DropdownMenu, type MenuEntry } from '@/components/ui/menu'
@@ -14,7 +14,8 @@ import { useAlbumMenu } from '@/player/use-album-menu'
 import { usePlaylistMenu } from '@/player/use-playlist-menu'
 import { endTrackDrag, startCollectionDrag, type CollectionDrag } from '@/lib/drag'
 import { useResultMenus } from './result-menus'
-import { LikedCover, PlaylistCover } from './CollectionArt'
+import { LikedCover, MixCover, PlaylistCover, RadioCover } from './CollectionArt'
+import { mixSlot } from './mix-menu'
 import { Cover } from './Cover'
 
 type CardProps = {
@@ -275,6 +276,48 @@ export function PlaylistCard({ playlist, onPlay, pin }: { playlist: PlaylistSumm
       menu={menu}
       contextOnly
       drag={{ kind: 'playlist', id: playlist.id, title: playlist.name }}
+    />
+  )
+}
+
+/** A mix made for the user (Home's Made for you): its cover, name and leading artists. */
+export function MixCard({ mix, onPlay, menu }: { mix: MixSummary; onPlay?: () => void; menu?: CardMenu }) {
+  return (
+    <Card
+      to={`/mix/${mix.id}`}
+      title={mix.name}
+      subtitle={mix.description}
+      art={<MixCover artworks={mix.artworks} label={mixSlot(mix)} />}
+      onPlay={mix.trackCount ? onPlay : undefined}
+      menu={menu}
+      drag={mix.trackCount ? { kind: 'mix', id: mix.id, title: mix.name } : undefined}
+    />
+  )
+}
+
+/**
+ * A radio the user played, started again from its play button. It opens the artist it
+ * started from, or the album of its song. Its right-click menu starts it or goes there; it
+ * has no queue entries and is not dragged, as its songs are only picked once it starts.
+ */
+export function RadioCard({ radio, onPlay }: { radio: RadioSummary; onPlay: () => void }) {
+  const navigate = useNavigate()
+  const round = radio.seed === 'artist'
+  const to = radio.seed === 'artist' ? `/artist/${radio.id}` : radio.albumId ? `/album/${radio.albumId}` : '/'
+  const goTo: MenuEntry[] = radio.seed === 'artist'
+    ? [{ label: 'Go to artist', icon: <MicVocal />, onSelect: () => navigate(to) }]
+    : radio.albumId ? [{ label: 'Go to album', icon: <Disc3 />, onSelect: () => navigate(to) }] : []
+  const menu: CardMenu = { entries: [{ label: 'Start radio', icon: <Radio />, onSelect: onPlay }, ...(goTo.length ? [{ kind: 'separator' as const }, ...goTo] : [])] }
+  return (
+    <Card
+      to={to}
+      title={`${radio.title} Radio`}
+      subtitle={radio.subtitle ? `Radio · ${radio.subtitle}` : 'Radio'}
+      round={round}
+      art={<RadioCover artwork={radio.artwork} round={round} />}
+      onPlay={onPlay}
+      menu={menu}
+      contextOnly
     />
   )
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SearchResults } from './search.js'
+import { SearchQuery, SearchResults } from './search.js'
 
 const id = '00000000-0000-4000-8000-000000000001'
 const empty = { artists: [], albums: [], tracks: [], provider: null }
@@ -13,5 +13,15 @@ describe('SearchResults.top', () => {
 
   it('takes only the three match scores', () => {
     for (const score of [0, 4, 1.5]) expect(() => SearchResults.parse({ ...empty, top: { type: 'track', id, score } })).toThrow()
+  })
+})
+
+describe('SearchQuery facets', () => {
+  it('parses URL values for the new types and facets', () => {
+    expect(SearchQuery.parse({ q: 'moon', type: 'lyrics', quality: 'hi-res', decade: '1990', liked: 'true' }))
+      .toMatchObject({ type: 'lyrics', quality: 'hi-res', decade: 1990, liked: true })
+    expect(SearchQuery.safeParse({ q: 'moon', type: 'playlist' }).success).toBe(true)
+    expect(SearchQuery.safeParse({ q: 'moon', type: 'credits' }).success).toBe(true)
+    expect(SearchQuery.safeParse({ q: 'moon', decade: '1995' }).success).toBe(false)
   })
 })

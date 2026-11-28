@@ -24,8 +24,8 @@ const playlistNotFound = () => notFound('No such playlist', 'playlist_not_found'
 /** Thrown by every path that would grow a playlist past `PLAYLIST_ITEM_LIMIT`. */
 export const playlistFull = () => conflict(`A playlist holds at most ${PLAYLIST_ITEM_LIMIT.toLocaleString('en')} tracks`, 'playlist_full')
 
-/** Summaries of playlists in input order, leaving out ids that do not exist. Does not check access. */
-export async function playlistSummaries(ids: readonly string[]): Promise<PlaylistSummary[]> {
+/** Summaries in input order, optionally limited to playlists the viewer can read. */
+export async function playlistSummaries(ids: readonly string[], visibleTo?: string): Promise<PlaylistSummary[]> {
   if (ids.length === 0) return []
   const rows = await db.execute<Omit<PlaylistSummary, 'durationMs'> & { durationMs: number | string }>(sql`
     select p.id, p.name, p.description, p.owner_id as "ownerId", coalesce(u.display_name, u.username) as "ownerName",
@@ -55,7 +55,8 @@ export async function playlistSummaries(ids: readonly string[]): Promise<Playlis
         order by firsts.first limit 4
       ) c
     ) covers
-    where p.id = any(${uuidArray([...new Set(ids)])})`)
+    where p.id = any(${uuidArray([...new Set(ids)])})
+      ${visibleTo ? sql`and (p.owner_id = ${visibleTo} or p.is_public)` : sql``}`)
   const byId = new Map(rows.map((row) => [row.id, { ...row, durationMs: Number(row.durationMs) }]))
   return ids.flatMap((id) => byId.get(id) ?? [])
 }
@@ -117,12 +118,12 @@ async function touch(tx: Transaction, id: string) {
 /** Refreshes the owner's devices, and everyone's playlist lists when the playlist is or was public. */
 async function invalidatePlaylist(ownerId: string, isPublic: boolean) {
   if (!isPublic) {
-    await invalidate({ user: ownerId }, [queryKeys.playlists(), queryKeys.libraryItems(), queryKeys.home()])
+    await invalidate({ user: ownerId }, [queryKeys.playlists(), queryKeys.libraryItems(), queryKeys.home(), queryKeys.search()])
     return
   }
   // One target list reaches each socket once; the owner is in 'all' as well and would
   // otherwise refetch the playlists twice.
-  await invalidate([{ user: ownerId }, 'all'], [queryKeys.playlists(), queryKeys.libraryItems()])
+  await invalidate([{ user: ownerId }, 'all'], [queryKeys.playlists(), queryKeys.libraryItems(), queryKeys.search()])
   await invalidate({ user: ownerId }, [queryKeys.home()])
 }
 
