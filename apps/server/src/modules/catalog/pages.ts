@@ -485,12 +485,16 @@ export async function trackDetail(userId: string, id: string, albumId?: string):
 }
 
 /** Stored lyrics, looked up first when the track has none yet. 404 `lyrics_not_found` when none are stored or the lookup found none. */
-export async function trackLyrics(id: string): Promise<Lyrics> {
+export async function storedTrackLyrics(id: string): Promise<Omit<Lyrics, 'lines'>> {
   const recordingId = await resolveOrThrow('recordings', id, 'track')
   await ensureLyrics(recordingId)
   const [row] = await db.execute<Lyrics>(sql`
     select recording_id as "trackId", synced, plain, instrumental, source from lyrics
     where recording_id = ${recordingId} and (synced is not null or plain is not null or instrumental)`)
   if (!row) throw notFound('No lyrics for this track', 'lyrics_not_found')
-  return servedLyrics(row)
+  return row
+}
+
+export async function trackLyrics(id: string): Promise<Lyrics> {
+  return servedLyrics(await storedTrackLyrics(id))
 }

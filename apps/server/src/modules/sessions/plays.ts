@@ -18,6 +18,10 @@ import { alignedTrackSummaries } from '../catalog/summaries.js'
 
 /** Closed plays shorter than this are skips. */
 const SKIP_MS = 5000
+
+export function isSkipped(msPlayed: number): boolean {
+  return msPlayed < SKIP_MS
+}
 /** A play counts as completed after half the track or this much, whichever is less. */
 const COMPLETE_CAP_MS = 4 * 60_000
 
@@ -125,7 +129,7 @@ export function isCompleted(msPlayed: number, durationMs: number): boolean {
  * device sat it out, as a member of a jam does when the host plays one.
  */
 export async function savePlay(userId: string, play: OpenPlay, { closed = true } = {}): Promise<void> {
-  const skipped = play.msPlayed < SKIP_MS
+  const skipped = isSkipped(play.msPlayed)
   if (skipped && !closed) return
   const msPlayed = Math.round(play.msPlayed)
   const [track] = await alignedTrackSummaries(userId, [{ id: play.recordingId }])

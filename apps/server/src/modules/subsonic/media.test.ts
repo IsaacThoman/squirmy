@@ -22,6 +22,7 @@ import { useTestDatabase } from '../../test/database.js'
 import { createAlbum, createLibraryRoot, createUser } from '../../test/factories.js'
 import { dataPath, retryFailedAfterMs, storeImage } from '../artwork/store.js'
 import { createAppPassword } from '../auth/service.js'
+import { updateUserSettings } from '../userdata/settings.js'
 import { addPlaylistItems, createPlaylist } from '../userdata/playlists.js'
 import { subsonicClient, type SubsonicClient } from '../../test/subsonic-client.js'
 import { setTranscodeSlotLimit } from '../streaming/transcode.js'
@@ -343,6 +344,82 @@ describe('subsonic media', () => {
     const classic = (await client.call('getLyrics', { artist: artist!.name, title: 'night' })).lyrics
     expect(classic).toEqual({ artist: artist!.name, title: 'Night', value: 'First line\nTwice' })
     expect((await client.call('getLyrics', { artist: 'Someone Else', title: 'Night' })).lyrics).toEqual({ artist: 'Someone Else', title: 'Night' })
+  })
+
+  it('adds enhanced lyric cues with inclusive UTF-8 ranges, exact cue ends when supplied, and translations', async () => {
+    await db.update(lyrics).set({ synced: [
+      '[offset:+100]',
+      '[00:01.00]<00:01.00>눈을 <00:01.50>뜬<00:01.90>',
+      '[00:01.00]I opened my eyes',
+      '[00:02.00]<00:02.00>한 <00:02.60>번',
+    ].join('\n') }).where(eq(lyrics.recordingId, flac.id.slice(3)))
+    const legacy = (await client.call('getLyricsBySongId', { id: flac.id })).lyricsList.structuredLyrics
+    expect(legacy[0]).not.toHaveProperty('cueLine')
+    expect(legacy[0]).not.toHaveProperty('kind')
+    expect(legacy[0].line[0].value).toBe('눈을 뜬')
+    const { lyricsList } = await client.call('getLyricsBySongId', { id: flac.id, enhanced: true })
+    expect(lyricsList.structuredLyrics).toEqual([
+      expect.objectContaining({
+        kind: 'main', line: [{ start: 900, value: '눈을 뜬' }, { start: 1900, value: '한 번' }],
+        cueLine: [
+          { index: 0, start: 900, value: '눈을 뜬', cue: [
+            { start: 900, end: 1400, value: '눈을 ', byteStart: 0, byteEnd: 6 },
+            { start: 1400, end: 1800, value: '뜬', byteStart: 7, byteEnd: 9 },
+          ] },
+          { index: 1, start: 1900, value: '한 번', cue: [
+            { start: 1900, value: '한 ', byteStart: 0, byteEnd: 3 },
+            { start: 2500, value: '번', byteStart: 4, byteEnd: 6 },
+          ] },
+        ],
+      }),
+      expect.objectContaining({ kind: 'translation', synced: true, line: [{ start: 900, value: 'I opened my eyes' }] }),
+    ])
+  })
+
+  it('negotiates JSON client profiles and streams the signed fragmented MP4 target', async () => {
+    const params = { mediaId: flac.id, mediaType: 'song' }
+    const directPlayProfiles = [{ containers: ['flac'], audioCodecs: ['flac'], protocols: ['http'] }]
+    const transcodingProfiles = [
+      { container: 'flac', audioCodec: 'flac', protocol: 'hls' },
+      { container: 'mp4', audioCodec: 'aac', protocol: 'http' },
+      { container: 'mp3', audioCodec: 'mp3', protocol: 'http' },
+    ]
+    const jsonBody = { name: 'Test', platform: 'Test', directPlayProfiles, transcodingProfiles }
+    expect((await client.raw('getTranscodeDecision', params)).statusCode).toBe(405)
+    expect((await client.raw('getTranscodeDecision', params, { method: 'POST' })).statusCode).toBe(415)
+    const direct = (await client.call('getTranscodeDecision', params, { view: true, jsonBody })).transcodeDecision
+    expect(direct).toMatchObject({ canDirectPlay: true, canTranscode: false, sourceStream: { container: 'flac', codec: 'flac' } })
+
+    await updateUserSettings(userId, { qualityWifi: 'data_saver' })
+    try {
+      const { transcodeDecision } = await client.call('getTranscodeDecision', params, { jsonBody })
+      expect(transcodeDecision).toMatchObject({
+        canDirectPlay: false, canTranscode: true, transcodeReason: ['UserQualityLimit'],
+        transcodeStream: { container: 'mp4', codec: 'aac', protocol: 'http', audioBitrate: 128_000 },
+      })
+      const transcodeParams = transcodeDecision.transcodeParams
+      const response = await get('getTranscodeStream', { ...params, transcodeParams, offset: 2.5 })
+      expect(response.statusCode, response.body.slice(0, 100)).toBe(200)
+      expect(response.headers['content-type']).toBe('audio/mp4')
+      const audio = await probe(response)
+      expect(audio.streams[0]?.codec_name).toBe('aac')
+      expect(Number(audio.format.duration)).toBeCloseTo(3.5, 0)
+      expect((await get('getTranscodeStream', { ...params, mediaId: mp3.id, transcodeParams })).statusCode).toBe(400)
+      expect((await get('getTranscodeStream', { ...params, transcodeParams: transcodeParams + 'x' })).statusCode).toBe(400)
+
+      const fallback = (await client.call('getTranscodeDecision', params, { jsonBody: {
+        ...jsonBody,
+        codecProfiles: [{ type: 'AudioCodec', name: 'aac', limitations: [
+          { name: 'audioBitrate', comparison: 'LessThanEqual', required: true, values: ['64000'] },
+        ] }],
+      } })).transcodeDecision
+      expect(fallback.transcodeStream).toMatchObject({ container: 'mp3', audioBitrate: 192_000 })
+      const legacy = await get('getTranscodeStream', { ...params, transcodeParams: fallback.transcodeParams, offset: 1 })
+      expect(legacy.statusCode, legacy.body.slice(0, 100)).toBe(200)
+      expect((await probe(legacy)).streams[0]?.codec_name).toBe('mp3')
+    } finally {
+      await updateUserSettings(userId, { qualityWifi: 'original' })
+    }
   })
 
   it('keeps lyrics for catalog-only songs out of the Subsonic API', async () => {

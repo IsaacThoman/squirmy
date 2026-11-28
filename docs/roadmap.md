@@ -56,6 +56,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] `/rest` router with XML and JSON ([subsonic.md](./server/subsonic.md))
 - [x] App passwords and API keys
 - [x] Browsing, search, streaming, cover art, stars, playlists, scrobble, play queue, lyrics
+- [x] Enhanced lyrics, playback timelines, negotiated transcoding, sonic similarity and BPM and mood metadata
 - [x] Client test pass: py-opensonic, py-sonic, subsonic-api (Node) and Airsonic Refix
 
 ## 6. Search everything
@@ -94,7 +95,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Radio and autoplay (server, API, web and iOS, and Subsonic similar songs)
 - [x] A personal Home: Jump back in, daily mixes (Made for you) with their own page, Because you listened to, Your top artists, Rediscover, ordered by the time of day (server, web, iOS and Apple TV; iOS and tvOS not yet checked on a device)
 - [x] Sonic analysis: tempo, key, energy, danceability, intro and outro, and timbre vectors from Squirmy's own DSP; tempo, key and mood tags; Deezer's tempo as a fallback. Radio ranks with it, and the web app has **Songs that sound like this** ([sonic-analysis.md](./server/sonic-analysis.md))
-- [ ] Sonic radio on iOS and Apple TV, tempo and key in the song info, and BPM in Subsonic songs
+- [ ] Sonic radio on iOS and Apple TV, tempo and key in the song info
 - [ ] Mixes and DJ-style transitions from the sonic analysis (the `artistSoundAffinity` seam and the hooks in [Sonic analysis](./architecture.md#sonic-analysis))
 - [x] Detached playback: web and iOS devices can play their own queue and rejoin the shared session later ([detached-playback-ui.md](./detached-playback-ui.md))
 - [x] Local search index: importer, search and admin routes ([local-search-index.md](./local-search-index.md)), offered as the first search provider, and its admin screen

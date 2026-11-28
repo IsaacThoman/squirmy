@@ -15,6 +15,8 @@ import type { AuthUser } from '../../lib/auth.js'
 import { findAppPasswordByKey, verifyAppPassword } from '../auth/service.js'
 import { ErrorCode, missingParameter, SubsonicError, type Params } from './protocol.js'
 
+export type SubsonicUser = AuthUser & { appPasswordId: string }
+
 function decodePassword(raw: string): string {
   if (!raw.startsWith('enc:')) return raw
   const hex = raw.slice(4)
@@ -22,7 +24,7 @@ function decodePassword(raw: string): string {
   return Buffer.from(hex, 'hex').toString('utf8')
 }
 
-async function check(params: Params): Promise<AuthUser> {
+async function check(params: Params): Promise<SubsonicUser> {
   const apiKey = params.string('apiKey')
   const username = params.string('u')
   const password = params.string('p')
@@ -41,7 +43,7 @@ async function check(params: Params): Promise<AuthUser> {
   if (password !== undefined && (token !== undefined || salt !== undefined)) {
     throw new SubsonicError(ErrorCode.conflictingAuth, 'Multiple conflicting authentication mechanisms provided')
   }
-  let user: AuthUser | null
+  let user: SubsonicUser | null
   if (token !== undefined || salt !== undefined) {
     if (!token) throw missingParameter('t')
     if (!salt) throw missingParameter('s')
@@ -55,6 +57,6 @@ async function check(params: Params): Promise<AuthUser> {
 }
 
 /** The user the request's credentials belong to. Throws a SubsonicError with code 10, 40, 43 or 44. */
-export async function authenticate(params: Params): Promise<AuthUser> {
+export async function authenticate(params: Params): Promise<SubsonicUser> {
   return check(params)
 }
