@@ -1,6 +1,6 @@
-import { contextLabel, readsUnavailable, upNextDetail, upNextTitle, type SessionOutage } from '@squirmy/client-core'
+import { addedByName, contextLabel, readsUnavailable, upNextDetail, upNextTitle, type SessionOutage } from '@squirmy/client-core'
 import { Infinity as InfinityIcon, Repeat, Repeat1, Shuffle, X } from 'lucide-react'
-import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentPropsWithRef, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode, type RefObject } from 'react'
+import { memo, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentPropsWithRef, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode, type RefObject } from 'react'
 import { Equalizer } from '@/components/music/Equalizer'
 import { Cover } from '@/components/music/Cover'
 import { SaveHeart } from '@/components/music/LibrarySave'
@@ -14,7 +14,8 @@ import { dropIndex } from '@/lib/reorder'
 import { UNAVAILABLE_LABEL } from '@/lib/catalog'
 import { cn } from '@/lib/utils'
 import { useLibrary } from '@/player/library-context'
-import type { Player, QueueItem } from '@/player/player-context'
+import { JamContext, type Player, type QueueItem } from '@/player/player-context'
+import { MemberAvatar } from './ListenTogether'
 import { SongMenuButton } from './SongMenu'
 import { touchTarget } from './Transport'
 
@@ -298,6 +299,8 @@ const revealed = 'opacity-0 focus-visible:opacity-100 data-[state=open]:opacity-
 function QueueRow({ item, current, playing = false, waiting = false, outage = null, faded, onPlay: play, queued, onNavigate, children, rowButton }: QueueRowProps) {
   const { track, entry } = item
   const library = useLibrary()
+  const jam = useContext(JamContext)
+  const addedBy = jam ? addedByName({ jam }, entry) : null
   const failed = readsUnavailable(entry, outage)
   const loading = current && (waiting || entry.state === 'preparing')
   const onPlay = failed ? undefined : play
@@ -314,7 +317,10 @@ function QueueRow({ item, current, playing = false, waiting = false, outage = nu
       </div>
       <span className="min-w-0 flex-1 text-left">
         <span title={track.title} className={cn('block truncate text-sm font-medium', failed && 'text-muted-foreground')}>{track.title}</span>
-        <span className="block truncate text-xs text-muted-foreground">{failed ? UNAVAILABLE_LABEL : track.artistCredit}</span>
+        <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+          {addedBy && <span title={`Added by ${addedBy}`} className="flex shrink-0"><MemberAvatar name={addedBy} className="size-4 text-[8px]" /><span className="sr-only">Added by {addedBy}, </span></span>}
+          <span className="truncate">{failed ? UNAVAILABLE_LABEL : track.artistCredit}</span>
+        </span>
       </span>
     </>
   )

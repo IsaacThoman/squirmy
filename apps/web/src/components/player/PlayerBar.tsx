@@ -7,9 +7,10 @@ import { SaveHeart } from '@/components/music/LibrarySave'
 import { IconButton } from '@/components/ui/icon-button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
-import { playingElsewhere, usePosition, type Player } from '@/player/player-context'
+import { hostControls, playingElsewhere, usePosition, type Player } from '@/player/player-context'
 import { STILL_LOADING_LABEL, useStillLoading } from '@/player/use-still-loading'
 import { DevicesPopover } from './Devices'
+import { JamButton } from './ListenTogether'
 import { PlayerStatusLine } from './PlayerStatus'
 import { SleepTimerChip } from './SleepTimer'
 import { progressPosition } from './progress'
@@ -146,12 +147,13 @@ export function PlayerBar({ player, liked, onToggleLike, queueOpen, onToggleQueu
         </div>
 
         <div className={cn('flex min-w-0 flex-col items-center gap-0.5', stacked && 'col-span-2 row-start-2')}>
-          <TransportButtons player={player} disabled={!item} modeClassName={stacked ? undefined : 'hidden @[36rem]:inline-flex'} />
-          <SeekBar durationMs={item?.entry.durationMs ?? 0} onSeek={controls.seek} disabled={!item} />
+          <TransportButtons player={player} disabled={!item || hostControls(state)} modeClassName={stacked ? undefined : 'hidden @[36rem]:inline-flex'} />
+          <SeekBar durationMs={item?.entry.durationMs ?? 0} onSeek={controls.seek} disabled={!item || hostControls(state)} />
         </div>
 
         <div className={cn('flex min-w-0 items-center justify-end gap-1', stacked && 'col-start-2 row-start-1')}>
           <SleepTimerChip player={player} />
+          <JamButton player={player} />
           {lyricsFit && <IconButton label={lyricsOpen ? 'Hide lyrics' : 'Lyrics'} size="sm" pressed={lyricsOpen} disabled={!item} onClick={onToggleLyrics} className={touchTarget}><MessageSquareQuote /></IconButton>}
           <IconButton label={queueOpen ? 'Hide queue' : 'Queue'} size="sm" pressed={queueOpen} onClick={onToggleQueue} aria-expanded={queueOpen} data-queue-toggle="" className={touchTarget}><ListMusic /></IconButton>
           <DevicesPopover
@@ -258,7 +260,7 @@ export function MiniPlayer({ player, onOpenNowPlaying }: Pick<PlayerChromeProps,
         </button>
         {devices}
         {/* A 40px disc whose touch target is 44px (the icon button's own). */}
-        <PlayPauseButton playing={state.playing} loading={state.waiting} onClick={controls.togglePlay} className="mx-1 size-10 [&_svg]:size-5" />
+        <PlayPauseButton playing={state.playing} loading={state.waiting} onClick={controls.togglePlay} disabled={hostControls(state)} className="mx-1 size-10 [&_svg]:size-5" />
       </div>
       {/* Outside the button, which names only the song. */}
       <PlayerStatusLine status={state.status} className="-mt-2 pb-1.5 pl-16 pr-3" />

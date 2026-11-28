@@ -1,5 +1,5 @@
-import { type AwayDevice, deviceLabel, listedDevices, readsUnavailable, type DeviceLabel, type SessionMoveResult, type SessionOutage } from '@squirmy/client-core'
-import type { DeviceInfo, Lyrics, PlaybackContext, QueueEntry, RepeatMode, SleepTimer, SleepTimerRequest, TrackSummary } from '@squirmy/contracts'
+import { type AwayDevice, deviceLabel, listedDevices, readsUnavailable, type DeviceLabel, type JamResult, type SessionMoveResult, type SessionOutage } from '@squirmy/client-core'
+import type { DeviceInfo, JamInfo, JamRequest, Lyrics, PlaybackContext, QueueEntry, RepeatMode, SleepTimer, SleepTimerRequest, TrackSummary } from '@squirmy/contracts'
 import { createContext, useContext, useLayoutEffect, useState, useSyncExternalStore } from 'react'
 import type { PlayerStatus } from './status'
 
@@ -58,7 +58,15 @@ export type PlayerState = {
   canSetSleepTimer?: boolean
   /** The server's clock, which a sleep timer's end is told in. Left out by fixtures: this browser's. */
   serverNow?: () => number
+  /** The jam this session hosts or follows, while it does (see "Listen together" in the session contract). */
+  jam?: JamInfo
+  /** The server can listen together, so the player offers it. */
+  canJam?: boolean
+  /** Someone asked this user to join their jam, until it is answered or dismissed. */
+  jamInvite?: JamInvite | null
 }
+
+export type JamInvite = { jamId: string; hostName: string }
 
 export type LyricsStatus = 'none' | 'loading' | 'failed' | 'ready'
 
@@ -101,6 +109,10 @@ export type PlayerControls = {
   detach: () => Promise<SessionMoveResult>
   /** Puts this tab back in the shared session; `bringQueue` makes the shared session what this tab was playing. */
   attach: (options?: { bringQueue?: boolean }) => Promise<SessionMoveResult>
+  /** Starts, joins, leaves, ends or changes a jam. Resolves once the server has answered. */
+  jam: (request: JamRequest) => Promise<JamResult>
+  /** Forgets the invite shown, answered or not. */
+  dismissJamInvite: () => void
   /** Renames this browser in every device list; null goes back to the name from the user agent. */
   renameDevice: (name: string | null) => void
   /**
@@ -117,6 +129,9 @@ export type StatusMessage = { message: string; detail?: string; tone: 'info' | '
 export type Player = { state: PlayerState; controls: PlayerControls }
 
 export const PlayerContext = createContext<Player | null>(null)
+
+/** The session's jam, apart from the rest of the session, so queue rows can name who added a song without rendering on every update. */
+export const JamContext = createContext<JamInfo | undefined>(undefined)
 
 /** The controls alone. They keep one identity, so readers that only send commands skip every session update. */
 export const PlayerControlsContext = createContext<PlayerControls | null>(null)
@@ -136,6 +151,11 @@ export function useRadioStarting(seed: RadioSeed): boolean {
  */
 export function labelDevice(state: Pick<PlayerState, 'thisDeviceId' | 'devices'>, device: DeviceInfo): DeviceLabel {
   return deviceLabel(device, listedDevices(state.devices, state.thisDeviceId), state.thisDeviceId, 'This browser')
+}
+
+/** Whether only the jam's host controls playback here: this user follows someone else's jam. */
+export function hostControls(state: Pick<PlayerState, 'jam'>): boolean {
+  return state.jam?.role === 'member'
 }
 
 /** Whether this tab controls playback on another device, including while it reconnects. */

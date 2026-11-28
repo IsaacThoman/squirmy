@@ -195,6 +195,10 @@ export type FakeOptions = { status?: Partial<SetupStatus>; user?: User | null }
 export function fakeServices({ status, user = currentUser }: FakeOptions = {}) {
   const socket = new FakeSocket()
   const api = {
+    sessions: {
+      jam: vi.fn(async (jamId: string) => ({ id: jamId, hostName: 'Robin', members: [{ userId: users[0]!.id, name: 'Robin' }], trackId: null })),
+      jamPeople: vi.fn(async () => list([{ userId: '01900000-0000-7000-8000-0000000000f1', name: 'Sam' }])),
+    },
     auth: {
       setupStatus: vi.fn(async () => ({ needsSetup: false, version: '0.0.0', serverName: 'Squirmy', registrationRequiresInvite: true, wantlistEnabled: true, ...status })),
       me: vi.fn(async () => {

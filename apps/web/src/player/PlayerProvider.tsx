@@ -1,5 +1,5 @@
 import {
-  PlaybackNoticeWatcher, planChanges, randomSeed, refreshFetchedTracks, SessionClient, skipNotice, TrackStore, unavailableNotice, type ApiClient, type PlaybackNotice, type SessionClientSnapshot,
+  followsJam, PlaybackNoticeWatcher, planChanges, randomSeed, refreshFetchedTracks, SessionClient, skipNotice, TrackStore, unavailableNotice, type ApiClient, type PlaybackNotice, type SessionClientSnapshot,
 } from '@squirmy/client-core'
 import { createSocketTransport, type SquirmySocket } from '@squirmy/client-core/socket'
 import { queryKeys, type ClientDevice, type EntityChanges, type QueueEntry, type QueueSeed, type SessionCommand, type StreamQuality, type TrackSummary } from '@squirmy/contracts'
@@ -19,13 +19,31 @@ import { AUDIO_BLOCKED_MESSAGE } from './engine/errors'
 import type { WebPlayerEngine } from './engine/web-engine'
 import { MediaSessionAdapter, mediaArtwork, type MediaSessionTrack } from './engine/media-session'
 import { Listening, type Audible } from './listening'
-import { NowPlayingContext, PlayerContext, PlayerControlsContext, PositionClock, PositionContext, RadioPendingContext, useNowPlayingStore, type PlayerControls, type PlayerState, type QueueItem, type RadioSeed } from './player-context'
+import {
+  JamContext, NowPlayingContext, PlayerContext, PlayerControlsContext, PositionClock, PositionContext, RadioPendingContext, useNowPlayingStore, type JamInvite, type PlayerControls, type PlayerState,
+  type QueueItem, type RadioSeed,
+} from './player-context'
 import { useShortcuts } from './shortcuts'
 import { STATUS_ERROR_MS, STATUS_EVENT_MS, StatusLine, type PlayerStatus } from './status'
 
 /** The most tracks one `playTracks` or `enqueue` may carry. */
 const MAX_SEEDS = 5000
 
+
+/** The invite to a jam shown, until it is answered or dismissed. */
+class InviteBox {
+  private value: JamInvite | null = null
+  private readonly listeners = new Set<() => void>()
+  get = (): JamInvite | null => this.value
+  subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
+  set(value: JamInvite | null): void {
+    this.value = value
+    for (const listener of [...this.listeners]) listener()
+  }
+}
 
 /** The entry the listener started by name (a song clicked in a list or the queue), while it is current. */
 class Picked {
@@ -58,11 +76,20 @@ function failCurrent(client: SessionClient, status: StatusLine, picked: Picked, 
  * The session client of this tab. Playback is resolved with the user's streaming quality,
  * which `setQuality` keeps current, and the codecs this browser plays.
  */
-function createSession(api: ApiClient, socket: SquirmySocket, device: ClientDevice, engine: WebPlayerEngine, store: TrackStore, status: StatusLine, picked: Picked) {
+function createSession(api: ApiClient, socket: SquirmySocket, device: ClientDevice, engine: WebPlayerEngine, store: TrackStore, status: StatusLine, picked: Picked, invites: InviteBox) {
   let quality: StreamQuality = 'original'
   const client = new SessionClient({
     transport: createSocketTransport(socket),
     device,
+    onJamEvent: event => {
+      if (event.type === 'jam.invite') return invites.set({ jamId: event.jamId, hostName: event.hostName })
+      status.show({
+        message: event.reason === 'ended' ? 'The listening session ended' : 'You were removed from the listening session',
+        detail: 'Paused where it was. Play to carry on by yourself.',
+        tone: 'info',
+        key: NOTICE_STATUS,
+      }, STATUS_ERROR_MS)
+    },
     onDetachedEnded: reason => status.show({
       message: 'Playing with your other devices again',
       detail: reason === 'expired' ? 'This tab was away for over a week, so its own queue was cleared.' : 'Its own queue had already been cleared.',
@@ -119,7 +146,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [store] = useState(() => new TrackStore(request => api.catalog.trackSummaries(request)))
   const [status] = useState(() => new StatusLine())
   const [picked] = useState(() => new Picked())
-  const [{ client, setQuality }] = useState(() => createSession(api, socket!, tab.device, engine, store, status, picked))
+  const [invites] = useState(() => new InviteBox())
+  const [{ client, setQuality }] = useState(() => createSession(api, socket!, tab.device, engine, store, status, picked, invites))
+  const jamInvite = useSyncExternalStore(invites.subscribe, invites.get)
   const [listening] = useState(() => new Listening(client, engine))
   const [clock] = useState(() => new PositionClock(() => listening.position()))
   const serverNow = useMemo(() => () => client.serverNow(), [client])
@@ -233,6 +262,16 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         store.prime(tracks)
         // The requested track, or the first playable one after it.
         const start = Math.max(0, candidates.findIndex(candidate => candidate.index >= startIndex))
+        const { session } = latest()
+        if (followsJam(session)) {
+          // In someone's jam only the host picks what plays; a member's pick joins the queue instead.
+          if (session.jam?.queuePolicy !== 'everyone') {
+            return status.show({ message: 'Only the host can choose what plays', detail: 'They chose who can add songs, too.', tone: 'error', key: ACTION_STATUS }, STATUS_ERROR_MS)
+          }
+          const picks = byName ? [candidates[start]!] : candidates.slice(0, MAX_SEEDS)
+          dispatch({ type: 'enqueue', tracks: picks.map(candidate => seedOf(candidate.track)), placement: 'last' })
+          return status.show({ message: picks.length === 1 ? `Added “${picks[0]!.track.title}” for everyone` : `Added ${picks.length} songs for everyone`, tone: 'info', key: ACTION_STATUS }, STATUS_EVENT_MS)
+        }
         const fits = candidates.length <= MAX_SEEDS
         const sent = options.shuffle || fits ? candidates.slice(0, MAX_SEEDS) : candidates.slice(start, start + MAX_SEEDS)
         dispatch({
@@ -280,6 +319,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       },
       transfer: deviceId => dispatch({ type: 'transfer', deviceId }),
       prepareHere: () => client.prepareTakeover(),
+      jam: request => client.jam(request),
+      dismissJamInvite: () => invites.set(null),
       detach: () => client.detach(),
       attach: options => client.attach(options),
       renameDevice: name => {
@@ -288,7 +329,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       },
       tell: ({ tone, ...line }) => status.show({ ...line, tone, key: ACTION_STATUS }, tone === 'error' ? STATUS_ERROR_MS : STATUS_EVENT_MS),
     }
-  }, [client, engine, listening, clock, store, tab, startRadio, viewer, picked, status])
+  }, [client, engine, listening, clock, store, tab, startRadio, viewer, picked, status, invites])
 
   usePlaybackNotices(client, store, status)
   useFreshSummaries(client, store, socket!)
@@ -331,6 +372,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     sleepTimer: session.sleepTimer,
     canSetSleepTimer: snapshot.canSetSleepTimer,
     serverNow,
+    jam: session.jam,
+    canJam: snapshot.canJam,
+    jamInvite,
   }
   const nowPlaying = useNowPlayingStore(state)
 
@@ -339,7 +383,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       <PlayerContext value={{ state, controls }}>
         <RadioPendingContext value={radioPending}>
           <NowPlayingContext value={nowPlaying}>
-            <PositionContext value={clock}>{children}</PositionContext>
+            <JamContext value={session.jam}>
+              <PositionContext value={clock}>{children}</PositionContext>
+            </JamContext>
           </NowPlayingContext>
         </RadioPendingContext>
       </PlayerContext>

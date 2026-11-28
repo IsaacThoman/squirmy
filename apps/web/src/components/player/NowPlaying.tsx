@@ -11,7 +11,7 @@ import { IconButton } from '@/components/ui/icon-button'
 import { useArtUrl } from '@/lib/artwork'
 import { cn } from '@/lib/utils'
 import { useLibrary } from '@/player/library-context'
-import { playingElsewhere, usePlayer, type Player } from '@/player/player-context'
+import { hostControls, playingElsewhere, usePlayer, type Player } from '@/player/player-context'
 import { STILL_LOADING_LABEL, useStillLoading } from '@/player/use-still-loading'
 import { DevicesPopover } from './Devices'
 import { LyricsPane } from './Lyrics'
@@ -168,14 +168,14 @@ function NowPlayingContent({ pane, onPaneChange, onOpenChange }: Omit<NowPlaying
             {item && <SaveHeart id={item.track.id} liked={item.track.liked} onToggle={onToggleLike} title={item.track.title} size="lg" className="max-md:size-11 pointer-coarse:size-11" />}
             {item && <SongMenuButton track={item.track} onNavigate={() => onOpenChange(false)} size="lg" className="-ml-2 text-foreground max-md:size-11 pointer-coarse:size-11" />}
           </div>
-          <SeekBar stacked durationMs={item?.entry.durationMs ?? 0} onSeek={controls.seek} disabled={!item} />
+          <SeekBar stacked durationMs={item?.entry.durationMs ?? 0} onSeek={controls.seek} disabled={!item || hostControls(player.state)} />
           <div className="mt-1 flex flex-col items-center gap-3 md:flex-row md:justify-between short-landscape:flex-col!">
             <div className="order-2 flex gap-8 md:order-1 md:w-40 md:gap-1 short-landscape:order-2! short-landscape:w-auto! short-landscape:gap-8!">
               <IconButton label={pane === 'lyrics' ? 'Hide lyrics' : 'Show lyrics'} aria-controls="now-playing-lyrics" pressed={pane === 'lyrics'} onClick={() => toggle('lyrics')} className="max-md:size-11 pointer-coarse:size-11"><MessageSquareQuote /></IconButton>
               <IconButton label={pane === 'queue' ? 'Hide queue' : 'Show queue'} aria-controls="now-playing-queue" pressed={pane === 'queue'} onClick={() => toggle('queue')} className="max-md:size-11 pointer-coarse:size-11"><ListMusic /></IconButton>
               <SleepTimerButton player={player} className="max-md:size-11 pointer-coarse:size-11" />
             </div>
-            <div className="order-1 md:order-2 short-landscape:order-1!"><TransportButtons player={player} large disabled={!item} /></div>
+            <div className="order-1 md:order-2 short-landscape:order-1!"><TransportButtons player={player} large disabled={!item || hostControls(player.state)} /></div>
             <VolumeControl volume={state.volume} deviceId={state.activeDeviceId ?? state.thisDeviceId} onChange={controls.setVolume} fill className="order-3 hidden w-40 md:flex short-landscape:hidden!" />
           </div>
         </div>
