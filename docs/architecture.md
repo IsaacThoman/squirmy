@@ -91,7 +91,7 @@ export type ServerModule = {
 | `catalog` | read side: library lists, artist/album/track pages, track summaries, home, availability | 2 |
 | `streaming` | playback descriptor, signed URLs, `GET /stream`, transcode cache | 2 |
 | `loudness` | EBU R128 measurement, album loudness, normalization values | 2 |
-| `userdata` | likes, ratings, playlists, history, wants, library saves, user settings | 2 |
+| `userdata` | likes, ratings, playlists, history, Replay, history transfers, wants, library saves, user settings | 2 |
 | `sessions` | playback sessions over socket.io, devices, play recording | 2–3 |
 | `metadata` | clients for MusicBrainz, Cover Art Archive, Deezer, Wikidata, LRCLIB, ListenBrainz, AcoustID, fanart.tv, Last.fm | 4 |
 | `matching` | album matcher, scoring, AcoustID fingerprinting, review queue, fix match, merges | 4 |
@@ -222,6 +222,9 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 | `PUT/DELETE /me/pins/:kind/:id` | userdata | pins an item of the Library's All to its top, or unpins it: `album`, `artist`, `playlist` (one the user may see) or `liked` with `LIKED_SONGS_ID`; idempotent, albums and artists follow merges, 404 for an unknown id; at most `LIBRARY_PIN_LIMIT` (50), past it 409 `too_many_pins`, pins whose item left the library dropped first |
 | `PUT/DELETE /me/library/:type/:id` | userdata | deprecated aliases of `/me/likes` (`album` or `track`) for app builds from before the single heart; not in the API client |
 | `GET/POST /playlists`, `GET/PATCH/DELETE /playlists/:id`, `POST /playlists/:id/items`, `POST /playlists/:id/items/move`, `DELETE /playlists/:id/items/:itemId` | userdata | at most 1,000 playlists per user (`too_many_playlists`) and 10,000 items per playlist (`playlist_full`), both 409 |
+| `GET /me/replay` | userdata | calendar aggregates and first listens, with a bounded time-zone query; history invalidations refresh Replay |
+| `GET /me/history/export` | userdata | keyset-paged JSON or CSV stream, including skips and unmatched imports |
+| `GET/POST /me/history/imports` | userdata | lists the user's recent jobs or stages a multipart file for `userdata.history-import` |
 | `GET /me/history`, `GET /me/wants`, `PUT/DELETE /me/wants/:type/:id` | userdata | while `wantlistEnabled` is off, `GET /me/wants` is empty, `PUT`/`DELETE` are 404 `wantlist_disabled`, album pages say `wanted: false` and imports skip refreshing wants; stored wants are kept |
 | `GET /me/session`, `GET /me/devices` | sessions | HTTP view of the socket state |
 | `GET /search/library`, `GET /search/catalog` | search | both return `SearchResults`; `type` and `offset` page one kind |
@@ -349,6 +352,11 @@ The server holds one shared session per user in memory, loaded on first use and 
 - **Delivery.** `scrobble.deliver` locks the oldest ready rows (`for update skip locked`) in the service's batch size (ListenBrainz 1000, Last.fm 50), submits them with the MusicBrainz recording, release, release group and artist ids when known, track number, duration, album and start time, and marks them `sent`. A failure counts an attempt and the row waits 1, 2, 4… minutes (at most 6 hours) for the next sweep; after 10 attempts it is `failed` and left alone. A rejected credential (ListenBrainz 401, Last.fm error 9) sets `needsAttention` instead, and rows wait for the user to reconnect.
 - **Guarantees.** The row is the idempotency record: one per play and service, submitted while locked, so overlapping sweeps and deliveries send a play once. The one gap is a crash after a service accepted a batch and before the commit, which resends that batch once.
 - **Now playing** is sent from the API process when `onPlayStart` fires, best effort and without retries.
+
+### Replay and history transfers
+
+- **Imported history.** `userdata.history-import` reads a staged export incrementally and checks normalized recording credits and titles against the catalog. Matching album placements break ties. A batch commits its private import ledger, matched `plays` and progress together. The ledger deduplicates by user, source and fingerprint, and keeps unmatched metadata in private history to keep search results focused on the shared catalog. Scrobbling excludes imported plays. Replay aggregates matched and unmatched history, except early skips. API and worker processes share the data directory so either can reach staged uploads.
+- **Replay.** `userdata/replay.ts` builds calendar windows in the requested IANA time zone. It aggregates listening rows by recording and album before joining catalog credits and genres. Local hourly buckets feed the clock, totals and streaks. Existing history invalidations also refresh Replay.
 
 ### Radio
 
