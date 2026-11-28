@@ -192,11 +192,13 @@ export function AccountProvider({ children }: PropsWithChildren) {
       saver.current?.flush();
       stopRestoring();
       queryClient.clear();
+      pagesRead.current = null;
     };
     // Whatever is cached may belong to whoever signed in before; the account's own saved library comes back.
     const open = async (user: { id: string }) => {
       stopRestoring();
       queryClient.clear();
+      pagesRead.current = null;
       if (server) await restoreCache(queryClient, accountKey(server.url, user.id));
     };
     return {
