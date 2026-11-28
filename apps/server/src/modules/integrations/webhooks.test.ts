@@ -33,10 +33,14 @@ describe('webhooks', () => {
       ] as const) await expect(requestOutbound('test', url, {}, allowLan)).rejects.toThrow('allowed networks')
       expect(fetch).not.toHaveBeenCalled()
       await expect(requestOutbound('test', 'http://10.1.2.3/', {}, true)).resolves.toHaveProperty('status', 204)
+      fetch.mockClear()
+      fetch.mockResolvedValue(new Response(null, { status: 302, headers: { Location: 'http://127.0.0.1/' } }))
+      await expect(requestOutbound('test', 'https://receiver.example/', { method: 'POST' }, false)).resolves.toHaveProperty('status', 302)
+      expect(fetch).toHaveBeenCalledExactlyOnceWith('https://receiver.example/', expect.objectContaining({ redirect: 'manual' }))
     } finally {
       fetch.mockRestore()
     }
-    await expect(requestOutbound('test', 'http://localhost:1/', {}, false)).rejects.toThrow()
+    await expect(requestOutbound('test', 'http://localhost:45600/', {}, false)).rejects.toThrow('allowed networks')
   })
 
   it('signs posts, retries with the same event, and scopes delivery by owner', async () => {
