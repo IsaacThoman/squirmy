@@ -67,6 +67,7 @@ Requests can be GET or form POST, with or without `.view`, and answers come as X
 - **Your library is Squirmy's library**, what you saved (plus the music on the server with the setting on), limited to songs whose files are on the server: an album you starred shows once its files have arrived. A search with a query, and opening an album or artist by id, also reach the server's collection, so search finds everything the server has.
 - **Similar songs and artists** come from Squirmy's radio, limited to your library.
 - **ReplayGain** values on songs are Squirmy's loudness measurements (or the file's own tags until a file is measured), relative to -18 LUFS.
+- **Song metadata** includes role-based `contributors` and `displayComposer`, plus `works` and `movements` when available. `explicitStatus` is `explicit`, `clean` or an empty string when unknown. File comments are available as `comment`.
 
 ### Streaming and transcoding
 
@@ -75,7 +76,7 @@ By default an app gets the original file, with byte ranges, so seeking works.
 - `maxBitRate` caps the bitrate. A file above it is transcoded to MP3 at 320 or 192 kbps; lower caps are encoded live at that bitrate.
 - `format=mp3`, `opus` (or `ogg`) and `aac` (or `m4a`) pick the codec. `format=raw` always sends the original.
 - Transcodes at the standard bitrates are cached, so the second play seeks like an original. Live encodes (below 192 kbps, or from a `timeOffset`) are not cached.
-- Live encodes share the server's encoders with the other transcodes (at most half the CPU cores, at least two) and do not wait for one: when all are busy, `stream` answers a Subsonic error (code 0) asking to try again shortly. One user runs at most three live encodes at a time.
+- Live encodes share the server's encoders with the other transcodes (at most half the CPU cores, at least two). When all are busy, `stream` immediately answers a Subsonic error (code 0) asking to try again shortly. Each user's live encodes have a limit of three and count toward the combined limit of four concurrent encodes.
 - `timeOffset` starts a transcode that many seconds in, for apps that seek while transcoding.
 - `estimateContentLength=true` sends a Content-Length for transcodes, estimated from the duration and bitrate.
 

@@ -9,7 +9,7 @@ import { newId } from '../../lib/ids.js'
 import { getServerSettings } from '../../lib/settings.js'
 import { invalidate, publish } from '../../realtime/index.js'
 import { lockCatalog, removeOrphans } from './cleanup.js'
-import { ANALYZE_PRIORITY } from './probe.js'
+import { ANALYZE_PRIORITY, TAG_VERSION } from './probe.js'
 import { invalidateSoon, publishProbeProgress, warn } from './progress.js'
 import { containerFromExtension } from './tags.js'
 import { compareBytes, isSkippedPath, walk, type WalkEntry } from './walk.js'
@@ -22,7 +22,7 @@ const pageSize = 1000
 /** `media_files.source` of a file the scanner finds under `_Fetched/`: a delivery of unknown origin. */
 export const FETCHED_SOURCE = 'provider:unknown'
 
-type Row = { id: string; relPath: string; size: number; mtime: Date; missingSince: Date | null }
+type Row = { id: string; relPath: string; size: number; mtime: Date; missingSince: Date | null; refreshTags: boolean }
 
 /** Rows under `scope` (a root-relative path, '' for all) in byte order of their path, a page at a time. */
 async function* rowsUnder(rootId: string, scope: string): AsyncGenerator<Row> {
@@ -33,7 +33,9 @@ async function* rowsUnder(rootId: string, scope: string): AsyncGenerator<Row> {
     : undefined
   let after: string | undefined
   for (;;) {
-    const page = await db.select({ id: mediaFiles.id, relPath: mediaFiles.relPath, size: mediaFiles.size, mtime: mediaFiles.mtime, missingSince: mediaFiles.missingSince })
+    const page = await db.select({ id: mediaFiles.id, relPath: mediaFiles.relPath, size: mediaFiles.size, mtime: mediaFiles.mtime, missingSince: mediaFiles.missingSince,
+      refreshTags: sql<boolean>`${mediaFiles.tagVersion} < ${TAG_VERSION} and ${mediaFiles.probeStage} > 0 and ${mediaFiles.probeError} is null`,
+    })
       .from(mediaFiles)
       .where(and(eq(mediaFiles.rootId, rootId), inScope, after === undefined ? undefined : sql`${byteOrder} > ${after}`))
       .orderBy(byteOrder)
@@ -50,6 +52,7 @@ class ScanWriter {
   filesReturned = 0
   private added: WalkEntry[] = []
   private changed: { id: string; size: number; mtime: string }[] = []
+  private refreshTags: string[] = []
   private returned: string[] = []
   private missing: { id: string; relPath: string }[] = []
 
@@ -68,8 +71,9 @@ class ScanWriter {
     if (row.size !== entry.size || row.mtime.getTime() !== entry.mtime.getTime()) {
       this.changed.push({ id: row.id, size: entry.size, mtime: entry.mtime.toISOString() })
       if (row.missingSince) this.filesReturned += 1
-    } else if (row.missingSince) {
-      this.returned.push(row.id)
+    } else {
+      if (row.missingSince) this.returned.push(row.id)
+      if (row.refreshTags) this.refreshTags.push(row.id)
     }
     await this.maybeFlush()
   }
@@ -81,11 +85,11 @@ class ScanWriter {
   }
 
   private async maybeFlush() {
-    if (Math.max(this.added.length, this.changed.length, this.returned.length, this.missing.length) >= batchSize) await this.flush()
+    if (Math.max(this.added.length, this.changed.length, this.returned.length, this.missing.length, this.refreshTags.length) >= batchSize) await this.flush()
   }
 
   async flush() {
-    const probe: string[] = []
+    const probe = this.refreshTags
     if (this.added.length > 0) {
       const inserted = await db.insert(mediaFiles).values(this.added.map((entry) => ({
         id: newId(),
@@ -132,6 +136,7 @@ class ScanWriter {
       this.stats.filesMissing += marked.length
     }
     await enqueueMany('library.probe', probe.map((fileId) => ({ data: { fileId }, singletonKey: fileId })))
+    this.refreshTags = []
     this.added = []
     this.changed = []
     this.returned = []

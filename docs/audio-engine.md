@@ -1,6 +1,6 @@
 # Audio engine
 
-Status: design for Phase 1 of the playback overhaul. Nothing here is built yet; the work is split into pull requests in [Implementation plan](#implementation-plan), and [roadmap.md](./roadmap.md#_10-playback-core) tracks them.
+This is the design for Phase 1 of the playback overhaul. The [implementation plan](#implementation-plan) splits the work into pull requests, and the [roadmap](./roadmap.md#_10-playback-core) tracks their status.
 
 This page replaces the playback and streaming core on every client. Today's engines and transcodes are described in [Architecture, "Playback and streaming"](./architecture.md#playback-and-streaming) and in the Clients section there. Every claim below about today's code was checked against the code; paths are relative to the repository root.
 

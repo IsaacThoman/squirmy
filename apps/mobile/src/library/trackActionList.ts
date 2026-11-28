@@ -21,7 +21,7 @@ export type TrackAction = {
 
 export type TrackActionId =
   | 'play' | 'resume' | 'next' | 'last' | 'like' | 'unlike' | 'download' | 'retryDownload' | 'removeDownload'
-  | 'playlist' | 'radio' | 'want' | 'unwant' | 'album' | 'artist' | 'remove';
+  | 'playlist' | 'radio' | 'want' | 'unwant' | 'album' | 'artist' | 'remove' | 'info';
 
 export type TrackActionOptions = {
   /** The playlist the track is shown in, for "Remove from playlist". */
@@ -115,6 +115,8 @@ export function trackActions(track: TrackSummary, state: TrackActionState, { pla
       : { id: 'want', ...wantFailure === undefined ? { title: 'Add to wantlist', icon: 'star' } : failed('Couldn’t add to wantlist') }),
     ...trackLinks(track, album, artist),
     playlist !== undefined && online && { id: 'remove', title: 'Remove from playlist', icon: 'minus.circle', destructive: true },
+    // What the device playing it says of its file and stream: only the current song has that.
+    current !== null && { id: 'info', title: 'Track info', icon: 'info.circle', sheet: true, href: '/track-info' },
   ];
   return items.filter((item): item is TrackAction => Boolean(item));
 }

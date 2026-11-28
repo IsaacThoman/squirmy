@@ -1,6 +1,8 @@
 import { open, realpath, stat } from 'node:fs/promises'
+import type { ServerResponse } from 'node:http'
 import path from 'node:path'
 import type { Readable } from 'node:stream'
+import type { StreamIntent } from '@squirmy/contracts'
 import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { fileMoves, libraryRoots, mediaFiles, organizeBatches } from '../../database/schema.js'
@@ -11,7 +13,16 @@ import type { MediaFile } from './profiles.js'
 export type StreamResponse = { status: number; headers: Record<string, string>; body: Readable | null }
 
 /** What the client sent that affects the response. */
-export type StreamRequest = { range?: string; ifRange?: string; head?: boolean }
+export type StreamRequest = { range?: string; ifRange?: string; head?: boolean; intent?: StreamIntent; userId?: string; signal?: AbortSignal }
+
+/** The response can close before the encoder has sent even its first byte. */
+export function streamSignal(response: ServerResponse): AbortSignal {
+  const controller = new AbortController()
+  const disconnect = () => controller.abort(new AppError(499, 'stream_closed', 'The client closed the stream'))
+  if (response.destroyed) disconnect()
+  else response.once('close', disconnect)
+  return controller.signal
+}
 
 /**
  * Absolute path of a library file, with its links resolved. `rel_path` comes from the
