@@ -3,6 +3,9 @@ import { AUDIO_BLOCKED_MESSAGE, clampPosition, mediaErrorMessage, playFailure } 
 
 type Entry = { entryId: string; url: string; gain: number }
 
+/** Gain changes on a playing voice settle (to 95%) over this long instead of jumping. */
+const GAIN_RAMP_SECONDS = 0.01
+
 /** An audio element with its own gain stage, so the loaded and preloaded entries keep separate gains. */
 type Voice = { audio: HTMLAudioElement; gain: GainNode | null; entry: Entry | null }
 
@@ -368,18 +371,25 @@ export class WebPlayerEngine implements PlayerEngine {
     if (this.context) return this.context
     const context = this.options.createContext?.() ?? new AudioContext()
     const output = this.options.output?.(context) ?? context.destination
+    // Set first: `applyGain` needs the context, or the loaded entry would play at unity gain.
+    this.context = context
     for (const voice of [this.current, this.spare]) {
       voice.gain = context.createGain()
       context.createMediaElementSource(voice.audio).connect(voice.gain).connect(output)
       this.applyGain(voice)
     }
-    this.context = context
     return context
   }
 
   private applyGain(voice: Voice): void {
     if (!voice.gain || !voice.entry || !this.context) return
-    voice.gain.gain.setValueAtTime(voice.entry.gain, this.context.currentTime)
+    const { gain } = voice.gain
+    const now = this.context.currentTime
+    gain.cancelScheduledValues(now)
+    // A jump in gain on a sounding signal clicks. A voice that is not playing yet takes the
+    // value at once, so a track never starts mid-ramp.
+    if (voice.audio.paused) gain.setValueAtTime(voice.entry.gain, now)
+    else gain.setTargetAtTime(voice.entry.gain, now, GAIN_RAMP_SECONDS / 3)
   }
 
   private clear(voice: Voice): void {

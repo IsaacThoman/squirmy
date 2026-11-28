@@ -89,6 +89,11 @@ describe('searchNotice', () => {
     expect(searchNotice({ ...list, failed: true, items: null }, true)).toBe('offline');
     expect(searchNotice({ ...list, failed: true, items: null }, false)).toBe('failed');
   });
+
+  it('shows what the phone found offline as it is, and says so only when it found nothing', () => {
+    expect(searchNotice({ ...list, items: [1] }, true)).toBeNull();
+    expect(searchNotice(list, true)).toBe('offline');
+  });
 });
 
 describe('searchEnd', () => {

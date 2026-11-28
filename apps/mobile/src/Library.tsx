@@ -20,6 +20,8 @@ import {
 import { libraryRows, type LibraryRow } from './library/libraryRows';
 import { emptyLibrary, emptyServer, listsNothing } from './library/libraryEmpty';
 import { shownMatches } from './library/librarySearch';
+import { localResults } from './library/localSearch';
+import { useLocalSearch } from './library/useLocalSearch';
 import { searchEnd, searchFilterLabels, searchNotice } from './library/search';
 import { useRecentSearches, useSearchList } from './library/useSearchList';
 import { useBriefFailures } from './inlineFeedback';
@@ -181,9 +183,11 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, onBa
   const libraryItems = useLibraryItems(sort, !server);
   const serverAlbums = useServerAlbums(server && sort !== 'played' ? sort : serverSort(serverDefaultSort), server);
   const library = server ? serverAlbums : libraryItems;
-  // A single character narrows what is loaded. Longer queries search the server's library.
+  // A single character narrows what is loaded. Longer queries search the server's library, or
+  // offline what the phone holds of it (`useLocalSearch`), ranked the same way.
   const searching = [...query.trim()].length >= libraryMatchMinLength;
-  const libraryFound = useLibraryMatches(query);
+  const libraryFound = useLibraryMatches(offline ? '' : query);
+  const localFound = useLocalSearch(query, server ? 'all' : 'library', searching && offline);
   // Every playlist, so one far down the list is found too.
   const playlists = useAllPlaylists(searching && !server);
   // The search finds albums with any file on the server; the Albums list's own membership
@@ -191,10 +195,12 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, onBa
   const albumIds = useLibraryAlbumIds(searching && !server);
   // A list that could not be read cannot rule a match out.
   const membership = useMemo(() => albumIds.data ?? (albumIds.isError ? { ids: [], complete: false } : undefined), [albumIds.data, albumIds.isError]);
-  const pending = libraryFound.pending || (!server && albumIds.isPending && !albumIds.isError);
-  const matched = useMemo(() => libraryFound.data && shownMatches(libraryFound.data, server ? 'server' : 'library', membership),
-    [libraryFound.data, membership, server]);
-  const active = searching ? libraryFound : library;
+  const pending = !offline && (libraryFound.pending || (!server && albumIds.isPending && !albumIds.isError));
+  const matched = useMemo(() => localFound ? localResults(localFound)
+    : libraryFound.data && shownMatches(libraryFound.data, server ? 'server' : 'library', membership),
+  [libraryFound.data, localFound, membership, server]);
+  // Offline, the saved list stands for the search: it has its answer already.
+  const active = searching && !offline ? libraryFound : library;
 
   // Sorted by year, the year says why an album is where it is.
   const albumSubtitle = useCallback((album: AlbumSummary) => sort === 'year' && album.year ? `${album.artistCredit} · ${album.year}` : album.artistCredit, [sort]);
@@ -229,7 +235,7 @@ export function LibraryScreen({ link, onTrackMenu, onOpen, onOpenDownloads, onBa
   const libraryEmpty = !query && library.data && !library.hasNextPage
     && listsNothing(server ? { server, items: serverAlbums.items } : { server, items: libraryItems.items });
   // Counted before what is outside the library is left out: the server stopped at the limit either way.
-  const answered = libraryFound.data;
+  const answered = offline ? undefined : libraryFound.data;
   const capped = searching && answered && Math.max(answered.albums.length, answered.tracks.length, answered.artists.length) >= libraryMatchLimit;
 
   const rows = useMemo(() => libraryRows({ mode: grid ? 'grid' : 'list', items, songs: songItems.data, columns }),
@@ -496,7 +502,8 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
   const notice = active ? searchNotice(list, offline) : null;
   const end = active ? searchEnd(list) : null;
   const header = active ? <>
-    {notice === 'offline' ? <EmptyState icon="wifi.slash" title="You’re offline" description="Search needs your server. Your downloads are in your Library." />
+    {notice === 'offline' ? <EmptyState icon="wifi.slash" title="Nothing on this iPhone matches"
+      description="While you’re offline, Search finds your downloads and the library saved on this iPhone." />
       : notice === 'failed' ? <EmptyState icon="wifi.exclamationmark" title="Search isn’t available" description="Check your connection to the server."
         action={{ title: 'Try again', onPress: () => { tapFeedback(); retry(); } }} />
         : notice === 'searching' ? <View style={styles.searching}><ActivityIndicator color={colors.muted} accessibilityLabel="Searching" /></View>
@@ -539,7 +546,7 @@ export function SearchScreen({ link, onOpen, onTrackMenu, bottomInset = 155 }: B
       <LibraryFilters options={searchFilterOptions} value={searchFilterLabels[filter]} onChange={label => { tapFeedback(); setFilter(filterOf(label)); }} />
     </View>}
     <View style={styles.flex}><ScrollEdge solid={0} fade={underChips} />
-    <FlatList data={offline && active ? [] : rows} renderItem={renderRow} keyExtractor={searchRowKey}
+    <FlatList data={rows} renderItem={renderRow} keyExtractor={searchRowKey}
       keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
       onEndReached={active ? list.loadMore : undefined} onEndReachedThreshold={1.5}
       extraData={list.stale} style={list.stale && styles.stale}

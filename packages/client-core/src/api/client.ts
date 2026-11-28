@@ -38,6 +38,11 @@ import {
   type DirectoryQuery,
   GenrePage,
   HistoryPage,
+  HistoryImport,
+  HistoryImports,
+  type HistoryImportSource,
+  type ReplayQuery,
+  ReplayStats,
   HomeResponse,
   Import,
   ImportAlbumList,
@@ -448,6 +453,10 @@ export function createApiClient(options: ApiClientOptions) {
       removePlaylistItem: (playlistId: string, itemId: string) =>
         send('DELETE', `/playlists/${id(playlistId)}/items/${id(itemId)}`, PlaylistDetail),
       history: (query: Partial<PageQuery> = {}) => get('/me/history', HistoryPage, query),
+      replay: (query: Partial<ReplayQuery> = {}) => get('/me/replay', ReplayStats, query),
+      historyImports: () => get('/me/history/imports', HistoryImports),
+      importHistory: (source: HistoryImportSource, file: UploadFile, options: UploadOptions = {}) =>
+        upload(`/me/history/imports?source=${id(source)}`, [file], HistoryImport, options),
       wants: (query: Partial<PageQuery> = {}) => get('/me/wants', WantPage, query),
       want: (type: WantEntityType, entityId: string) => send('PUT', `/me/wants/${type}/${id(entityId)}`, Ok),
       unwant: (type: WantEntityType, entityId: string) => send('DELETE', `/me/wants/${type}/${id(entityId)}`, Ok),

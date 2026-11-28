@@ -1,6 +1,6 @@
 import { ApiError } from '@squirmy/client-core';
 import type {
-  AcquireQuery, AcquireResponse, AcquisitionJob, AlbumDetail, PlaybackDescriptor, PlaylistDetail, StreamQuality, TrackSummary,
+  AcquireQuery, AcquireResponse, AcquisitionJob, AlbumDetail, Lyrics, PlaybackDescriptor, PlaylistDetail, StreamQuality, TrackSummary,
 } from '@squirmy/contracts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -176,6 +176,13 @@ class FakeSource implements DownloadSource {
   /** The answer to an acquire request: the statuses of the jobs working on it, or an error. */
   acquireAnswer: (kind: 'track' | 'album', target: string) => AcquisitionJob['status'][] | Error = () => ['queued'];
   readonly acquires: { kind: 'track' | 'album'; id: string; query: AcquireQuery }[] = [];
+  /** Each track's lyrics; a track not listed has none (a 404), an error fails the request. */
+  lyricsOf = new Map<string, Lyrics | Error>();
+  lyrics = vi.fn(async (trackId: string) => {
+    const lyrics = this.lyricsOf.get(trackId);
+    if (lyrics instanceof Error) throw lyrics;
+    return lyrics ?? null;
+  });
   acquireTrack = vi.fn(async (trackId: string, query: AcquireQuery) => this.acquire('track', trackId, query));
   acquireAlbum = vi.fn(async (target: string, query: AcquireQuery) => this.acquire('album', target, query));
   private acquire(kind: 'track' | 'album', target: string, query: AcquireQuery): AcquireResponse {
@@ -728,5 +735,53 @@ describe('DownloadManager sync', () => {
     const { manager, source } = setup({ online: false });
     await manager.sync();
     expect(source.collection).not.toHaveBeenCalled();
+  });
+});
+
+describe('DownloadManager lyrics', () => {
+  const lyricsFor = (trackId: string): Lyrics => ({ trackId, synced: '[00:01.00]Quiet tone', plain: 'Quiet tone', instrumental: false, source: 'lrclib' });
+  const withLyrics = (n: number) => ({ ...track(n), hasLyrics: true });
+  const addSongs = (manager: DownloadManager, tracks: TrackSummary[]) => manager.addCollection(
+    { id: playlistCollectionId(id(950)), kind: 'playlist', title: 'Mix', subtitle: 'Playlist', artworks: [] }, tracks);
+
+  it('keeps a downloaded song’s lyrics with it, and asks nothing for a song without', async () => {
+    const { manager, files, index, source, settle } = setup();
+    source.lyricsOf.set(id(1), lyricsFor(id(1)));
+    addSongs(manager, [withLyrics(1), track(2)]);
+    await settle();
+    expect(manager.lyrics(id(1))).toBeUndefined();
+    for (const transfer of [...files.transfers]) transfer.complete();
+    await settle();
+    expect(manager.lyrics(id(1))).toEqual(lyricsFor(id(1)));
+    expect(index.row(id(1))!.lyrics).toEqual(lyricsFor(id(1)));
+    expect(manager.lyrics(id(2))).toBeNull();
+    expect(source.lyrics.mock.calls).toEqual([[id(1)]]);
+  });
+
+  it('asks again on the next sync when the request failed, and for downloads made before lyrics were kept', async () => {
+    const { manager, files, index, source, settle } = setup();
+    source.lyricsOf.set(id(1), new Error('network down'));
+    addSongs(manager, [withLyrics(1)]);
+    await settle();
+    files.transfers[0]!.complete();
+    await settle();
+    expect(manager.lyrics(id(1))).toBeUndefined();
+
+    source.lyricsOf.set(id(1), lyricsFor(id(1)));
+    source.collections.set(id(950), { tracks: [withLyrics(1)] });
+    await manager.sync();
+    expect(index.row(id(1))!.lyrics).toEqual(lyricsFor(id(1)));
+  });
+
+  it('keeps lyrics read on the Lyrics page for a downloaded song only', async () => {
+    const { manager, files, settle } = setup();
+    addSongs(manager, [track(1), track(2)]);
+    await settle();
+    files.transfers[0]!.complete();
+    await settle();
+    manager.keepLyrics(id(1), lyricsFor(id(1)));
+    manager.keepLyrics(id(2), lyricsFor(id(2)));
+    expect(manager.lyrics(id(1))).toEqual(lyricsFor(id(1)));
+    expect(manager.lyrics(id(2))).toBeUndefined();
   });
 });

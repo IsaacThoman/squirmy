@@ -43,14 +43,15 @@ type NoticeInput = {
 };
 
 /**
- * What the results say above their rows, as on web: offline; neither search answered; still
+ * What the results say above their rows, as on web: offline with nothing on the phone that
+ * matches (offline results otherwise show as they are); neither search answered; still
  * waiting; the catalog failed with nothing else found (`catalogEmpty`: not "No results", which
  * would say there is nothing to find); nothing found; or the catalog failed beside rows from
  * the server (`catalogNote`, not over an earlier search's rows). Null for just the rows.
  */
 export function searchNotice(list: NoticeInput, offline: boolean):
   'offline' | 'failed' | 'searching' | 'catalogEmpty' | 'noResults' | 'catalogNote' | null {
-  if (offline) return 'offline';
+  if (offline) return list.items?.length ? null : 'offline';
   if (list.failed) return 'failed';
   if (list.items === null) return 'searching';
   const empty = !list.items.length && !list.pending && !list.stale;
