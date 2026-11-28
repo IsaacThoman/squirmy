@@ -69,6 +69,7 @@ export const apiRoutes = {
   'catalog.album': 'GET /albums/:id',
   'catalog.track': 'GET /tracks/:id',
   'catalog.lyrics': 'GET /tracks/:id/lyrics',
+  'catalog.sonic': 'GET /tracks/:id/sonic',
   'catalog.trackSummaries': 'POST /tracks/summaries',
 
   'streaming.playback': 'GET /tracks/:id/playback',
@@ -89,6 +90,9 @@ export const apiRoutes = {
   'userdata.movePlaylistItem': 'POST /playlists/:id/items/move',
   'userdata.removePlaylistItem': 'DELETE /playlists/:id/items/:itemId',
   'userdata.history': 'GET /me/history',
+  'userdata.replay': 'GET /me/replay',
+  'userdata.historyImports': 'GET /me/history/imports',
+  'userdata.importHistory': 'POST /me/history/imports',
   'userdata.wants': 'GET /me/wants',
   'userdata.want': 'PUT /me/wants/:type/:id',
   'userdata.unwant': 'DELETE /me/wants/:type/:id',
@@ -107,6 +111,7 @@ export const apiRoutes = {
 
   'radio.track': 'POST /radio/track/:id',
   'radio.artist': 'POST /radio/artist/:id',
+  'radio.sonic': 'POST /radio/sonic/:id',
 
   'imports.list': 'GET /imports',
   'imports.options': 'GET /imports/options',

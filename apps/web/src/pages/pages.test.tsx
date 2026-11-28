@@ -322,6 +322,59 @@ describe('adding to a playlist', () => {
   })
 })
 
+describe('collection menu playback', () => {
+  it.each([
+    ['Play', undefined],
+    ['Shuffle', true],
+  ] as const)('starts a playlist from its menu with %s', async (action, shuffle) => {
+    const { services, socket } = fakeServices()
+    const playlist = playlistDetail('00000000-0000-4000-8400-000000000001')!
+    renderWithApp(<AppRoutes />, `/playlist/${playlist.id}`, services)
+    const header = (await screen.findByRole('heading', { name: playlist.name })).closest('header')!
+    await userEvent.click(within(header).getByRole('button', { name: 'More options' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: action }))
+    await waitFor(() => expect(socket.commands).toContainEqual(expect.objectContaining({
+      type: 'playTracks', startedFrom: 'collection', shuffle,
+      context: { type: 'playlist', id: playlist.id, title: playlist.name },
+    })))
+  })
+
+  it('loads the remaining Liked Songs before shuffling', async () => {
+    const { services, api, socket } = fakeServices()
+    const [first, ...rest] = likedTracks
+    api.userdata.likes.mockImplementation((async (_kind: string, { cursor }: { cursor?: string }) => (
+      cursor ? { items: rest, nextCursor: null } : { items: [first!], nextCursor: 'more' }
+    )) as never)
+    renderWithApp(<AppRoutes />, '/liked', services)
+    const header = (await screen.findByRole('heading', { name: 'Liked Songs' })).closest('header')!
+    await userEvent.click(within(header).getByRole('button', { name: 'More options' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Shuffle' }))
+    await waitFor(() => expect(socket.commands).toContainEqual(expect.objectContaining({
+      type: 'playTracks', startedFrom: 'collection', shuffle: true,
+      tracks: expect.arrayContaining([{ trackId: rest[0]!.id, albumId: rest[0]!.album?.id ?? null, durationMs: rest[0]!.durationMs, state: 'ready' }]),
+      context: { type: 'liked', id: null, title: 'Liked Songs' },
+    })))
+  })
+
+  it('mounts a window of a 10,000-song playlist and announces each row’s full-list position', async () => {
+    const { services, api } = fakeServices()
+    const playlist = playlistDetail('00000000-0000-4000-8400-000000000001')!
+    api.userdata.playlist.mockResolvedValue({
+      ...playlist,
+      items: Array.from({ length: 10_000 }, (_, index) => ({
+        ...playlist.items[0]!, itemId: String(index), track: { ...playlist.items[0]!.track, title: `Song ${index + 1}` },
+      })),
+    })
+    renderWithApp(<AppRoutes />, `/playlist/${playlist.id}`, services)
+    const list = await screen.findByRole('list', { name: `${playlist.name} tracks` })
+    const rows = within(list).getAllByRole('listitem')
+    expect(rows.length).toBeLessThan(50)
+    expect(rows[0]).toHaveAttribute('aria-setsize', '10000')
+    expect(rows[0]).toHaveAttribute('aria-posinset', '1')
+    expect(within(rows[0]).getByRole('button', { name: 'Play Song 1' })).toBeInTheDocument()
+  })
+})
+
 describe('Liked Songs', () => {
   it('asks for a page that failed once, then offers to try again', async () => {
     // jsdom lays nothing out, so the virtual list would show no rows: every box is a screen's size.

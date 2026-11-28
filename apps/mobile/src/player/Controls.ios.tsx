@@ -1,4 +1,4 @@
-import { Button, Capsule, Host, Image, Menu, Rectangle, Text, VStack } from '@expo/ui/swift-ui';
+import { Button, Capsule, Divider, Host, Image, Menu, Rectangle, Text, VStack } from '@expo/ui/swift-ui';
 import {
   accessibilityAddTraits, accessibilityHint, accessibilityLabel, animation, Animation, blur, dynamicTypeSize, font, foregroundStyle, frame,
   lineLimit, menuIndicator, menuOrder, minimumScaleFactor, opacity, padding,
@@ -7,6 +7,7 @@ import type { ComponentProps } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { trackActionKey, trackLinks } from '../library/trackActionList';
 import { useRunTrackAction } from '../library/trackActions';
+import { usePlaybackActions, useSleepTimer } from '../playback';
 import { IconButton, Symbol, TrackMenu, hitShape, plainButton } from '../native/Controls';
 import type { DeviceButtonProps, LyricButtonProps, PlayerButtonProps, TrackLinksMenuProps, TrackMenuButtonProps } from './Controls';
 import { useColors } from '../theme';
@@ -36,7 +37,30 @@ export function CollapseButton({ onPress }: { onPress: () => void }) {
 
 export function TrackMenuButton({ track }: TrackMenuButtonProps) {
   const colors = useColors();
-  return <Host ignoreSafeArea="container" style={styles.icon}><TrackMenu track={track} label="Song options" color={colors.text} /></Host>;
+  return <Host ignoreSafeArea="container" style={styles.icon}>
+    <TrackMenu track={track} label="Song options" color={colors.text}><SleepTimerMenu /></TrackMenu>
+  </Host>;
+}
+
+/**
+ * Sleep timer, at the end of Now Playing's ellipsis menu as in Apple Music: the lengths and the
+ * ends to stop at, a check mark on the one set, and Turn off timer while one is. The timer is
+ * the session's, so it stops whichever device plays. Absent when the server does not take one.
+ */
+function SleepTimerMenu() {
+  const sleep = useSleepTimer();
+  const actions = usePlaybackActions();
+  if (!sleep.canSet) return null;
+  return <>
+    <Divider />
+    <Menu label={sleep.label ? `Sleep timer, ${sleep.label}` : 'Sleep timer'} systemImage="moon.zzz"
+      modifiers={sleep.spoken ? [accessibilityLabel(sleep.spoken)] : []}>
+      {sleep.choices.map(choice => <Button key={choice.id} label={choice.label}
+        systemImage={choice.id === sleep.chosen ? 'checkmark' : undefined} onPress={() => actions.setSleepTimer(choice.request)} />)}
+      {sleep.timer && <Divider />}
+      {sleep.timer && <Button label="Turn off timer" systemImage="moon.zzz" onPress={() => actions.setSleepTimer(null)} />}
+    </Menu>
+  </>;
 }
 
 /**

@@ -316,6 +316,14 @@ describe('SettingsDialog', () => {
   })
 
   describe('Scrobbling', () => {
+    it('offers opt-in sharing for now playing', async () => {
+      const { onSettingsChange } = renderSettings({ section: 'scrobbling' })
+      const toggle = screen.getByRole('switch', { name: 'Share what I’m listening to with other users on this server' })
+      expect(toggle).not.toBeChecked()
+      await userEvent.click(toggle)
+      expect(onSettingsChange).toHaveBeenCalledWith({ shareNowPlaying: true })
+    })
+
     it('shows each service’s connection and switches one off', async () => {
       const { onSettingsChange } = renderSettings({ section: 'scrobbling' })
       expect(screen.getByText('Connected as alex · 2 waiting to be sent')).toBeInTheDocument()
@@ -394,7 +402,8 @@ describe('SettingsDialog', () => {
 
     it('holds the services back until their status has loaded', () => {
       renderSettings({ section: 'scrobbling', scrobbling: undefined })
-      expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+      expect(screen.queryByRole('switch', { name: /Scrobble to/ })).not.toBeInTheDocument()
+      expect(screen.getByRole('switch', { name: /Share what I’m listening to/ })).toBeInTheDocument()
       expect(screen.queryByRole('button', { name: 'Connect' })).not.toBeInTheDocument()
     })
   })

@@ -80,6 +80,7 @@ export async function analyzeFile({ fileId }: AnalyzeJob) {
       primingFrames: current.primingFrames,
       paddingFrames: current.paddingFrames,
       tags: current.tags,
+      tagVersion: current.tagVersion,
       embeddedArtAssetId: current.embeddedArtAssetId,
       tagTrackGainDb: current.tagTrackGainDb,
       tagTrackPeak: current.tagTrackPeak,

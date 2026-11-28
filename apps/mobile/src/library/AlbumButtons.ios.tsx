@@ -33,7 +33,8 @@ export function AlbumNavButton({ icon, label, onPress, menu, selected, busy, fai
       {/* A menu, such as an album's ⋯, is the system's own, as on a song row. */}
       {menu
         ? <Menu label={content} modifiers={[...look, menuIndicator('hidden')]}>
-          {menu.map(action => <Button key={action.title} label={action.title} systemImage={action.icon as SymbolName} onPress={action.onPress} />)}
+          {menu.map(action => <Button key={action.title} label={action.title} systemImage={action.icon as SymbolName}
+            role={action.destructive ? 'destructive' : undefined} onPress={action.onPress} />)}
         </Menu>
         : <Button onPress={onPress} modifiers={look}>{content}</Button>}
     </Host>

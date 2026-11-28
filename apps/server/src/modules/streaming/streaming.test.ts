@@ -85,6 +85,11 @@ describe('streaming originals', () => {
 
     const high = await descriptor('?quality=high')
     expect(high).toMatchObject({ profile: 'aac_256', transcoded: true, mime: 'audio/aac', codec: 'aac', lossless: false, bitrate: 256_000, bytes: null, gapless: null })
+    // The file is described whatever is delivered, and so is why it is a transcode.
+    const file = { codec: 'flac', lossless: true, bytes: flac.bytes.length, channels: expect.any(Number), sampleRate: expect.any(Number) }
+    expect(body).toMatchObject({ source: file, transcodeReason: null })
+    expect(high).toMatchObject({ source: file, transcodeReason: 'quality' })
+    expect(await descriptor('?codecs=mp3,aac')).toMatchObject({ profile: 'aac_256', source: file, transcodeReason: 'codec' })
     expect(high.url).toContain(`/stream/${flac.fileId}/aac_256?`)
     expect((await descriptor('?download=1')).url).toContain('&download=1')
     expect((await descriptor('?download=false')).url).not.toContain('download')
@@ -190,6 +195,16 @@ describe('streaming originals', () => {
     const headRange = await call({ method: 'HEAD', url, headers: { range: 'bytes=0-9' } })
     expect(headRange.statusCode).toBe(206)
     expect(headRange.headers['content-length']).toBe('10')
+  })
+
+  it('carries stream intent on a signed URL without binding it to the signature', async () => {
+    const { url } = await descriptor('?intent=cache')
+    const stream = new URL(url, 'http://localhost')
+    expect(stream.searchParams.get('intent')).toBe('cache')
+    stream.searchParams.set('intent', 'next')
+    expect((await call({ url: stream.pathname + stream.search })).statusCode).toBe(200)
+    stream.searchParams.set('intent', 'invalid')
+    expect((await call({ url: stream.pathname + stream.search })).statusCode).toBe(400)
   })
 
   it('checks signatures and falls back to the session', async () => {

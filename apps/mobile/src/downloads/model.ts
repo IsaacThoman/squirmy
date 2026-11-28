@@ -1,6 +1,6 @@
 import { ApiError, formatBytes, GIGABYTE, isPlayable, plural, UNAVAILABLE_LABEL, type Viewer } from '@squirmy/client-core';
 import type {
-  AcquisitionJob, AlbumDetail, Artwork, PlaybackDescriptor, PlaylistSummary, StreamQuality, TrackSummary,
+  AcquisitionJob, AlbumDetail, Artwork, Lyrics, PlaybackDescriptor, PlaylistSummary, StreamQuality, TrackSummary,
 } from '@squirmy/contracts';
 
 /**
@@ -42,6 +42,11 @@ export type DownloadRow = {
   doneAt: number | null;
   /** When the server last confirmed the file is still the one it would serve. */
   checkedAt: number | null;
+  /**
+   * The song's lyrics, kept so the Lyrics page works with no connection: null when the server
+   * has none. Absent until they were asked for (a row from before lyrics were kept, too).
+   */
+  lyrics?: Lyrics | null;
 };
 
 export type CollectionKind = 'album' | 'playlist' | 'liked' | 'songs';
@@ -193,7 +198,9 @@ export function dueFetches(rows: Iterable<DownloadRow>, now: number): DownloadRo
  */
 export function withTrack(row: DownloadRow, track: TrackSummary, canFetch: boolean): DownloadRow {
   const gone = track.availability === 'none';
-  const next = gone !== row.gone || JSON.stringify(row.track) !== JSON.stringify(track) ? { ...row, track, gone } : row;
+  // Lyrics the server has gained or lost are asked for again.
+  const lyrics = track.hasLyrics === row.track.hasLyrics ? {} : { lyrics: undefined };
+  const next = gone !== row.gone || JSON.stringify(row.track) !== JSON.stringify(track) ? { ...row, track, gone, ...lyrics } : row;
   if (row.file) return next;
   const state = stateFor(row.state, track.availability, canFetch);
   if (state === row.state) return next;

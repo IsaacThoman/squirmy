@@ -1,7 +1,6 @@
 import { LibrarySearchQuery, SearchQuery, type AlbumSummary, type SearchKind, type SearchResults } from '@squirmy/contracts'
 import type { FastifyInstance } from 'fastify'
 import { requireUser } from '../../lib/auth.js'
-import { dropCachedReads } from '../../lib/read-cache.js'
 import { matchKey } from '../../lib/text.js'
 import { albumSummaries, artistSummaries, trackSummaries } from '../catalog/summaries.js'
 import { warmDetail } from '../enrichment/detail.js'
@@ -62,22 +61,22 @@ const ranked = (list: Ranked[]) => list.map(({ type, id, score }) => ({ type, id
 export async function searchRoutes(app: FastifyInstance) {
   app.get('/search/library', async (request): Promise<SearchResults> => {
     const user = requireUser(request)
-    const { q, limit, type, offset, genre } = LibrarySearchQuery.parse(request.query)
+    const { q, limit, type, offset, genre, scope } = LibrarySearchQuery.parse(request.query)
     const key = matchKey(q)
     // Library keys are `matchKey`s too, so a query of symbols alone can find nothing there.
     if (tooShort(q, key) || key === '') return empty
     // With a genre, a search inside the Library's genre chip stays in it.
-    const ids = await searchLibrary(user.id, key, limit, { offset, types: type && [type], genre })
+    const ids = await searchLibrary(user.id, key, limit, { offset, types: type && [type], genre, scope })
     const unique = distinct(await summaries(user.id, ids))
     const found = { ...unique, albums: oncePerTitle(unique.albums) }
-    // Every result of the library search is the viewer's own.
+    // Results matched from the local catalog get the library search's prominence boost.
     const list = await rankFound(q, found, { userId: user.id, owned: [...ids.artists, ...ids.albums, ...ids.tracks] })
     return { ...found, provider: null, top: topOf(list), ranked: ranked(list) }
   })
 
   app.get('/search/catalog', async (request): Promise<SearchResults> => {
     const user = requireUser(request)
-    const { q, limit, type, offset } = SearchQuery.parse(request.query)
+    const { q, limit, type, offset, scope } = SearchQuery.parse(request.query)
     const key = matchKey(q)
     if (tooShort(q, key)) return empty
     const types: readonly SearchKind[] = type ? [type] : allKinds
@@ -87,13 +86,10 @@ export async function searchRoutes(app: FastifyInstance) {
     // without this the user's own albums would come back a second time as "not in your library".
     const [{ provider, results }, library] = await Promise.all([
       searchCatalog(q, limit, undefined, { offset, types }),
-      key ? searchLibrary(user.id, key, limit + offset, { types }) : { artists: [], albums: [], tracks: [] },
+      key ? searchLibrary(user.id, key, limit + offset, { types, scope }) : { artists: [], albums: [], tracks: [] },
     ])
     if (!provider) return empty
     const stored = await materialize(provider.idSource, results)
-    // Stubs credit artists and fill in missing covers, which artist pages, album pages and
-    // lists show, and nothing announces them, so cached reads go (lib/read-cache.ts).
-    dropCachedReads('all', [['catalog-stubs']])
     const without = (found: string[], shown: string[]) => found.filter((id) => !shown.includes(id))
     const own = distinct(await summaries(user.id, {
       // One artist per name: Deezer's duplicate pages of one artist are two rows until enrichment merges them.

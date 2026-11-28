@@ -1,10 +1,10 @@
 /**
- * What everyone is playing: Squirmy sessions that are playing, plus the songs Subsonic
+ * What visible users are playing: Squirmy sessions that are playing, plus the songs Subsonic
  * clients announced with `scrobble?submission=false`. Those announcements live in this
  * process's memory, like the sessions themselves, and lapse once the song would be over.
  */
 import { createHash } from 'node:crypto'
-import { isNull } from 'drizzle-orm'
+import { and, eq, isNull, or, sql } from 'drizzle-orm'
 import { db } from '../../database/client.js'
 import { users } from '../../database/schema.js'
 import { getDevices, getSnapshot } from '../sessions/service.js'
@@ -27,10 +27,13 @@ export function endNowPlaying(userId: string, recordingId: string) {
 /** NowPlayingEntry wants an integer player id; derive a stable one from the player's name. */
 const playerId = (name: string) => Number.parseInt(createHash('sha256').update(name).digest('hex').slice(0, 7), 16)
 
-/** Every user's entries, annotated (starred, rating, play count) for `viewerId`, who is asking. */
+/** The viewer's entries and entries from users who opted in, annotated for the viewer. */
 export async function nowPlaying(viewerId: string): Promise<Payload[]> {
   const now = Date.now()
-  const people = await db.select({ id: users.id, username: users.username }).from(users).where(isNull(users.disabledAt))
+  const people = await db.select({ id: users.id, username: users.username }).from(users).where(and(
+    isNull(users.disabledAt),
+    or(eq(users.id, viewerId), sql`${users.settings}->'shareNowPlaying' = 'true'::jsonb`),
+  ))
   const entries = await Promise.all(people.map(async (person): Promise<Payload[]> => {
     const found: Payload[] = []
     const report = reports.get(person.id)
