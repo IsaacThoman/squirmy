@@ -1,9 +1,9 @@
 import { execFile } from 'node:child_process'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { link, mkdtemp, rm, stat, truncate } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
-import { eq, inArray } from 'drizzle-orm'
+import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { db } from '../../database/client.js'
 import { mediaFiles, releaseLoudness } from '../../database/schema.js'
@@ -58,7 +58,7 @@ describe('loudness', () => {
     root = await mkdtemp(path.join(tmpdir(), 'squirmy-loudness-'))
     tones.soft = await makeTone(root, { path: 'a/01 soft.flac', durationSec: 4, frequency: 1000, volumeDb: -30 })
     tones.loud = await makeTone(root, { path: 'a/02 loud.flac', durationSec: 4, frequency: 1000, volumeDb: -20 })
-    tones.silent = await makeTone(root, { path: 'a/03 silent.flac', durationSec: 2 })
+    tones.silent = await makeTone(root, { path: 'a/03 silent.flac', durationSec: 2, volumeDb: -150 })
     tones.short = await makeTone(root, { path: 'a/04 short.flac', durationSec: 0.2, volumeDb: -20 })
     await loudnessModule.jobs!(jobs)
     await startJobs({ work: true })
@@ -77,7 +77,9 @@ describe('loudness', () => {
       expect(Math.abs(measured.lufs - cli.lufs)).toBeLessThanOrEqual(0.2)
       expect(Math.abs(measured.truePeakDb - cli.truePeakDb)).toBeLessThanOrEqual(0.2)
     }
-    expect((await measureLoudness(tones.silent)).lufs).toBe(SILENT_LUFS)
+    const silent = await measureLoudness(tones.silent)
+    expect(silent.lufs).toBe(SILENT_LUFS)
+    expect(silent.truePeakDb).toBeLessThan(-120)
     expect((await measureLoudness(tones.short)).lufs).toBe(SILENT_LUFS)
   })
 
@@ -93,11 +95,66 @@ describe('loudness', () => {
     const loud = await measureLoudness(tones.loud)
     const album = await measureAlbumLoudness([tones.soft, tones.loud], false)
     const mean = (soft.lufs + loud.lufs) / 2
-    expect(album.lufs).toBeGreaterThan(mean + 1)
-    expect(album.lufs).toBeLessThan(loud.lufs)
+    expect(album).toBeGreaterThan(mean + 1)
+    expect(album).toBeLessThan(loud.lufs)
     // Energy average of two equal-length tones 10 LU apart.
-    expect(album.lufs).toBeCloseTo(loud.lufs + 10 * Math.log10((1 + 0.1) / 2), 1)
-    expect(album.truePeakDb).toBeCloseTo(loud.truePeakDb, 1)
+    expect(album).toBeCloseTo(loud.lufs + 10 * Math.log10((1 + 0.1) / 2), 1)
+  })
+
+  it('measures a mixed-format box set with tracks shorter than a gating block', async () => {
+    const tone = { frequency: 1000, volumeDb: -30 }
+    const flac = await makeTone(root, { ...tone, path: 'box/short.flac', durationSec: 0.1 })
+    const wav = await makeTone(root, { ...tone, path: 'box/short.wav', durationSec: 0.1 })
+    const files = await Promise.all(Array.from({ length: 128 }, async (_, index) => {
+      const source = index % 2 === 0 ? flac : wav
+      const file = path.join(root, 'box', `track '${index}'${path.extname(source)}`)
+      await link(source, file)
+      return file
+    }))
+    const continuous = await makeTone(root, { ...tone, path: 'box/continuous.wav', durationSec: files.length / 10 })
+
+    expect((await measureLoudness(flac)).lufs).toBe(SILENT_LUFS)
+    expect(await measureAlbumLoudness(files, false)).toBeCloseTo((await cliLoudness(continuous)).lufs, 1)
+  })
+
+  it('records a truncated input as a failed job and measures the repaired file', async () => {
+    const brokenRoot = path.join(root, 'broken')
+    const tone = { path: 'truncated.wav', durationSec: 1, volumeDb: -30 }
+    const damaged = await makeTone(brokenRoot, tone)
+    await truncate(damaged, (await stat(damaged)).size - 1)
+    await expect(measureLoudness(damaged)).rejects.toThrow(/corrupt|invalid/i)
+    await expect(measureAlbumLoudness([tones.soft, damaged], false)).rejects.toThrow(/corrupt|invalid/i)
+
+    const libraryRoot = await createLibraryRoot({ path: brokenRoot })
+    const { tracks, releaseId } = await createAlbum({ owned: true, rootId: libraryRoot.id, tracks: [{ title: 'Truncated' }] })
+    const fileId = tracks[0]!.fileId!
+    await db.update(mediaFiles).set({ relPath: tone.path, loudnessLufs: -48, truePeakDb: -47 }).where(eq(mediaFiles.id, fileId))
+    await db.insert(releaseLoudness).values({ releaseId, loudnessLufs: -48, truePeakDb: -47, fileCount: 1 })
+    const readFile = async () => (await db.select().from(mediaFiles).where(eq(mediaFiles.id, fileId)))[0]!
+    const attempts = () => db.execute(sql`
+      select state, retry_count from pgboss.job where name = 'loudness.measure' and data->>'fileId' = ${fileId}`)
+
+    await enqueue('loudness.measure', { fileId }, { singletonKey: fileId })
+    await drainJobs()
+    const failed = await readFile()
+    expect(failed).toMatchObject({ loudnessLufs: null, truePeakDb: null, probeError: expect.stringMatching(/^Loudness measurement failed: .*corrupt/i) })
+    expect(await normalizationFor(failed)).toBeNull()
+    expect(await attempts()).toEqual([{ state: 'failed', retry_count: 2 }])
+
+    await enqueue('loudness.sweep', {})
+    await drainJobs()
+    expect(await attempts()).toHaveLength(1)
+
+    await rm(damaged)
+    await makeTone(brokenRoot, tone)
+    // When the scanner sees new content, it clears the error and queues the library pipeline.
+    await db.update(mediaFiles).set({ probeError: null, probeStage: 2, mtime: (await stat(damaged)).mtime }).where(eq(mediaFiles.id, fileId))
+    await enqueue('loudness.sweep', {})
+    await drainJobs()
+    const repaired = await readFile()
+    expect(repaired.probeError).toBeNull()
+    expect(repaired.loudnessLufs).toBeGreaterThan(SILENT_LUFS)
+    expect(await normalizationFor(repaired)).toMatchObject({ trackGainDb: expect.any(Number), albumGainDb: expect.any(Number) })
   })
 
   it('sweeps, measures files and albums, and recomputes when the files change', async () => {
@@ -119,7 +176,8 @@ describe('loudness', () => {
     expect(silent!.loudnessLufs).toBe(SILENT_LUFS)
     const first = await albumRow()
     expect(first).toMatchObject({ fileCount: 3 })
-    expect(first!.loudnessLufs).toBeCloseTo((await measureAlbumLoudness([tones.soft, tones.loud, tones.silent], false)).lufs, 1)
+    expect(first!.loudnessLufs).toBeCloseTo(await measureAlbumLoudness([tones.soft, tones.loud, tones.silent], false), 1)
+    expect(first!.truePeakDb).toBeCloseTo(loud!.truePeakDb!, 1)
 
     // Nothing left to do: a second sweep changes nothing.
     await enqueue('loudness.sweep', {})
