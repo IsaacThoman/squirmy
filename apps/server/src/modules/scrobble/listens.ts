@@ -86,16 +86,16 @@ function lastFmPlay(track: PlayedTrack, startedAt: Date): lastfm.LastFmPlay {
  * Returns false when the service cannot be used on this server right now (Last.fm without
  * an operator key). Throws ProviderError when the service refuses.
  */
-export async function submitPlays(target: ScrobbleTarget, credential: string, plays: { track: PlayedTrack; startedAt: Date }[]): Promise<boolean> {
+export async function submitPlays(target: ScrobbleTarget, credential: string, plays: { track: PlayedTrack; startedAt: Date }[], apiUrl?: string): Promise<boolean> {
   if (target === 'listenbrainz') {
-    await listenbrainz.submitListens(credential, plays.map((play) => listen(play.track, play.startedAt)), plays.length === 1 ? 'single' : 'import')
+    await listenbrainz.submitListens(credential, plays.map((play) => listen(play.track, play.startedAt)), plays.length === 1 ? 'single' : 'import', apiUrl)
     return true
   }
   return (await lastfm.scrobble(credential, plays.map((play) => lastFmPlay(play.track, play.startedAt)))) !== null
 }
 
 /** Tells the service what is playing now. Throws ProviderError when it refuses. */
-export async function submitNowPlaying(target: ScrobbleTarget, credential: string, track: PlayedTrack): Promise<void> {
-  if (target === 'listenbrainz') await listenbrainz.submitListens(credential, [listen(track)], 'playing_now')
+export async function submitNowPlaying(target: ScrobbleTarget, credential: string, track: PlayedTrack, apiUrl?: string): Promise<void> {
+  if (target === 'listenbrainz') await listenbrainz.submitListens(credential, [listen(track)], 'playing_now', apiUrl)
   else await lastfm.updateNowPlaying(credential, lastFmPlay(track, new Date()))
 }

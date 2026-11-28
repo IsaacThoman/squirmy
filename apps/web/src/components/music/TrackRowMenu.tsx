@@ -11,8 +11,11 @@ type Opening = {
   opener: HTMLElement | null
 }
 
-/** The button and row remain focusable and draggable while their menu is dormant. */
-export function useTrackRowMenu() {
+/**
+ * The button and row remain focusable and draggable while their menu is dormant. `longPress:
+ * false` leaves a long press to the row (the queue's, where it picks the song up).
+ */
+export function useTrackRowMenu({ longPress = true }: { longPress?: boolean } = {}) {
   const id = useId()
   const button = useRef<HTMLButtonElement>(null)
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
@@ -43,22 +46,23 @@ export function useTrackRowMenu() {
   })
   const rowProps = {
     'data-state': open && opening?.context ? 'open' : undefined,
-    onContextMenu: (event: MouseEvent<HTMLLIElement>) => {
-      if (!event.currentTarget.contains(event.target as Node)) return
+    onContextMenu: (event: MouseEvent<HTMLElement>) => {
+      // A control inside the row that took the press (a song being dragged in the queue) keeps it.
+      if (!event.currentTarget.contains(event.target as Node) || event.defaultPrevented) return
       clearPress()
       event.preventDefault()
       showContextMenu(event.clientX, event.clientY)
     },
-    onKeyDown: (event: KeyboardEvent<HTMLLIElement>) => {
+    onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
       if (!event.currentTarget.contains(event.target as Node) || event.defaultPrevented) return
       if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return
       event.preventDefault()
       const anchor = (event.target as HTMLElement).getBoundingClientRect()
       showContextMenu(anchor.left, anchor.bottom, true)
     },
-    onPointerDown: (event: PointerEvent<HTMLLIElement>) => {
+    onPointerDown: (event: PointerEvent<HTMLElement>) => {
       clearPress()
-      if (!event.currentTarget.contains(event.target as Node) || event.defaultPrevented) return
+      if (!longPress || !event.currentTarget.contains(event.target as Node) || event.defaultPrevented) return
       if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return
       const { clientX, clientY } = event
       // Match the long press of the app's other context menus. A moving finger scrolls.

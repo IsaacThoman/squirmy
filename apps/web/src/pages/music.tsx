@@ -20,6 +20,7 @@ import { matchingPlaylists, useMergedSearch, useSearchPages } from '@/api/use-se
 import { useCurrentUser, useWantlistEnabled } from '@/auth/session'
 import { Page } from '@/components/layout/Page'
 import { PlaylistDialog } from '@/components/layout/PlaylistDialog'
+import { SmartPlaylistDialog } from '@/components/layout/SmartPlaylistDialog'
 import { CollectionSkeleton } from '@/components/music/Skeletons'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/dialog'
@@ -235,6 +236,7 @@ export function PlaylistPage() {
 
 function EditablePlaylist({ playlist, onDeleting }: { playlist: PlaylistDetail; onDeleting: (deleting: boolean) => void }) {
   const api = useApi()
+  const library = useLibrary()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const user = useCurrentUser()
@@ -246,8 +248,10 @@ function EditablePlaylist({ playlist, onDeleting }: { playlist: PlaylistDetail; 
 
   const update = useMutation({
     mutationFn: (patch: Parameters<typeof api.userdata.updatePlaylist>[1]) => api.userdata.updatePlaylist(playlist.id, patch),
-    onSuccess: summary => {
+    onSuccess: (summary, patch) => {
       queryClient.setQueryData<PlaylistDetail>(key, detail => detail && { ...detail, ...summary })
+      // New rules find other songs.
+      if (patch.rules) void queryClient.invalidateQueries({ queryKey: key })
       return queryClient.invalidateQueries({ queryKey: queryKeys.playlists(), exact: true })
     },
   })
@@ -306,9 +310,24 @@ function EditablePlaylist({ playlist, onDeleting }: { playlist: PlaylistDetail; 
           change(detail => ({ ...detail, items: detail.items.filter(item => item.itemId !== itemId) }))
           drop.mutate({ itemId, title: track.title })
         }}
+        onRemoveMany={async indexes => {
+          const items = indexes.flatMap(index => (playlist.items[index] ? [playlist.items[index]] : []))
+          const gone = new Set(items.map(item => item.itemId))
+          change(detail => ({ ...detail, items: detail.items.filter(item => !gone.has(item.itemId)) }))
+          // One at a time: each answer is the playlist after its removal, so the last is the playlist after all of them.
+          let latest: PlaylistDetail | undefined
+          try {
+            for (const item of items) latest = await api.userdata.removePlaylistItem(playlist.id, item.itemId)
+            if (latest) save(latest)
+          } catch {
+            await refused(items.length === 1 ? `Couldn’t remove “${items[0].track.title}”. Try again.` : 'Couldn’t remove all the songs. Try again.')
+          }
+        }}
         failure={failure}
       />
-      <PlaylistDialog open={dialog === 'edit'} onOpenChange={open => setDialog(open ? 'edit' : null)} playlist={playlist} onSubmit={request => update.mutateAsync(request)} />
+      {playlist.rules
+        ? <SmartPlaylistDialog open={dialog === 'edit'} onOpenChange={open => setDialog(open ? 'edit' : null)} playlist={{ ...playlist, rules: playlist.rules }} showRatings={library.showRatings} onSubmit={request => update.mutateAsync(request)} />
+        : <PlaylistDialog open={dialog === 'edit'} onOpenChange={open => setDialog(open ? 'edit' : null)} playlist={playlist} onSubmit={request => update.mutateAsync(request)} />}
       <ConfirmDialog
         open={dialog === 'delete'}
         onOpenChange={open => setDialog(open ? 'delete' : null)}
@@ -377,7 +396,7 @@ export function SearchPage() {
   const term = typed.trim()
   const parsed = SearchFacets.safeParse(Object.fromEntries(params))
   const facets = parsed.success ? parsed.data : {}
-  const all = useMergedSearch(typed, { playlists: library.playlists, facets })
+  const all = useMergedSearch(typed, { playlists: library.ownPlaylists, facets })
   const pages = useSearchPages(typed, filterKind(filter), filter === 'playlist' ? {} : facets)
   const recents = useRecentSearches(user.id)
   const show = (q: string, next: SearchFilter, selected = facets) => {
@@ -400,7 +419,7 @@ export function SearchPage() {
     }
     const olderServer = pages.error instanceof ApiError && (pages.error.status === 400 || pages.error.status === 404)
     if (filter === 'playlist' && !pages.playlistSearchSupported && (pages.items || olderServer)) {
-      return { items: term ? matchingPlaylists(term, library.playlists) : [], stale: false, pending: false, failed: false, catalogFailed: false, unavailable: false, retry: () => {} }
+      return { items: term ? matchingPlaylists(term, library.ownPlaylists) : [], stale: false, pending: false, failed: false, catalogFailed: false, unavailable: false, retry: () => {} }
     }
     // Until the filter's own first page arrives, the mixed list's rows of that kind stand in.
     const standIn = pages.items === null && all.results && !all.stale ? searchItemsOfKind(all.results, filter) : null
@@ -409,7 +428,7 @@ export function SearchPage() {
       failed: pages.failed, catalogFailed: pages.catalogFailed, unavailable: false, retry: pages.retry, retrying: pages.loading,
       hasMore: pages.hasMore, loadMore: pages.loadMore, moreFailed: pages.moreFailed, moreError: pages.error,
     }
-  }, [all, pages, filter, term, library.playlists])
+  }, [all, pages, filter, term, library.ownPlaylists])
 
   const choose = (item: SearchItem) => {
     recents.add(item)
@@ -659,6 +678,7 @@ function CombinedLibrary({ filter }: { filter: LibraryFilterName }) {
       onPlayLiked={() => void playLoaded(liked, 5000, list => controls.playTracks(list, 0, likedContext, { collection: true }))}
       onPlaySong={index => void playSong(index)}
       onNewPlaylist={() => library.newPlaylist()}
+      onNewSmartPlaylist={() => library.newSmartPlaylist()}
       onPin={pinItem}
     />
   )
@@ -774,6 +794,7 @@ function ServerMusic({ filter }: { filter: ServerFilter }) {
       onPlayLiked={() => {}}
       onPlaySong={index => void playSong(index)}
       onNewPlaylist={() => {}}
+      onNewSmartPlaylist={() => {}}
     />
   )
 }

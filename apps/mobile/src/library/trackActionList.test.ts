@@ -17,6 +17,13 @@ describe('trackActions', () => {
     expect(ids(track(), state())).toEqual(['play', 'next', 'last', 'like', 'download', 'playlist', 'radio', 'album', 'artist']);
   });
 
+  it('offers Share after the radio while the server allows links, online only', () => {
+    expect(ids(track(), state({ sharing: true }))).toEqual(['play', 'next', 'last', 'like', 'download', 'playlist', 'radio', 'share', 'album', 'artist']);
+    // A gray song can be shared too: the page shows it as not available.
+    expect(ids(track({ availability: 'none' }), state({ sharing: true, playable: false }))).toContain('share');
+    expect(ids(track(), state({ sharing: true, offline: true }))).not.toContain('share');
+  });
+
   it('offers to add a song to the wantlist, or to take it off once it is on it', () => {
     const gray = track({ availability: 'none' });
     expect(ids(gray, state({ playable: false }))).toContain('want');

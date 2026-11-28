@@ -1,15 +1,16 @@
 import { ApiError } from '@squirmy/client-core'
 import type { PlaybackContext, PlaylistSummary, User } from '@squirmy/contracts'
-import { fireEvent, screen, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState, type ComponentProps, type ReactNode } from 'react'
 import { useLocation } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { playlistSummaries, track } from '@/fixtures/catalog'
+import { album, mixes, playlistSummaries, track } from '@/fixtures/catalog'
 import { currentUser, users } from '@/fixtures/server'
-import { endTrackDrag, startTrackDrag } from '@/lib/drag'
+import { endTrackDrag, startCollectionDrag, startTrackDrag } from '@/lib/drag'
 import { LibraryContext, type LibraryActions } from '@/player/library-context'
 import { PlayerContext, usePlayer } from '@/player/player-context'
+import { dataTransfer } from '@/test/data-transfer'
 import { renderWithApp } from '@/test/render'
 import { Sidebar } from './Sidebar'
 
@@ -17,7 +18,9 @@ const [afterDark, firstLight] = playlistSummaries
 const [, sam, robin] = users
 /** A playlist someone else shares with the server. */
 const roadTrip: PlaylistSummary = { ...firstLight, id: '00000000-0000-4000-8400-0000000000aa', name: 'Road Trip', ownerId: sam.id, ownerName: sam.username, isPublic: true }
-const playlists = [...playlistSummaries, roadTrip]
+/** A smart playlist of your own: its songs come from rules. */
+const jazz: PlaylistSummary = { ...afterDark, id: '00000000-0000-4000-8400-0000000000ab', name: 'Jazz', smart: true }
+const playlists = [...playlistSummaries, roadTrip, jazz]
 
 function Where() {
   const location = useLocation()
@@ -53,8 +56,14 @@ function renderSidebar({ route = '/', playingFrom, wantlistEnabled = true, toggl
     setSaved: vi.fn<LibraryActions['setSaved']>(async () => {}),
     setWanted: vi.fn<LibraryActions['setWanted']>(async () => {}),
     playlists: playlistSummaries,
+    ownPlaylists: playlistSummaries,
     addToPlaylist: vi.fn<LibraryActions['addToPlaylist']>(async () => true),
     newPlaylist: vi.fn<LibraryActions['newPlaylist']>(),
+    sharingEnabled: false,
+    share: vi.fn<LibraryActions['share']>(),
+    newSmartPlaylist: vi.fn<LibraryActions['newSmartPlaylist']>(),
+    showRatings: false,
+    setRating: vi.fn<LibraryActions['setRating']>(async () => {}),
   } satisfies LibraryActions
   const on = { onToggle: vi.fn(), onNavigate: vi.fn(), onOpenSettings: vi.fn(), onPlayPlaylist: vi.fn(), onPlayLiked: vi.fn(), onLogout: vi.fn() }
   renderWithApp(
@@ -76,22 +85,6 @@ const sidebar = () => screen.getByRole('complementary', { name: 'Sidebar' })
 const mainNav = () => within(screen.getByRole('navigation', { name: 'Main' }))
 const playlistLinks = () => within(screen.getByRole('list', { name: 'Playlists' })).getAllByRole('link')
 const playlistLink = (name: string) => within(screen.getByRole('list', { name: 'Playlists' })).getByRole('link', { name })
-
-/** jsdom has no DataTransfer; this holds what a drag carries. */
-function dataTransfer(): DataTransfer {
-  const data = new Map<string, string>()
-  const transfer = {
-    types: [] as string[],
-    effectAllowed: 'uninitialized',
-    dropEffect: 'none',
-    setData(type: string, value: string) {
-      data.set(type, value)
-      transfer.types = [...data.keys()]
-    },
-    getData: (type: string) => data.get(type) ?? '',
-  }
-  return transfer as unknown as DataTransfer
-}
 
 /** Starts dragging songs out of a track list, as a row does. */
 function dragTracks(...slugs: string[]) {
@@ -210,7 +203,14 @@ describe('Sidebar', () => {
       const links = playlistLinks()
       expect(links.map(link => link.getAttribute('href'))).toEqual(['/liked', ...playlists.map(playlist => `/playlist/${playlist.id}`)])
       expect(links[0]).toHaveAccessibleName('Liked Songs 24 songs')
-      expect(links.slice(1).map(link => link.textContent)).toEqual(['After Dark', 'First Light', 'Late Train', 'Empty for now', 'Road Trip'])
+      expect(links.slice(1).map(link => link.textContent)).toEqual(['After Dark', 'First Light', 'Late Train', 'Empty for now', 'Road Trip', 'Jazz'])
+    })
+
+    it('marks a smart playlist beside its name, leaving its name as the link’s', () => {
+      renderSidebar()
+      const link = playlistLink('Jazz')
+      expect(link.querySelector('svg.lucide-sparkles')).not.toBeNull()
+      expect(playlistLink('After Dark').querySelector('svg.lucide-sparkles')).toBeNull()
     })
 
     it('opens a playlist and says a link was followed', async () => {
@@ -223,8 +223,18 @@ describe('Sidebar', () => {
     it('opens the new playlist dialog from New playlist', async () => {
       const { library } = renderSidebar()
       await userEvent.click(screen.getByRole('button', { name: 'New playlist' }))
+      await userEvent.click(await screen.findByRole('menuitem', { name: 'Playlist' }))
       expect(library.newPlaylist).toHaveBeenCalledTimes(1)
       expect(library.newPlaylist.mock.calls[0]).toEqual([])
+      expect(library.newSmartPlaylist).not.toHaveBeenCalled()
+    })
+
+    it('opens the new smart playlist dialog from New playlist', async () => {
+      const { library } = renderSidebar()
+      await userEvent.click(screen.getByRole('button', { name: 'New playlist' }))
+      await userEvent.click(await screen.findByRole('menuitem', { name: 'Smart playlist' }))
+      expect(library.newSmartPlaylist).toHaveBeenCalledTimes(1)
+      expect(library.newPlaylist).not.toHaveBeenCalled()
     })
 
     it('plays a playlist from its right-click menu', async () => {
@@ -290,6 +300,15 @@ describe('Sidebar', () => {
       expect(screen.getAllByRole('status').map(status => status.textContent)).toContain('Couldn’t add to After Dark. The server is busy.')
     })
 
+    it('does not take songs on a smart playlist, whose songs come from its rules', () => {
+      const { library } = renderSidebar()
+      const { transfer } = dragTracks('amber')
+      const link = playlistLink('Jazz')
+      expect(fireEvent.dragOver(link, { dataTransfer: transfer })).toBe(true)
+      fireEvent.drop(link, { dataTransfer: transfer })
+      expect(library.addToPlaylist).not.toHaveBeenCalled()
+    })
+
     it('does not take songs on someone else’s playlist', () => {
       const { library } = renderSidebar()
       const { transfer } = dragTracks('amber')
@@ -309,6 +328,28 @@ describe('Sidebar', () => {
       expect(library.setSaved.mock.calls).toEqual([saved('riverside'), saved('open-window')])
       expect(library.addToPlaylist).not.toHaveBeenCalled()
       expect(await within(link).findByText('Saved')).toBeInTheDocument()
+    })
+
+    it('adds the songs of an album card dropped on a playlist, once they load', async () => {
+      const { library } = renderSidebar()
+      const glassCity = album('glass-city')
+      const transfer = dataTransfer()
+      startCollectionDrag({ dataTransfer: transfer }, { kind: 'album', id: glassCity.id, title: glassCity.title })
+      const link = playlistLink('After Dark')
+      expect(fireEvent.dragOver(link, { dataTransfer: transfer })).toBe(false)
+      fireEvent.drop(link, { dataTransfer: transfer })
+      await waitFor(() => expect(library.addToPlaylist).toHaveBeenCalledWith(afterDark, glassCity.discs.flatMap(disc => disc.tracks)))
+      expect(await within(link).findByText('Added')).toBeInTheDocument()
+    })
+
+    it('adds the songs of a mix card dropped on a playlist, once they load', async () => {
+      const { library } = renderSidebar()
+      const mix = mixes[0]!
+      const transfer = dataTransfer()
+      startCollectionDrag({ dataTransfer: transfer }, { kind: 'mix', id: mix.id, title: mix.name })
+      const link = playlistLink('After Dark')
+      fireEvent.drop(link, { dataTransfer: transfer })
+      await waitFor(() => expect(library.addToPlaylist).toHaveBeenCalledWith(afterDark, mix.tracks))
     })
 
     it('ignores a drag of anything else', () => {

@@ -20,7 +20,7 @@ export async function announceNowPlaying(userId: string, play: TrackRef): Promis
   await Promise.all(connections.map(async (connection) => {
     if (!(await targetAvailable(connection.target))) return
     try {
-      await submitNowPlaying(connection.target, connection.credential, track)
+      await submitNowPlaying(connection.target, connection.credential, track, connection.apiUrl)
     } catch (error) {
       if (rejectsCredential(connection.target, error)) {
         await markConnection(connection, userId, { needsAttention: true, lastError: (error as Error).message })

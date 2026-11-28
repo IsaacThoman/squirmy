@@ -1,6 +1,7 @@
 import { type AwayDevice, deviceLabel, listedDevices, readsUnavailable, type DeviceLabel, type JamResult, type SessionMoveResult, type SessionOutage } from '@squirmy/client-core'
 import type { DeviceInfo, JamInfo, JamRequest, Lyrics, PlaybackContext, QueueEntry, RepeatMode, SignalPath, SleepTimer, SleepTimerRequest, TrackSummary } from '@squirmy/contracts'
-import { createContext, useContext, useLayoutEffect, useState, useSyncExternalStore } from 'react'
+import { createContext, useContext, useLayoutEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { CurrentUserContext } from '@/auth/session'
 import type { PlayerStatus } from './status'
 
 /** A queue entry with the track it points at, hydrated for display. */
@@ -95,7 +96,8 @@ export type PlayerControls = {
   setSleepTimer: (timer: SleepTimerRequest | null) => void
   /** Replaces the queue with the playable `tracks`, starting at `startIndex` (or shuffled). */
   playTracks: (tracks: TrackSummary[], startIndex?: number, context?: PlaybackContext, options?: PlayOptions) => void
-  enqueue: (tracks: TrackSummary[], placement: 'next' | 'last') => void
+  /** Adds to Up next: before it, after it, or at `toIndex` of the entries it shows (a drop into the queue). */
+  enqueue: (tracks: TrackSummary[], placement: 'next' | 'last', toIndex?: number) => void
   startRadio: (seed: RadioSeed) => void
   /** Plays an entry of the queue, the autoplay queue or the history. */
   playEntry: (entryId: string) => void
@@ -159,6 +161,39 @@ export function labelDevice(state: Pick<PlayerState, 'thisDeviceId' | 'devices'>
 /** Whether only the jam's host controls playback here: this user follows someone else's jam. */
 export function hostControls(state: Pick<PlayerState, 'jam'>): boolean {
   return state.jam?.role === 'member'
+}
+
+/**
+ * What this listener may do to what plays, under the jam's rules (`memberCommandRoute` and the
+ * server's): everything, unless they follow someone's jam. There the host controls playback; a
+ * member adds songs while the jam's queue policy lets everyone, and takes out only what they
+ * added. Volume and the device that plays are each listener's own, so they are not here.
+ */
+export type JamRights = {
+  /** Play, pause, seek, skip, shuffle, repeat, Autoplay, a radio, a queued song picked to play, clearing the queue or history. */
+  transport: boolean
+  /** Adding songs to Up next. */
+  add: boolean
+  /** Moving songs in Up next. */
+  reorder: boolean
+  /** Taking this entry out of the queue. */
+  remove: (entry: Pick<QueueEntry, 'addedBy'>) => boolean
+}
+
+const allRights: JamRights = { transport: true, add: true, reorder: true, remove: () => true }
+
+export function jamRights(jam: JamInfo | undefined, userId: string | null): JamRights {
+  if (jam?.role !== 'member') return allRights
+  const add = jam.queuePolicy === 'everyone'
+  return { transport: false, add, reorder: false, remove: entry => add && userId !== null && entry.addedBy === userId }
+}
+
+/** `jamRights` of this user's session. Reads the jam alone, so it renders again only when the jam changes. */
+export function useJamRights(): JamRights {
+  const jam = useContext(JamContext)
+  // Null in a fixture that renders the player without signing in, where there is no jam either.
+  const userId = useContext(CurrentUserContext)?.id ?? null
+  return useMemo(() => jamRights(jam, userId), [jam, userId])
 }
 
 /** Whether this tab controls playback on another device, including while it reconnects. */

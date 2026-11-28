@@ -1,9 +1,9 @@
 import { Readable } from 'node:stream'
 import {
   AddPlaylistItemsRequest, CreatePlaylistRequest, HistoryExportQuery, HistoryImportQuery, Id, LibraryEntityType, LibraryPinKind, LikeEntityType, LikeQuery, MovePlaylistItemRequest, PageQuery, UpdatePlaylistRequest,
-  ReplayQuery, UpdateUserSettings, WantEntityType,
+  RatingRequest, ReplayQuery, SmartPlaylistRules, UpdateUserSettings, WantEntityType,
   type AlbumSummary, type ArtistSummary, type HistoryPage, type Ok, type Page, type PlaylistDetail, type PlaylistPage, type PlaylistSummary,
-  type TrackSummary, type UnlikeResponse, type UserSettings, type WantPage,
+  type SmartPlaylistPreview, type TrackSummary, type UnlikeResponse, type UserSettings, type WantPage,
 } from '@squirmy/contracts'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
@@ -16,9 +16,9 @@ import { listHistoryImports, uploadHistory } from './history-import.js'
 import { getReplay } from './replay.js'
 import { listHistory } from './history.js'
 import { pinLibraryItem, unpinLibraryItem } from './library-pins.js'
-import { likeEntity, listLikes, unlikeEntity } from './likes.js'
+import { likeEntity, listLikes, setRating, unlikeEntity } from './likes.js'
 import {
-  addPlaylistItems, createPlaylist, deletePlaylist, getPlaylist, listPlaylists, movePlaylistItem, removePlaylistItem, updatePlaylist,
+  addPlaylistItems, createPlaylist, deletePlaylist, getPlaylist, listPlaylists, movePlaylistItem, previewSmartPlaylist, removePlaylistItem, updatePlaylist,
 } from './playlists.js'
 import { getUserSettings, updateUserSettings } from './settings.js'
 import { listWants, unwantEntity, wantEntity } from './wants.js'
@@ -36,8 +36,9 @@ async function requireWantlist() {
 }
 
 // What the cached playlist reads depend on (lib/read-cache.ts). Covers and durations come
-// from the albums and recordings; items carry track summaries.
-const playlistList: CacheTag[] = ['playlists', 'album', 'track', 'library']
+// from the albums and recordings; items carry track summaries. Smart playlists' songs come
+// from the library and the hearts as well.
+const playlistList: CacheTag[] = ['playlists', 'album', 'track', 'library', 'likes']
 const playlistPage: CacheTag[] = ['playlists', 'album', 'artist', 'track', 'library', 'search', 'likes']
 
 export async function userdataRoutes(app: FastifyInstance) {
@@ -57,6 +58,12 @@ export async function userdataRoutes(app: FastifyInstance) {
   })
   app.get('/me/likes/:type', async (request): Promise<Page<TrackSummary | AlbumSummary | ArtistSummary>> =>
     listLikes(requireUser(request).id, LikeTypeParams.parse(request.params).type, PageQuery.parse(request.query)))
+
+  app.put('/me/ratings/:type/:id', async (request): Promise<Ok> => {
+    const { type, id } = LikeParams.parse(request.params)
+    await setRating(requireUser(request).id, type, id, RatingRequest.parse(request.body).rating)
+    return { ok: true }
+  })
 
   // Deprecated aliases of the heart, for app builds from before it was the one library
   // control: "Add to library" there now writes the same save. Remove after a release.
@@ -92,6 +99,8 @@ export async function userdataRoutes(app: FastifyInstance) {
     reply.code(201)
     return playlist
   })
+  app.post('/playlists/smart/preview', async (request): Promise<SmartPlaylistPreview> =>
+    previewSmartPlaylist(requireUser(request).id, SmartPlaylistRules.parse(request.body)))
   app.get('/playlists/:id', async (request, reply) => {
     const userId = requireUser(request).id
     const { id } = IdParams.parse(request.params)

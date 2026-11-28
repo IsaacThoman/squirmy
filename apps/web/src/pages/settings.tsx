@@ -6,7 +6,7 @@ import { errorMessage } from '@/api/errors'
 import { useScrobbling, useUserSettings } from '@/api/queries'
 import { useApi } from '@/api/services'
 import { useLogout } from '@/auth/actions'
-import { useCurrentUser, useSetupStatus } from '@/auth/session'
+import { useCurrentUser, useSetupStatus, useSharingEnabled } from '@/auth/session'
 import type { SettingsDialogState } from '@/components/layout/AppShell'
 import { SettingsDialog } from '@/components/settings/SettingsDialog'
 import { loadFailure } from '@/components/ui/load-failure'
@@ -24,7 +24,7 @@ const lastFmReturns: Record<string, { message: string; ok: boolean }> = {
   error: { message: 'Last.fm did not answer. Try again in a moment.', ok: false },
 }
 
-const scrobbleSettings: (keyof UpdateUserSettings)[] = ['scrobbleListenBrainz', 'scrobbleLastFm', 'shareNowPlaying']
+const scrobbleSettings: (keyof UpdateUserSettings)[] = ['scrobbleListenBrainz', 'scrobbleLastFm', 'syncListenBrainzHearts', 'syncLastFmHearts', 'shareNowPlaying']
 
 /** The section whose controls made a change: a scrobbling switch is in Scrobbling, the library's and explicit content's in Library, the rest in Playback. */
 function refusedIn(patch: UpdateUserSettings): 'scrobbling' | 'library' | 'playback' {
@@ -60,7 +60,7 @@ function useScrobbleConnections() {
   const api = useApi()
   const queryClient = useQueryClient()
   const save = (status: ScrobblingStatus) => queryClient.setQueryData(queryKeys.scrobbling(), status)
-  const listenBrainz = useMutation({ mutationFn: (token: string) => api.scrobble.connectListenBrainz({ token }), onSuccess: save })
+  const listenBrainz = useMutation({ mutationFn: (body: { token: string; apiUrl?: string }) => api.scrobble.connectListenBrainz(body), onSuccess: save })
   const lastFm = useMutation({ mutationFn: () => api.scrobble.startLastFm(), onSuccess: ({ url }) => window.location.assign(url) })
   const disconnect = useMutation({
     mutationFn: (target: ScrobbleTarget) => (target === 'listenbrainz' ? api.scrobble.disconnectListenBrainz() : api.scrobble.disconnectLastFm()),
@@ -88,6 +88,10 @@ export function SettingsDialogHost({ open, section, lastFm, onOpenChange, onSect
   const createPassword = useMutation({ mutationFn: api.auth.createAppPassword, onSuccess: refreshPasswords })
   // The revoked password leaves the list; the confirmation says a failure.
   const revokePassword = useMutation({ mutationFn: api.auth.deleteAppPassword, onSuccess: refreshPasswords })
+  const sharingEnabled = useSharingEnabled()
+  const shares = useQuery({ queryKey: queryKeys.shares(), queryFn: () => api.share.list({ limit: 200 }), enabled: open })
+  // The server tells the user's other screens; this one refreshes now.
+  const revokeShare = useMutation({ mutationFn: (id: string) => api.share.revoke(id), onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.shares() }) })
   // Said in the Account section once the dialog that changed it closes.
   const changePassword = useMutation({ mutationFn: api.auth.changePassword })
   // Only the admin route can rename a user, so only admins can rename themselves.
@@ -127,12 +131,15 @@ export function SettingsDialogHost({ open, section, lastFm, onOpenChange, onSect
         setName(browserName())
       }}
       scrobbling={scrobbling.data}
-      onConnectListenBrainz={token => connections.listenBrainz.mutateAsync(token)}
+      onConnectListenBrainz={(token, apiUrl) => connections.listenBrainz.mutateAsync({ token, apiUrl })}
       onConnectLastFm={() => connections.lastFm.mutate()}
       onDisconnect={target => connections.disconnect.mutateAsync(target)}
       appPasswords={passwords.data?.items}
       onCreateAppPassword={request => createPassword.mutateAsync(request)}
       onRevokeAppPassword={id => revokePassword.mutateAsync(id)}
+      shareLinks={shares.data?.items}
+      sharingEnabled={sharingEnabled}
+      onRevokeShareLink={id => revokeShare.mutateAsync(id)}
       onChangePassword={request => changePassword.mutateAsync(request)}
       onRename={user.role === 'admin' ? displayName => rename.mutateAsync(displayName) : undefined}
       onLogout={logout}
@@ -143,6 +150,7 @@ export function SettingsDialogHost({ open, section, lastFm, onOpenChange, onSect
         sharing: loadFailure(settings, 'Your now-playing sharing setting did not load'),
         scrobbling: loadFailure(scrobbling, 'Your scrobbling connections did not load'),
         appPasswords: loadFailure(passwords, 'Your app passwords did not load'),
+        shareLinks: loadFailure(shares, 'Your share links did not load'),
       }}
       errors={{ ...refused, scrobbling: refused.scrobbling ?? lastFmStart }}
       lastFm={lastFm === undefined ? undefined : lastFmReturns[lastFm] ?? lastFmReturns.error}

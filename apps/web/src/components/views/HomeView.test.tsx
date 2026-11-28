@@ -1,10 +1,11 @@
 import type { HomeResponse } from '@squirmy/contracts'
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { AppRoutes } from '@/App'
 import { album, artists, home, mixes, personalHome, summary, track } from '@/fixtures/catalog'
 import { fakeServices } from '@/test/fake-services'
+import { dataTransfer } from '@/test/data-transfer'
 import { renderWithApp } from '@/test/render'
 
 function renderHome(response: HomeResponse) {
@@ -54,6 +55,27 @@ describe('personal home', () => {
     const rail = await screen.findByRole('region', { name: 'Jump back in' })
     await userEvent.click(within(rail).getByRole('button', { name: `Play ${artists[0]!.name} Radio` }))
     await waitFor(() => expect(fake.api.radio.artist).toHaveBeenCalledWith(artists[0]!.id))
+  })
+
+  it('starts a radio again or goes to its artist from its card’s right-click menu, and drags a mix but not a radio', async () => {
+    const fake = renderHome(personalHome)
+    const rail = await screen.findByRole('region', { name: 'Jump back in' })
+    const radio = within(rail).getByRole('link', { name: `${artists[0]!.name} Radio` })
+    // A radio's card keeps its look: its menu is a right-click (or a long press) alone.
+    expect(within(rail).queryByRole('button', { name: `More options for ${artists[0]!.name} Radio` })).toBeNull()
+    fireEvent.contextMenu(radio)
+    expect((await screen.findAllByRole('menuitem')).map(item => item.textContent)).toEqual(['Start radio', 'Go to artist'])
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Start radio' }))
+    await waitFor(() => expect(fake.api.radio.artist).toHaveBeenCalledWith(artists[0]!.id))
+
+    // A mix's songs load when it lands; a radio's are only picked once it starts, so it brings nothing.
+    const dragged = (link: HTMLElement) => {
+      const transfer = dataTransfer()
+      fireEvent.dragStart(link, { dataTransfer: transfer })
+      return transfer.types
+    }
+    expect(dragged(within(rail).getByRole('link', { name: mixes[1]!.name }))).toContain('application/x-squirmy-collection')
+    expect(dragged(radio)).not.toContain('application/x-squirmy-collection')
   })
 
   it('shows artist rails without a See all, since no page holds more of them', async () => {

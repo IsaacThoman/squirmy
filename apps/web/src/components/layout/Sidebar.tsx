@@ -1,18 +1,19 @@
 import type { PlaylistSummary, TrackSummary, User } from '@squirmy/contracts'
-import { AudioLines, Bookmark, Check, CircleAlert, FolderUp, House, Library, LogOut, PanelLeftClose, PanelLeftOpen, Play, Plus, Search, Settings, ShieldCheck, Upload, type LucideIcon } from 'lucide-react'
+import { AudioLines, Bookmark, Check, CircleAlert, FolderUp, House, Library, ListMusic, LogOut, PanelLeftClose, PanelLeftOpen, Play, Plus, Search, Settings, ShieldCheck, Sparkles, Upload, type LucideIcon } from 'lucide-react'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router'
 import { errorMessage } from '@/api/errors'
-import { LikedCover, PlaylistCover } from '@/components/music/CollectionArt'
+import { LikedCover, PlaylistCover, SmartMark } from '@/components/music/CollectionArt'
 import { Equalizer } from '@/components/music/Equalizer'
 import { Kbd, Spinner } from '@/components/ui/feedback'
 import { ContextMenu, DropdownMenu, type MenuEntry } from '@/components/ui/menu'
 import { canUploadMusic } from '@/lib/catalog'
-import { draggedTracks } from '@/lib/drag'
+import { draggedMusic, type MusicDrag } from '@/lib/drag'
 import { modKey } from '@/lib/platform'
 import { cn } from '@/lib/utils'
 import { FAILURE_MS, useLibrary } from '@/player/library-context'
 import { usePlayer } from '@/player/player-context'
+import { useDroppedMusic } from '@/player/use-dropped-music'
 import { LogoMark } from './Logo'
 
 type SidebarProps = {
@@ -68,6 +69,10 @@ const SidebarView = memo(function SidebarView({
     await Promise.all(saving.map(track => library.setSaved({ type: 'track', id: track.id, title: track.title }, true)))
   }, [library])
   const addToPlaylist = useCallback((playlist: PlaylistSummary, tracks: TrackSummary[]) => library.addToPlaylist(playlist, tracks), [library])
+  const newEntries = useMemo<MenuEntry[]>(() => [
+    { label: 'Playlist', icon: <ListMusic />, onSelect: () => library.newPlaylist() },
+    { label: 'Smart playlist', icon: <Sparkles />, onSelect: () => library.newSmartPlaylist() },
+  ], [library])
   const likedEntries = useMemo<MenuEntry[]>(() => [{ label: 'Play', icon: <Play />, onSelect: onPlayLiked }], [onPlayLiked])
 
   // Labels fade out a little before the sidebar finishes folding, and in after it opens.
@@ -188,9 +193,15 @@ const SidebarView = memo(function SidebarView({
           <div aria-hidden={collapsed} inert={collapsed} className={cn('transition-opacity ease-[cubic-bezier(0.4,0,0.2,1)]', collapsed && 'h-0 overflow-hidden', contentTransition)}>
             <div className="flex items-center px-2 pb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               <Link to="/library?filter=playlists" onClick={onNavigate} className="rounded-sm underline-offset-2 outline-none pointer-coarse:flex pointer-coarse:h-11 pointer-coarse:items-center hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline">Playlists</Link>
-              <button type="button" onClick={() => library.newPlaylist()} aria-label="New playlist" className="relative -my-0.5 ml-auto flex size-6 items-center justify-center rounded-md pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
-                <Plus aria-hidden className="size-3.5" />
-              </button>
+              <DropdownMenu
+                align="end"
+                entries={newEntries}
+                trigger={(
+                  <button type="button" aria-label="New playlist" className="relative -my-0.5 ml-auto flex size-6 items-center justify-center rounded-md pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-sidebar-accent">
+                    <Plus aria-hidden className="size-3.5" />
+                  </button>
+                )}
+              />
             </div>
           </div>
           <ul role="list" aria-label="Playlists" className="space-y-0.5">
@@ -273,12 +284,13 @@ const PlaylistItem = memo(function PlaylistItem({ playlist, playing, owned, coll
       to={`/playlist/${playlist.id}`}
       title={playlist.name}
       art={<PlaylistCover artworks={playlist.artworks} className="size-6 rounded-[5px]" />}
+      smart={playlist.smart}
       playing={playing}
       entries={entries}
       collapsed={collapsed}
       labelClass={labelClass}
       onNavigate={onNavigate}
-      onDropTracks={owned ? tracks => onDropTracks(playlist, tracks) : undefined}
+      onDropTracks={owned && !playlist.smart ? tracks => onDropTracks(playlist, tracks) : undefined}
     />
   )
 })
@@ -298,6 +310,8 @@ type PlaylistRowProps = {
   onNavigate: () => void
   /** Resolves once the songs are in, or rejects: the row says which in place of its count. */
   onDropTracks?: (tracks: TrackSummary[]) => Promise<unknown>
+  /** A smart playlist: a small mark after the name. */
+  smart?: boolean
 }
 
 /** How long a row says songs dropped on it went in. A failure stays as long as the heart's does. */
@@ -306,25 +320,28 @@ const DROPPED_MS = 2500
 /** What songs dropped on a row came to: still going in, in, or refused and why. */
 type Dropped = { state: 'pending' | 'done' } | { state: 'failed'; message: string }
 
-function PlaylistRow({ to, title, detail, art, playing, entries, collapsed, labelClass, onNavigate, onDropTracks }: PlaylistRowProps) {
+function PlaylistRow({ to, title, detail, art, playing, entries, collapsed, labelClass, onNavigate, onDropTracks, smart }: PlaylistRowProps) {
   const [over, setOver] = useState(false)
   const [dropped, setDropped] = useState<Dropped | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
   useEffect(() => () => clearTimeout(timer.current), [])
-  const drop = (tracks: TrackSummary[]) => {
+  const songsOf = useDroppedMusic()
+  // Songs, or an album or playlist card, whose songs load first.
+  const drop = (music: MusicDrag) => {
     clearTimeout(timer.current)
     setDropped({ state: 'pending' })
     const settle = (next: Dropped, ms: number) => {
       setDropped(next)
       timer.current = setTimeout(() => setDropped(null), ms)
     }
-    onDropTracks!(tracks).then(
+    const added = music.kind === 'tracks' ? onDropTracks!(music.drag.tracks) : songsOf(music).then(tracks => onDropTracks!(tracks))
+    added.then(
       () => settle({ state: 'done' }, DROPPED_MS),
       (error: unknown) => settle({ state: 'failed', message: errorMessage(error) }, FAILURE_MS),
     )
   }
   const said = dropped?.state === 'done' ? (to === '/liked' ? 'Saved' : 'Added') : dropped?.state === 'failed' ? (to === '/liked' ? 'Couldn’t save' : 'Couldn’t add') : null
-  const accepts = (event: DragEvent) => Boolean(onDropTracks && draggedTracks(event))
+  const accepts = (event: DragEvent) => Boolean(onDropTracks && draggedMusic(event))
   const link = (
     <NavLink
       to={to}
@@ -338,11 +355,11 @@ function PlaylistRow({ to, title, detail, art, playing, entries, collapsed, labe
       // Moving onto the row's own cover or title is not leaving it.
       onDragLeave={event => { if (!(event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget))) setOver(false) }}
       onDrop={event => {
-        const drag = draggedTracks(event)
+        const music = draggedMusic(event)
         setOver(false)
-        if (!onDropTracks || !drag) return
+        if (!onDropTracks || !music) return
         event.preventDefault()
-        drop(drag.tracks)
+        drop(music)
       }}
       className={cn(
         'flex items-center gap-2 overflow-hidden rounded-lg text-sm text-sidebar-foreground/85 outline-none transition-colors hover:bg-sidebar-accent/60 focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-sidebar-accent aria-[current=page]:font-medium aria-[current=page]:text-sidebar-accent-foreground',
@@ -353,7 +370,10 @@ function PlaylistRow({ to, title, detail, art, playing, entries, collapsed, labe
       )}
     >
       <span className="flex shrink-0">{art}</span>
-      <span dir="auto" className={cn('min-w-0 flex-1 truncate whitespace-nowrap', labelClass)}>{title}</span>
+      <span className={cn('flex min-w-0 flex-1 items-center gap-1.5', labelClass)}>
+        <span dir="auto" className="min-w-0 truncate whitespace-nowrap">{title}</span>
+        {smart && <SmartMark className="size-3 text-muted-foreground" />}
+      </span>
       {dropped
         ? (
             <span aria-hidden className={cn('flex shrink-0 items-center gap-1 whitespace-nowrap text-xs', dropped.state === 'failed' ? 'text-destructive' : 'text-muted-foreground', labelClass)}>

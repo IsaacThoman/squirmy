@@ -5,17 +5,22 @@ import { Outlet, useLocation } from 'react-router'
 import { NowPlaying, type NowPlayingPane } from '@/components/player/NowPlaying'
 import { ListenTogetherProvider } from '@/components/player/ListenTogether'
 import { MiniPlayer, PlayerBar } from '@/components/player/PlayerBar'
+import { canPopOut, usePopOut } from '@/components/player/pop-out'
+import { PopOutPlayer } from '@/components/player/PopOutPlayer'
+import { toggleMute } from '@/components/player/mute'
 import { QueuePanel } from '@/components/player/Queue'
 import { usePreloadNextArtwork } from '@/components/player/use-next-artwork'
 import { SettingsDialogContext, type SettingsOpenOptions, type SettingsSection } from '@/components/settings/settings-dialog'
 import { cn } from '@/lib/utils'
 import { useLibrary } from '@/player/library-context'
-import { usePlayer } from '@/player/player-context'
+import { hostControls, usePlayer } from '@/player/player-context'
+import { letterIsTaken } from '@/player/shortcuts'
 import { BackBreadcrumb } from './BackBreadcrumb'
 import { ErrorBoundary } from './ErrorBoundary'
 import { ScrollContainerContext } from './scroll-context'
 import { useScrollMemory } from './scroll-memory'
 import { ShellNotices } from './ShellNotices'
+import { ShortcutsDialog } from './ShortcutsDialog'
 import { Sidebar } from './Sidebar'
 import { SidebarResizeHandle } from './SidebarResizeHandle'
 import {
@@ -24,7 +29,22 @@ import {
 
 /** `lastFm`: what Last.fm answered, while the dialog it opened stays open. */
 export type SettingsDialogState = { open: boolean; section: SettingsSection; lastFm?: string; onOpenChange: (open: boolean) => void; onSectionChange: (section: SettingsSection) => void }
-export type SearchDialogState = { open: boolean; onOpenChange: (open: boolean) => void }
+/** What the command palette can do to the shell itself, beside what the player does. */
+export type ShellCommands = {
+  /** The queue panel, or Now Playing's queue on a phone. */
+  toggleQueue: () => void
+  queueOpen: boolean
+  toggleLyrics: () => void
+  lyricsOpen: boolean
+  openNowPlaying: () => void
+  toggleSidebar: () => void
+  openSettings: (section?: SettingsSection) => void
+  showShortcuts: () => void
+  /** Pops the player out into its own window; left out where the browser cannot. */
+  togglePopOut?: () => void
+  poppedOut: boolean
+}
+export type SearchDialogState = { open: boolean; onOpenChange: (open: boolean) => void; commands: ShellCommands }
 
 type AppShellProps = {
   user: User
@@ -77,8 +97,15 @@ const isEditable = (target: EventTarget | null) => target instanceof Element && 
 /** The shortcut's key, from the key's position when the layout types another letter there (Cyrillic, Greek). */
 function shortcutKey(event: KeyboardEvent): string {
   const key = event.key.toLowerCase()
-  if (key === 'k' || key === 'b' || key === ',') return key
-  return event.code === 'KeyK' ? 'k' : event.code === 'KeyB' ? 'b' : event.code === 'Comma' ? ',' : key
+  if (key === 'k' || key === 'b' || key === ',' || key === 'f') return key
+  return event.code === 'KeyK' ? 'k' : event.code === 'KeyB' ? 'b' : event.code === 'Comma' ? ',' : event.code === 'KeyF' ? 'f' : key
+}
+
+/** The letter of a key press, by position on layouts that type another alphabet there. */
+function letterOf(event: KeyboardEvent): string {
+  const key = event.key.length === 1 ? event.key.toLowerCase() : ''
+  if (/^[a-z/?]$/.test(key)) return key
+  return /^Key[A-Z]$/.test(event.code) ? event.code.slice(3).toLowerCase() : key
 }
 
 /**
@@ -118,6 +145,8 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
   const [settings, setSettings] = useState<{ open: boolean; section: SettingsSection; lastFm?: string }>({ open: false, section: 'playback' })
   const [queueOpen, setQueueOpen] = useState(false)
   const [nowPlaying, setNowPlaying] = useState<NowPlayingView>({ open: false, pane: 'art' })
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const popOut = usePopOut()
 
   // One dialog at a time: each shortcut closes the others.
   const openSettings = useCallback((section: SettingsSection = 'playback', options: SettingsOpenOptions = {}) => {
@@ -126,6 +155,11 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
     setSettings({ open: true, section, lastFm: options.lastFm })
   }, [])
   const settingsController = useMemo(() => ({ openSettings }), [openSettings])
+  const openSearch = useCallback(() => {
+    setDrawerOpen(false)
+    setSettings(current => (current.open ? { ...current, open: false } : current))
+    setSearchOpen(true)
+  }, [])
 
   const setSidebarCollapsed = useCallback((next: boolean) => {
     setCollapsed(next)
@@ -199,12 +233,16 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
     }
   }, [])
 
+  const searchOpenRef = useRef(searchOpen)
+  useEffect(() => { searchOpenRef.current = searchOpen })
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       // Shift and Alt combinations belong to the browser (⌘⇧B shows the bookmarks bar).
       if (event.defaultPrevented || !(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return
       const key = shortcutKey(event)
-      if (key !== 'k' && key !== ',' && !(key === 'b' && !isEditable(event.target))) return
+      // ⌘F searches the music; pressed again with the search open, it is the browser's Find.
+      if (key === 'f' && searchOpenRef.current) return
+      if (key !== 'k' && key !== ',' && key !== 'f' && !(key === 'b' && !isEditable(event.target))) return
       event.preventDefault()
       // Held down, the key repeats; the first press is the one that counts.
       if (event.repeat) return
@@ -212,6 +250,8 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
         setDrawerOpen(false)
         setSettings(current => (current.open ? { ...current, open: false } : current))
         setSearchOpen(open => !open)
+      } else if (key === 'f') {
+        openSearch()
       } else if (key === 'b') {
         toggleShortcut.current()
       } else {
@@ -220,7 +260,33 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [openSettings])
+  }, [openSettings, openSearch])
+
+  // The queue's own panel from 768px; below that, and while Now Playing covers the panel, it is a
+  // pane of Now Playing.
+  const toggleQueue = useCallback(() => {
+    if (!mobile && !nowPlaying.open) return setQueueOpen(open => !open)
+    setNowPlaying(now => (now.open && now.pane === 'queue' ? { ...now, open: false } : { open: true, pane: 'queue' }))
+  }, [mobile, nowPlaying.open])
+  const toggleLyrics = useCallback(() => setNowPlaying(now => ({ open: !(now.open && now.pane === 'lyrics'), pane: 'lyrics' })), [])
+  const openNowPlaying = useCallback(() => setNowPlaying(now => ({ ...now, open: true })), [])
+  const showShortcuts = useCallback(() => {
+    setSearchOpen(false)
+    setShortcutsOpen(true)
+  }, [])
+  const popOutSupported = canPopOut()
+  const commands = useMemo<ShellCommands>(() => ({
+    toggleQueue,
+    queueOpen: mobile || nowPlaying.open ? nowPlaying.open && nowPlaying.pane === 'queue' : queueOpen,
+    toggleLyrics,
+    lyricsOpen: nowPlaying.open && nowPlaying.pane === 'lyrics',
+    openNowPlaying,
+    toggleSidebar,
+    openSettings,
+    showShortcuts,
+    togglePopOut: popOutSupported ? popOut.toggle : undefined,
+    poppedOut: popOut.popped !== null,
+  }), [toggleQueue, mobile, nowPlaying, queueOpen, toggleLyrics, openNowPlaying, toggleSidebar, openSettings, showShortcuts, popOutSupported, popOut.toggle, popOut.popped])
 
   // The open drawer is modal: it takes focus, keeps Tab inside it, closes on Escape and gives focus back.
   const drawerShown = mobile && drawerOpen
@@ -367,14 +433,17 @@ export const AppShell = memo(function AppShell({ user, playlists, likedCount, on
             </div>
 
             <div ref={bottom} className="shrink-0">
-              <ShellPlayer mobile={mobile} queueOpen={queueOpen} setQueueOpen={setQueueOpen} nowPlaying={nowPlaying} setNowPlaying={setNowPlaying} />
+              <ShellPlayer mobile={mobile} queueOpen={queueOpen} setQueueOpen={setQueueOpen} nowPlaying={nowPlaying} setNowPlaying={setNowPlaying} onTogglePopOut={commands.togglePopOut} poppedOut={commands.poppedOut} />
             </div>
           </div>
 
           <ShellNowPlaying nowPlaying={nowPlaying} setNowPlaying={setNowPlaying} />
           <ShellNotices />
         </div>
-        {renderSearch({ open: searchOpen, onOpenChange: onSearchOpenChange })}
+        <ShellShortcuts commands={commands} onSearch={openSearch} />
+        <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+        {popOut.popped && <PopOutPlayer target={popOut.popped} />}
+        {renderSearch({ open: searchOpen, onOpenChange: onSearchOpenChange, commands })}
         {renderSettings({ open: settings.open, section: settings.section, lastFm: settings.lastFm, onOpenChange: onSettingsOpenChange, onSectionChange: onSettingsSectionChange })}
       </ListenTogetherProvider>
     </SettingsDialogContext>
@@ -391,16 +460,61 @@ function useCurrentLike() {
   return { liked, toggleLike }
 }
 
+/**
+ * The letter keys, which reach the app wherever focus is but in a field, a menu or a dialog
+ * (`letterIsTaken`): M mutes, S shuffles, R repeats, L saves the song playing, Q and Y show the
+ * queue and lyrics, / searches and ? lists them all. It renders nothing; it reads the session
+ * to know the song and the volume.
+ */
+function ShellShortcuts({ commands, onSearch }: { commands: ShellCommands; onSearch: () => void }) {
+  const { state, controls } = usePlayer()
+  const library = useLibrary()
+  const latest = useRef({ state, commands, onSearch })
+  useEffect(() => { latest.current = { state, commands, onSearch } })
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (letterIsTaken(event)) return
+      const letter = letterOf(event)
+      // ? is Shift with / on most layouts; every other letter is pressed alone.
+      if (event.shiftKey && letter !== '?') return
+      const { state, commands, onSearch } = latest.current
+      const track = state.current?.track
+      const deviceId = state.activeDeviceId ?? state.thisDeviceId
+      const run: Record<string, (() => void) | undefined> = {
+        m: () => toggleMute(state.volume, deviceId, volume => controls.setVolume(volume)),
+        // The host's in a jam this user follows, as their buttons are.
+        s: hostControls(state) ? undefined : () => controls.setShuffle(!state.shuffle),
+        r: hostControls(state) ? undefined : controls.cycleRepeat,
+        l: track && (() => void library.setSaved({ type: 'track', id: track.id, title: track.title }, !track.liked)),
+        q: commands.toggleQueue,
+        y: track && commands.toggleLyrics,
+        '/': onSearch,
+        '?': commands.showShortcuts,
+      }
+      const action = run[letter]
+      if (!(letter in run)) return
+      event.preventDefault()
+      if (event.repeat || !action) return
+      action()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [controls, library])
+  return null
+}
+
 type ShellPlayerProps = {
   mobile: boolean
   queueOpen: boolean
   setQueueOpen: Dispatch<SetStateAction<boolean>>
   nowPlaying: NowPlayingView
   setNowPlaying: Dispatch<SetStateAction<NowPlayingView>>
+  onTogglePopOut?: () => void
+  poppedOut?: boolean
 }
 
 /** The player along the bottom: the full bar on a desktop, the small one on a phone. */
-function ShellPlayer({ mobile, queueOpen, setQueueOpen, nowPlaying, setNowPlaying }: ShellPlayerProps) {
+function ShellPlayer({ mobile, queueOpen, setQueueOpen, nowPlaying, setNowPlaying, onTogglePopOut, poppedOut = false }: ShellPlayerProps) {
   const player = usePlayer()
   const { liked, toggleLike } = useCurrentLike()
   const openNowPlaying = () => setNowPlaying(now => ({ ...now, open: true }))
@@ -416,6 +530,8 @@ function ShellPlayer({ mobile, queueOpen, setQueueOpen, nowPlaying, setNowPlayin
       lyricsOpen={nowPlaying.open && nowPlaying.pane === 'lyrics'}
       onToggleLyrics={() => setNowPlaying(now => ({ open: !(now.open && now.pane === 'lyrics'), pane: 'lyrics' }))}
       onOpenNowPlaying={openNowPlaying}
+      onTogglePopOut={onTogglePopOut}
+      poppedOut={poppedOut}
     />
   )
 }

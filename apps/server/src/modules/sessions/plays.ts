@@ -1,3 +1,4 @@
+import { emitWebhook } from '../integrations/webhooks.js'
 import { positionAt, type Session } from '@squirmy/client-core'
 import { PlaybackContext, queryKeys } from '@squirmy/contracts'
 import { z } from 'zod'
@@ -151,5 +152,8 @@ export async function insertPlay({ id = newId(), ...values }: Omit<typeof plays.
     target: plays.id,
     set: { recordingId: values.recordingId, albumId: values.albumId, msPlayed: values.msPlayed, completed: values.completed, skipped: values.skipped },
   })
+  if (values.completed) await emitWebhook('scrobble', {
+    playId: id, trackId: values.recordingId, albumId: values.albumId, startedAt: values.startedAt, msPlayed: values.msPlayed,
+  }, values.userId, id)
   if (!values.skipped) await invalidate({ user: values.userId }, [queryKeys.history(), queryKeys.home()])
 }

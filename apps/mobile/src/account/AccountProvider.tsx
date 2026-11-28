@@ -277,6 +277,12 @@ export function useWantlistEnabled(): boolean {
   return state.status === 'signedIn' && state.server.wantlistEnabled;
 }
 
+/** Whether the signed-in server lets members make public share links. Off, Share sends the name only. */
+export function useSharingEnabled(): boolean {
+  const { state } = useAccount();
+  return state.status === 'signedIn' && state.server.sharingEnabled === true;
+}
+
 /** The server's root URL, or an empty string before one is chosen. */
 export function useServerUrl(): string {
   const { state } = useAccount();

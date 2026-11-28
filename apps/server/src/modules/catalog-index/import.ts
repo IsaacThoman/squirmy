@@ -729,29 +729,23 @@ async function execute(sql: postgres.ReservedSql, job: Job, options: Pick<Import
   }
 }
 
-/** The advisory import lock is free: no process is running an import. */
-const lockIsFree = (sql: postgres.Sql) => sql`
-  not exists (
-    select 1 from pg_locks
-    where locktype = 'advisory' and objsubid = 1
-      and database = (select oid from pg_database where datname = current_database())
-      and ((classid::bigint << 32) | objid::bigint) = hashtext(${lockKey})::bigint
-  )`
-
-/**
- * Marks imports still `running` as interrupted when no process holds the import lock:
- * the worker that ran them was killed (OOM, SIGKILL, power loss) before it could record
- * it. They resume from their last checkpoint like those a shutdown stopped. Returns
- * whether any row was marked. One statement, so it cannot race an import that is
- * starting: that one takes the lock before it inserts or claims its row.
- */
+/** Marks abandoned imports while holding the same lock that a live importer uses. */
 export async function markInterruptedImports(): Promise<boolean> {
-  const sql = getSql()
-  const rows = await sql<{ id: string }[]>`
-    update catalog_index_imports set state = 'interrupted'
-    where state = 'running' and ${lockIsFree(sql)}
-    returning id`
-  return rows.length > 0
+  return getSql().begin(async (sql) => {
+    const [lock] = await sql<{ locked: boolean }[]>`select pg_try_advisory_xact_lock(hashtext(${lockKey})) as locked`
+    if (!lock?.locked) return false
+    const rows = await sql<{ id: string }[]>`
+      update catalog_index_imports set state = 'interrupted'
+      where state = 'running' returning id`
+    return rows.length > 0
+  })
+}
+
+/** A running or interrupted import already owns this request. */
+export async function hasUnfinishedImport(): Promise<boolean> {
+  const [row] = await db.select({ id: catalogIndexImports.id }).from(catalogIndexImports)
+    .where(inArray(catalogIndexImports.state, ['running', 'interrupted'])).limit(1)
+  return Boolean(row)
 }
 
 /** Imports waiting to be resumed, with the resume count that tells one attempt from the next. */

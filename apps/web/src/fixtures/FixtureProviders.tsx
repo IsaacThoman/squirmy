@@ -69,7 +69,7 @@ export function FixtureProviders({ children, initial }: { children: ReactNode; i
         if (options?.shuffle) dispatch({ type: 'patch', patch: () => ({ shuffle: true }) })
         restart({ type: 'play', tracks, startIndex, context: context ?? null })
       },
-      enqueue: (tracks, placement) => dispatch({ type: 'enqueue', tracks, placement }),
+      enqueue: (tracks, placement, toIndex) => dispatch({ type: 'enqueue', tracks, placement, toIndex }),
       playEntry: entryId => restart({ type: 'playEntry', entryId }),
       removeEntry: entryId => dispatch({ type: 'patch', patch: state => ({ queue: state.queue.filter(item => item.entry.id !== entryId) }) }),
       moveEntry: (entryId, toIndex) => dispatch({ type: 'move', entryId, toIndex }),
@@ -129,9 +129,15 @@ function useFixtureLibrary(): LibraryActions {
     setSaved: async () => {},
     setWanted: async (target, value) => setWanted(map => new Map(map).set(target.type === 'album' ? target.album.id : target.track.id, value)),
     playlists: playlistSummaries,
+    ownPlaylists: playlistSummaries,
     addToPlaylist: async () => true,
     // New playlists need the server.
     newPlaylist: () => {},
+    sharingEnabled: true,
+    share: () => {},
+    newSmartPlaylist: () => {},
+    showRatings: false,
+    setRating: async () => {},
   }), [wanted])
 }
 
@@ -148,7 +154,7 @@ type Action =
   | { type: 'previous' }
   | { type: 'ready' }
   | { type: 'play'; tracks: TrackSummary[]; startIndex: number; context: PlayerState['context'] }
-  | { type: 'enqueue'; tracks: TrackSummary[]; placement: 'next' | 'last' }
+  | { type: 'enqueue'; tracks: TrackSummary[]; placement: 'next' | 'last'; toIndex?: number }
   | { type: 'playEntry'; entryId: string }
   | { type: 'move'; entryId: string; toIndex: number }
 
@@ -221,6 +227,7 @@ function reduce(state: PlayerState, action: Action): PlayerState {
     }
     case 'enqueue': {
       const added = playable(action.tracks).map(item)
+      if (action.toIndex !== undefined) return { ...state, queue: [...state.queue.slice(0, action.toIndex), ...added, ...state.queue.slice(action.toIndex)] }
       return { ...state, queue: action.placement === 'next' ? [...added, ...state.queue] : [...state.queue, ...added] }
     }
     case 'playEntry': {

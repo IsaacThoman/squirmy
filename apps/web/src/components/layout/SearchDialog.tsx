@@ -6,6 +6,7 @@ import { searchItemText, searchRowClass } from '@/components/music/search-row'
 import { SearchItemArt, SearchRowBody } from '@/components/music/SearchRow'
 import { Dialog, DialogFrame, DialogTitle } from '@/components/ui/dialog'
 import { Kbd, Spinner } from '@/components/ui/feedback'
+import { fuzzyFilter } from '@/lib/fuzzy'
 import { cn } from '@/lib/utils'
 
 const MAX_QUERY_LENGTH = 200
@@ -13,9 +14,16 @@ const MAX_QUERY_LENGTH = 200
 /** A place the dialog offers before anything is typed. */
 export type SearchDestination = { label: string; to: string; icon: LucideIcon }
 
+/**
+ * Something the dialog does rather than finds: play or pause, show the queue, open a setting.
+ * `keywords` are other words it answers to; `shortcut` is its key, shown beside it.
+ */
+export type PaletteCommand = { id: string; label: string; icon: LucideIcon; keywords?: string[]; shortcut?: string; disabled?: boolean; run: () => void }
+
 export type SearchChoice =
   | { kind: 'result'; item: SearchItem }
   | { kind: 'destination'; destination: SearchDestination }
+  | { kind: 'command'; command: PaletteCommand }
   /** Every result for the query, on the search page. */
   | { kind: 'all'; query: string }
 
@@ -41,13 +49,26 @@ type SearchDialogProps = {
   onChoose: (choice: SearchChoice) => void
   /** The row the highlight rests on, chosen on purpose or as the best match: its page can start loading. */
   onIntent?: (choice: SearchChoice) => void
+  /**
+   * What the dialog can do: listed under the places to go before anything is typed, and the
+   * best few matches after the results as it is. A query that starts with ">" lists commands alone.
+   */
+  commands?: PaletteCommand[]
 }
 
 const choiceKey = (choice: SearchChoice) => (
   choice.kind === 'result' ? searchItemKey(choice.item)
     : choice.kind === 'destination' ? `to:${choice.destination.to}`
-      : 'all'
+      : choice.kind === 'command' ? `do:${choice.command.id}`
+        : 'all'
 )
+
+/** How many commands and places follow the results of a query. */
+const MATCHED_COMMANDS = 4
+/** Starts a query for commands alone, as in code editors' palettes. */
+const COMMAND_PREFIX = '>'
+
+const noCommands: PaletteCommand[] = []
 
 /** How many results the dialog lists; the search page has the rest. */
 export const DIALOG_RESULTS = 10
@@ -61,17 +82,34 @@ function choicesOf(results: MergedSearch | null): SearchChoice[] {
  * Quick search from anywhere: type, move with the arrow keys, Enter opens an artist or an album
  * and plays a song. With nothing typed it lists places to go. The search page has everything else.
  */
-export function SearchDialog({ open, onOpenChange, query, onQueryChange, results, stale = false, loading, failed = false, catalogFailed = false, onRetry, destinations, canPlay, isDimmed, onChoose, onIntent }: SearchDialogProps) {
+export function SearchDialog({ open, onOpenChange, query, onQueryChange, results, stale: staleResults = false, loading: searching, failed: searchFailed = false, catalogFailed: catalogMissing = false, onRetry, destinations, canPlay, isDimmed, onChoose, onIntent, commands = noCommands }: SearchDialogProps) {
   const listboxId = useId()
   // The row the arrow keys or the pointer picked since the last change, by key: rows the catalog
   // adds later must not move the highlight off it. Until one is picked, Enter takes the best match.
   const [picked, setPicked] = useState<string | null>(null)
-  const term = query.trim()
+  const typed = query.trim()
+  const commandsOnly = typed.startsWith(COMMAND_PREFIX)
+  // A query for commands searches nothing: the rest of this dialog reads as if nothing were typed but the commands.
+  const term = commandsOnly ? '' : typed
+  const stale = !commandsOnly && staleResults
+  const loading = !commandsOnly && searching
+  const failed = !commandsOnly && searchFailed
+  const catalogFailed = !commandsOnly && catalogMissing
+  const commandTerm = commandsOnly ? typed.slice(COMMAND_PREFIX.length).trim() : typed
+  const matched = useMemo<SearchChoice[]>(() => {
+    const all: SearchChoice[] = [
+      ...commands.filter(command => !command.disabled).map(command => ({ kind: 'command' as const, command })),
+      ...(commandsOnly ? [] : destinations.map(destination => ({ kind: 'destination' as const, destination }))),
+    ]
+    return fuzzyFilter(all, commandTerm, choice => (choice.kind === 'command' ? [choice.command.label, ...(choice.command.keywords ?? [])] : choice.kind === 'destination' ? [choice.destination.label] : []))
+  }, [commands, destinations, commandTerm, commandsOnly])
   const choices = useMemo<SearchChoice[]>(() => (
-    term
-      ? [...choicesOf(results), { kind: 'all', query: term }]
-      : destinations.map(destination => ({ kind: 'destination', destination }))
-  ), [term, results, destinations])
+    commandsOnly ? matched
+      : term
+        // One letter finds music; commands and places from two, so they are what was meant.
+        ? [...choicesOf(results), ...(commandTerm.length > 1 ? matched.slice(0, MATCHED_COMMANDS) : []), { kind: 'all', query: term }]
+        : [...destinations.map(destination => ({ kind: 'destination' as const, destination })), ...commands.filter(command => !command.disabled).map(command => ({ kind: 'command' as const, command }))]
+  ), [commandsOnly, matched, term, commandTerm, results, destinations, commands])
   const pickedIndex = picked === null ? -1 : choices.findIndex(choice => choiceKey(choice) === picked)
   const moved = pickedIndex >= 0
   // Results still showing for the start of the query are not what Enter should open: it searches
@@ -82,7 +120,7 @@ export function SearchDialog({ open, onOpenChange, query, onQueryChange, results
     if (choice) setPicked(choiceKey(choice))
   }
   const optionId = (index: number) => `${listboxId}-option-${index}`
-  const settledEmpty = Boolean(term) && !stale && !loading && results !== null && choices.length === 1
+  const settledEmpty = Boolean(term) && !stale && !loading && results !== null && choices.every(choice => choice.kind !== 'result')
 
   // Focus stays in the field, so the active option is scrolled into view as the arrow keys move it.
   useEffect(() => {
@@ -94,6 +132,8 @@ export function SearchDialog({ open, onOpenChange, query, onQueryChange, results
     if (intended) onIntent?.(intended)
   }, [intended, onIntent])
 
+  // Before anything is typed the places lead, listed alone; commands follow under their heading.
+  const grouped = (choice: SearchChoice) => !commandsOnly && (choice.kind === 'command' || (Boolean(term) && choice.kind === 'destination'))
   const choose = (index: number) => {
     const choice = choices[index]
     if (choice) onChoose(choice)
@@ -104,7 +144,7 @@ export function SearchDialog({ open, onOpenChange, query, onQueryChange, results
       id={optionId(index)}
       choice={choice}
       active={index === active}
-      stale={stale && choice.kind !== 'all'}
+      stale={stale && choice.kind === 'result'}
       plays={choice.kind === 'result' && choice.item.type === 'track' && canPlay(choice.item.track)}
       dimmed={choice.kind === 'result' && (choice.item.type === 'track' ? !canPlay(choice.item.track)
         : choice.item.type === 'artist' || choice.item.type === 'album' ? isDimmed(choice.item) : false)}
@@ -145,7 +185,7 @@ export function SearchDialog({ open, onOpenChange, query, onQueryChange, results
                 choose(active)
               }
             }}
-            placeholder="Songs, albums, artists"
+            placeholder={commands.length ? 'Songs, albums, artists or commands' : 'Songs, albums, artists'}
             autoComplete="off"
             spellCheck={false}
             // 16px on phones: iOS zooms into any smaller field that gets focus.
@@ -156,7 +196,8 @@ export function SearchDialog({ open, onOpenChange, query, onQueryChange, results
         </div>
         {(term ? settledEmpty || failed || catalogFailed : true) && (
           <div className="shrink-0 px-1.5 pt-1.5">
-            {!term && <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Go to</p>}
+            {!term && <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{commandsOnly ? 'Commands' : 'Go to'}</p>}
+            {commandsOnly && !choices.length && <p className="px-2.5 pb-1 pt-1.5 text-xs text-muted-foreground [overflow-wrap:anywhere]">No command matches “{commandTerm}”.</p>}
             {term && failed && <Notice text="Search didn’t work. Check your connection." onRetry={onRetry} />}
             {/* Said whatever the server had: without the catalog, "No results" would say there is nothing to find. */}
             {term && !failed && catalogFailed && <Notice text="Couldn’t search the catalog. Only music on this server is listed." onRetry={onRetry} />}
@@ -169,9 +210,16 @@ export function SearchDialog({ open, onOpenChange, query, onQueryChange, results
           </div>
         )}
         {/* The results scroll; the way to all of them stays in sight below them, however many there are. */}
-        <div id={listboxId} role="listbox" aria-label={term ? 'Results' : 'Go to'} className="flex min-h-0 flex-col">
+        <div id={listboxId} role="listbox" aria-label={commandsOnly ? 'Commands' : term ? 'Results' : 'Go to'} className="flex min-h-0 flex-col">
           <div className="min-h-0 overflow-y-auto p-1.5 empty:hidden">
-            {choices.map((choice, index) => choice.kind !== 'all' && option(choice, index))}
+            {choices.map((choice, index) => choice.kind !== 'all' && !grouped(choice) && option(choice, index))}
+            {/* The commands (and, as something is typed, the places) under a heading of their own, after the music. */}
+            {!commandsOnly && choices.some(grouped) && (
+              <div role="group" aria-labelledby={`${listboxId}-commands`}>
+                <p id={`${listboxId}-commands`} className="px-2.5 pb-1 pt-2.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{term ? 'Commands and places' : 'Commands'}</p>
+                {choices.map((choice, index) => grouped(choice) && option(choice, index))}
+              </div>
+            )}
           </div>
           {choices.map((choice, index) => choice.kind === 'all' && <div key="all" className="shrink-0 border-t p-1.5">{option(choice, index)}</div>)}
         </div>
@@ -198,7 +246,9 @@ function Option({ id, choice, active, stale, plays, dimmed, onHover, onChoose }:
     ? <SearchRowBody art={<SearchItemArt item={choice.item} dimmed={dimmed} className="size-9" />} {...searchItemText(choice.item)} dimmed={dimmed} />
     : choice.kind === 'destination'
       ? <SearchRowBody strong={false} art={icon(choice.destination.icon)} title={choice.destination.label} />
-      : <SearchRowBody strong={false} art={icon(Search)} title={`See all results for “${choice.query}”`} />
+      : choice.kind === 'command'
+        ? <SearchRowBody strong={false} art={icon(choice.command.icon)} title={choice.command.label} />
+        : <SearchRowBody strong={false} art={icon(Search)} title={`See all results for “${choice.query}”`} />
   return (
     <button
       id={id}
@@ -211,12 +261,12 @@ function Option({ id, choice, active, stale, plays, dimmed, onHover, onChoose }:
       className={cn(searchRowClass(active, stale), 'py-1.5')}
     >
       {body}
-      {active && (
+      {active ? (
         <span aria-hidden className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
-          {plays ? <><Play className="size-3" fill="currentColor" />Play</> : choice.kind === 'all' ? <ArrowRight className="size-3.5" /> : 'Open'}
+          {plays ? <><Play className="size-3" fill="currentColor" />Play</> : choice.kind === 'all' ? <ArrowRight className="size-3.5" /> : choice.kind === 'command' ? 'Run' : 'Open'}
           <CornerDownLeft className="size-3" />
         </span>
-      )}
+      ) : choice.kind === 'command' && choice.command.shortcut && <Kbd aria-hidden className="shrink-0 max-md:hidden">{choice.command.shortcut}</Kbd>}
     </button>
   )
 }

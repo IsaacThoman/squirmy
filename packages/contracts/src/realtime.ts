@@ -41,6 +41,8 @@ export const EntityFields = z.object({
   inLibrary: z.boolean(),
   /** A track's is a `TrackLibrary`; an album page's is `collection` or `saved`. */
   library: TrackLibrary.nullable(),
+  /** A track's star rating from the viewer (`TrackSummary.rating`), null once removed. */
+  rating: z.number().int().min(1).max(5).nullable(),
 }).partial()
 export type EntityFields = z.infer<typeof EntityFields>
 

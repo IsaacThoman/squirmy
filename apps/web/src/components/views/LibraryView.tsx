@@ -1,5 +1,5 @@
 import type { AlbumSummary, ArtistSummary, LibraryItemsSort, PlaylistSummary, TrackSummary } from '@squirmy/contracts'
-import { CloudOff, Disc3, FolderPlus, LayoutGrid, List, ListMusic, MicVocal, Plus, Search, SearchX, Server, X } from 'lucide-react'
+import { CloudOff, Disc3, FolderPlus, LayoutGrid, List, ListMusic, MicVocal, Plus, Search, SearchX, Server, Sparkles, X } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { errorMessage } from '@/api/errors'
@@ -104,6 +104,7 @@ export type LibraryViewProps = {
   onPlayLiked: () => void
   onPlaySong: (index: number) => void
   onNewPlaylist: () => void
+  onNewSmartPlaylist: () => void
   /** Pins an item whose `pinned` is known to the top of All, or unpins it; a failure is said on the menu entry. */
   onPin?: (item: LibraryItem, pinned: boolean) => Promise<unknown>
 }
@@ -173,7 +174,12 @@ export function LibraryView(props: LibraryViewProps) {
           <div className="ml-auto flex items-center gap-2">
             {count && !searching && <span className="shrink-0 text-xs tabular text-muted-foreground">{count}</span>}
             {filter === 'playlists'
-              ? <Button variant="outline" size="sm" onClick={props.onNewPlaylist}><Plus />New playlist</Button>
+              ? (
+                  <>
+                    <Button variant="ghost" size="sm" onClick={props.onNewSmartPlaylist}><Sparkles />New smart playlist</Button>
+                    <Button variant="outline" size="sm" onClick={props.onNewPlaylist}><Plus />New playlist</Button>
+                  </>
+                )
               // Matches from the server come best first, whatever the sort.
               : sorts.length > 0 && !searchesServer(query) && (
                 <Select

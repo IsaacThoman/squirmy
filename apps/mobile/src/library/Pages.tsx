@@ -18,6 +18,7 @@ import { appearsOnKey, isArtistSectionKey, releaseGroups } from '../data/artists
 import { useAlbum, useArtist, useArtistReleases, useGenreAlbums, useHistory, useHome, useLikedTracks, useMix, usePlaylist } from '../data/queries';
 import type { BrowseProps } from '../Library';
 import { useRealtime } from '../data/realtime';
+import { useShareItem, type ShareLinkTarget } from './shareLink';
 import {
   useAvailability, useDownloadActions, useDownloadedAlbum, useDownloadedLikes, useDownloadedPlaylist,
 } from '../downloads/DownloadsProvider';
@@ -212,6 +213,15 @@ function share(message: string) {
   void Share.share({ message }).catch(() => Alert.alert('Sharing unavailable'));
 }
 
+/** Share for an album or playlist page: a public link where the server allows it, else its name. */
+function useShare() {
+  const shareItem = useShareItem();
+  return (target: ShareLinkTarget, text: string) => {
+    tapFeedback();
+    shareItem(target, text);
+  };
+}
+
 /** True once the page has waited `trackListWaitMs` for the songs of the album `id`. As on web. */
 function useOverdue(awaiting: boolean, id: string): boolean {
   const [overdue, setOverdue] = useState<string | null>(null);
@@ -238,6 +248,7 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const wantFailure = useWantFailure(id);
   const { setLiked, setWanted } = useLibraryActions();
   const wantlist = useWantlistEnabled();
+  const shareAlbum = useShare();
   const control = useDownloadControl(albumCollectionId(id), data?.title ?? '',
     album.data?.discs.flatMap(disc => disc.tracks), () => download.album(album.data!));
   const [checking, setChecking] = useState(false);
@@ -300,7 +311,7 @@ export function AlbumScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
     setSaved: saved => setLiked('album', data.id, saved, data.title),
     setWanted: want => setWanted('album', data.id, want, data.title),
     goToArtist: index => onOpen(link('artist', data.artists[index]!.id)),
-    share: () => share(`${data.title} · ${data.artistCredit}`),
+    share: () => shareAlbum({ kind: 'album', id: data.id, title: data.title }, `${data.title} · ${data.artistCredit}`),
   });
 
   return <DetailPage item={albumCollection(data, link)} tint={data.artwork?.color ?? fallbackTint} title={data.title}
@@ -478,6 +489,7 @@ function HistoryScreen(props: PageProps) {
 
 function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset = 155 }: PageProps) {
   const { state } = useAccount();
+  const sharePlaylist = useShare();
   const playlist = usePlaylist(id);
   const kept = useDownloadedPlaylist(id);
   // Deleted on another device: the server's 404 wins over the copy loaded before it and over
@@ -498,6 +510,9 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const tracks = useMemo(() => items?.map(item => item.track) ?? [], [items]);
   // The kept copy has no item ids, and edits need the server.
   const mine = Boolean(data) && state.status === 'signedIn' && data!.ownerId === state.user.id && Boolean(playlist.data) && !offline;
+  // A smart playlist's songs come from its rules (edited on the web): none are moved or removed here.
+  const smart = Boolean(data?.smart);
+  const editsItems = mine && !smart;
   const play = (shuffle?: boolean, start?: number) => {
     if (!data) return;
     tapFeedback();
@@ -507,8 +522,8 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const songListProps: SongListProps = {
     tracks,
     onPlay: start => play(undefined, start),
-    onTrackMenu: (track, index) => onTrackMenu(track, mine ? { id, itemId: itemIds[index]! } : undefined),
-    playlist: mine ? {
+    onTrackMenu: (track, index) => onTrackMenu(track, editsItems ? { id, itemId: itemIds[index]! } : undefined),
+    playlist: editsItems ? {
       id, itemIds, editing,
       onMove: (itemId, toIndex) => edits.move(id, itemId, toIndex),
       onRemove: itemId => edits.removeItem(id, itemId),
@@ -541,23 +556,24 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   ];
 
   return <DetailPage item={playlistCollection(data, link)} tint={data.artworks[0]?.color ?? null} title={data.name}
-    artist={state.status === 'signedIn' && data.ownerId === state.user.id ? undefined : data.ownerName} info="Playlist"
+    artist={state.status === 'signedIn' && data.ownerId === state.user.id ? undefined : data.ownerName} info={smart ? 'Smart Playlist' : 'Playlist'}
     description={data.description}
     status={<>{failure && <FailureLine message={failure} />}{control.status}</>}
     nav={[
       control.nav,
-      mine && Platform.OS === 'ios' && tracks.length > 1 && { icon: editing ? 'checkmark' : 'arrow.up.arrow.down',
+      editsItems && Platform.OS === 'ios' && tracks.length > 1 && { icon: editing ? 'checkmark' : 'arrow.up.arrow.down',
         label: editing ? 'Finish reordering' : 'Reorder songs', selected: editing, onPress: () => { tapFeedback(); setEditing(!editing); } },
       // While the playlist is deleted the button waits for the server, with nothing to choose.
       deleting ? { icon: 'ellipsis', label: `Deleting ${data.name}`, busy: true, onPress: () => undefined }
         : menu.length > 0 && { icon: 'ellipsis', label: `More options for ${data.name}`, menu },
-      { icon: 'square.and.arrow.up', label: `Share ${data.name}`, onPress: () => share(data.name) },
+      { icon: 'square.and.arrow.up', label: `Share ${data.name}`, onPress: () => sharePlaylist({ kind: 'playlist', id: data.id, title: data.name }, data.name) },
     ]}
     // Reordering drags rows within one native list, so while editing every row is drawn.
     onBack={onBack} bottomInset={bottomInset} list={tracks.length && !editing ? songs : undefined}>
     {tracks.length ? <TrackSection title="Songs" detail={songCount(tracks, data.durationMs)}>
       {editing && <SongList {...songListProps} />}
-    </TrackSection> : <EmptyState icon="music.note.list" title="No songs yet"
+    </TrackSection> : smart ? <EmptyState icon="music.note.list" title="No songs match yet"
+      description="Songs show up here as soon as music that fits its rules arrives." /> : <EmptyState icon="music.note.list" title="No songs yet"
       description="Add songs from any song’s menu with Add to playlist." />}
   </DetailPage>;
 }
