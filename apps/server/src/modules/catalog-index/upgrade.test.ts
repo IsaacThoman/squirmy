@@ -8,9 +8,10 @@ import { db, getSql } from '../../database/client.js'
 import { runMigrations } from '../../database/migrate.js'
 import { lyrics } from '../../database/schema.js'
 import { drainJobs, jobs, startJobs } from '../../jobs/index.js'
+import { newId } from '../../lib/ids.js'
 import { useTestDatabase } from '../../test/database.js'
 import { buildDump, testCatalog } from '../../test/catalog-index-dump.js'
-import { createAlbum, createUser } from '../../test/factories.js'
+import { createAlbum } from '../../test/factories.js'
 import { librarySearchIndexNames, searchIndexValidity } from '../search/indexes.js'
 import { searchLibrary } from '../search/library.js'
 import { searchLyrics } from '../search/scopes.js'
@@ -53,7 +54,9 @@ describe('search index upgrades', () => {
     expect(freshLibrary).toHaveLength(4)
     expect(await catalogDefinitions()).toHaveLength(4)
     await migrateBeforeUniversalSearch()
-    const user = await createUser()
+    // Written in SQL: the factory writes every column of today's users table, and later migrations add some.
+    const user = (await getSql()<{ id: string }[]>`
+      insert into users (id, username, username_key, password_hash) values (${newId()}, 'reader', 'reader', 'not-a-real-hash') returning id`)[0]!
     const album = await createAlbum({ owned: true, tracks: [{ title: '宇多田ヒカル' }, { title: 'Lantern Song' }] })
     const recording = album.tracks[0]!
     await db.insert(lyrics).values({ recordingId: recording.recordingId, source: 'embedded', plain: 'lantern harbor' })
