@@ -91,11 +91,23 @@ class FakeContext {
   state: 'running' | 'suspended' = 'running'
   currentTime = 0
   destination = {}
-  readonly gains: { gain: { value: number; setValueAtTime: (value: number) => void } }[] = []
+  readonly gains: { gain: { value: number; ramps: { target: number; timeConstant: number }[] } }[] = []
   resume = vi.fn(async () => {})
   close = vi.fn(async () => {})
   createGain() {
-    const node = { gain: { value: 1, setValueAtTime(value: number) { node.gain.value = value } }, connect: (next: unknown) => next }
+    const node = {
+      gain: {
+        value: 1,
+        ramps: [] as { target: number; timeConstant: number }[],
+        setValueAtTime(value: number) { node.gain.value = value },
+        setTargetAtTime(target: number, _start: number, timeConstant: number) {
+          node.gain.ramps.push({ target, timeConstant })
+          node.gain.value = target
+        },
+        cancelScheduledValues() {},
+      },
+      connect: (next: unknown) => next,
+    }
     this.gains.push(node)
     return node
   }
@@ -361,6 +373,23 @@ describe('WebPlayerEngine', () => {
     engine.setGain(1.6)
     expect(context.gains.map(node => node.gain.value)).toContain(1.6)
     expect(engine.canBoost).toBe(true)
+  })
+
+  it('applies the first entry\'s gain when the audio output opens', () => {
+    engine.load({ entryId: 'e1', url: '/a', startMs: 0, autoplay: false, gain: 0.8 })
+    ready('/a')
+    engine.play()
+    expect(context.gains.map(node => node.gain.value)).toContain(0.8)
+  })
+
+  it('ramps a gain change while playing instead of jumping, and sets it at once before playback', () => {
+    engine.load({ entryId: 'e1', url: '/a', startMs: 0, autoplay: false, gain: 0.8 })
+    ready('/a')
+    engine.play()
+    const node = context.gains.find(candidate => candidate.gain.value === 0.8)!
+    expect(node.gain.ramps).toEqual([])
+    engine.setGain(0.5)
+    expect(node.gain.ramps).toEqual([{ target: 0.5, timeConstant: expect.closeTo(0.0033, 4) }])
   })
 
   it('stops into idle without ending anything', () => {

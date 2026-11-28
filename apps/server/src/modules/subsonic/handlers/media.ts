@@ -74,7 +74,7 @@ async function download(context: Context): Promise<typeof sent> {
  * The artwork asset an id leads to. `ca-` ids name an asset; album, artist, song and
  * playlist ids (which older clients send) lead to that entity's picture.
  */
-async function artworkAsset(value: string): Promise<string | null> {
+async function artworkAsset(value: string, viewerId: string): Promise<string | null> {
   const parsed = expectId(value, 'cover', 'album', 'artist', 'track', 'playlist')
   let query
   switch (parsed.kind) {
@@ -96,29 +96,43 @@ async function artworkAsset(value: string): Promise<string | null> {
     case 'playlist':
       query = sql`
         select ${servableArt('a.artwork_asset_id')} as id from playlist_items i join albums a on a.id = i.album_id
-        where i.playlist_id = ${parsed.id} and ${servableArt('a.artwork_asset_id')} is not null order by i.position limit 1`
+        join playlists p on p.id = i.playlist_id
+        where i.playlist_id = ${parsed.id} and (p.owner_id = ${viewerId} or p.is_public)
+          and ${servableArt('a.artwork_asset_id')} is not null order by i.position limit 1`
       break
   }
   const [row] = await db.execute<{ id: string | null }>(query)
   return row?.id ?? null
 }
 
-async function getCoverArt({ params, reply }: Context): Promise<typeof sent> {
-  const value = params.required('id')
-  const assetId = await artworkAsset(value)
+function acceptsWebp(accept: string | undefined): boolean {
+  // Wildcards do not tell us whether a legacy client can decode WebP.
+  return accept?.split(',').some((entry) => {
+    const [type, ...parameters] = entry.toLowerCase().split(';').map((part) => part.trim())
+    if (type !== 'image/webp') return false
+    const quality = parameters.map((part) => /^q\s*=\s*(.*)$/.exec(part)).find(Boolean)
+    return !quality || (Number(quality[1]) > 0 && Number(quality[1]) <= 1)
+  }) ?? false
+}
+
+async function getCoverArt({ params, reply, request, user }: Context): Promise<typeof sent> {
+  const value = params.required('id').trim()
+  const assetId = await artworkAsset(value, user.id)
   if (!assetId) throw notFound('Cover art')
   const size = params.int('size', 0, { min: 0 })
   // A `ca-` id names immutable bytes; other ids may lead to a new picture later. Only an
   // image is cacheable: a missing original may be rebuilt soon.
-  const cacheControl = value.startsWith('ca-') ? 'public, max-age=31536000, immutable' : 'public, max-age=3600'
+  const cacheControl = value.startsWith('pl-') ? 'private, no-store'
+    : value.startsWith('ca-') ? 'public, max-age=31536000, immutable' : 'public, max-age=3600'
   try {
     if (size === 0) {
       const { asset, bytes } = await readOriginal(assetId)
       await reply.header('cache-control', cacheControl).type(asset.mime ?? 'application/octet-stream').send(bytes)
     } else {
       const rendered: ArtSize = ART_SIZES.find((candidate) => candidate >= size) ?? ART_SIZES.at(-1)!
-      const image = await rendition(assetId, rendered)
-      await reply.header('cache-control', cacheControl).type('image/webp').send(image)
+      const format = acceptsWebp(request.headers.accept) ? 'webp' : 'jpeg'
+      const image = await rendition(assetId, rendered, format)
+      await reply.header('cache-control', cacheControl).header('vary', 'Accept').type(`image/${format}`).send(image)
     }
   } catch (error) {
     if (error instanceof AppError && error.status === 404) throw notFound('Cover art')
@@ -149,12 +163,14 @@ export function parseLrc(text: string): { lines: { start: number; value: string 
 async function getLyricsBySongId({ params }: Context): Promise<Payload> {
   const recordingId = await resolve('track', expectId(params.required('id'), 'track').id)
   const [info] = await db.execute<{ title: string; artistCredit: string }>(sql`
-    select title, artist_credit as "artistCredit" from recordings where id = ${recordingId}`)
+    select title, artist_credit as "artistCredit" from recordings r
+    where r.id = ${recordingId} and ${hasPresentFile('recording_id', 'r.id')}`)
+  if (!info) throw notFound('Song')
   const lyrics = await trackLyrics(recordingId).catch((error: unknown) => {
     if (error instanceof AppError && error.status === 404) return null
     throw error
   })
-  const display = { displayArtist: info?.artistCredit, displayTitle: info?.title, lang: 'und' }
+  const display = { displayArtist: info.artistCredit, displayTitle: info.title, lang: 'und' }
   const structured: Payload[] = []
   if (lyrics?.synced) {
     const { lines, offset } = parseLrc(lyrics.synced)

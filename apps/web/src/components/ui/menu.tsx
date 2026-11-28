@@ -1,9 +1,11 @@
+import * as MenuPrimitive from '@radix-ui/react-menu'
 import { Check, ChevronRight, CircleAlert } from 'lucide-react'
 import { ContextMenu as ContextPrimitive, DropdownMenu as DropdownPrimitive } from 'radix-ui'
-import { createContext, use, useEffect, useRef, useState, type ComponentProps, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
+import { createContext, use, useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react'
 import { errorMessage } from '@/api/errors'
 import { cn } from '@/lib/utils'
 import { Spinner } from './feedback'
+import { useTapToOpen } from './use-tap-to-open'
 
 export const menuContentClass = 'z-50 min-w-44 max-w-[calc(100vw-1rem)] origin-(--radix-popper-transform-origin) animate-enter overflow-y-auto overflow-x-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md data-[state=closed]:animate-exit'
 /** A long menu (every playlist under "Add to playlist") scrolls within the room the screen has. */
@@ -109,7 +111,14 @@ function Announcement() {
   return <span role="status" className="sr-only">{feedback?.state === 'pending' ? '' : feedback?.text}</span>
 }
 
-type Parts = typeof DropdownPrimitive | typeof ContextPrimitive
+function AnchoredSub({ children }: { children?: ReactNode }) {
+  const [open, setOpen] = useState(false)
+  return <MenuPrimitive.Sub open={open} onOpenChange={setOpen}>{children}</MenuPrimitive.Sub>
+}
+
+const anchoredParts = { ...MenuPrimitive, Sub: AnchoredSub }
+
+type Parts = Pick<typeof MenuPrimitive, 'Separator' | 'Label' | 'Sub' | 'SubTrigger' | 'Portal' | 'SubContent' | 'Item'>
 
 /**
  * An item's words: one line, cut short when the menu is narrow. Names long enough to be cut (a
@@ -141,7 +150,7 @@ function Entries({ parts, entries, path = '' }: { parts: Parts; entries: MenuEnt
             {entry.icon}<Label text={entry.label} /><ChevronRight className="ml-auto" />
           </parts.SubTrigger>
           <parts.Portal>
-            <parts.SubContent sideOffset={4} collisionPadding={8} className={cn(menuContentClass, parts === DropdownPrimitive ? [fitsDropdown, fitsDropdownSide] : [fitsContext, fitsContextSide], 'shadow-lg')}>
+            <parts.SubContent sideOffset={4} collisionPadding={8} className={cn(menuContentClass, parts === DropdownPrimitive ? [fitsDropdown, fitsDropdownSide] : parts === ContextPrimitive ? [fitsContext, fitsContextSide] : 'min-w-0 max-h-(--radix-popper-available-height) max-w-[min(18rem,var(--radix-popper-available-width))]', 'shadow-lg')}>
               <Entries parts={parts} entries={entry.items} path={`${key}.`} />
             </parts.SubContent>
           </parts.Portal>
@@ -181,37 +190,6 @@ type DropdownMenuProps = {
   contentClassName?: string
 } & ComponentProps<typeof DropdownPrimitive.Root>
 
-/** How far a finger may move between touching a menu's button and lifting off for it still to be a tap. */
-export const TAP_SLOP_PX = 10
-
-/**
- * Radix opens a dropdown as soon as the pointer goes down, which a mouse wants. A finger going
- * down may be starting to scroll the page or a rail (a card's or a row's ⋯ is always shown on a
- * touch screen), so a touch or a pen opens the menu on its tap instead: the browser sends no
- * click for a gesture it scrolled with, and one that moved further than a tap is not one either.
- * Keyboard (Enter, Space, ArrowDown) and mouse are left to Radix.
- */
-function useTapToOpen(open: boolean, onOpenChange: (open: boolean) => void) {
-  const start = useRef<{ x: number; y: number; open: boolean } | null>(null)
-  return {
-    onPointerDown: (event: PointerEvent) => {
-      start.current = null
-      if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return
-      // Whether it was open: a tap that closes it (from outside) does not open it again.
-      start.current = { x: event.clientX, y: event.clientY, open }
-      // Stops Radix opening the menu now. It does not stop the browser scrolling.
-      event.preventDefault()
-    },
-    onPointerCancel: () => { start.current = null },
-    onClick: (event: MouseEvent) => {
-      const from = start.current
-      start.current = null
-      if (!from || Math.hypot(event.clientX - from.x, event.clientY - from.y) > TAP_SLOP_PX) return
-      onOpenChange(!from.open)
-    },
-  }
-}
-
 export function DropdownMenu({ trigger, entries, align = 'end', side, contentClassName, open: givenOpen, onOpenChange: givenChange, ...props }: DropdownMenuProps) {
   const { open, onOpenChange, feedback } = useMenuState({ open: givenOpen, onOpenChange: givenChange })
   const tap = useTapToOpen(open, onOpenChange)
@@ -244,5 +222,51 @@ export function ContextMenu({ entries, children, onOpenChange: givenChange }: { 
         </ContextPrimitive.Content>
       </ContextPrimitive.Portal>
     </ContextPrimitive.Root>
+  )
+}
+
+type AnchoredMenuProps = {
+  id: string
+  entries: MenuEntry[]
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  anchor: { getBoundingClientRect: () => DOMRect }
+  context: boolean
+  keyboard: boolean
+  onCloseAutoFocus: (event: Event) => void
+}
+
+/** A menu whose trigger stays in the DOM while the Radix root is mounted on demand. */
+export function AnchoredMenu({ id, entries, open: givenOpen, onOpenChange: givenChange, anchor, context, keyboard, onCloseAutoFocus }: AnchoredMenuProps) {
+  const { open, onOpenChange, feedback } = useMenuState({ open: givenOpen, onOpenChange: givenChange })
+  return (
+    <MenuPrimitive.Root open={open} onOpenChange={onOpenChange}>
+      <MenuPrimitive.Anchor virtualRef={{ current: anchor }} />
+      <MenuPrimitive.Portal>
+        <MenuPrimitive.Content
+          id={id}
+          align={context ? 'start' : 'end'}
+          side={context ? 'right' : 'bottom'}
+          sideOffset={context ? 2 : 4}
+          collisionPadding={8}
+          onCloseAutoFocus={onCloseAutoFocus}
+          onEntryFocus={event => {
+            if (!keyboard) return
+            // The root did not exist to see the key that opened it.
+            const item = (event.target as HTMLElement).querySelector<HTMLElement>('[role^=menuitem]:not([data-disabled])')
+            if (item) {
+              event.preventDefault()
+              item.focus({ preventScroll: true })
+            }
+          }}
+          className={cn(menuContentClass, 'max-h-(--radix-popper-available-height)')}
+        >
+          <MenuFeedbackContext value={feedback}>
+            <Entries parts={anchoredParts} entries={entries} />
+            <Announcement />
+          </MenuFeedbackContext>
+        </MenuPrimitive.Content>
+      </MenuPrimitive.Portal>
+    </MenuPrimitive.Root>
   )
 }
