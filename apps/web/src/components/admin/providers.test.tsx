@@ -165,7 +165,7 @@ describe('providers admin', () => {
 describe('wantlist setting', () => {
   it('turns the wantlist on from General', async () => {
     const onSave = vi.fn(async () => {})
-    renderWithApp(<ServerSettingsAdmin settings={serverSettings as ServerSettings} managedRoots={[managed]} onSave={onSave} status="idle" />)
+    renderWithApp(<ServerSettingsAdmin settings={serverSettings as ServerSettings} managedRoots={[managed]} onSave={onSave} status="idle" onTestSso={vi.fn()} />)
     const toggle = screen.getByRole('switch', { name: 'Wantlist' })
     expect(toggle).not.toBeChecked()
     await userEvent.click(toggle)
@@ -174,17 +174,35 @@ describe('wantlist setting', () => {
 
   it('says under the setting why the server refused a switch', async () => {
     const onSave = vi.fn(async () => { throw new ApiError(500, 'internal_error', 'The settings could not be saved') })
-    renderWithApp(<ServerSettingsAdmin settings={serverSettings as ServerSettings} managedRoots={[managed]} onSave={onSave} status="idle" />)
+    renderWithApp(<ServerSettingsAdmin settings={serverSettings as ServerSettings} managedRoots={[managed]} onSave={onSave} status="idle" onTestSso={vi.fn()} />)
     await userEvent.click(screen.getByRole('switch', { name: 'Wantlist' }))
     expect(await screen.findByText('The settings could not be saved')).toBeInTheDocument()
     expect(screen.getByRole('switch', { name: 'Wantlist' })).not.toBeChecked()
   })
 })
 
+describe('single sign-on settings', () => {
+  it('shows the callback address, saves the issuer, tests the provider and refuses passwords off before it works', async () => {
+    const onSave = vi.fn(async (patch: object) => {
+      if ('passwordLoginDisabled' in patch) throw new ApiError(409, 'sso_required', 'Turn password sign-in off once single sign-on is set up and you have signed in with it.')
+    })
+    const onTestSso = vi.fn(async () => ({ ok: false, issuer: null, message: 'Couldn’t load the provider’s configuration: 404' }))
+    renderWithApp(<ServerSettingsAdmin settings={serverSettings as ServerSettings} managedRoots={[managed]} onSave={onSave} status="idle" onTestSso={onTestSso} />)
+    expect(screen.getByLabelText('Callback address')).toHaveValue('https://music.example.com/api/v1/auth/sso/callback')
+    await userEvent.type(screen.getByLabelText('Issuer URL'), 'https://auth.example.com{Enter}')
+    expect(onSave).toHaveBeenCalledWith({ ssoIssuerUrl: 'https://auth.example.com' })
+    await userEvent.click(screen.getByRole('button', { name: 'Test' }))
+    expect(await screen.findByText('Couldn’t load the provider’s configuration: 404')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('switch', { name: 'Turn off password sign-in' }))
+    expect(await screen.findByText(/once single sign-on is set up/)).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'Turn off password sign-in' })).not.toBeChecked()
+  })
+})
+
 describe('import settings', () => {
   it('shows why the server refused an inbox folder under the field', async () => {
     const onSave = vi.fn(async () => { throw new ApiError(400, 'inbox_not_found', 'The inbox folder does not exist') })
-    renderWithApp(<ServerSettingsAdmin settings={serverSettings as ServerSettings} managedRoots={[managed]} onSave={onSave} status="idle" />)
+    renderWithApp(<ServerSettingsAdmin settings={serverSettings as ServerSettings} managedRoots={[managed]} onSave={onSave} status="idle" onTestSso={vi.fn()} />)
     await userEvent.type(screen.getByLabelText('Inbox folder'), '/srv/nowhere{Enter}')
     expect(onSave).toHaveBeenCalledWith({ inboxPath: '/srv/nowhere' })
     expect(await screen.findByText('The inbox folder does not exist')).toBeInTheDocument()

@@ -9,7 +9,7 @@ Squirmy has two kinds of settings:
 
 | Variable | Why you care |
 |---|---|
-| `PUBLIC_URL` | The address people use, such as `https://music.example.com`. Set it whenever Squirmy sits behind a reverse proxy or is reached by a name the server cannot see. It is used for Last.fm's sign-in callback, artwork links handed to Subsonic apps, and the delivery address given to acquisition providers. |
+| `PUBLIC_URL` | The address people use, such as `https://music.example.com`. Set it whenever Squirmy sits behind a reverse proxy or is reached by a name the server cannot see. It is used for [passkeys](./authentication.md#passkeys) (which need it to be `https://`), Last.fm's sign-in callback, artwork links handed to Subsonic apps, and the delivery address given to acquisition providers. |
 | `TRUST_PROXY` | Set to `true` when one reverse proxy on the same machine or network sends `X-Forwarded-*` headers. Behind a Cloudflare Tunnel, also set `CLIENT_IP_HEADER=CF-Connecting-IP`. See [Reverse proxies and HTTPS](./reverse-proxy.md#what-trust-proxy-does). |
 | `SQUIRMY_DATA_DIR` | The data folder: artwork, transcodes, uploads in progress, and the generated server secret. In the image it is `/data`, the `squirmy_data` volume. Part of it cannot be rebuilt; see [Backup](./backup.md#what-is-in-the-data-folder). |
 | `SQUIRMY_ROLE` | `all` (default) runs the API and the background worker in one process. `api` and `worker` split them; see [Splitting the API and the worker](#splitting-the-api-and-the-worker). |
@@ -23,7 +23,7 @@ Every variable the server reads, from `apps/server/src/config.ts`. "Image" is th
 | `DATABASE_URL` | none, required | PostgreSQL connection string. Compose sets `postgres://squirmy:<POSTGRES_PASSWORD>@postgres:5432/squirmy`. PostgreSQL 15 or newer with the `pg_trgm` extension available; the migrations create the extension. |
 | `PORT` | `4747` | Port the HTTP server listens on inside the container. Change the host side with `SQUIRMY_PORT` in `.env` instead. |
 | `HOST` | `0.0.0.0` | Address to listen on. |
-| `PUBLIC_URL` | unset (compose: `${PUBLIC_URL:-}`) | The public origin, for example `https://music.example.com`, without a trailing path. Must be a valid URL when set; empty means unset. An `https://` origin also marks the session cookie `Secure` for requests to its host name. |
+| `PUBLIC_URL` | unset (compose: `${PUBLIC_URL:-}`) | The public origin, for example `https://music.example.com`, without a trailing path. Must be a valid URL when set; empty means unset. An `https://` origin also marks the session cookie `Secure` for requests to its host name, and turns on [passkeys](./authentication.md#passkeys) for that host name. |
 | `TRUST_PROXY` | `false` (compose: `${TRUST_PROXY:-false}`) | Which proxies may report the client's address and protocol in `X-Forwarded-For`, `X-Forwarded-Proto` and `X-Forwarded-Host`: `false`; `true` for one proxy connecting from this machine or a private network; a number of proxies, such as `2`; or a comma-separated list of addresses, CIDR ranges and `loopback`, `linklocal`, `uniquelocal`, `private`. An unknown value stops the server at start. Before this setting took these forms, `true` trusted every proxy and `1` meant the same as `true`; `1` now means one proxy from any address. See [What `TRUST_PROXY` does](./reverse-proxy.md#what-trust-proxy-does). |
 | `CLIENT_IP_HEADER` | unset (compose: `${CLIENT_IP_HEADER:-}`) | A header the outermost proxy sets to the client's address, such as `CF-Connecting-IP` behind Cloudflare. Read only from a peer `TRUST_PROXY` trusts, and only when it holds one address. Setting it with `TRUST_PROXY=false` stops the server at start. |
 | `SQUIRMY_DATA_DIR` | `./data` (image: `/data`) | The data folder. |
@@ -34,6 +34,7 @@ Every variable the server reads, from `apps/server/src/config.ts`. "Image" is th
 | `SQUIRMY_INBOX_PATH` | unset | A folder watched for music to import, used while the `inboxPath` server setting is unset. See [Adding music](./adding-music.md#the-inbox-folder). |
 | `SQUIRMY_WEB_DIST` | unset (image: `/app/apps/web/dist`) | The built web app to serve. Unset, the server serves only the API; the Vite dev server proxies to it during development. |
 | `SQUIRMY_READ_CACHE_MB` | `64` | Memory the API process may use to keep recent answers for Home, the library lists and album, artist and playlist pages, per user. Changes drop the affected answers at once; anything else is recomputed after five minutes at most. `0` turns the cache off. |
+| `SQUIRMY_ADMIN_PASSWORD_LOGIN` | unset | Recovery for a server with [password sign-in turned off](./authentication.md#turning-password-sign-in-off): `true` lets admins (only) sign in with their password again. Remove it once single sign-on works. |
 | `SQUIRMY_DB_POOL_SIZE` | `10` | Database connections each Squirmy process keeps for queries, from 2 to 200. Background jobs keep 6 more of their own, and each process uses one more for locks. Raise it only for a big install where the API is slow while many jobs run, and keep the total for every process under PostgreSQL's `max_connections` (100 by default). |
 | `LOG_LEVEL` | `info` | `fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`. |
 | `FFMPEG_PATH` | `ffmpeg` | The `ffmpeg` binary. Any build from FFmpeg 4 on works; files are opened with `-protocol_whitelist` and `-format_whitelist`, so only local files in audio formats are read. |
@@ -77,6 +78,14 @@ Stored in the `server_settings` table, from `ServerSettings` in `packages/contra
 | Sharing (in **Admin → Sharing**) | Share links | `sharingEnabled` | on | Lets members make public links to albums, playlists and songs. Off, every link stops working but is kept. See [Share links](./sharing.md). |
 | | What a shared page plays | `sharePlayback` | 30-second previews | `previews`, `full` or `off`: what people opening a share link can hear. |
 | Registration | Require an invite to join | `registrationRequiresInvite` | on | Off lets anyone who can reach the server create a member account. |
+| Single sign-on | Issuer URL, Client ID, Client secret | `ssoIssuerUrl`, `ssoClientId`, `ssoClientSecret` | not set | The OpenID Connect provider. See [Single sign-on](./authentication.md#single-sign-on-openid-connect). The secret is stored encrypted. |
+| | Button name | `ssoName` | `Single sign-on` | Shown as **Sign in with …**. |
+| | Scopes | `ssoScopes` | `openid profile email` | Must include `openid`. |
+| | Username claim, Groups claim | `ssoUsernameClaim`, `ssoGroupsClaim` | `preferred_username`, `groups` | Where a new account's username and a person's groups come from. |
+| | Allowed groups | `ssoAllowedGroups` | empty | Only members of one of these groups may sign in. Empty lets in everyone the provider accepts. |
+| | Create accounts | `ssoAutoCreateUsers` | off | Makes a member account for someone with none here. |
+| | Offer single sign-on | `ssoEnabled` | off | Shows **Sign in with …** and lets people connect their accounts. |
+| | Turn off password sign-in | `passwordLoginDisabled` | off | Single sign-on and passkeys only. See [Turning password sign-in off](./authentication.md#turning-password-sign-in-off). |
 | Metadata sources | MusicBrainz | `musicBrainzEnabled` | on | Identifies albums and fills in discographies. Off means nothing new is identified. |
 | | MusicBrainz server | `musicBrainzBaseUrl` | `https://musicbrainz.org` | Base URL of a MusicBrainz web service, a full `http://` or `https://` address. Only `musicbrainz.org` and its subdomains are rate limited, so a mirror lifts the limit. |
 | | Cover Art Archive | `coverArtArchiveEnabled` | on | Album covers. |

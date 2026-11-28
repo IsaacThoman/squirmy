@@ -8,13 +8,71 @@ import { useApi } from '@/api/services'
 import { useLogout } from '@/auth/actions'
 import { useCurrentUser, useSetupStatus, useSharingEnabled } from '@/auth/session'
 import type { SettingsDialogState } from '@/components/layout/AppShell'
+import type { SecuritySettingsProps } from '@/components/settings/SecuritySettings'
 import { SettingsDialog } from '@/components/settings/SettingsDialog'
 import { loadFailure } from '@/components/ui/load-failure'
 import { canUploadMusic } from '@/lib/catalog'
 import { browserName, deviceName } from '@/lib/device'
+import { browserSupportsPasskeys, createPasskey, passkeyCancelled } from '@/lib/passkeys'
 import { usePlayerControls } from '@/player/player-context'
 
 const appPasswordsKey = ['app-passwords'] as const
+const securityKey = ['account-security'] as const
+const sessionsKey = ['auth-sessions'] as const
+
+/** Settings → Security: the second factor and the signed-in devices, read while the dialog is open. */
+function useSecuritySettings(open: boolean, ssoNotice: string | undefined): SecuritySettingsProps {
+  const api = useApi()
+  const queryClient = useQueryClient()
+  const status = useSetupStatus().data
+  const serverPasskeys = status?.passkeysAvailable ?? false
+  const security = useQuery({ queryKey: securityKey, queryFn: () => api.auth.security(), enabled: open })
+  const sessions = useQuery({ queryKey: sessionsKey, queryFn: () => api.auth.sessions(), enabled: open })
+  const refreshSecurity = () => queryClient.invalidateQueries({ queryKey: securityKey })
+  const refreshSessions = () => queryClient.invalidateQueries({ queryKey: sessionsKey })
+  return {
+    security: security.data,
+    sessions: sessions.data?.items,
+    failures: {
+      security: loadFailure(security, 'Your sign-in settings did not load'),
+      sessions: loadFailure(sessions, 'Your signed-in devices did not load'),
+    },
+    onStartTwoFactor: request => api.auth.startTwoFactor(request),
+    onEnableTwoFactor: async request => {
+      const codes = await api.auth.enableTwoFactor(request)
+      await refreshSecurity()
+      return codes
+    },
+    onDisableTwoFactor: request => api.auth.disableTwoFactor(request).then(refreshSecurity),
+    onRegenerateRecoveryCodes: async request => {
+      const codes = await api.auth.regenerateRecoveryCodes(request)
+      await refreshSecurity()
+      return codes
+    },
+    onRevokeSession: id => api.auth.revokeSession(id).then(refreshSessions),
+    onRevokeOtherSessions: () => api.auth.revokeOtherSessions().then(refreshSessions),
+    passkeys: { server: serverPasskeys, browser: browserSupportsPasskeys() },
+    defaultPasskeyName: browserName(),
+    onAddPasskey: async ({ currentPassword, name }) => {
+      const { challenge, options } = await api.auth.startPasskey({ currentPassword })
+      let response
+      try {
+        response = await createPasskey(options)
+      } catch (error) {
+        if (passkeyCancelled(error)) return
+        throw error
+      }
+      await api.auth.addPasskey({ challenge, name, response })
+      await refreshSecurity()
+    },
+    onRenamePasskey: (id, name) => api.auth.renamePasskey(id, { name }).then(refreshSecurity),
+    onDeletePasskey: id => api.auth.deletePasskey(id).then(refreshSecurity),
+    sso: status?.ssoName ? { name: status.ssoName } : null,
+    onLinkSso: async request => window.location.assign((await api.auth.linkSso(request)).url),
+    onUnlinkSso: id => api.auth.unlinkSso(id).then(refreshSecurity),
+    ssoNotice,
+  }
+}
 
 /** What Last.fm's return to `/settings?lastfm=` says, in the Scrobbling section it opens. */
 const lastFmReturns: Record<string, { message: string; ok: boolean }> = {
@@ -70,7 +128,7 @@ function useScrobbleConnections() {
 }
 
 /** The settings dialog with the signed-in user's settings, connections and app passwords. */
-export function SettingsDialogHost({ open, section, lastFm, onOpenChange, onSectionChange }: SettingsDialogState) {
+export function SettingsDialogHost({ open, section, lastFm, sso, onOpenChange, onSectionChange }: SettingsDialogState) {
   const api = useApi()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -84,6 +142,7 @@ export function SettingsDialogHost({ open, section, lastFm, onOpenChange, onSect
   const connections = useScrobbleConnections()
   const [name, setName] = useState(browserName)
   const passwords = useQuery({ queryKey: appPasswordsKey, queryFn: () => api.auth.appPasswords(), enabled: open })
+  const security = useSecuritySettings(open, sso)
   const refreshPasswords = () => queryClient.invalidateQueries({ queryKey: appPasswordsKey })
   const createPassword = useMutation({ mutationFn: api.auth.createAppPassword, onSuccess: refreshPasswords })
   // The revoked password leaves the list; the confirmation says a failure.
@@ -93,7 +152,7 @@ export function SettingsDialogHost({ open, section, lastFm, onOpenChange, onSect
   // The server tells the user's other screens; this one refreshes now.
   const revokeShare = useMutation({ mutationFn: (id: string) => api.share.revoke(id), onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.shares() }) })
   // Said in the Account section once the dialog that changed it closes.
-  const changePassword = useMutation({ mutationFn: api.auth.changePassword })
+  const changePassword = useMutation({ mutationFn: api.auth.changePassword, onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionsKey }) })
   // Only the admin route can rename a user, so only admins can rename themselves.
   const rename = useMutation({
     mutationFn: (displayName: string | null) => api.admin.updateUser(user.id, { displayName }),
@@ -141,6 +200,7 @@ export function SettingsDialogHost({ open, section, lastFm, onOpenChange, onSect
       sharingEnabled={sharingEnabled}
       onRevokeShareLink={id => revokeShare.mutateAsync(id)}
       onChangePassword={request => changePassword.mutateAsync(request)}
+      security={security}
       onRename={user.role === 'admin' ? displayName => rename.mutateAsync(displayName) : undefined}
       onLogout={logout}
       onOpenAdmin={user.role === 'admin' ? () => { onOpenChange(false); void navigate('/admin') } : undefined}
