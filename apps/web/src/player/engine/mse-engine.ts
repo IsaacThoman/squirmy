@@ -29,7 +29,7 @@ const HAVE_FUTURE_DATA = 3
 const WATCHDOG_MS = 250
 /** Gain changes on a playing entry settle (to 95%) over this long instead of jumping. */
 const GAIN_RAMP_SECONDS = 0.01
-/** At a boundary the gain moves to the next entry's over this long, centred on nothing audible. */
+/** At a boundary the gain moves to the next entry's over this long, too short to hear as a fade. */
 const BOUNDARY_RAMP_SECONDS = 0.005
 /** Within this much of a boundary, a timer reports it rather than the next `timeupdate`. */
 const BOUNDARY_WINDOW_SECONDS = 1
