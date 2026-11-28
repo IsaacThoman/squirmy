@@ -1,5 +1,5 @@
 import { openDatabaseSync, type SQLiteDatabase } from 'expo-sqlite';
-import { sweepCacheFiles } from './files';
+import { cacheFiles } from './files';
 import type { CacheIndex } from './manager';
 import type { CacheRow } from './model';
 
@@ -44,18 +44,25 @@ export function referencedCacheFiles(): Set<string> {
   return names;
 }
 
-/** Forgets an account's rows. Its files are then unreferenced and go with the next sweep. */
-export function removeCachedAccount(account: string): void {
-  open().runSync('DELETE FROM cached_tracks WHERE account = ?', account);
+/** Bytes and songs each account keeps in the cache, by account. */
+export function cacheUsage(): Map<string, { bytes: number; count: number }> {
+  const rows = open().getAllSync<{ account: string; bytes: number; count: number }>(
+    'SELECT account, SUM(bytes) AS bytes, COUNT(*) AS count FROM cached_tracks GROUP BY account');
+  return new Map(rows.map(row => [row.account, { bytes: row.bytes, count: row.count }]));
 }
 
 /**
- * Empties the cache of an account that signed out or switched server. A session that
- * expired keeps it, for when the same user signs in again; another user's sign-in drops it.
+ * Removes what an account keeps in the cache, when no cache is running to do it (the one
+ * running does it with `forgetAccount`). Only that account's files go, so a fetch in flight
+ * for another account keeps its file.
  */
 export function removeStreamingCache(account: string): void {
-  removeCachedAccount(account);
-  sweepCacheFiles(referencedCacheFiles());
+  const db = open();
+  const rows = db.getAllSync<{ file: string; art: string | null }>('SELECT file, art FROM cached_tracks WHERE account = ?', account);
+  db.runSync('DELETE FROM cached_tracks WHERE account = ?', account);
+  const referenced = referencedCacheFiles();
+  const files = cacheFiles();
+  for (const row of rows) for (const name of [row.file, row.art]) if (name && !referenced.has(name)) files.remove(name);
 }
 
 /** The index of `account` (a server and user). */
@@ -73,9 +80,17 @@ export function cacheIndex(account: string): CacheIndex {
     remove: rows => db.withTransactionSync(() => {
       for (const row of rows) db.runSync('DELETE FROM cached_tracks WHERE account = ? AND track_id = ? AND quality = ?', account, row.trackId, row.quality);
     }),
-    removeOthers: () => {
-      db.runSync('DELETE FROM cached_tracks WHERE account != ?', account);
-    },
+    others: () => db.getAllSync<{ account: string; track_id: string; quality: CacheRow['quality']; file: string; art: string | null; bytes: number; added_at: number; played_at: number | null }>(
+      'SELECT account, track_id, quality, file, art, bytes, added_at, played_at FROM cached_tracks WHERE account != ?', account,
+    ).map(row => ({
+      account: row.account, trackId: row.track_id, quality: row.quality, file: row.file, art: row.art, bytes: row.bytes,
+      addedAt: row.added_at, playedAt: row.played_at,
+    })),
+    removeOthers: rows => db.withTransactionSync(() => {
+      for (const row of rows) {
+        db.runSync('DELETE FROM cached_tracks WHERE account = ? AND track_id = ? AND quality = ?', row.account, row.trackId, row.quality);
+      }
+    }),
     referencedFiles: referencedCacheFiles,
   };
 }
