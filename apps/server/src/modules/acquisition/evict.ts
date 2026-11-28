@@ -151,7 +151,7 @@ const deletable = sql`exists (select 1 from library_roots r where r.id = ${media
 async function candidates(queued: readonly string[], skipped: readonly string[]): Promise<Candidate[]> {
   const settled = sql`(${mediaFiles.importId} is null or exists (
     select 1 from imports i where i.id = ${mediaFiles.importId} and i.status in ('completed', 'failed')))`
-  const lastUsed = sql`greatest(${mediaFiles.addedAt}, (select max(p.started_at) from plays p where p.recording_id = ${mediaFiles.recordingId}))`
+  const lastUsed = sql`greatest(${mediaFiles.addedAt}, (select max(p.started_at) from plays p where p.recording_id = ${mediaFiles.recordingId} and not p.skipped))`
   return db.select({ id: mediaFiles.id, size: mediaFiles.size }).from(mediaFiles).where(and(
     eq(mediaFiles.cached, true), present, settled, deletable,
     sql`${mediaFiles.addedAt} < ${new Date(Date.now() - timing.graceMs).toISOString()}::timestamptz`,
