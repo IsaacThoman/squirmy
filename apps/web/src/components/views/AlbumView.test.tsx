@@ -1,3 +1,4 @@
+import { ApiError } from '@squirmy/client-core'
 import type { AlbumDetail } from '@squirmy/contracts'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -22,6 +23,16 @@ const heartSays = async () => (await screen.findByRole('tooltip')).textContent
 const albumMenuItem = async (name: string) => {
   await userEvent.click(await screen.findByRole('button', { name: 'More options' }))
   return screen.findByRole('menuitem', { name })
+}
+
+const lp = {
+  id: '00000000-0000-4000-8000-000000000101:hi_res_lossless', title: 'Blue Hour', disambiguation: null, releaseDate: '2025-03-01',
+  country: 'GB', label: 'Night Shift', catalogNumber: 'NS 001', format: '12" Vinyl', identified: true, trackCount: 5, ownedTrackCount: 5,
+  quality: { tier: 'hi_res_lossless' as const, codec: 'flac', sampleRate: 96_000, bitDepth: 24, bitrate: 3_000_000 },
+}
+const remaster = {
+  ...lp, id: '00000000-0000-4000-8000-000000000102:lossy', disambiguation: '2026 remaster', releaseDate: '2026-01-10', format: 'Digital Media',
+  catalogNumber: null, ownedTrackCount: 4, quality: { tier: 'lossy' as const, codec: 'mp3', sampleRate: 44_100, bitDepth: null, bitrate: 320_000 },
 }
 
 describe('album page', () => {
@@ -52,6 +63,53 @@ describe('album page', () => {
     await userEvent.keyboard('{Escape}')
     await userEvent.click(within(list).getByRole('button', { name: `Play ${tracks[1]!.title}` }))
     await waitFor(() => expect(socket.session.current?.trackId).toBe(tracks[1]!.id))
+  })
+
+  describe('versions', () => {
+    it('shows no Versions control for one copy', async () => {
+      const { services, api } = fakeServices()
+      api.catalog.album.mockResolvedValue({ ...blueHour, ownedVersions: [lp], versionId: null })
+      renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+      await screen.findByRole('list', { name: 'Blue Hour tracks' })
+      expect(screen.queryByRole('button', { name: 'Versions of Blue Hour' })).toBeNull()
+    })
+
+    it('lists the editions the server holds, and plays the one picked from the next song on', async () => {
+      const { services, api } = fakeServices()
+      api.catalog.album.mockResolvedValue({ ...blueHour, ownedVersions: [lp, remaster], versionId: null })
+      renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+      const control = await screen.findByRole('button', { name: 'Versions of Blue Hour' })
+      expect(control).toHaveTextContent('2 versions')
+      await userEvent.click(control)
+      const automatic = await screen.findByRole('menuitemradio', { name: /Automatic/ })
+      expect(automatic).toHaveAttribute('aria-checked', 'true')
+      const vinyl = screen.getByRole('menuitemradio', { name: /2025 · 12" Vinyl/ })
+      expect(vinyl).toHaveTextContent('Hi-Res Lossless · FLAC 24-bit/96 kHz · 5 songs')
+      expect(vinyl).toHaveTextContent('Night Shift · NS 001 · GB')
+      const digital = screen.getByRole('menuitemradio', { name: /2026 remaster/ })
+      expect(digital).toHaveTextContent('MP3 · 320 kbps · 4 of 5 songs')
+      expect(digital).toHaveAttribute('aria-checked', 'false')
+
+      api.catalog.album.mockResolvedValue({ ...blueHour, ownedVersions: [lp, remaster], versionId: remaster.id })
+      await userEvent.click(digital)
+      expect(api.catalog.pickVersion).toHaveBeenCalledWith('album', blueHour.id, remaster.id)
+      await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+      await userEvent.click(screen.getByRole('button', { name: 'Versions of Blue Hour' }))
+      expect(await screen.findByRole('menuitemradio', { name: /2026 remaster/ })).toHaveAttribute('aria-checked', 'true')
+      await userEvent.click(screen.getByRole('menuitemradio', { name: /Automatic/ }))
+      expect(api.catalog.clearVersion).toHaveBeenCalledWith('album', blueHour.id)
+    })
+
+    it('says on the entry when the server refused the pick', async () => {
+      const { services, api } = fakeServices()
+      api.catalog.album.mockResolvedValue({ ...blueHour, ownedVersions: [lp, remaster], versionId: null })
+      api.catalog.pickVersion.mockRejectedValueOnce(new ApiError(404, 'version_not_found', 'The server holds no such version'))
+      renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+      await userEvent.click(await screen.findByRole('button', { name: 'Versions of Blue Hour' }))
+      const entry = await screen.findByRole('menuitemradio', { name: /2026 remaster/ })
+      await userEvent.click(entry)
+      await waitFor(() => expect(entry).toHaveTextContent('The server holds no such version'))
+    })
   })
 
   describe('for someone the server fetches music for', () => {

@@ -1,7 +1,12 @@
-import { audioQualityLabel, signalQuality, signalSections } from '@squirmy/client-core'
-import type { SignalPath } from '@squirmy/contracts'
-import { AudioLines } from 'lucide-react'
+import { audioQualityLabel, signalQuality, signalSections, versionQuality, versionTitle } from '@squirmy/client-core'
+import { queryKeys, type SignalPath, type TrackVersion } from '@squirmy/contracts'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { AudioLines, Check, CircleAlert } from 'lucide-react'
+import { useState } from 'react'
+import { errorMessage } from '@/api/errors'
+import { useApi } from '@/api/services'
 import { Cover } from '@/components/music/Cover'
+import { Spinner } from '@/components/ui/feedback'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/feedback'
 import { cn } from '@/lib/utils'
@@ -58,6 +63,12 @@ export function TrackInfoDialog({ player, open, onOpenChange }: { player: Player
               </div>
             </div>
             {device && <InfoSection title="Playing on" rows={[{ label: 'Device', value: device }]} />}
+            <VersionsSection
+              trackId={item.track.id}
+              albumId={item.entry.albumId ?? item.track.album?.id ?? null}
+              playing={signal?.trackId === item.track.id ? signal.source?.versionId ?? null : null}
+              onPicked={() => player.controls.forgetPlayback(item.track.id)}
+            />
             {signal
               ? signalSections(signal).map(section => <InfoSection key={section.title} {...section} />)
               : (
@@ -86,6 +97,79 @@ function InfoSection({ title, rows }: { title: string; rows: { label: string; va
           </div>
         ))}
       </dl>
+    </section>
+  )
+}
+
+/**
+ * The versions of the song the server holds (an edition in one quality tier), when there are
+ * two or more: which one plays, and the user's pick for the song, which they can change.
+ * Automatic plays the album's pick, else the best copy. A pick plays from the next time the
+ * song starts; what plays now goes on.
+ */
+function VersionsSection({ trackId, albumId, playing, onPicked }: { trackId: string; albumId: string | null; playing: string | null; onPicked: () => void }) {
+  const api = useApi()
+  const queryClient = useQueryClient()
+  const key = [...queryKeys.track(trackId), 'versions', albumId] as const
+  const { data } = useQuery({ queryKey: key, queryFn: () => api.catalog.trackVersions(trackId, albumId ? { albumId } : {}) })
+  const [pending, setPending] = useState<string | null>(null)
+  const [failure, setFailure] = useState<{ choice: string; message: string } | null>(null)
+  if (!data || data.versions.length < 2) return null
+  const choose = async (versionId: string | null) => {
+    const choice = versionId ?? 'automatic'
+    setPending(choice)
+    setFailure(null)
+    try {
+      await (versionId === null ? api.catalog.clearVersion('track', trackId) : api.catalog.pickVersion('track', trackId, versionId))
+      onPicked()
+      await queryClient.invalidateQueries({ queryKey: key })
+    } catch (error) {
+      setFailure({ choice, message: errorMessage(error) })
+    } finally {
+      setPending(null)
+    }
+  }
+  const choices: { id: string; title: string; detail: string; version: TrackVersion | null }[] = [
+    { id: 'automatic', title: 'Automatic', detail: 'The album’s pick, else the best copy', version: null },
+    ...data.versions.map(version => ({
+      id: version.id,
+      title: versionTitle(version),
+      detail: [versionQuality(version.quality), version.albumId === albumId ? null : version.albumTitle].filter(Boolean).join(' · '),
+      version,
+    })),
+  ]
+  const picked = data.versionId ?? 'automatic'
+  return (
+    <section className="flex flex-col gap-1.5">
+      <h3 id={`versions-${trackId}`} className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Versions</h3>
+      <div role="radiogroup" aria-labelledby={`versions-${trackId}`} className="-mx-2 flex flex-col">
+        {choices.map(choice => {
+          const checked = picked === choice.id
+          const failed = failure?.choice === choice.id
+          return (
+            <button
+              key={choice.id}
+              type="button"
+              role="radio"
+              aria-checked={checked}
+              aria-busy={pending === choice.id || undefined}
+              disabled={pending !== null}
+              onClick={() => { if (!checked) void choose(choice.version ? choice.id : null) }}
+              className="flex min-w-0 items-start gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default pointer-coarse:min-h-11"
+            >
+              <span className="mt-0.5 size-4 shrink-0 [&_svg]:size-4" aria-hidden>
+                {pending === choice.id ? <Spinner label={null} className="size-4" /> : failed ? <CircleAlert className="text-destructive" /> : checked ? <Check className="text-primary" /> : null}
+              </span>
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate">{choice.title}</span>
+                <span className="text-xs text-muted-foreground">{failed ? <span className="text-destructive">{failure.message}</span> : choice.detail}</span>
+              </span>
+              {choice.version && choice.id === playing && <span className="shrink-0 text-xs text-muted-foreground">Playing</span>}
+            </button>
+          )
+        })}
+      </div>
+      <p className="text-xs text-muted-foreground">A version you pick plays from the next time the song starts.</p>
     </section>
   )
 }

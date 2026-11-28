@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AlbumDetail, TrackSummary } from './catalog.js'
+import { AlbumDetail, TrackSummary, VersionId } from './catalog.js'
 
 const id = '00000000-0000-4000-8000-000000000001'
 const track = {
@@ -24,5 +24,27 @@ describe('library membership on catalog items', () => {
     expect(AlbumDetail.parse({ ...album, library: 'collection' }).library).toBe('collection')
     expect(AlbumDetail.parse({ ...album, library: null }).library).toBeNull()
     expect(() => AlbumDetail.parse({ ...album, library: 'cached' })).toThrow()
+  })
+})
+
+describe('album versions', () => {
+  const version = {
+    id: `${id}:hi_res_lossless`, title: 'Album', disambiguation: '2011 remaster', releaseDate: '2011-09-26', country: 'GB',
+    label: 'EMI', catalogNumber: 'X1', format: 'CD', identified: true, trackCount: 2, ownedTrackCount: 2,
+    quality: { tier: 'hi_res_lossless', codec: 'flac', sampleRate: 96_000, bitDepth: 24, bitrate: 3_000_000 },
+  }
+
+  it('still reads album pages from servers that know no versions', () => {
+    const parsed = AlbumDetail.parse(album)
+    expect(parsed.ownedVersions).toBeUndefined()
+    expect(parsed.versionId).toBeUndefined()
+  })
+
+  it('reads the versions and the pick, and takes only well-formed version ids', () => {
+    const parsed = AlbumDetail.parse({ ...album, ownedVersions: [version], versionId: version.id })
+    expect(parsed.ownedVersions![0]!.quality.tier).toBe('hi_res_lossless')
+    expect(VersionId.safeParse(`${id}:lossy`).success).toBe(true)
+    expect(VersionId.safeParse(`${id}:best`).success).toBe(false)
+    expect(VersionId.safeParse('lossy').success).toBe(false)
   })
 })
