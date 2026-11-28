@@ -34,6 +34,8 @@ final class AudioSessionController: EngineSession {
         configured = true
       }
       try session.setActive(true)
+      // The hardware's rate can change as the session becomes active.
+      report()
       return true
     } catch {
       log("couldn’t activate the audio session: \(error.localizedDescription)")

@@ -45,7 +45,8 @@ public class AudioEngineModule: Module {
       Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt"
     }
 
-    OnCreate {
+    OnCreate { [weak self] in
+      guard let self else { return }
       self.listener = SharedEngine.shared.addListener { [weak self] event in self?.forward(event) }
     }
 

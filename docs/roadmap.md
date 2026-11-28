@@ -109,7 +109,7 @@ Designed in [audio-engine.md](./audio-engine.md); each item is a pull request fr
 - [ ] S3. Fragmented MP4 profiles (FLAC, Opus, AAC) with exact gapless numbers, and seeking live transcodes
 - [ ] C1. Queue diffs with checkpoints on the session socket
 - [ ] C2. Undoing queue edits
-- [ ] M1. The native iOS and tvOS engine, behind a setting
+- [x] M1. The native iOS and tvOS engine, behind a setting
 - [ ] M2. Streaming to the cache in one pass
 - [ ] M3. Fragmented MP4 transcodes and live seeking on iOS
 - [ ] M4. Normalization with boost and a true-peak limiter, with a target setting
