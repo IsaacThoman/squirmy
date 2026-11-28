@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router'
 import { trackMenuEntries } from '@/components/music/track-menu'
 import type { TrackAction } from '@/components/music/TrackList'
 import { IconButton, type IconButtonProps } from '@/components/ui/icon-button'
-import { DropdownMenu } from '@/components/ui/menu'
+import { DropdownMenu, type MenuEntry } from '@/components/ui/menu'
 import { isPlayable } from '@/lib/catalog'
 import { useViewer } from '@/player/on-demand-context'
 import { usePlayerControls } from '@/player/player-context'
@@ -20,6 +20,8 @@ type SongMenuButtonProps = {
   queued?: { entryId: string; index: number; count: number }
   /** Before going to the song's album or artist, as Now Playing closes over the page. */
   onNavigate?: () => void
+  /** Entries after the song's own, for where it plays: Track info in Now Playing. */
+  extraMenu?: MenuEntry[]
   size?: IconButtonProps['size']
   className?: string
 }
@@ -29,7 +31,7 @@ type SongMenuButtonProps = {
  * has in any list, as the iOS app has it there too: the queue, a playlist, radio, the library
  * and the song's album and artists.
  */
-export function SongMenuButton({ track, unavailable = false, queued, onNavigate, size = 'sm', className }: SongMenuButtonProps) {
+export function SongMenuButton({ track, unavailable = false, queued, onNavigate, extraMenu, size = 'sm', className }: SongMenuButtonProps) {
   const navigate = useNavigate()
   const viewer = useViewer()
   const controls = usePlayerControls()
@@ -48,6 +50,7 @@ export function SongMenuButton({ track, unavailable = false, queued, onNavigate,
       void navigate(to)
     },
     queued: queued && { index: queued.index, count: queued.count },
+    extraMenu,
   })
   return (
     <DropdownMenu

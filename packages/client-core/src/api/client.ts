@@ -47,6 +47,11 @@ import {
   type DirectoryQuery,
   GenrePage,
   HistoryPage,
+  HistoryImport,
+  HistoryImports,
+  type HistoryImportSource,
+  type ReplayQuery,
+  ReplayStats,
   HomeResponse,
   Import,
   ImportAlbumList,
@@ -109,6 +114,7 @@ import {
   type UpdateAcquisitionPolicy,
   type UpdateAcquisitionProviderRequest,
   TrackSummariesResponse,
+  TrackSonic,
   type TrackSummariesRequest,
   TrackPage,
   TrackSummary,
@@ -238,7 +244,7 @@ type Input<T extends z.ZodType> = z.input<T>
 const DeviceList = page(DeviceInfo)
 const JobList = z.array(JobQueueStats)
 const likedPages = { track: TrackPage, album: AlbumPage, artist: ArtistPage } as const
-type SearchParams = { q: string; limit?: number; type?: SearchKind; offset?: number }
+type SearchParams = { q: string; limit?: number; type?: SearchKind; offset?: number; scope?: 'library' | 'server' }
 type LikedItems = { track: TrackSummary; album: AlbumSummary; artist: ArtistSummary }
 
 /**
@@ -434,6 +440,8 @@ export function createApiClient(options: ApiClientOptions) {
       album: (albumId: string) => get(`/albums/${id(albumId)}`, AlbumDetail),
       track: (trackId: string, query: TrackQuery = {}) => get(`/tracks/${id(trackId)}`, TrackSummary, query),
       lyrics: (trackId: string) => get(`/tracks/${id(trackId)}/lyrics`, Lyrics),
+      /** Tempo, key, energy and per-file timing (for transitions); see `TrackSonic`. */
+      sonic: (trackId: string) => get(`/tracks/${id(trackId)}/sonic`, TrackSonic),
       trackSummaries: (body: TrackSummariesRequest) => send('POST', '/tracks/summaries', TrackSummariesResponse, body),
     },
     streaming: {
@@ -471,6 +479,10 @@ export function createApiClient(options: ApiClientOptions) {
       removePlaylistItem: (playlistId: string, itemId: string) =>
         send('DELETE', `/playlists/${id(playlistId)}/items/${id(itemId)}`, PlaylistDetail),
       history: (query: Partial<PageQuery> = {}) => get('/me/history', HistoryPage, query),
+      replay: (query: Partial<ReplayQuery> = {}) => get('/me/replay', ReplayStats, query),
+      historyImports: () => get('/me/history/imports', HistoryImports),
+      importHistory: (source: HistoryImportSource, file: UploadFile, options: UploadOptions = {}) =>
+        upload(`/me/history/imports?source=${id(source)}`, [file], HistoryImport, options),
       wants: (query: Partial<PageQuery> = {}) => get('/me/wants', WantPage, query),
       want: (type: WantEntityType, entityId: string) => send('PUT', `/me/wants/${type}/${id(entityId)}`, Ok),
       unwant: (type: WantEntityType, entityId: string) => send('DELETE', `/me/wants/${type}/${id(entityId)}`, Ok),
@@ -497,6 +509,8 @@ export function createApiClient(options: ApiClientOptions) {
     radio: {
       track: (trackId: string) => send('POST', `/radio/track/${id(trackId)}`, RadioResponse),
       artist: (artistId: string) => send('POST', `/radio/artist/${id(artistId)}`, RadioResponse),
+      /** A radio of tracks that sound like this one (falls back to the track radio's mix when it is not analysed). */
+      sonic: (trackId: string) => send('POST', `/radio/sonic/${id(trackId)}`, RadioResponse),
     },
     imports: {
       /** Your own imports, or every import for an admin, newest first. */

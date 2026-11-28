@@ -527,17 +527,12 @@ function ShellQueue({ onClose }: { onClose: () => void }) {
 }
 
 function ShellNowPlaying({ nowPlaying, setNowPlaying }: Pick<ShellPlayerProps, 'nowPlaying' | 'setNowPlaying'>) {
-  const player = usePlayer()
-  const { liked, toggleLike } = useCurrentLike()
   return (
     <NowPlaying
-      player={player}
       open={nowPlaying.open}
       onOpenChange={open => setNowPlaying(now => ({ ...now, open }))}
       pane={nowPlaying.pane}
       onPaneChange={pane => setNowPlaying(now => ({ ...now, pane }))}
-      liked={liked}
-      onToggleLike={toggleLike}
     />
   )
 }

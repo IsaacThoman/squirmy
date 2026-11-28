@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "GET",
-    "url": "https://musicbrainz.org/ws/2/release/d6dc018d-5caa-4e6f-8e9d-d889fcd585f4?inc=artist-credits+labels+recordings+release-groups+isrcs+url-rels&fmt=json"
+    "url": "https://musicbrainz.org/ws/2/release/d6dc018d-5caa-4e6f-8e9d-d889fcd585f4?inc=artist-credits+labels+recordings+release-groups+isrcs+url-rels+recording-level-rels+work-level-rels+artist-rels+work-rels&fmt=json"
   },
   "response": {
     "status": 200,

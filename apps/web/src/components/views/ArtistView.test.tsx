@@ -56,6 +56,15 @@ async function renderPage(
 }
 
 describe('artist sections', () => {
+  it('lists works a composer contributed to and plays from that section', async () => {
+    const track = album('blue-hour').discs[0].tracks[0]
+    const { fake } = await renderPage(artist => ({ ...artist, topTracks: [], composedOrProduced: [track] }))
+    const list = await screen.findByRole('list', { name: 'Composed / Produced' })
+    expect(screen.queryByRole('list', { name: 'Top songs' })).toBeNull()
+    await userEvent.click(within(list).getByRole('button', { name: `Play ${track.title}` }))
+    await waitFor(() => expect(fake.socket.session.current?.trackId).toBe(track.id))
+  })
+
   it('shows each section as one row, with See all when it has more than it shows', async () => {
     await renderPage(artist => ({
       ...artist,

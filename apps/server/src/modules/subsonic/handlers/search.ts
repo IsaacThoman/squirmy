@@ -72,7 +72,7 @@ async function inLibrary(kind: Kind, ids: string[], userId: string, rootId?: str
 async function searchPages(userId: string, key: string, pages: Record<Kind, Page>, rootId?: string): Promise<Record<Kind, string[]>> {
   const limit = Math.max(...Object.values(pages).map(({ count, offset }) => (count === 0 ? 0 : offset + count)))
   if (limit === 0) return { artist: [], album: [], song: [] }
-  const found = await searchLibrary(userId, key, limit)
+  const found = await searchLibrary(userId, key, limit, { scope: 'server' })
   const pick = async (kind: Kind, ids: string[]) => {
     const { count, offset } = pages[kind]
     if (count === 0) return []

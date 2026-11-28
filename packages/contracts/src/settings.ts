@@ -18,6 +18,7 @@ export const UserSettings = z.object({
    * by `/collection/*` either way.
    */
   libraryIncludesServerMusic: z.boolean().default(false),
+  shareNowPlaying: z.boolean().default(false),
 })
 export type UserSettings = z.infer<typeof UserSettings>
 /** `PATCH /api/v1/me/settings`. Keys left out keep their value; there are no defaults here. */
@@ -30,6 +31,7 @@ export const UpdateUserSettings = z.object({
   scrobbleListenBrainz: z.boolean(),
   scrobbleLastFm: z.boolean(),
   libraryIncludesServerMusic: z.boolean(),
+  shareNowPlaying: z.boolean(),
 }).partial()
 export type UpdateUserSettings = z.infer<typeof UpdateUserSettings>
 
@@ -81,6 +83,12 @@ export const ServerSettings = z.object({
    * wants, so turning it back on restores them.
    */
   wantlistEnabled: z.boolean().default(false),
+  /**
+   * Whether files are analysed for tempo, key, energy and timbre (the sonic analysis radio
+   * uses). It runs in the background at the lowest priority. Off stops new analysis and
+   * keeps what was measured; tempo, key and mood tags are read either way.
+   */
+  sonicAnalysisEnabled: z.boolean().default(true),
 })
 export type ServerSettings = z.infer<typeof ServerSettings>
 
@@ -106,6 +114,7 @@ export const UpdateServerSettings = z.object({
   importMaxBytes: z.number().int().min(1),
   importMaxActivePerUser: z.number().int().min(1),
   wantlistEnabled: z.boolean(),
+  sonicAnalysisEnabled: z.boolean(),
   listenBrainzToken: z.string().nullable(),
   acoustIdKey: z.string().nullable(),
   fanartKey: z.string().nullable(),

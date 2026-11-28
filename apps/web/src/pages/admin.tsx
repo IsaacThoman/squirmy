@@ -79,7 +79,7 @@ function useFixMatch() {
   const q = query.trim()
   const results = useQuery({
     queryKey: [...queryKeys.search(), 'library', q],
-    queryFn: () => api.search.library({ q, limit: 12 }),
+    queryFn: () => api.search.library({ q, limit: 12, scope: 'server' }),
     enabled: finding && !!q,
     placeholderData: keepPreviousData,
   })

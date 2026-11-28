@@ -1,5 +1,5 @@
 import type { TrackSummary } from '@squirmy/contracts'
-import { fireEvent, screen, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
@@ -50,6 +50,21 @@ const menuItems = async (title: string) => {
 }
 
 describe('TrackRow', () => {
+  it('opens the row menu from the keyboard and right click and restores focus', async () => {
+    const { row } = renderRow('soft-signal')
+    const trigger = screen.getByRole('button', { name: 'More options for Soft Signal' })
+    expect(screen.queryByRole('menu')).toBeNull()
+    trigger.focus()
+    expect(screen.queryByRole('menu')).toBeNull()
+    await userEvent.keyboard('{ArrowDown}')
+    expect((await screen.findAllByRole('menuitem'))[0]).toHaveFocus()
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(trigger).toHaveFocus())
+    fireEvent.contextMenu(row, { clientX: 100, clientY: 120 })
+    expect(await screen.findByRole('menuitem', { name: 'Start radio' })).toBeInTheDocument()
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+  })
+
   it('plays a track from its play button and on double click', async () => {
     const { onPlay, row } = renderRow('soft-signal')
     await userEvent.click(screen.getByRole('button', { name: 'Play Soft Signal' }))

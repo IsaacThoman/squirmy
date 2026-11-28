@@ -1,4 +1,4 @@
-import { artworkUrl, canFetch, streamUrl, type Viewer } from '@squirmy/client-core';
+import { ApiError, artworkUrl, canFetch, streamUrl, type Viewer } from '@squirmy/client-core';
 import type { AlbumDetail, PlaylistDetail, TrackSummary } from '@squirmy/contracts';
 import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PropsWithChildren,
@@ -48,7 +48,7 @@ const capItem = accountItem<number | null>('downloadCap', 'device');
 function source(current: () => Api, serverUrl: string): DownloadSource {
   return {
     describe: (trackId, albumId, quality) => current().streaming.playback(trackId, {
-      albumId: albumId ?? undefined, quality, codecs: codecsFor(Platform.OS), download: true,
+      albumId: albumId ?? undefined, quality, codecs: codecsFor(Platform.OS), download: true, intent: 'download',
     }),
     url: descriptor => streamUrl(serverUrl, descriptor),
     artworkUrl: artwork => artworkUrl(serverUrl, artwork, keptArtSize),
@@ -73,6 +73,14 @@ function source(current: () => Api, serverUrl: string): DownloadSource {
     summaries: async tracks => (await current().catalog.trackSummaries({ tracks: tracks.map(track => ({ id: track.id, albumId: track.albumId })) })).tracks,
     acquireTrack: (trackId, query) => current().acquisition.acquireTrack(trackId, query),
     acquireAlbum: (albumId, query) => current().acquisition.acquireAlbum(albumId, query),
+    lyrics: async trackId => {
+      try {
+        return await current().catalog.lyrics(trackId);
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) return null;
+        throw error;
+      }
+    },
   };
 }
 

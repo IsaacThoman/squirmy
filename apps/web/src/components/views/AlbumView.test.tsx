@@ -25,6 +25,35 @@ const albumMenuItem = async (name: string) => {
 }
 
 describe('album page', () => {
+  it('shows track credits and shared work headings without changing playback order', async () => {
+    const { services, api, socket } = fakeServices()
+    const disc = blueHour.discs[0]
+    const work = { id: blueHour.id, mbid: null, title: 'Nocturne in A minor' }
+    const composer = { id: blueHour.artists[0]!.id, name: 'Mara Finch' }
+    const tracks = disc.tracks.map((track, i) => i < 2 ? {
+      ...track,
+      works: [{ ...work, movementName: i === 0 ? 'Andante' : 'Allegro', movementNumber: i + 3 }],
+      credits: [{ role: 'composer' as const, artist: composer }],
+      explicit: i === 0,
+    } : track)
+    api.catalog.album.mockResolvedValue({ ...blueHour, discs: [{ ...disc, tracks }] })
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    const list = await screen.findByRole('list', { name: 'Blue Hour tracks' })
+    expect(within(list).getAllByRole('heading', { name: work.title })).toHaveLength(1)
+    const first = within(list).getByText('Andante').closest('li')!
+    expect(within(first).getByText('3')).toBeInTheDocument()
+    expect(within(first).getByTitle('Explicit')).toBeInTheDocument()
+    await userEvent.click(within(first).getByRole('button', { name: `Credits for ${tracks[0]!.title}` }))
+    expect(await screen.findByRole('menuitem', { name: composer.name })).toBeInTheDocument()
+    expect(screen.getByText('Composer')).toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+    await userEvent.click(within(list).getByRole('button', { name: `More options for ${tracks[0]!.title}` }))
+    expect(await screen.findByRole('menuitem', { name: 'Credits' })).toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+    await userEvent.click(within(list).getByRole('button', { name: `Play ${tracks[1]!.title}` }))
+    await waitFor(() => expect(socket.session.current?.trackId).toBe(tracks[1]!.id))
+  })
+
   describe('for someone the server fetches music for', () => {
     it('looks like any album, with nothing about where its music is', async () => {
       renderWithApp(<AppRoutes />, `/album/${lowTide.id}`)

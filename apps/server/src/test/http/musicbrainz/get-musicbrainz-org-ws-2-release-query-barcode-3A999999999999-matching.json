@@ -1,0 +1,16 @@
+{
+  "note": "No releases carry this test barcode.",
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/release?query=barcode%3A999999999999+OR+barcode%3A0999999999999&limit=25&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": {
+      "releases": []
+    }
+  }
+}

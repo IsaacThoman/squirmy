@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Artwork, TrackSummary as Track } from '@squirmy/contracts';
 import { BrandMark } from './BrandMark';
+import { useMenuSheet } from './MenuSheet';
 import TransportSlider from './player/TransportSlider';
 import { Cover, Icon } from './ui';
 import { createThemedStyles, useColors } from './theme';
@@ -32,6 +33,8 @@ export type SheetFieldProps = {
   maxLength?: number;
 };
 export type SheetActionProps = { title: string; disabled?: boolean; onPress: () => void };
+/** A heading over label and value pairs, such as a song's file and how it plays. */
+export type SheetFactsProps = { title: string; rows: readonly { label: string; value: string }[] };
 export type SheetScrollProps = { height: number; children: ReactNode };
 export type SheetPickerRowProps<T extends string | number> = {
   label: string; value: T; options: readonly { value: T; label: string }[]; onChange: (value: T) => void;
@@ -104,13 +107,16 @@ export function SheetNote({ mark, error, children }: SheetNoteProps) {
   </View>;
 }
 
-/** A row that picks one of a few values; the choices open in an action sheet. */
+/** A row that picks one of a few values; the choices open in a menu sheet, the current one checked. */
 export function SheetPickerRow<T extends string | number>({ label, value, options, onChange }: SheetPickerRowProps<T>) {
+  const menu = useMenuSheet();
   const current = options.find(option => option.value === value)?.label ?? '';
-  return <SheetRow title={label} subtitle={current} icon="chevron.up.chevron.down" onPress={() => Alert.alert(label, undefined, [
-    ...options.map(option => ({ text: option.label, onPress: () => onChange(option.value) })),
-    { text: 'Cancel', style: 'cancel' as const },
-  ])} />;
+  return <>
+    <SheetRow title={label} subtitle={current} icon="chevron.up.chevron.down" onPress={() => menu.open(label, options.map(option => ({
+      title: option.label, icon: option.value === value ? 'checkmark' : undefined, onPress: () => onChange(option.value),
+    })))} />
+    {menu.sheet}
+  </>;
 }
 
 export function TrackSummary({ track, subtitle, collection }: TrackSummaryProps) {
@@ -138,6 +144,21 @@ export function SheetInfo({ icon, title, subtitle }: SheetInfoProps) {
         <Text numberOfLines={1} style={styles.rowTitle}>{title}</Text>
         <Text numberOfLines={1} style={styles.rowSubtitle}>{subtitle}</Text>
       </View>
+    </View>
+  );
+}
+
+export function SheetFacts({ title, rows }: SheetFactsProps) {
+  const styles = useStyles();
+  return (
+    <View style={styles.facts} accessibilityRole="summary">
+      <Text accessibilityRole="header" style={styles.factsTitle}>{title}</Text>
+      {rows.map(row => (
+        <View key={row.label} style={styles.fact}>
+          <Text style={styles.rowSubtitle}>{row.label}</Text>
+          <Text style={styles.factValue}>{row.value}</Text>
+        </View>
+      ))}
     </View>
   );
 }
@@ -203,4 +224,8 @@ const useStyles = createThemedStyles(colors => StyleSheet.create({
   action: { minHeight: 48, borderRadius: 24, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
   actionTitle: { color: colors.onAccent, fontSize: 15, fontWeight: '700' },
   disabled: { opacity: 0.45 },
+  facts: { gap: 4, paddingHorizontal: 4 },
+  factsTitle: { color: colors.muted, fontSize: 13, fontWeight: '700' },
+  fact: { flexDirection: 'row', justifyContent: 'space-between', gap: 16, minHeight: 26, alignItems: 'center' },
+  factValue: { color: colors.text, fontSize: 15, fontWeight: '500', flexShrink: 1, textAlign: 'right' },
 }));

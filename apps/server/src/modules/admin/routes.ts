@@ -23,6 +23,7 @@ import { hashPassword, insertUser, listSessions, revokeAppPasswords, revokeUserS
 import { disableTwoFactor, twoFactorEnabled } from '../auth/two-factor.js'
 import { markEnrichmentStale } from '../enrichment/stale.js'
 import { queueNewlyPossibleMatching } from '../matching/retry.js'
+import { queueSonicSweep } from '../sonic/index.js'
 import { checkImportSettings } from '../imports/settings.js'
 
 const IdParams = z.object({ id: Id })
@@ -230,6 +231,8 @@ export async function adminRoutes(app: FastifyInstance) {
     await markEnrichmentStale(before, settings)
     // Owned by the matching module: identification that was not possible before.
     await queueNewlyPossibleMatching(before, settings)
+    // Owned by the sonic module: analysis switched on starts now.
+    await queueSonicSweep(before, settings)
     await invalidate('admins', [queryKeys.admin()])
     // Clients read the switch from the setup status, and Home and the wantlist answer
     // differently with it off, so open apps show or hide the wantlist without a reload.

@@ -90,7 +90,7 @@ export type SettingsDialogProps = {
   /** Whoever may upload gets a link to Your uploads in the Library section. */
   onOpenUploads?: () => void
   /** Said in place of a section's controls when its first read failed. */
-  failures?: Partial<Record<'settings' | 'scrobbling' | 'appPasswords', ReactNode>>
+  failures?: Partial<Record<'settings' | 'sharing' | 'scrobbling' | 'appPasswords', ReactNode>>
   /** A change the section's controls made that the server refused, said under them. */
   errors?: Partial<Record<'playback' | 'library' | 'scrobbling', string>>
   /** What Last.fm answered when it sent the browser back here, said at the top of Scrobbling. */
@@ -264,6 +264,20 @@ export function SettingsDialog({
 
             {section === 'scrobbling' && (
               <Panel title="Scrobbling" description="Send what you listen to to other services. Songs count once you have heard half of them, or four minutes.">
+                {settings ? (
+                  <Row
+                    htmlFor="share-now-playing"
+                    label="Share what I’m listening to with other users on this server"
+                    description="Lets other users see your current song in Subsonic apps."
+                  >
+                    <Switch
+                      id="share-now-playing"
+                      checked={settings.shareNowPlaying ?? false}
+                      onCheckedChange={shareNowPlaying => onSettingsChange({ shareNowPlaying })}
+                    />
+                  </Row>
+                ) : failures?.sharing ?? <LoadingRows rows={1} />}
+                <Separator />
                 {lastFm && (
                   <p role="status" className={cn('flex items-start gap-2 rounded-md border px-3 py-2 text-sm', lastFm.ok ? 'border-primary/30 bg-primary/10' : 'border-destructive/30 bg-destructive/10 text-destructive')}>
                     {lastFm.ok ? <CircleCheck aria-hidden className="mt-0.5 size-4 shrink-0 text-primary" /> : <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />}

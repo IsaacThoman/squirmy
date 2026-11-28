@@ -19,6 +19,20 @@ function renderQueue() {
 }
 
 describe('SortableQueue', () => {
+  it('keeps the full queue in the list semantics while mounting only a window', () => {
+    const entries = Array.from({ length: 5000 }, (_, index) => ({
+      ...items[0], entry: { ...items[0].entry, id: `queue-${index}` },
+    }))
+    const onMove = vi.fn()
+    renderWithApp(<SortableQueue items={entries} onMove={onMove} onRemove={vi.fn()} onPlay={vi.fn()} />)
+    const rows = screen.getAllByRole('listitem')
+    expect(rows.length).toBeLessThan(50)
+    expect(rows[0]).toHaveAttribute('aria-setsize', '5000')
+    expect(rows[0]).toHaveAttribute('aria-posinset', '1')
+    fireEvent.keyDown(rows[0].querySelector('button')!, { key: 'ArrowDown' })
+    expect(onMove).toHaveBeenCalledWith('queue-0', 1)
+  })
+
   it('moves an entry with the arrow keys on its song button', () => {
     const { onMove } = renderQueue()
     fireEvent.keyDown(screen.getByRole('button', { name: 'Play Amber' }), { key: 'ArrowDown' })

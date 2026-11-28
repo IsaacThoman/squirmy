@@ -59,7 +59,7 @@ const lastFmReturns: Record<string, { message: string; ok: boolean }> = {
   error: { message: 'Last.fm did not answer. Try again in a moment.', ok: false },
 }
 
-const scrobbleSettings: (keyof UpdateUserSettings)[] = ['scrobbleListenBrainz', 'scrobbleLastFm']
+const scrobbleSettings: (keyof UpdateUserSettings)[] = ['scrobbleListenBrainz', 'scrobbleLastFm', 'shareNowPlaying']
 
 /** The section whose controls made a change: a scrobbling switch is in Scrobbling, the library's in Library, the rest in Playback. */
 function refusedIn(patch: UpdateUserSettings): 'scrobbling' | 'library' | 'playback' {
@@ -175,6 +175,7 @@ export function SettingsDialogHost({ open, section, lastFm, onOpenChange, onSect
       onOpenUploads={canUploadMusic(user) ? () => { onOpenChange(false); void navigate('/uploads') } : undefined}
       failures={{
         settings: loadFailure(settings, 'Your playback settings did not load'),
+        sharing: loadFailure(settings, 'Your now-playing sharing setting did not load'),
         scrobbling: loadFailure(scrobbling, 'Your scrobbling connections did not load'),
         appPasswords: loadFailure(passwords, 'Your app passwords did not load'),
       }}
