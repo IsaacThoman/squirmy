@@ -1,3 +1,4 @@
+import { playlistVisibleTo } from '../../userdata/playlist-access.js'
 /** Media retrieval: stream, download, cover art and lyrics. */
 import { parseLrc as parseEnhancedLrc, stripWordStamps } from '@squirmy/client-core'
 import { ART_SIZES, type ArtSize } from '@squirmy/contracts'
@@ -106,10 +107,11 @@ async function artworkAsset(value: string, viewerId: string): Promise<string | n
       break
     case 'playlist':
       query = sql`
-        select ${servableArt('a.artwork_asset_id')} as id from playlist_items i join albums a on a.id = i.album_id
-        join playlists p on p.id = i.playlist_id
-        where i.playlist_id = ${parsed.id} and (p.owner_id = ${viewerId} or p.is_public)
-          and ${servableArt('a.artwork_asset_id')} is not null order by i.position limit 1`
+        select coalesce(${servableArt('p.artwork_asset_id')}, (
+          select ${servableArt('a.artwork_asset_id')} from playlist_items i join albums a on a.id = i.album_id
+          where i.playlist_id = p.id and ${servableArt('a.artwork_asset_id')} is not null order by i.position, i.id limit 1
+        )) as id
+        from playlists p where p.id = ${parsed.id} and ${playlistVisibleTo(viewerId)}`
       break
   }
   const [row] = await db.execute<{ id: string | null }>(query)

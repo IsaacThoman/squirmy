@@ -38,10 +38,11 @@ type PlaylistViewProps = {
   /** Removes the picked songs. */
   onRemoveMany: (indexes: number[]) => Promise<unknown>
   /** A move or removal the server refused, said above the songs it went back among. */
+  extraMenu?: MenuEntry[]
   failure?: string
 }
 
-export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete, onMove, onRemove, onRemoveMany, failure }: PlaylistViewProps) {
+export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete, onMove, onRemove, onRemoveMany, extraMenu, failure }: PlaylistViewProps) {
   // Finding and sorting only change what is listed here: the playlist keeps its own order.
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<PlaylistSort>('custom')
@@ -52,16 +53,17 @@ export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete
   const touch = useMediaQuery('(pointer: coarse)')
   const library = useLibrary()
   // Anyone who can see the playlist can share it; the link follows its songs as they change.
-  const share: MenuEntry[] = library.sharingEnabled
+  const share: MenuEntry[] = library.sharingEnabled && (owned || playlist.isPublic)
     ? [{ label: 'Share…', icon: <Share2 />, onSelect: () => library.share({ kind: 'playlist', id: playlist.id, title: playlist.name }) }]
     : []
   const smart = Boolean(playlist.rules)
-  const changesItems = owned && !smart
+  const canAdd = owned || Boolean(playlist.collaboratorRole)
+  const changesItems = (owned || playlist.collaboratorRole === 'edit') && !smart
   // Songs are dragged only in the playlist's own order, all of them showing.
   const asStored = !query.trim() && sort === 'custom'
   return (
     <TrackCollection
-      kind={smart ? (playlist.isPublic ? 'Public smart playlist' : 'Smart playlist') : playlist.isPublic ? 'Public playlist' : 'Playlist'}
+      kind={playlist.collaborative ? 'Collaborative playlist' : smart ? (playlist.isPublic ? 'Public smart playlist' : 'Smart playlist') : playlist.isPublic ? 'Public playlist' : 'Playlist'}
       title={playlist.name}
       art={<PlaylistCover artworks={playlist.artworks} />}
       tint={playlist.artworks[0]?.color}
@@ -69,6 +71,7 @@ export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete
       description={playlist.description}
       tracks={tracks}
       addedAt={shown.map(index => playlist.items[index].addedAt)}
+      addedByNames={playlist.collaborative ? shown.map(index => playlist.items[index].addedByName) : undefined}
       count={playlist.items.length ? plural(playlist.items.length, 'song') : undefined}
       getItemKey={getItemKey}
       durationMs={playlist.durationMs}
@@ -89,9 +92,10 @@ export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete
           ? { label: 'Make private', icon: <Lock />, onSelect: onTogglePublic }
           : { label: 'Make public', icon: <Globe />, onSelect: onTogglePublic },
         ...share,
+        ...(extraMenu ?? []),
         { kind: 'separator' },
         { label: 'Delete playlist', icon: <Trash2 />, danger: true, onSelect: onDelete },
-      ] : share}
+      ] : [...share, ...(extraMenu ?? [])]}
       empty={playlist.items.length ? (
         <EmptyState icon={<SearchX />} title="No songs match" description={`Nothing in this playlist matches “${query.trim()}”.`} action={<Button variant="outline" onClick={() => setQuery('')}>Show every song</Button>} />
       ) : smart ? (
@@ -105,10 +109,10 @@ export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete
         <EmptyState
           icon={<ListMusic />}
           title="This playlist is empty"
-          description={!owned ? undefined
+          description={!canAdd ? undefined
             : touch ? 'Add songs from any album, artist or search: open a song’s menu and choose Add to playlist.'
               : 'Add songs from any album, artist or search with the track menu, or drag them onto the playlist in the sidebar.'}
-          action={owned && <Button asChild variant="primary"><Link to="/search">Find something</Link></Button>}
+          action={canAdd && <Button asChild variant="primary"><Link to="/search">Find something</Link></Button>}
         />
       )}
     />
@@ -178,6 +182,7 @@ type TrackCollectionProps = {
   description?: string | null
   tracks: TrackSummary[]
   addedAt?: string[]
+  addedByNames?: (string | null | undefined)[]
   getItemKey?: (index: number) => string
   /** Overrides "12 songs": while the list is still loading, or the whole playlist's count while a find narrows the list. */
   count?: string
@@ -200,7 +205,7 @@ type TrackCollectionProps = {
   failure?: string
 }
 
-function TrackCollection({ kind, title, art, tint, byline, description, tracks, addedAt, getItemKey, count, durationMs, context, onPlay, onMove, onRemove, onRemoveMany, onEndReached, moreFailure, toolbar, menuEntries, empty, failure }: TrackCollectionProps) {
+function TrackCollection({ kind, title, art, tint, byline, description, tracks, addedAt, addedByNames, getItemKey, count, durationMs, context, onPlay, onMove, onRemove, onRemoveMany, onEndReached, moreFailure, toolbar, menuEntries, empty, failure }: TrackCollectionProps) {
   const controls = usePlayerControls()
   const viewer = useViewer()
   const play = onPlay ?? ((index: number, options?: PlayOptions) => controls.playTracks(tracks, index, context, options))
@@ -238,7 +243,7 @@ function TrackCollection({ kind, title, art, tint, byline, description, tracks, 
         {toolbar && <div className="mb-3 flex flex-wrap items-center gap-2">{toolbar}</div>}
         {!tracks.length
           ? empty
-          : <div className="-mx-2"><VirtualTrackList label={`${title} tracks`} tracks={tracks} addedAt={addedAt} getItemKey={getItemKey} variant="playlist" onEndReached={onEndReached} {...actions} /></div>}
+          : <div className="-mx-2"><VirtualTrackList label={`${title} tracks`} tracks={tracks} addedAt={addedAt} addedByNames={addedByNames} getItemKey={getItemKey} variant="playlist" onEndReached={onEndReached} {...actions} /></div>}
         {moreFailure && <LoadError title="More songs didn’t load" {...moreFailure} className="mt-4" />}
       </div>
     </div>

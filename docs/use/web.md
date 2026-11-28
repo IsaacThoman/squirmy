@@ -25,6 +25,15 @@ Most pages have a bar across the top with the page's name and, on some, links to
 
 On an album, tracks of the same work appear under its title, with movement numbers and names when available. Select **Credits** in a track row or its **⋯** menu to see contributors and open their artist pages. An **E** marks explicit tracks. An artist's **Composed / Produced** section lists tracks they worked on without a performance credit.
 
+### Organizing and sharing playlists
+
+- **Collaborators.** Open a playlist you own, choose **⋯ → Collaborators**, and pick an account on your server. **Can edit songs** lets that person add, remove and reorder songs. **Add only** lets them add songs. An invitation gives immediate access, including to a private playlist. The playlist shows who added each song. You can change someone’s permission or remove them in the same dialog.
+- **Folders.** In the sidebar’s **+** menu, choose **Playlist folder**, or use **New folder** under **Library → Playlists**. Drag a playlist you own onto a folder in either place. You can also choose **⋯ → Move to folder** on the playlist. Folders are personal. Deleting one sends its playlists back to the top level.
+- **Covers.** Choose **⋯ → Change cover** as the playlist owner to upload an image or switch back to the automatic album collage.
+- **Duplicates.** Choose **⋯ → Remove duplicates** to keep the first copy of each recording. Turn on **Include other editions** to also match songs by artist and title after removing edition labels such as “Remastered”. A live version or remix with its own title stays separate.
+- **Import.** Use **Import playlist** in the sidebar’s **+** menu or under **Library → Playlists**. Choose a UTF-8 M3U, M3U8, XSPF, text file with one `Artist - Title` per line, or a Spotify [Exportify CSV](https://github.com/watsonbox/exportify#export-format) with English column headings. Squirmy creates a playlist from the catalog matches in file order and lists the missing or ambiguous entries with their line numbers. Locations are matched to files already indexed on your server. Location URLs are never fetched.
+- **Export.** Open **⋯ → Export playlist** to download M3U8, XSPF or JSON. The files carry track metadata and paths relative to the root holding each file. To play an export in a file-based player, its paths need to resolve from the music root on that device. Songs without a library file carry metadata only.
+
 ### Smart playlists
 
 A smart playlist is a playlist made of rules instead of songs you add: "jazz from the 70s", "songs I liked but haven't played in three months", "the 50 most played". Its songs are found again every time it opens, so it keeps up as music arrives, as you heart songs and as you play them. Make one with the **+** next to Playlists (**Smart playlist**) or **New smart playlist** on the Library's **Playlists** chip.
