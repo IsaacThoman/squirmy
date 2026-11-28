@@ -36,7 +36,7 @@ import { displayFontScale, isAccessibilitySize } from './fontScale';
 import { ScrollEdge } from './ScrollEdge';
 import {
   albumCollection, albumTypeLabels, artistCollection, CollectionCover, CollectionRail, EmptyState, gridColumns, gutter, largeTextScale, likedCollection, matches,
-  OfflineBadge, playlistCollection, QueryState, SectionTitle, tapFeedback, useCollectionDim, type Collection,
+  homeItemCollection, OfflineBadge, playlistCollection, QueryState, SectionTitle, tapFeedback, useCollectionDim, type Collection,
 } from './library/shared';
 import { useRealtime, useScanProgress } from './data/realtime';
 import { homeEmpty } from './library/homeEmpty';
@@ -66,6 +66,9 @@ function sectionSize(section: HomeSection) {
     case 'artists': return section.artists.length;
     case 'tracks': return section.tracks.length;
     case 'playlists': return section.playlists.length;
+    case 'items': return section.items.length;
+    // A kind from a newer server than this app shows nothing.
+    default: return 0;
   }
 }
 
@@ -85,6 +88,7 @@ function HomeRail({ section, link, onOpen, onTrackMenu }: { section: HomeSection
       size={section.id === 'recently-added' ? 146 : 131} />}
     {section.kind === 'artists' && <CollectionRail items={section.artists.map(artist => artistCollection(artist, link))} size={110} />}
     {section.kind === 'playlists' && <CollectionRail items={section.playlists.map(playlist => playlistCollection(playlist, link))} />}
+    {section.kind === 'items' && <CollectionRail items={section.items.flatMap(item => homeItemCollection(item, link) ?? [])} />}
     {section.kind === 'tracks' && <View style={styles.trackList}>
       <SongList tracks={section.tracks.slice(0, homeSongLimit)} onTrackMenu={track => onTrackMenu(track)}
         onPlay={start => actions.playTracks(section.tracks, { start, context: { type: 'other', id: section.id, title: section.title } })} />

@@ -39,6 +39,8 @@ import {
   GenrePage,
   HistoryPage,
   HomeResponse,
+  type HomeQuery,
+  MixDetail,
   Import,
   ImportAlbumList,
   ImportFilesResponse,
@@ -403,7 +405,8 @@ export function createApiClient(options: ApiClientOptions) {
       collectionArtists: (query: Partial<LibraryQuery> = {}) => get('/collection/artists', ArtistPage, query),
       /** The server's songs. */
       collectionTracks: (query: Partial<LibraryQuery> = {}) => get('/collection/tracks', TrackPage, query),
-      home: () => get('/home', HomeResponse),
+      /** Home's rails; apps of this release ask for `layout: 'personal'` with the device's time zone. */
+      home: (query: HomeQuery = {}) => get('/home', HomeResponse, query),
       artist: (artistId: string) => get(`/artists/${id(artistId)}`, ArtistDetail),
       /** One section of an artist page, paged ("See all"). */
       artistReleases: (artistId: string, query: Partial<ArtistReleasesQuery> & Pick<ArtistReleasesQuery, 'section'>) => get(`/artists/${id(artistId)}/releases`, AlbumPage, query),
@@ -473,6 +476,8 @@ export function createApiClient(options: ApiClientOptions) {
     radio: {
       track: (trackId: string) => send('POST', `/radio/track/${id(trackId)}`, RadioResponse),
       artist: (artistId: string) => send('POST', `/radio/artist/${id(artistId)}`, RadioResponse),
+      /** A mix made for the user, from Home's Made for you. */
+      mix: (mixId: string) => get(`/mixes/${id(mixId)}`, MixDetail),
     },
     imports: {
       /** Your own imports, or every import for an admin, newest first. */

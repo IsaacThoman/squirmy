@@ -80,6 +80,8 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [ ] Gray out songs a provider lacks before they are played: resolve ahead of the queue, or on album pages, for `assume_available` providers
 - [x] Scrobbling to ListenBrainz and Last.fm (server, API, mobile and web settings)
 - [x] Radio and autoplay (server, API, web and iOS, and Subsonic similar songs)
+- [x] A personal Home: Jump back in, daily mixes (Made for you) with their own page, Because you listened to, Your top artists, Rediscover, ordered by the time of day (server, web, iOS and Apple TV; iOS and tvOS not yet checked on a device)
+- [ ] Mixes from how the music sounds, once audio analysis exists (the `artistSoundAffinity` seam)
 - [ ] Detached playback: one device plays its own queue apart from the shared session. Protocol, server and shared client code are done; the web and iOS controls are next ([detached-playback-ui.md](./detached-playback-ui.md))
 - [x] Local search index: importer, search and admin routes ([local-search-index.md](./local-search-index.md)), offered as the first search provider, and its admin screen
 - [x] Documentation site ([docs/](./index.md), built with VitePress)
