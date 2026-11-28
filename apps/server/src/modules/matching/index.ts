@@ -15,7 +15,7 @@ export type MatchAlbumJob = { rootId: string; groupKey: string }
  * Identifies albums against MusicBrainz and upgrades local-only rows to MusicBrainz rows.
  * `matching.match-album` matches one album group; `matching.sweep` re-queues groups still
  * pending, so nothing waits forever if a job was lost. `matching.retry-fingerprints` gives
- * files that could only be identified by fingerprint another go once an AcoustID key is set.
+ * unmatched files another go once an AcoustID key is set.
  */
 export const matchingModule: ServerModule = {
   name: 'matching',
