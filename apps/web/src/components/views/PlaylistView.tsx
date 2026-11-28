@@ -1,5 +1,5 @@
 import type { MixDetail, PlaybackContext, PlaylistDetail, TrackSummary } from '@squirmy/contracts'
-import { AudioLines, Globe, Heart, ListMusic, Lock, MoreHorizontal, Pencil, Play, SearchX, Shuffle, Sparkles, Trash2 } from 'lucide-react'
+import { AudioLines, Globe, Heart, ListMusic, Lock, MoreHorizontal, Pencil, Play, SearchX, Share2, Shuffle, Sparkles, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import type { MoreFailure } from '@/api/queries'
@@ -18,6 +18,7 @@ import { Select } from '@/components/ui/select'
 import { isPlayable } from '@/lib/catalog'
 import { formatTotalDuration, plural } from '@/lib/format'
 import { useMediaQuery } from '@/lib/use-media-query'
+import { useLibrary } from '@/player/library-context'
 import { useViewer } from '@/player/on-demand-context'
 import { usePlayerControls, type PlayOptions } from '@/player/player-context'
 import { useTrackActions } from '@/player/use-track-actions'
@@ -49,6 +50,11 @@ export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete
   const getItemKey = useCallback((index: number) => playlist.items[shown[index]].itemId, [playlist.items, shown])
   // A finger cannot drag a song onto the sidebar (on a phone it is a drawer over the songs), so touch screens are told the menu's way.
   const touch = useMediaQuery('(pointer: coarse)')
+  const library = useLibrary()
+  // Anyone who can see the playlist can share it; the link follows its songs as they change.
+  const share: MenuEntry[] = library.sharingEnabled
+    ? [{ label: 'Share…', icon: <Share2 />, onSelect: () => library.share({ kind: 'playlist', id: playlist.id, title: playlist.name }) }]
+    : []
   const smart = Boolean(playlist.rules)
   const changesItems = owned && !smart
   // Songs are dragged only in the playlist's own order, all of them showing.
@@ -82,9 +88,10 @@ export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete
         playlist.isPublic
           ? { label: 'Make private', icon: <Lock />, onSelect: onTogglePublic }
           : { label: 'Make public', icon: <Globe />, onSelect: onTogglePublic },
+        ...share,
         { kind: 'separator' },
         { label: 'Delete playlist', icon: <Trash2 />, danger: true, onSelect: onDelete },
-      ] : undefined}
+      ] : share}
       empty={playlist.items.length ? (
         <EmptyState icon={<SearchX />} title="No songs match" description={`Nothing in this playlist matches “${query.trim()}”.`} action={<Button variant="outline" onClick={() => setQuery('')}>Show every song</Button>} />
       ) : smart ? (

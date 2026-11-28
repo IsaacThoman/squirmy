@@ -12,7 +12,7 @@ import { usePlayCollections } from './use-play-collections'
 
 /**
  * A playlist card's menu, from a right-click: play it, queue it, add its songs to another
- * playlist, or open it. What needs the songs loads the playlist first, and says on the entry
+ * playlist, share it, or open it. What needs the songs loads the playlist first, and says on the entry
  * when it did not load.
  */
 export function usePlaylistMenu(playlist: PlaylistSummary, onPlay?: () => void) {
@@ -44,6 +44,7 @@ export function usePlaylistMenu(playlist: PlaylistSummary, onPlay?: () => void) 
       return false
     }),
     onOpen: () => void navigate(`/playlist/${playlist.id}`),
+    onShare: library.sharingEnabled ? () => library.share({ kind: 'playlist', id: playlist.id, title: playlist.name }) : undefined,
   })
   return { entries }
 }

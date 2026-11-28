@@ -19,6 +19,7 @@ This page says what to back up, what is safe to delete, and gives the commands t
 | `assets/` | **Better not**, but it is mostly rebuilt. See [When `assets/` is lost](#when-assets-is-lost). |
 | `art/` | Yes. Resized copies of the artwork, rendered again on first request. |
 | `transcodes/` | Yes. Converted streams, made again as people listen. The cache index is reconciled with the folder hourly and when the worker starts. |
+| `previews/` | Yes. 30-second previews for [share links](./sharing.md), made again when played. Previews not played for a week are deleted daily. |
 | `staging/` | Only while no upload or inbox import is in progress. It holds files being imported; leftovers of finished imports are removed every 15 minutes. |
 
 ### When `assets/` is lost

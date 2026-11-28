@@ -59,6 +59,8 @@ function renderSidebar({ route = '/', playingFrom, wantlistEnabled = true, toggl
     ownPlaylists: playlistSummaries,
     addToPlaylist: vi.fn<LibraryActions['addToPlaylist']>(async () => true),
     newPlaylist: vi.fn<LibraryActions['newPlaylist']>(),
+    sharingEnabled: false,
+    share: vi.fn<LibraryActions['share']>(),
     newSmartPlaylist: vi.fn<LibraryActions['newSmartPlaylist']>(),
     showRatings: false,
     setRating: vi.fn<LibraryActions['setRating']>(async () => {}),

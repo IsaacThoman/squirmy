@@ -291,6 +291,7 @@ function Results({ term, filter, list, onChoose }: ResultsProps) {
           unavailable: !isPlayable(track, viewer),
           wanted: actions.isWanted?.(track),
           playlists: actions.playlists,
+          canShare: actions.canShare,
           ratings: actions.ratings,
           act: action => actions.onAction(action, track, songIndex!),
           navigate: to => void navigate(to),

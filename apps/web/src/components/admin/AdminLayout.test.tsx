@@ -51,7 +51,7 @@ describe('admin navigation', () => {
   it('links every section while they fit', () => {
     renderAdmin('/admin/library')
     const nav = screen.getByRole('navigation', { name: 'Admin sections' })
-    expect(within(nav).getAllByRole('link')).toHaveLength(12)
+    expect(within(nav).getAllByRole('link')).toHaveLength(13)
     expect(within(nav).queryByRole('button', { name: /More/ })).toBeNull()
   })
 
@@ -63,7 +63,7 @@ describe('admin navigation', () => {
     expect(links.map(link => link.textContent)).toEqual(['Library', 'Uploads', 'Review queue3, 3 open'])
     await userEvent.click(within(nav).getByRole('button', { name: 'More' }))
     const menu = await screen.findByRole('menu')
-    expect(within(menu).getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Organize', 'Duplicates & quality', 'File health', 'Search index', 'Providers', 'Users & invites', 'Server settings', 'Integrations', 'Jobs'])
+    expect(within(menu).getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Organize', 'Duplicates & quality', 'File health', 'Search index', 'Providers', 'Users & invites', 'Sharing', 'Server settings', 'Integrations', 'Jobs'])
     await userEvent.click(within(menu).getByRole('menuitem', { name: 'Integrations' }))
     expect(screen.getByTestId('where')).toHaveTextContent('/admin/integrations')
     // The current section always shows in the row.

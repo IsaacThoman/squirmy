@@ -1,7 +1,7 @@
 import { listedDevices, sleepTimerChoices } from '@squirmy/client-core'
 import {
   AudioWaveform, Disc3, Heart, Infinity as InfinityIcon, Keyboard, ListMusic, ListPlus, ListX, MessageSquareQuote, MicVocal, MonitorSpeaker, PanelLeft, Pause, PictureInPicture2, Play, Radio, Repeat,
-  Moon, Repeat1, Settings, Shuffle, SkipBack, SkipForward, TimerOff, Volume2, VolumeX, Maximize2,
+  Moon, Repeat1, Settings, Share2, Shuffle, SkipBack, SkipForward, TimerOff, Volume2, VolumeX, Maximize2,
 } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { isApple } from '@/lib/platform'
@@ -57,6 +57,7 @@ export function usePaletteCommands(shell: ShellCommands): PaletteCommand[] {
       { id: 'radio', label: `Start radio from “${track.title}”`, icon: Radio, keywords: ['station', 'similar'], run: () => controls.startRadio({ type: 'track', id: track.id }) },
       // The song menu's Songs that sound like this: a radio that keeps to the song's sound.
       { id: 'sonic-radio', label: `Songs that sound like “${track.title}”`, icon: AudioWaveform, keywords: ['sonic', 'radio', 'similar sound'], run: () => controls.startRadio({ type: 'sonic', id: track.id }) },
+      ...(library.sharingEnabled ? [{ id: 'share', label: `Share “${track.title}”…`, icon: Share2, keywords: ['public link', 'send'], run: () => library.share({ kind: 'track', id: track.id, albumId: track.album?.id ?? null, title: track.title }) }] : []),
       ...(track.album ? [{ id: 'go-album', label: `Go to “${track.album.title}”`, icon: Disc3, keywords: ['album of the song playing'], run: () => void navigate(`/album/${track.album!.id}`) }] : []),
       ...track.artists.map(artist => ({ id: `go-artist:${artist.id}`, label: `Go to ${artist.name}`, icon: MicVocal, keywords: ['artist of the song playing'], run: () => void navigate(`/artist/${artist.id}`) })),
     ] : []),
