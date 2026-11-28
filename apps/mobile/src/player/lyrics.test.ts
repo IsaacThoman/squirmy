@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   activeLine, blurReach, blurReachFor, chromeDeadline, initialChrome, lineInView, lineLook, lyricCredits, lyricLines, lyricsChrome, lyricTiming,
-  scrollRun, scrollTurn, springRemaining, waveDuration, type ChromeEvent, type ChromeRules, type LyricsChrome,
+  scrollRun, scrollTurn, springRemaining, waveDuration, wordsStarted, type ChromeEvent, type ChromeRules, type LyricsChrome,
 } from './lyrics';
 
 describe('lyricLines', () => {
@@ -18,6 +18,19 @@ describe('lyricLines', () => {
 
   it('applies the offset tag', () => {
     expect(lyricLines({ plain: null, synced: '[offset:+500]\n[00:10.00]Line' }).lines[0]!.startMs).toBe(9500);
+  });
+
+  it('takes the server\'s lines, with word times and translations, over its own reading', () => {
+    const words = [{ startMs: 1000, endMs: 1400, text: 'Paper ' }, { startMs: 1400, endMs: 2000, text: 'boats' }];
+    const { lines } = lyricLines({ plain: null, synced: '[00:01.00]Paper boats', lines: [
+      { startMs: 1000, text: 'Paper boats', words, translation: 'Kami no fune' },
+      { startMs: 3000, text: '' },
+    ] });
+    expect(lines).toEqual([{ startMs: 1000, text: 'Paper boats', words, translation: 'Kami no fune' }]);
+  });
+
+  it('reads word stamps from an older server\'s LRC', () => {
+    expect(lyricLines({ plain: null, synced: '[00:01.00]<00:01.00>Paper <00:01.40>boats<00:02.00>' }).lines[0]!.words).toHaveLength(2);
   });
 
   it('falls back to plain text', () => {
@@ -238,5 +251,15 @@ describe('line motion', () => {
     const samples = Array.from({ length: 100 }, (_, index) => springRemaining(index * 10));
     expect(Math.min(...samples)).toBeGreaterThan(-0.03);
     expect(Math.min(...samples)).toBeLessThan(0);
+  });
+});
+
+describe('wordsStarted', () => {
+  const words = [{ startMs: 1000 }, { startMs: 1400 }, { startMs: 2000 }];
+  it('counts the words begun and says when the next begins', () => {
+    expect(wordsStarted(words, 900)).toEqual({ count: 0, nextAt: 1000 });
+    expect(wordsStarted(words, 1000)).toEqual({ count: 1, nextAt: 1400 });
+    expect(wordsStarted(words, 1999)).toEqual({ count: 2, nextAt: 2000 });
+    expect(wordsStarted(words, 5000)).toEqual({ count: 3, nextAt: null });
   });
 });
