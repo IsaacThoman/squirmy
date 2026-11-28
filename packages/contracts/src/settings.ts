@@ -19,6 +19,14 @@ export const UserSettings = z.object({
    */
   libraryIncludesServerMusic: z.boolean().default(false),
   shareNowPlaying: z.boolean().default(false),
+  /**
+   * Whether explicit songs play for the user. On by default. Off, explicit songs are gray
+   * and never play: queues, radio and autoplay leave them out, search and Home hide them,
+   * and a known clean version plays instead where there is one. An admin can turn it off
+   * for the user and keep it off (`User.explicitRestricted`); the stored value is then the
+   * user's own choice, which applies again once the restriction is lifted.
+   */
+  allowExplicit: z.boolean().default(true),
 })
 export type UserSettings = z.infer<typeof UserSettings>
 /** `PATCH /api/v1/me/settings`. Keys left out keep their value; there are no defaults here. */
@@ -32,6 +40,8 @@ export const UpdateUserSettings = z.object({
   scrobbleLastFm: z.boolean(),
   libraryIncludesServerMusic: z.boolean(),
   shareNowPlaying: z.boolean(),
+  /** Turning it on while an admin restricts the user is 403 `explicit_restricted`. */
+  allowExplicit: z.boolean(),
 }).partial()
 export type UpdateUserSettings = z.infer<typeof UpdateUserSettings>
 
