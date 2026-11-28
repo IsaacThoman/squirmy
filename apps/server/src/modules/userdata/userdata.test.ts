@@ -451,6 +451,15 @@ describe('userdata', () => {
       expect((after!.settings as { secrets: unknown }).secrets).toEqual({ lastFm: 'cipher' })
     })
 
+    it('keeps a normalization target, Standard until one is chosen, and refuses one it does not offer', async () => {
+      const person = await signIn()
+      expect(body(await call(person, { url: '/me/settings' }), UserSettings).normalizationTarget).toBe(-18)
+      expect(body(await call(person, { method: 'PATCH', url: '/me/settings', payload: { normalizationTarget: -14 } }), UserSettings).normalizationTarget).toBe(-14)
+      expect(body(await call(person, { url: '/me/settings' }), UserSettings).normalizationTarget).toBe(-14)
+      expect(errorCode(await call(person, { method: 'PATCH', url: '/me/settings', payload: { normalizationTarget: -15 } }), 400)).toBe('invalid_request')
+      expect(errorCode(await call(person, { method: 'PATCH', url: '/me/settings', payload: { normalizationTarget: '-14' } }), 400)).toBe('invalid_request')
+    })
+
     it('refreshes the scrobbling status when a service is switched', async () => {
       const person = await signIn()
       invalidated.mockClear()

@@ -6,6 +6,8 @@ import {
 
 const normalization = [{ value: 'auto', label: 'Automatic' }, { value: 'off', label: 'Off' }] as const;
 const quality = [{ value: 'original', label: 'Original' }, { value: 'high', label: 'High' }] as const;
+const target = [{ value: -14, label: 'Loud' }, { value: -18, label: 'Standard' }] as const;
+const content = { normalization, target, quality, normalizationNote: 'note', targetNote: 'how loud' };
 
 const service = (patch: Partial<ScrobbleService> = {}): ScrobbleService => ({
   target: 'listenbrainz', available: true, connected: true, needsAttention: false, enabled: true,
@@ -16,15 +18,26 @@ describe('choiceSpec', () => {
   const settings = { normalization: 'off', qualityWifi: 'high', qualityCellular: 'original' } as UserSettings;
 
   it('reads and changes normalization', () => {
-    const spec = choiceSpec('normalization', normalization, quality, 'note');
+    const spec = choiceSpec('normalization', content);
     expect(spec.title).toBe('Volume Normalization');
     expect(spec.note).toBe('note');
     expect(spec.current(settings)).toBe('off');
     expect(spec.change('auto')).toEqual({ normalization: 'auto' });
   });
 
+  it('reads and changes the target as the strings its rows use', () => {
+    const spec = choiceSpec('target', content);
+    expect(spec.title).toBe('Target Loudness');
+    expect(spec.note).toBe('how loud');
+    expect(spec.options).toEqual([{ value: '-14', label: 'Loud' }, { value: '-18', label: 'Standard' }]);
+    expect(spec.current({ ...settings, normalizationTarget: -14 })).toBe('-14');
+    // Settings kept from before there was a target.
+    expect(spec.current(settings)).toBe('-18');
+    expect(spec.change('-14')).toEqual({ normalizationTarget: -14 });
+  });
+
   it('uses the Wi-Fi quality, which the TV plays at on Ethernet too', () => {
-    const spec = choiceSpec('quality', normalization, quality, 'note');
+    const spec = choiceSpec('quality', content);
     expect(spec.current(settings)).toBe('high');
     expect(spec.change('original')).toEqual({ qualityWifi: 'original' });
   });
@@ -34,6 +47,7 @@ describe('isChoice', () => {
   it('knows only the settings it can open', () => {
     expect(isChoice('quality')).toBe(true);
     expect(isChoice('normalization')).toBe(true);
+    expect(isChoice('target')).toBe(true);
     expect(isChoice('volume')).toBe(false);
     expect(isChoice(undefined)).toBe(false);
   });
@@ -43,6 +57,7 @@ describe('row values', () => {
   it('labels the chosen option', () => {
     expect(optionLabel(quality, 'high')).toBe('High');
     expect(optionLabel(quality, 'lossless')).toBe('');
+    expect(optionLabel(target, -14)).toBe('Loud');
   });
 
   it('shows switches as On and Off', () => {

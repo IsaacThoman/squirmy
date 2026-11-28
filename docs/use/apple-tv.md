@@ -51,7 +51,7 @@ The Apple TV is one of your devices, like your phone and your browser, and they 
 
 ## Settings
 
-**Settings** shows who is signed in and to which server, with **Change Server** and **Sign Out**. Under **Playback** are **Volume Normalization** and **Streaming Quality**; the Apple TV streams at your Wi-Fi quality, over Ethernet too, and these settings are your account's, so they change on your phone as well. TestFlight and development builds also have **Engine**, which switches between the classic engine and Squirmy's own, gapless one for this Apple TV, from the next time the app opens. **Library** has the switch that shows all of this server's music in your library.
+**Settings** shows who is signed in and to which server, with **Change Server** and **Sign Out**. Under **Playback** are **Volume Normalization**, **Target Loudness** (while normalization is on) and **Streaming Quality**; the Apple TV streams at your Wi-Fi quality, over Ethernet too, and these settings are your account's, so they change on your phone as well. TestFlight and development builds also have **Engine**, which switches between the classic engine and Squirmy's own, gapless one for this Apple TV, from the next time the app opens. **Library** has the switch that shows all of this server's music in your library.
 
 **Scrobbling** shows whether ListenBrainz and Last.fm are connected, and turns a connected service on or off; hold the click on one to disconnect it. Connecting needs a sign-in page or a token, so connect them in Squirmy on your iPhone or in the web app ([scrobbling](../server/scrobbling.md)). **About** has the app's and the server's versions, for bug reports.
 

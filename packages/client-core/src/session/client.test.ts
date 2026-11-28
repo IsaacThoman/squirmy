@@ -313,9 +313,9 @@ function descriptor(entry: QueueEntry): PlaybackDescriptor {
   }
 }
 
-function setup({ canPlay = true, connect = true, restore, server = new FakeServer(), id = PHONE, onLoadError, systemVolume }: {
+function setup({ canPlay = true, connect = true, restore, server = new FakeServer(), id = PHONE, onLoadError, systemVolume, canBoost, limiter }: {
   canPlay?: boolean; connect?: boolean; restore?: SavedSession; server?: FakeServer; id?: string
-  onLoadError?: SessionPlayer['onLoadError']; systemVolume?: boolean
+  onLoadError?: SessionPlayer['onLoadError']; systemVolume?: boolean; canBoost?: boolean; limiter?: boolean
 } = {}) {
   const transport = new FakeTransport(server)
   const engine = new FakeEngine()
@@ -325,7 +325,7 @@ function setup({ canPlay = true, connect = true, restore, server = new FakeServe
   const client = new SessionClient({
     transport,
     device: { id, name: 'Phone', kind: 'ios' },
-    player: canPlay ? { engine, resolvePlayback, baseUrl: 'https://music.test', normalization: 'off', onLoadError, systemVolume } : undefined,
+    player: canPlay ? { engine, resolvePlayback, baseUrl: 'https://music.test', normalization: 'off', onLoadError, systemVolume, canBoost, limiter } : undefined,
     restore,
     onDetachedEnded: ended,
   })
@@ -1303,8 +1303,8 @@ describe('SessionClient engine', () => {
 })
 
 describe('SessionClient signal path', () => {
-  async function playingHere(server = new FakeServer()) {
-    const context = setup({ server })
+  async function playingHere(server = new FakeServer(), player: { canBoost?: boolean; limiter?: boolean } = {}) {
+    const context = setup({ server, ...player })
     await context.settle()
     context.client.dispatch({ type: 'playTracks', tracks: seeds(1, 2), seed: 1 })
     await context.settle()
@@ -1332,11 +1332,25 @@ describe('SessionClient signal path', () => {
     expect(server.signals).toHaveLength(1)
     client.setNormalization('track')
     await settle()
-    expect(server.signals.at(-1)!.normalization).toEqual({ mode: 'track', applied: 'track', gainDb: -6 })
+    expect(server.signals.at(-1)!.normalization).toEqual({ mode: 'track', applied: 'track', gainDb: -6, targetLufs: -18 })
     engine.finish()
     await settle()
     expect(server.signals.at(-1)!.entryId).toBe(client.getSnapshot().session.current!.id)
     expect(server.signals).toHaveLength(3)
+  })
+
+  it('moves the gain and the report with the target, and says what the limiter does', async () => {
+    const { client, server, engine, settle } = await playingHere(new FakeServer(), { canBoost: true, limiter: true })
+    client.setNormalization('track')
+    client.setNormalizationTarget(-14)
+    await settle()
+    // -6 dB toward -18 LUFS is -2 dB toward -14; the song's peak is unknown.
+    expect(engine.loaded!.gain).toBeCloseTo(10 ** (-2 / 20))
+    expect(server.signals.at(-1)!.normalization).toEqual({ mode: 'track', applied: 'track', gainDb: -2, targetLufs: -14, limitDb: null })
+    const reports = server.signals.length
+    client.setNormalizationTarget(-14)
+    await settle()
+    expect(server.signals).toHaveLength(reports)
   })
 
   it('reports again after a reconnect', async () => {

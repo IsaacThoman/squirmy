@@ -144,6 +144,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (!settings) return
     setQuality(settings.qualityWifi)
     client.setNormalization(settings.normalization)
+    client.setNormalizationTarget(settings.normalizationTarget ?? -18)
   }, [client, setQuality, settings])
 
   const { session, queue } = snapshot

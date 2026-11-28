@@ -45,6 +45,15 @@ export const NormalizationMode = z.enum(['off', 'track', 'album', 'auto'])
 export type NormalizationMode = z.infer<typeof NormalizationMode>
 
 /**
+ * The loudness normalization brings songs to, in LUFS: the user's setting. -18 is the
+ * reference of `Normalization`'s gains (ReplayGain 2.0), -14 about as loud as the big
+ * streaming services, -23 broadcast level (EBU R 128). Above -18, quiet songs need turning
+ * up, which a client does fully only with a limiter (see `gainFor` in client-core).
+ */
+export const NormalizationTarget = z.union([z.literal(-14), z.literal(-16), z.literal(-18), z.literal(-23)])
+export type NormalizationTarget = z.infer<typeof NormalizationTarget>
+
+/**
  * The file a stream is made from, whatever reaches the client. `codec` is in the vocabulary
  * of `codecs` (flac, alac, mp3, aac…); `bytes` is the file's size.
  */

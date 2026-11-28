@@ -1,10 +1,11 @@
 import { z } from 'zod'
 import { Id } from './common.js'
-import { NormalizationMode, StreamQuality } from './playback.js'
+import { NormalizationMode, NormalizationTarget, StreamQuality } from './playback.js'
 
 /** Per-user preferences, stored on the user row. */
 export const UserSettings = z.object({
   normalization: NormalizationMode.default('auto'),
+  normalizationTarget: NormalizationTarget.default(-18),
   qualityWifi: StreamQuality.default('original'),
   qualityCellular: StreamQuality.default('high'),
   downloadQuality: StreamQuality.default('original'),
@@ -24,6 +25,7 @@ export type UserSettings = z.infer<typeof UserSettings>
 /** `PATCH /api/v1/me/settings`. Keys left out keep their value; there are no defaults here. */
 export const UpdateUserSettings = z.object({
   normalization: NormalizationMode,
+  normalizationTarget: NormalizationTarget,
   qualityWifi: StreamQuality,
   qualityCellular: StreamQuality,
   downloadQuality: StreamQuality,

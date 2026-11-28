@@ -38,7 +38,11 @@ import { followSession } from './streamingCache/session';
 
 export type { QueueEntry };
 
-type Runtime = { client: SessionClient; device: ClientDevice; loading: LoadingWatch; seeks: PendingSeek };
+type Runtime = {
+  client: SessionClient; device: ClientDevice; loading: LoadingWatch; seeks: PendingSeek;
+  /** The engine turns quiet songs up with normalization, which takes its limiter. */
+  boosts: boolean;
+};
 type PlayOptions = { start?: number; shuffle?: boolean; context?: PlaybackContext };
 
 const defaultQuality: Pick<UserSettings, 'qualityWifi' | 'qualityCellular'> = { qualityWifi: 'original', qualityCellular: 'high' };
@@ -131,10 +135,12 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         player: {
           engine,
           baseUrl: serverUrl,
-          canBoost: false,
+          canBoost: engine.canBoost,
+          limiter: engine.limiter,
           // On iOS this phone's volume is the system's; the player stays at full volume.
           systemVolume: SystemVolume !== null,
           normalization: stream.current.settings?.normalization,
+          normalizationTarget: stream.current.settings?.normalizationTarget,
           onLoadError: (entry, error, willRetry) => loadFailed(entry, error, willRetry),
           resolvePlayback: entry => {
             const { settings: current, network: type } = stream.current;
@@ -334,7 +340,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       client.start();
       followPlaying();
       holdWhilePreparing();
-      setRuntime({ client, device, loading, seeks });
+      setRuntime({ client, device, loading, seeks, boosts: engine.canBoost && engine.limiter });
       teardown = () => {
         // Not saved here: this runs on sign-out too, after the account's data was removed.
         clearTimeout(saveTimer);
@@ -383,6 +389,10 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (runtime && normalization) runtime.client.setNormalization(normalization);
   }, [normalization, runtime]);
+  const normalizationTarget = settings?.normalizationTarget;
+  useEffect(() => {
+    if (runtime && normalizationTarget !== undefined) runtime.client.setNormalizationTarget(normalizationTarget);
+  }, [normalizationTarget, runtime]);
 
   return <RuntimeContext.Provider value={runtime}>{children}</RuntimeContext.Provider>;
 }
@@ -534,6 +544,14 @@ const noLoading = () => notLoading;
 export function useLoading(): LoadingPhase {
   const runtime = useContext(RuntimeContext);
   return useSyncExternalStore(runtime?.loading.subscribe ?? noSubscription, runtime?.loading.getSnapshot ?? noLoading).phase;
+}
+
+/**
+ * Whether this device's engine turns quiet songs up with normalization (the native engine,
+ * with its limiter) rather than only down, for Settings to say so. False before playback starts.
+ */
+export function useNormalizationBoosts(): boolean {
+  return useContext(RuntimeContext)?.boosts ?? false;
 }
 
 /** `useLoading` for a row: its phase while `trackId` is the current entry's track, otherwise `none`. */

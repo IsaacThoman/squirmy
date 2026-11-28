@@ -34,6 +34,7 @@ export const appPasswords: AppPassword[] = [
 
 export const userSettings: UserSettings = {
   normalization: 'auto',
+  normalizationTarget: -18,
   qualityWifi: 'original',
   qualityCellular: 'high',
   downloadQuality: 'original',
