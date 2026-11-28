@@ -1,3 +1,4 @@
+import { MemberAvatar } from '@/components/player/ListenTogether'
 import type { AlbumDisc, TrackSummary } from '@squirmy/contracts'
 import { Clock3, Disc3, Music2, Pause, Play } from 'lucide-react'
 import { Fragment, memo, useContext, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent } from 'react'
@@ -11,7 +12,7 @@ import { TRACK_ROW_HEIGHT, useDensity } from '@/lib/density'
 import { formatDuration, formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useViewer } from '@/player/on-demand-context'
-import { PlayerControlsContext, useTrackPlayback } from '@/player/player-context'
+import { PlayerControlsContext, useJamRights, useTrackPlayback } from '@/player/player-context'
 import { ArtistLinks } from './ArtistLinks'
 import { Cover } from './Cover'
 import { Equalizer } from './Equalizer'
@@ -172,6 +173,7 @@ export function TrackRow({ track, index, selectionKey, number, movementName, add
   }, [present, index, onMenuRow])
   const viewer = useViewer()
   const controls = useContext(PlayerControlsContext)
+  const rights = useJamRights()
   const rowSelection = useContext(SelectionContext)
   const picked = usePickedTracks()
   const selected = useSelected(selectionKey)
@@ -202,7 +204,7 @@ export function TrackRow({ track, index, selectionKey, number, movementName, add
   // Album rows are on that album's page already. One of several picked rows opens their menu.
   const menu = () => (selected && picked?.several()
     ? picked.menu()
-    : trackMenuEntries(track, { unavailable, wanted, playlists, ratings, act, navigate, canShare, extraMenu, reorder: reorder && { index, count: reorder.count }, onAlbumPage: variant === 'album' }))
+    : trackMenuEntries(track, { unavailable, wanted, playlists, ratings, act, navigate, canShare, extraMenu, reorder: reorder && { index, count: reorder.count }, onAlbumPage: variant === 'album', rights }))
 
   const onDragOver = (event: DragEvent) => {
     const drag = draggedTracks(event)
@@ -269,9 +271,14 @@ export function TrackRow({ track, index, selectionKey, number, movementName, add
   const { creditLine, albumLine, wholeCredits, albumWhole } = useWholeLinks(track, showArtists, Boolean(albumColumn))
   // A link the ellipsis cuts leaves the Tab order (`useWholeLinks`); the tooltip has the whole credit.
   const artists = (
-    <div ref={creditLine} title={addedByName ? `${track.artistCredit} · Added by ${addedByName}` : track.artistCredit} className={cn('min-w-0 truncate text-xs', unavailable ? 'text-faded-foreground' : 'text-muted-foreground')}>
-      <ArtistLinks credit={track} plain={unavailable} focusable={index => index < wholeCredits} />
-      {addedByName && <span> · Added by {addedByName}</span>}
+    <div className={cn('flex min-w-0 items-center gap-1.5 text-xs', unavailable ? 'text-faded-foreground' : 'text-muted-foreground')}>
+      <div ref={creditLine} title={track.artistCredit} className="min-w-0 truncate">
+        <ArtistLinks credit={track} plain={unavailable} focusable={index => index < wholeCredits} />
+      </div>
+      {addedByName && <span title={`Added by ${addedByName}`} className="flex min-w-0 items-center gap-1">
+        <MemberAvatar name={addedByName} className="size-3.5 text-[8px]" />
+        <span className="truncate"><span className="sr-only">Added by </span>{addedByName}</span>
+      </span>}
     </div>
   )
 

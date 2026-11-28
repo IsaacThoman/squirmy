@@ -94,6 +94,12 @@ The app has Home, Library (playlists, albums, artists and songs: what you hearte
 
 Open **Library → Playlists** to browse your playlist folders. Playlists also show their custom covers and, for collaborative playlists, who added each song. **Add to playlist** includes playlists you can contribute to. If you have edit access, you can also remove and reorder songs. Use the web app to manage collaborators, folders and covers.
 
+## Listening together
+
+To listen with someone else on your server, open **Playback device** and choose **Listen together**, then **Start listening together**. Share the invite link with **Share invite link**, or invite people one by one from the list below it; an invited person gets an alert with **Join**. To join from a link someone sent you, paste it into **Paste an invite link to join** in the same sheet (the web app opens links directly).
+
+In a session, the sheet lists who is listening, with the host marked; the host can remove people, choose **Who can add songs**, and **End for everyone**. A member sees **Leave**. As a member the host controls playback: the play and skip buttons are dimmed, and playing a song adds it to the queue for everyone when the host lets everyone add. The queue says who added each song. Members' queue edits have no **Undo**; the host's changes the queue for everyone. A song your phone can't play, such as an explicit one while explicit content is off for you, isn't skipped for everyone: the phone stays quiet, the player says it **isn’t playing for you**, and you hear the next song with everyone. See [Listening together](../server/playback.md#listening-together).
+
 ## Playing separately on one device
 
 To have the phone play its own music while your other devices play something else (two people on one account, or two rooms), open **Playback device** and choose **Play separately on this iPhone**. It happens at once: if the phone was playing it carries on and your other devices pause where they were; otherwise it starts from a paused copy of the queue. While it plays separately, the highlighted device button uses a crossed-out link. In Now Playing it is labeled **Only on this device**. Open **Playback device** to see:

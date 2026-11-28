@@ -39,6 +39,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Signal path: each device reports what it plays; Lossless badge and Track info on web, iOS and Apple TV
 - [x] Sleep timer held by the session: set anywhere, enforced by the server, faded out on the device that plays
 - [x] Queue changes as small diffs against a queue version, with the whole queue as a checkpoint
+- [x] Listen together: a host's session that other users' sessions follow, each playing on their own device in step, with invites, a shared queue and per-listener plays (web and iOS)
 
 ## 4. Identify and reorganize
 
