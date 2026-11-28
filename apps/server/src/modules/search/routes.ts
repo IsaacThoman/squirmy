@@ -1,4 +1,4 @@
-import { LibrarySearchQuery, SearchQuery, type AlbumSummary, type SearchKind, type SearchResults } from '@squirmy/contracts'
+import { hasSearchFacets, LibrarySearchQuery, SearchQuery, type AlbumSummary, type SearchKind, type SearchResults } from '@squirmy/contracts'
 import type { FastifyInstance } from 'fastify'
 import { requireUser } from '../../lib/auth.js'
 import { matchKey } from '../../lib/text.js'
@@ -9,6 +9,7 @@ import { labelFreeKey } from './keys.js'
 import { materialize, type StubIds } from './materialize.js'
 import { withoutNamesakes } from './namesakes.js'
 import { allKinds, searchCatalog } from './providers.js'
+import { searchLyrics, searchPlaylists } from './scopes.js'
 import { topOf, type Ranked } from './rank.js'
 import { rankFound, withLiked, type Found } from './top.js'
 import { warmAlbums } from './warm.js'
@@ -61,24 +62,34 @@ const ranked = (list: Ranked[]) => list.map(({ type, id, score }) => ({ type, id
 export async function searchRoutes(app: FastifyInstance) {
   app.get('/search/library', async (request): Promise<SearchResults> => {
     const user = requireUser(request)
-    const { q, limit, type, offset, genre, scope } = LibrarySearchQuery.parse(request.query)
+    const { q, limit, type, offset, genre, scope, ...facets } = LibrarySearchQuery.parse(request.query)
     const key = matchKey(q)
     // Library keys are `matchKey`s too, so a query of symbols alone can find nothing there.
     if (tooShort(q, key) || key === '') return empty
-    // With a genre, a search inside the Library's genre chip stays in it.
-    const ids = await searchLibrary(user.id, key, limit, { offset, types: type && [type], genre, scope })
+    const extraOnly = type === 'playlist' || type === 'lyrics'
+    const universal = !type && scope === 'server' && !genre
+    const [ids, playlists, lyrics] = await Promise.all([
+      extraOnly ? { artists: [], albums: [], tracks: [] } : searchLibrary(user.id, key, limit, { offset, types: type && [type], genre, scope, facets }),
+      (type === 'playlist' || universal) && !hasSearchFacets(facets) ? searchPlaylists(user.id, key, limit, offset) : undefined,
+      type === 'lyrics' || universal ? searchLyrics(user.id, q, limit, offset, scope ?? 'library', facets) : undefined,
+    ])
     const unique = distinct(await summaries(user.id, ids))
     const found = { ...unique, albums: oncePerTitle(unique.albums) }
     // Results matched from the local catalog get the library search's prominence boost.
     const list = await rankFound(q, found, { userId: user.id, owned: [...ids.artists, ...ids.albums, ...ids.tracks] })
-    return { ...found, provider: null, top: topOf(list), ranked: ranked(list) }
+    return {
+      ...found,
+      ...(playlists || type === 'playlist' || universal ? { playlists: playlists ?? [] } : {}),
+      ...(lyrics ? { lyrics } : {}),
+      provider: null, top: topOf(list), ranked: ranked(list) }
   })
 
   app.get('/search/catalog', async (request): Promise<SearchResults> => {
     const user = requireUser(request)
-    const { q, limit, type, offset, scope } = SearchQuery.parse(request.query)
+    const { q, limit, type, offset, scope, ...facets } = SearchQuery.parse(request.query)
     const key = matchKey(q)
     if (tooShort(q, key)) return empty
+    if (type === 'playlist' || type === 'lyrics' || hasSearchFacets(facets)) return empty
     const types: readonly SearchKind[] = type ? [type] : allKinds
     // The library answer for the same query runs alongside the provider call, so the
     // catalog answer can leave out what the library answer already shows: on this page or

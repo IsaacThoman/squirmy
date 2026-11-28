@@ -2,7 +2,7 @@ import { mergeSearch, type SearchFilter, type SearchItem, type Viewer } from '@s
 import type { PlaylistSummary, SearchResults } from '@squirmy/contracts';
 
 /** The filters above the results, as the segmented control names them. */
-export const searchFilterLabels: Record<SearchFilter, string> = { all: 'All', track: 'Songs', album: 'Albums', artist: 'Artists', playlist: 'Playlists' };
+export const searchFilterLabels: Record<SearchFilter, string> = { all: 'All', track: 'Songs', album: 'Albums', artist: 'Artists', playlist: 'Playlists', lyrics: 'Lyrics' };
 
 /**
  * How long the library's answer waits for the catalog's before it shows alone. The two
@@ -20,7 +20,9 @@ export function searchItems(
   library: SearchResults | undefined, catalog: SearchResults | undefined, viewer: Viewer | null | undefined,
   query: string, playlists: readonly PlaylistSummary[] = [],
 ): SearchItem[] {
-  return mergeSearch(library, catalog, viewer, { query, playlists: { query, items: playlists } }).items;
+  const { items, lyricItems } = mergeSearch(library, catalog, viewer, { query, playlists: { query, items: playlists } });
+  const seen = new Set(items.flatMap(item => item.type === 'track' ? [item.track.id] : []));
+  return [...items, ...lyricItems.filter(item => item.type === 'track' && !seen.has(item.track.id))];
 }
 
 /**

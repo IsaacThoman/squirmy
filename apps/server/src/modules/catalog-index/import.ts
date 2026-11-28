@@ -289,6 +289,10 @@ function buildStatements(recordingsPerArtist: number | null): string[] {
     ...indexedKinds.map((kind) => `create index ${next}_${kind}_head on ${next} using gin (name_key gin_trgm_ops) where kind = '${kind}' and head`),
     `create index ${next}_prefix on ${next} (kind, (name_key collate "C"))`,
     `analyze ${next}`,
+    // Append to preserve the build step numbers in interrupted imports.
+    `create index ${next}_unicode on ${next} using gin (search_unicode_bigrams(name_key)) where head`,
+    `create index ${next}_artist_title on ${next} (kind, (search_name_key(artist_name) collate "C"), (name_key collate "C")) where artist_name is not null`,
+    `create index ${next}_album_title on ${next} (kind, (search_name_key(album_name) collate "C"), (name_key collate "C")) where album_name is not null`,
   ]
 }
 
@@ -680,7 +684,7 @@ async function execute(sql: postgres.ReservedSql, job: Job, options: Pick<Import
       await tx`set local lock_timeout = '30s'`
       await tx.unsafe(`drop table catalog_index`)
       await tx.unsafe(`alter table ${staging.next} rename to catalog_index`)
-      for (const suffix of [...indexedKinds.map((kind) => `${kind}_head`), 'prefix']) {
+      for (const suffix of [...indexedKinds.map((kind) => `${kind}_head`), 'prefix', 'unicode', 'artist_title', 'album_title']) {
         await tx.unsafe(`alter index ${staging.next}_${suffix} rename to catalog_index_${suffix}`)
       }
       await tx`update catalog_index_imports set state = 'replaced' where state = 'active'`

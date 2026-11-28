@@ -75,19 +75,21 @@ Known gaps, all a consequence of what the dump contains:
 - A compilation whose every track is canonical somewhere else (a greatest-hits album) has no row in the main file, so it is not indexed.
 - An artist who only ever appears in shared credits ("A feat. B") has no credit name of their own and is not indexed as an artist; their recordings are.
 - The dump holds canonical recordings only. A live version with the same title as the studio one is folded into it.
+- The dump supplies artist credit names. Artist aliases are absent.
 
 ## How search works
 
 `searchCatalogIndex(query, { kinds, limit })` in `search.ts` returns up to `limit` results of each kind with a relevance score. `isCatalogIndexReady()` says whether an index is in place. Both the query and the names are compared as `matchKey`s, so case, punctuation and diacritics never matter ("beyonce" finds Beyoncé).
 
-Two lookups run per kind and their results are merged:
+Indexed lookups gather candidates before ranking.
 
 1. **Fuzzy, over the popular head.** The 250,000 most popular artists, the 250,000 most popular albums and the 1,000,000 most popular recordings carry a trigram index. A trigram word-similarity match tolerates typos ("beatels") and matches any word from its first few letters ("bohe"). Because the head has a fixed size, this costs the same whatever the size of the dump. Rows are stored in popularity order and read through a bitmap scan, which returns them in that order, so the 300 candidates taken are the most popular matches.
 2. **Exact prefix, over everything.** A btree over every name finds the rows whose whole name starts with the query, so typing an obscure title in full always finds it.
+3. **Composite readings, over everything.** The query splits into title and context, in either order. A context can be the artist credit or, for a recording, its release title. A btree finds title prefixes within each matching context. “Karma Police OK Computer” can find the track even if it is outside the fuzzy head.
 
 Candidates are ranked by text quality (word similarity, plus bonuses when a word starts with the query and when the name is the query, ignoring a leading "the"), scaled by popularity. A famous near match beats an obscure one; an exact name beats a fuzzy one of similar fame.
 
-Fuzzy matching of names in non-Latin scripts needs a database whose locale is UTF-8 (the official Postgres image's default). Under the `C` locale, trigram search ignores non-ASCII letters, so those names are found by prefix only.
+Queries with non-ASCII characters use a GIN index of character bigrams for fuzzy candidates. This works under PostgreSQL's `C` locale, where `pg_trgm` can omit entire scripts. The bigrams fold katakana to hiragana and recompose Hangul syllables. ASCII queries keep the trigram path. The database migration adds the new indexes to the active dump, and future imports build them before swapping in the new table.
 
 ### Why this design
 

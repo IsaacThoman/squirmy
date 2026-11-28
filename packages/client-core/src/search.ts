@@ -1,4 +1,4 @@
-import type { AlbumSummary, ArtistSummary, PlaylistSummary, SearchKind, SearchResults, SearchTopResult, TrackSummary } from '@squirmy/contracts'
+import type { AlbumSummary, ArtistSummary, PlaylistSummary, SearchResultKind, SearchResults, SearchTopResult, TrackSummary } from '@squirmy/contracts'
 import { albumPresentation, isPlayable, type Viewer } from './availability.js'
 
 /** The result to lead with, carrying the item it names. */
@@ -7,11 +7,11 @@ export type SearchTop =
   | { type: 'album'; album: AlbumSummary }
   | { type: 'track'; track: TrackSummary }
 
-/** One row of the single list a search shows, every kind mixed. Playlists are the viewer's own, matched on the device. */
+/** One row of the single list a search shows, every kind mixed. */
 export type SearchItem =
   | { type: 'artist'; artist: ArtistSummary }
   | { type: 'album'; album: AlbumSummary }
-  | { type: 'track'; track: TrackSummary }
+  | { type: 'track'; track: TrackSummary; lyricSnippet?: string }
   | { type: 'playlist'; playlist: PlaylistSummary }
 
 export type SearchItemType = SearchItem['type']
@@ -24,9 +24,10 @@ export type MergedSearch = {
   artists: ArtistSummary[]
   albums: AlbumSummary[]
   tracks: TrackSummary[]
+  lyricItems: SearchItem[]
 }
 
-type Answer = Pick<SearchResults, 'artists' | 'albums' | 'tracks' | 'top' | 'ranked'>
+type Answer = Pick<SearchResults, 'artists' | 'albums' | 'tracks' | 'top' | 'ranked' | 'playlists' | 'lyrics'>
 
 export type MergeOptions = {
   /** What was typed: orders an older server's answers, which carry no ranking, by how well names match. */
@@ -75,6 +76,7 @@ export function mergeSearch(
   const trackPlays = (track: TrackSummary) => isPlayable(track, viewer)
   const merged: MergedSearch = {
     items: [],
+    lyricItems: (library?.lyrics ?? []).map(({ track, snippet }) => ({ type: 'track', track, lyricSnippet: snippet })),
     top: null,
     artists: append(library?.artists, catalog?.artists, () => true, () => null),
     albums: append(library?.albums, catalog?.albums, albumPlays, albumIdentity),
@@ -84,7 +86,7 @@ export function mergeSearch(
   const fromCatalog = find(merged, catalog?.top)
   const catalogWins = fromCatalog && (!fromLibrary || (catalog?.top?.score ?? 0) > (library?.top?.score ?? Infinity))
   merged.top = (catalogWins ? fromCatalog : fromLibrary) ?? null
-  merged.items = rankItems(merged, [library?.ranked, catalog?.ranked], { albumPlays, trackPlays }, options)
+  merged.items = rankItems(merged, [library?.ranked, catalog?.ranked], { albumPlays, trackPlays }, options, library?.playlists)
   return merged
 }
 
@@ -93,6 +95,7 @@ function rankItems(
   rankings: (Answer['ranked'] | undefined)[],
   plays: { albumPlays: (album: AlbumSummary) => boolean; trackPlays: (track: TrackSummary) => boolean },
   options: MergeOptions,
+  playlists: PlaylistSummary[] | undefined,
 ): SearchItem[] {
   const byKey = new Map<string, SearchItem>()
   for (const artist of merged.artists) byKey.set(`artist:${artist.id}`, { type: 'artist', artist })
@@ -111,11 +114,9 @@ function rankItems(
     const playable = item.type === 'album' ? plays.albumPlays(item.album) : item.type === 'track' ? plays.trackPlays(item.track) : true
     return { item, score: playable ? score : score * unplayablePenalty }
   })
-  if (options.playlists) {
-    for (const playlist of options.playlists.items) {
-      const score = playlistScore(options.playlists.query, playlist.name)
-      if (score > 0) scored.push({ item: { type: 'playlist', playlist }, score })
-    }
+  for (const playlist of playlists ?? options.playlists?.items ?? []) {
+    const score = playlistScore(options.query ?? options.playlists?.query ?? '', playlist.name)
+    if (score > 0 || playlists) scored.push({ item: { type: 'playlist', playlist }, score: score || 0.4 })
   }
   // A stable sort keeps each answer's own order between equal scores.
   scored.sort((a, b) => b.score - a.score)
@@ -218,11 +219,23 @@ function find(merged: MergedSearch, hint: SearchTopResult | null | undefined): S
 }
 
 /** The kinds a client's filter offers, in its order. `all` is the mixed list. */
-export const searchFilters = ['all', 'track', 'album', 'artist', 'playlist'] as const
+export const searchFilters = ['all', 'track', 'album', 'artist', 'playlist', 'lyrics'] as const
 export type SearchFilter = (typeof searchFilters)[number]
 
 /** The server's kind for a filter that pages through one, else null. */
-export const filterKind = (filter: SearchFilter): SearchKind | null => (filter === 'all' || filter === 'playlist' ? null : filter)
+export const filterKind = (filter: SearchFilter): SearchResultKind | null => (filter === 'all' ? null : filter)
+
+/** The response list corresponding to a server filter, used to check page length and progress. */
+export function searchPageItems(answer: SearchResults | null, kind: SearchResultKind): readonly { id: string }[] {
+  if (!answer) return []
+  switch (kind) {
+    case 'artist': return answer.artists
+    case 'album': return answer.albums
+    case 'track': return answer.tracks
+    case 'playlist': return answer.playlists ?? []
+    case 'lyrics': return answer.lyrics?.map(({ track }) => track) ?? []
+  }
+}
 
 /**
  * Keeps rows already on screen for a query where they were. A later answer for the same
