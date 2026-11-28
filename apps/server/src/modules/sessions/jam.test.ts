@@ -2,13 +2,13 @@ import type { AddressInfo } from 'node:net'
 import { FakeEngine, SessionClient } from '@squirmy/client-core'
 import { createSocketTransport, type SquirmySocket } from '@squirmy/client-core/socket'
 import type { CommandAck, JamAck, JamRequest, PlaybackDescriptor, QueueEntry, ServerEvent, SessionCommand, SessionQueueOps } from '@squirmy/contracts'
-import { eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { io as connect } from 'socket.io-client'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
-import { plays } from '../../database/schema.js'
+import { plays, users } from '../../database/schema.js'
 import { newId } from '../../lib/ids.js'
 import { startRealtime } from '../../realtime/index.js'
 import { useTestDatabase } from '../../test/database.js'
@@ -497,6 +497,49 @@ describe('listen together', () => {
     } finally {
       other.disconnect()
     }
+  })
+
+  it('lets a member with explicit content off sit out the host\'s explicit songs, in step and without a play', async () => {
+    const explicit = await createAlbum({ owned: true, tracks: [{ title: 'Clean', durationMs: 200_000 }, { title: 'Curse', durationMs: 200_000, explicit: true }] })
+    await db.update(users).set({ explicitRestricted: true }).where(eq(users.id, guest.userId))
+    const a = await device(host, 'host-phone-14')
+    const b = await device(guest, 'guest-phone-14')
+    a.client.dispatch({
+      type: 'playTracks',
+      tracks: explicit.tracks.map((track) => ({ trackId: track.recordingId, albumId: explicit.albumId, durationMs: 0 })),
+      seed: 1,
+      context: { type: 'album', id: explicit.albumId, title: explicit.title },
+    })
+    await eventually(async () => expect((await getSnapshot(host.userId)).state.playing).toBe(true))
+    const jamId = await started(a)
+    await jam(b, { action: 'join', jamId })
+    await inStep(guest)
+
+    time += 100_000
+    a.client.dispatch({ type: 'next' })
+    await eventually(async () => expect((await getSnapshot(host.userId)).state.current?.trackId).toBe(explicit.tracks[1]!.recordingId))
+    await inStep(guest)
+    // The server will not stream it to the member, whose device sits it out with the jam going on.
+    const refused = await app.inject({ url: `/api/v1/tracks/${explicit.tracks[1]!.recordingId}/playback`, headers: { authorization: `Bearer ${guest.token}` } })
+    expect(refused.statusCode).toBe(403)
+    expect(refused.json()).toMatchObject({ error: { code: 'explicit_not_allowed' } })
+    time += 100_000
+    a.client.dispatch({ type: 'pause' })
+    a.client.dispatch({ type: 'previous', restart: false })
+    await eventually(async () => expect((await getSnapshot(host.userId)).state.current?.trackId).toBe(explicit.tracks[0]!.recordingId))
+    await inStep(guest)
+
+    // Each heard the clean song; only the host heard the explicit one.
+    await eventually(async () => {
+      const rows = await db.select({ userId: plays.userId, recordingId: plays.recordingId }).from(plays)
+        .where(inArray(plays.recordingId, explicit.tracks.map((track) => track.recordingId)))
+      expect(rows).toHaveLength(3)
+      expect(rows).toEqual(expect.arrayContaining([
+        { userId: host.userId, recordingId: explicit.tracks[0]!.recordingId },
+        { userId: guest.userId, recordingId: explicit.tracks[0]!.recordingId },
+        { userId: host.userId, recordingId: explicit.tracks[1]!.recordingId },
+      ]))
+    })
   })
 
   it('shows an invite link and whom to invite over HTTP', async () => {

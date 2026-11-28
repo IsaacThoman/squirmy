@@ -194,4 +194,30 @@ describe('a track the server refuses to stream', () => {
     expect(await screen.findByText(`Couldn’t play “${refused.title}”. Skipped.`)).toBeInTheDocument()
     await waitFor(() => expect(socket.session.current?.trackId).not.toBe(refused.id))
   })
+
+  it('is sat out in someone else\'s listening session, whose host skips and pauses', async () => {
+    const { services, socket, api } = fakeServices()
+    const blueHour = album('blue-hour')
+    const [first, refused] = blueHour.discs[0].tracks
+    const playback = api.streaming.playback as unknown as Mock<(trackId: string) => Promise<never>>
+    playback.mockImplementation(async trackId => {
+      throw trackId === refused.id ? new ApiError(403, 'explicit_not_allowed', 'Explicit content is off for this account') : new Error('No audio in tests')
+    })
+    renderWithApp(<AppRoutes />, `/album/${blueHour.id}`, services)
+    await playAlbum()
+    await waitFor(() => expect(socket.session.current?.trackId).toBe(first.id))
+    const host = '01900000-0000-7000-8000-0000000000a1'
+    act(() => socket.serverSet(session => ({
+      ...session,
+      jam: { id: 'abcdefghijklmnopqrstuv', hostUserId: host, members: [{ userId: host, name: 'Robin', joinedAt: 0 }], queuePolicy: 'everyone', startedAt: 0, role: 'member' },
+    })))
+    const sent = socket.commands.length
+    // The host moves on to a song this listener has explicit content off for.
+    act(() => socket.serverApply({ type: 'next' }))
+    expect(await screen.findByText(new RegExp(`“${refused.title}” isn’t playing for you`))).toBeInTheDocument()
+    expect(lines().join(' ')).toMatch(/Explicit content is off for you\. You’ll hear the next song with everyone\./)
+    expect(lines().join(' ')).not.toMatch(/Skipped/)
+    expect(socket.commands.slice(sent).map(command => command.type)).not.toContainEqual(expect.stringMatching(/^(next|pause)$/))
+    expect(socket.session.current?.trackId).toBe(refused.id)
+  })
 })

@@ -464,5 +464,15 @@ describe('scrobble', () => {
       await announceNowPlaying(user.id, { recordingId: album.tracks[1]!.recordingId, albumId: album.albumId })
       expect(calls).toEqual([])
     })
+
+    it('announces no explicit song for a listener who has explicit content off: their device sat it out', async () => {
+      const user = await listener()
+      const explicit = await createAlbum({ owned: true, tracks: [{ title: 'Curse', explicit: true }] })
+      await updateUserSettings(user.id, { allowExplicit: false })
+      await announceNowPlaying(user.id, { recordingId: explicit.tracks[0]!.recordingId, albumId: explicit.albumId })
+      expect(calls).toEqual([])
+      await announceNowPlaying(user.id, { recordingId: album.tracks[1]!.recordingId, albumId: album.albumId })
+      expect(calls).toHaveLength(2)
+    })
   })
 })
