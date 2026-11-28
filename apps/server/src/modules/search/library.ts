@@ -117,7 +117,7 @@ function inGenre(kind: LibraryKind, alias: string, genre: string | undefined): S
  */
 export function libraryQuery(kind: LibraryKind, userId: string, key: string, limit: number, offset = 0, genre?: string): SQL {
   const end = prefixEnd(key)
-  const recent = sql`select recording_id, album_id from plays where user_id = ${userId} order by started_at desc limit ${recentPlays}`
+  const recent = sql`select recording_id, album_id from plays where user_id = ${userId} and not skipped order by started_at desc limit ${recentPlays}`
 
   // Saves are a branch of their own, not an `or` in the owned condition, which would change
   // the plans of the owned lookups for every query.

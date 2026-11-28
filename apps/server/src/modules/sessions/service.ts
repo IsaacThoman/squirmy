@@ -328,12 +328,16 @@ function requestUpcoming(record: SessionRecord): void {
   const asks: (() => Promise<void>)[] = []
   const currentId = record.session.current?.id ?? null
   for (const [trackId, since] of record.deferred) if (since !== currentId) record.deferred.delete(trackId)
-  for (const { entry, origin } of toPrepare(record.session)) {
+  const window = toPrepare(record.session)
+  for (const { entry, origin } of window) {
     const asked = record.requested.get(entry.trackId)
     if (asked === 'play' || asked === origin || record.deferred.has(entry.trackId)) continue
     const recordingId = entry.trackId
     record.requested.set(recordingId, origin)
-    const request = { userId, recordingId, albumId: entry.albumId, origin }
+    const upcoming = origin === 'prefetch' ? window.flatMap((item) =>
+      item.origin === 'prefetch' && item.entry.id !== entry.id ? [{ recordingId: item.entry.trackId, albumId: item.entry.albumId }] : [],
+    ) : []
+    const request = { userId, recordingId, albumId: entry.albumId, origin, ...(upcoming.length ? { upcoming } : {}) }
     asks.push(async () => {
       const wanted = recordOf(record.key) === record && toPrepare(record.session).some(({ entry }) => entry.trackId === recordingId)
       if (!wanted) {
@@ -1084,7 +1088,7 @@ export async function stopSessions(): Promise<void> {
     const { play } = record
     if (!play) return
     countUntil(play, record.session, settings.now())
-    await savePlay(record.userId, play).catch(report)
+    await savePlay(record.userId, play, { closed: false }).catch(report)
   })
   await Promise.all(savingPlays)
 }

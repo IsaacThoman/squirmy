@@ -22,6 +22,7 @@ export type ActiveProvider = ProviderEndpoint & {
   id: string
   name: string
   coverage: ProviderCoverage
+  missEpoch: number
   priority: number
   capabilities: ProviderCapabilities
 }
@@ -96,7 +97,7 @@ export async function activeProviders(): Promise<ActiveProvider[]> {
     const capabilities = ProviderCapabilities.safeParse(row.capabilities)
     if (!capabilities.success) return []
     return [{
-      id: row.id, name: row.name, baseUrl: row.baseUrl, secret: decrypt(secretPurpose, row.secretEncrypted),
+      id: row.id, name: row.name, baseUrl: row.baseUrl, secret: decrypt(secretPurpose, row.secretEncrypted), missEpoch: row.missEpoch,
       coverage: (row.coverageOverride as ProviderCoverage | null) ?? capabilities.data.coverage, priority: row.priority, capabilities: capabilities.data,
     }]
   })

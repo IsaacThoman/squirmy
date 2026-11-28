@@ -3,7 +3,7 @@ import { db } from '../../database/client.js'
 import { mediaFiles } from '../../database/schema.js'
 import { enqueue, schedule } from '../../jobs/index.js'
 import type { ServerModule } from '../types.js'
-import { measureFile, measureRelease } from './measure.js'
+import { LOUDNESS_ERROR_PREFIX, measureFile, measureRelease } from './measure.js'
 
 type MeasureJob = { fileId: string }
 type AlbumJob = { releaseId: string }
@@ -30,7 +30,7 @@ function enqueueAlbum(releaseId: string) {
  */
 export async function sweepLoudness() {
   const files = await db.select({ id: mediaFiles.id }).from(mediaFiles)
-    .where(and(isNull(mediaFiles.loudnessLufs), isNull(mediaFiles.missingSince), gte(mediaFiles.probeStage, 1)))
+    .where(and(isNull(mediaFiles.loudnessLufs), isNull(mediaFiles.probeError), isNull(mediaFiles.missingSince), gte(mediaFiles.probeStage, 1)))
     .orderBy(asc(mediaFiles.addedAt))
     .limit(SWEEP_BATCH)
   for (const file of files) await enqueueMeasure(file.id)
@@ -40,8 +40,9 @@ export async function sweepLoudness() {
     left join release_loudness rl on rl.release_id = f.release_id
     where f.release_id is not null and f.missing_since is null
     group by f.release_id, rl.release_id, rl.file_count, rl.computed_at
-    having bool_and(f.loudness_lufs is not null)
-      and (rl.release_id is null or rl.file_count <> count(*) or max(f.updated_at) > rl.computed_at)
+    having (bool_and(f.loudness_lufs is not null and f.true_peak_db is not null)
+      and (rl.release_id is null or rl.file_count <> count(*) or max(f.updated_at) > rl.computed_at))
+      or (rl.release_id is not null and bool_or(starts_with(f.probe_error, ${LOUDNESS_ERROR_PREFIX})))
     union all
     select rl.release_id from release_loudness rl
     where not exists (select 1 from media_files f where f.release_id = rl.release_id and f.missing_since is null)
