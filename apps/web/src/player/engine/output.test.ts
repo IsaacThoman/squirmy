@@ -89,7 +89,7 @@ describe('OutputChain', () => {
     const context = new FakeContext()
     const chain = chainOn(context)
     const [, , dry, wet, preamp] = context.gains
-    const bass = eqGains({ preset: 'bass', custom: [] })
+    const bass = eqGains({ preset: 'bassBoost', custom: [] })
     chain.setEqualizer(bass)
     // Out of the chain until now, the filters take their gains at once; the paths cross over 10 ms.
     expect(context.filters.map(filter => filter.gain.events)).toEqual(bass.map(gain => [['set', gain, 5]]))
@@ -97,7 +97,7 @@ describe('OutputChain', () => {
     expect(wet!.gain.events).toEqual([['set', 0, 5], ['ramp', 1, 5.01]])
     expect(dry!.gain.events).toEqual([['set', 1, 5], ['ramp', 0, 5.01]])
     context.currentTime = 6
-    chain.setEqualizer(eqGains({ preset: 'treble', custom: [] }))
+    chain.setEqualizer(eqGains({ preset: 'trebleBoost', custom: [] }))
     expect(context.filters.at(-1)!.gain.events.at(-1)).toEqual(['target', 6, 6])
     expect(wet!.gain.events).toHaveLength(2)
     // Flat again: the filters fade out, and the samples pass as they are.
@@ -167,19 +167,21 @@ describe('EngineOutput', () => {
 
 describe('equalizer', () => {
   it('has the iOS app\'s presets, and the user\'s own bands', () => {
-    expect(EQ_PRESETS.map(preset => preset.label)).toEqual(['Flat', 'Bass boost', 'Treble boost', 'Vocal', 'Loudness'])
+    expect(EQ_PRESETS.map(preset => preset.label)).toEqual(['Off', 'Bass boost', 'Bass reducer', 'Treble boost', 'Vocal', 'Late night'])
     expect(EQ_PRESETS.every(preset => preset.gains.length === EQ_BANDS.length)).toBe(true)
     const custom = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     expect(eqGains({ preset: 'custom', custom })).toBe(custom)
-    expect(eqGains({ preset: 'flat', custom })).toEqual(Array(10).fill(0))
+    expect(eqGains({ preset: 'off', custom })).toEqual(Array(10).fill(0))
     expect(preampDb([-3, 2, 5])).toBe(-5)
     expect(preampDb([-3, -2])).toBe(0)
   })
 
   it('reads a stored setting safely', () => {
     expect(parseEqualizer(null)).toBe(DEFAULT_EQUALIZER)
-    expect(parseEqualizer({ preset: 'bass', custom: [1, 2] })).toEqual({ preset: 'bass', custom: Array(10).fill(0) })
-    expect(parseEqualizer({ preset: 'loud', custom: [20, -20, 0, 0, 0, 0, 0, 0, 0, 1] })).toEqual({ preset: 'flat', custom: [12, -12, 0, 0, 0, 0, 0, 0, 0, 1] })
+    expect(parseEqualizer({ preset: 'bassBoost', custom: [1, 2] })).toEqual({ preset: 'bassBoost', custom: Array(10).fill(0) })
+    // A choice stored under an earlier name is kept.
+    expect(parseEqualizer({ preset: 'loudness', custom: [] }).preset).toBe('lateNight')
+    expect(parseEqualizer({ preset: 'loud', custom: [20, -20, 0, 0, 0, 0, 0, 0, 0, 1] })).toEqual({ preset: 'off', custom: [12, -12, 0, 0, 0, 0, 0, 0, 0, 1] })
     expect(parseEqualizer({ preset: 'custom', custom: [0, 0, 0, 0, Number.NaN, 0, 0, 0, 0, 0] })).toEqual({ preset: 'custom', custom: Array(10).fill(0) })
   })
 })
