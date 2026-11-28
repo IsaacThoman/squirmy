@@ -2,9 +2,9 @@ import {
   type AnySessionCommand, bringSession, forkSession, leftBehind, positionAt, queueChanged, reduceSession, type Session, splitSession,
 } from '@squirmy/client-core'
 import {
-  COMMAND_TRACK_LIMIT, CommandEnvelope, DEVICE_GRACE_MS, EngineReport, QUEUE_LIMIT, SessionAttach, SessionDetach,
+  COMMAND_TRACK_LIMIT, CommandEnvelope, DEVICE_GRACE_MS, EngineReport, QUEUE_LIMIT, SessionAttach, SessionDetach, SignalReport,
   type PlaybackControl, type CommandAck, type EntryFailure, type DeviceInfo, type QueueEntry, type SessionCapability, type SessionCommand, type SessionHello, type SessionHelloAck,
-  type SessionMoveAck, type SessionSnapshot,
+  type SessionMoveAck, type SessionSnapshot, type SignalPath,
 } from '@squirmy/contracts'
 import { and, eq } from 'drizzle-orm'
 import { getConfig } from '../../config.js'
@@ -52,7 +52,7 @@ const UNAVAILABLE_BEFORE_PAUSE = 5
 const MAX_DETACHED = 8
 /** An own session is discarded once its device has not been seen for this long. */
 const DETACHED_KEEP_MS = 7 * 24 * 60 * 60_000
-const CAPABILITIES: SessionCapability[] = ['detach', 'sleepTimer']
+const CAPABILITIES: SessionCapability[] = ['detach', 'signal', 'sleepTimer']
 /** Longest a sleep timer's wait is scheduled in one go; a longer one is scheduled again when this runs out. */
 const MAX_TIMER_MS = 2 ** 31 - 1
 
@@ -178,7 +178,17 @@ export function noteSeen(userId: string, deviceId: string | null): void {
 
 /** A hello's answer for `deviceId`, a device in `record`'s session. */
 function helloAck(record: SessionRecord, deviceId: string): SessionHelloAck {
-  return { serverTime: settings.now(), snapshot: snapshotOf(record), devices: deviceList(record.userId, deviceId), capabilities: CAPABILITIES }
+  const signal = currentSignal(record)
+  return {
+    serverTime: settings.now(), snapshot: snapshotOf(record), devices: deviceList(record.userId, deviceId), capabilities: CAPABILITIES,
+    ...(signal ? { signal } : {}),
+  }
+}
+
+/** The session's signal path while it still describes the current entry on the active device. */
+function currentSignal(record: SessionRecord): SignalPath | null {
+  const { signal, session } = record
+  return signal && signal.entryId === session.current?.id && signal.deviceId === session.activeDeviceId ? signal : null
 }
 
 /**
@@ -976,6 +986,24 @@ export function applyReport(userId: string, deviceId: string | null, raw: unknow
     const stalled = engine.status === 'buffering' || engine.status === 'error'
     if (stalled === session.stalled && Math.abs(engine.positionMs - positionAt(session, at)) <= DRIFT_THRESHOLD_MS) return
     applyServer(record, { type: 'syncPosition', entryId: engine.entryId, positionMs: engine.positionMs, stalled }, at)
+  }).catch(report)
+}
+
+/**
+ * `session:signal` from `deviceId`: what it plays (see "Signal path" in the session
+ * contract). Only the active device's report about the current entry is kept and passed on
+ * to the sockets in the session, the sender's included.
+ */
+export function applySignal(userId: string, deviceId: string | null, raw: unknown): Promise<void> {
+  const parsed = SignalReport.safeParse(raw)
+  if (!parsed.success || !deviceId) return Promise.resolve()
+  return serial(userId, () => {
+    const record = loadedOwn(userId, deviceId) ?? loadedRecord(userId)
+    const session = record?.session
+    if (!record || !session || session.activeDeviceId !== deviceId || session.current?.id !== parsed.data.entryId) return
+    const signal: SignalPath = { ...parsed.data, deviceId }
+    record.signal = signal
+    io?.to(sessionRoom(record)).emit('session:signal', signal)
   }).catch(report)
 }
 

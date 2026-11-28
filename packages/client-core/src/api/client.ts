@@ -111,6 +111,7 @@ import {
   type UpdateAcquisitionPolicy,
   type UpdateAcquisitionProviderRequest,
   TrackSummariesResponse,
+  TrackSonic,
   type TrackSummariesRequest,
   TrackPage,
   TrackSummary,
@@ -421,6 +422,8 @@ export function createApiClient(options: ApiClientOptions) {
       album: (albumId: string) => get(`/albums/${id(albumId)}`, AlbumDetail),
       track: (trackId: string, query: TrackQuery = {}) => get(`/tracks/${id(trackId)}`, TrackSummary, query),
       lyrics: (trackId: string) => get(`/tracks/${id(trackId)}/lyrics`, Lyrics),
+      /** Tempo, key, energy and per-file timing (for transitions); see `TrackSonic`. */
+      sonic: (trackId: string) => get(`/tracks/${id(trackId)}/sonic`, TrackSonic),
       trackSummaries: (body: TrackSummariesRequest) => send('POST', '/tracks/summaries', TrackSummariesResponse, body),
     },
     streaming: {
@@ -502,6 +505,8 @@ export function createApiClient(options: ApiClientOptions) {
     radio: {
       track: (trackId: string) => send('POST', `/radio/track/${id(trackId)}`, RadioResponse),
       artist: (artistId: string) => send('POST', `/radio/artist/${id(artistId)}`, RadioResponse),
+      /** A radio of tracks that sound like this one (falls back to the track radio's mix when it is not analysed). */
+      sonic: (trackId: string) => send('POST', `/radio/sonic/${id(trackId)}`, RadioResponse),
     },
     imports: {
       /** Your own imports, or every import for an admin, newest first. */

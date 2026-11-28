@@ -3,7 +3,7 @@ import { positionAt } from '@squirmy/client-core'
 import {
   COMMAND_TRACK_LIMIT, QUEUE_LIMIT,
   type ClientToServerEvents, type CommandAck, type PlaybackContext, type QueueSeed, type ServerToClientEvents, type SessionCommand, type SessionHelloAck,
-  type ServerEvent, type SessionQueue, type SessionState,
+  type ServerEvent, type SessionQueue, type SessionState, type SignalReport,
 } from '@squirmy/contracts'
 import { eq, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
@@ -89,7 +89,7 @@ class Peer {
   private serial = 0
 
   constructor(readonly socket: Client, readonly deviceId: string) {
-    for (const event of ['session:state', 'session:queue', 'devices', 'invalidate', 'event'] as const) {
+    for (const event of ['session:state', 'session:queue', 'session:signal', 'devices', 'invalidate', 'event'] as const) {
       socket.on(event, (payload: unknown) => this.log.push([event, payload]))
     }
   }
@@ -1240,6 +1240,36 @@ describe('sessions', () => {
     a.socket.emit('session:report', { entryId: 'rep.0', status: 'playing', positionMs: 9_000, at: clock.now() })
     expect(await b.state(3)).toMatchObject({ positionMs: 9_000, anchorAt: clock.now(), stalled: false })
     expect(b.states().map((update) => update.version)).toEqual([1, 2, 3])
+  })
+
+  it('passes on what the active device plays, and answers a hello with it while it holds', async () => {
+    const a = await device('device-a-0017')
+    const b = await device('device-b-0017', { canPlay: false })
+    await a.send(playAlbum(), 'sig')
+    await b.state(1)
+    const report: SignalReport = {
+      entryId: 'sig.0',
+      trackId: album.tracks[0]!.recordingId,
+      source: { codec: 'flac', lossless: true, bitrate: 4_608_000, sampleRate: 96_000, bitDepth: 24, channels: 2, bytes: 1000 },
+      delivery: { profile: 'original', transcoded: false, codec: 'flac', lossless: true, bitrate: 4_608_000, sampleRate: 96_000, bitDepth: 24, reason: null, local: false },
+      normalization: { mode: 'auto', applied: 'album', gainDb: -2 },
+    }
+    // Only the active device's report about the current entry counts.
+    b.socket.emit('session:signal', report)
+    a.socket.emit('session:signal', { ...report, entryId: 'sig.1' })
+    a.socket.emit('session:signal', { ...report, delivery: { ...report.delivery, profile: 'nonsense' } } as unknown as SignalReport)
+    a.socket.emit('session:signal', report)
+    await eventually(() => b.events('session:signal'), (events) => expect(events).toEqual([{ ...report, deviceId: 'device-a-0017' }]))
+    expect(a.events('session:signal')).toHaveLength(1)
+
+    const c = await open('device-c-0017')
+    const reply = await c.hello(false)
+    expect(reply.capabilities).toContain('signal')
+    expect(reply.signal).toEqual({ ...report, deviceId: 'device-a-0017' })
+    // Once the entry is no longer current, it describes nothing and is not handed out.
+    await a.send({ type: 'next' })
+    const d = await open('device-d-0017')
+    expect((await d.hello(false)).signal).toBeUndefined()
   })
 
   it('replaces the queue for Subsonic and records external plays', async () => {

@@ -33,6 +33,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Reconnect rule and device-lost handling
 - [x] Device presence: only devices that are open and answering the heartbeat are listed
 - [x] Live invalidations on web and mobile
+- [x] Signal path: each device reports what it plays; Lossless badge and Track info on web, iOS and Apple TV
 - [x] Sleep timer held by the session: set anywhere, enforced by the server, faded out on the device that plays
 
 ## 4. Identify and reorganize
@@ -84,6 +85,9 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Scrobbling to ListenBrainz and Last.fm, compatible ListenBrainz destinations and optional two-way heart sync
 - [x] Webhooks, MQTT with Home Assistant discovery and scoped native API tokens
 - [x] Radio and autoplay (server, API, web and iOS, and Subsonic similar songs)
+- [x] Sonic analysis: tempo, key, energy, danceability, intro and outro, and timbre vectors from Squirmy's own DSP; tempo, key and mood tags; Deezer's tempo as a fallback. Radio ranks with it, and the web app has **Songs that sound like this** ([sonic-analysis.md](./server/sonic-analysis.md))
+- [ ] Sonic radio on iOS and Apple TV, tempo and key in the song info, and BPM in Subsonic songs
+- [ ] Daily Mixes and DJ-style transitions from the sonic analysis (the hooks are in place: see [Sonic analysis](./architecture.md#sonic-analysis))
 - [x] Detached playback: web and iOS devices can play their own queue and rejoin the shared session later ([detached-playback-ui.md](./detached-playback-ui.md))
 - [x] Local search index: importer, search and admin routes ([local-search-index.md](./local-search-index.md)), offered as the first search provider, and its admin screen
 - [x] Documentation site ([docs/](./index.md), built with VitePress)
@@ -104,7 +108,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 Designed in [audio-engine.md](./audio-engine.md); each item is a pull request from its [implementation plan](./audio-engine.md#implementation-plan).
 
 - [x] Design, with measurements of today's gaps and spikes of the new engine and formats
-- [ ] S1. Transcode priorities and cancelling abandoned encodes
+- [x] S1. Transcode priorities and cancelling abandoned encodes
 - [ ] S2. Exact lengths and priming per file, estimated gains for unmeasured files
 - [ ] S3. Fragmented MP4 profiles (FLAC, Opus, AAC) with exact gapless numbers, and seeking live transcodes
 - [ ] C1. Queue diffs with checkpoints on the session socket

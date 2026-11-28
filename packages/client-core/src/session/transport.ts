@@ -1,4 +1,4 @@
-import type { ClientToServerEvents, EngineReport, ServerToClientEvents } from '@squirmy/contracts'
+import type { ClientToServerEvents, EngineReport, ServerToClientEvents, SignalReport } from '@squirmy/contracts'
 
 /** Client-to-server events that expect an ack. */
 export type AckEvent = 'session:hello' | 'time:sync' | 'session:command' | 'session:detach' | 'session:attach'
@@ -25,6 +25,8 @@ export interface SessionTransport {
   request<E extends AckEvent>(event: E, payload: AckPayload<E>, timeoutMs: number, callback: AckCallback<E>): void
   /** Fire-and-forget engine report. Only called while connected. */
   report(report: EngineReport): void
+  /** Fire-and-forget signal path (`session:signal`). Only called while connected, to a server with the `signal` capability. */
+  signal(report: SignalReport): void
   /** Subscribes to a server event. Returns an unsubscribe function. */
   on<E extends keyof ServerToClientEvents>(event: E, listener: ServerToClientEvents[E]): () => void
 }

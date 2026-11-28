@@ -31,6 +31,7 @@ export function createSocketTransport(socket: SquirmySocket): SessionTransport {
       timed.emit(event, payload, (error, reply) => (error ? callback(error) : callback(null, reply)))
     },
     report: report => void socket.emit('session:report', report),
+    signal: report => void socket.emit('session:signal', report),
     on(event, listener) {
       socket.on(event, listener as never)
       return () => void socket.off(event, listener as never)

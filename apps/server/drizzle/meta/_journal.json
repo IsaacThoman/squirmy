@@ -222,8 +222,15 @@
     {
       "idx": 31,
       "version": "7",
-      "when": 1795849437251,
-      "tag": "0031_open_ecosystem",
+      "when": 1795848832357,
+      "tag": "0031_sonic_analysis",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1795849896346,
+      "tag": "0032_open_ecosystem",
       "breakpoints": true
     }
   ]
