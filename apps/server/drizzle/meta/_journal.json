@@ -260,6 +260,13 @@
       "when": 1795853383989,
       "tag": "0036_auth_passkeys",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1795853385656,
+      "tag": "0037_auth_sso",
+      "breakpoints": true
     }
   ]
 }
