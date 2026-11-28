@@ -88,6 +88,7 @@ Status of the milestones in [plan.md](./plan.md). Update this file in the pull r
 - [x] Local search index: importer, search and admin routes ([local-search-index.md](./local-search-index.md)), offered as the first search provider, and its admin screen
 - [x] Documentation site ([docs/](./index.md), built with VitePress)
 - [x] Docker health check on `/ready`, and the image reports its source version
+- [x] Public share links to albums, playlists and songs: expiring and revocable, a public page with previews or whole songs as the admin allows, managed in Settings and Admin → Sharing (server, web, and Share on iOS)
 
 ## 9. Apple TV
 

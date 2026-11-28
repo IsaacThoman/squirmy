@@ -104,6 +104,7 @@ export type ServerModule = {
 | `scrobble` | ListenBrainz and Last.fm submission | 8 |
 | `radio` | autoplay suggestions from similar-artist data | 8 |
 | `catalog-index` | optional local search index from MusicBrainz canonical dumps | 8 |
+| `share` | public share links to albums, playlists and tracks: tokens, the public page, sealed song URLs, previews | 8 |
 
 ### Seams between modules
 
@@ -130,6 +131,7 @@ Operator settings that change at runtime (provider toggles, API keys, thresholds
 <data>/art/<assetId>/<size>.jpeg      derived Subsonic renditions, generated on request, safe to delete
 <data>/transcodes/<fileId>/<profile>.<source>.<ext>  transcodes; <source> is the file's size and mtime
 <data>/staging/<importId>/            files being imported
+<data>/previews/<fileId>/<size>-<mtime>.mp3  30 second share previews, safe to delete
 ```
 
 ### Artwork
@@ -240,7 +242,22 @@ All native routes are under `/api/v1`. Lists are paginated with `PageQuery` and 
 | `POST /tracks/:id/acquire`, `POST /albums/:id/acquire` | acquisition | explicit request (`origin` `library` or `download`), 202 with the jobs; play does it implicitly; 120 a minute per user |
 | `POST /acquisition/deliveries/:jobId/files`, `/complete` | acquisition | for providers: the job's bearer token instead of a session; rate limited |
 | `GET/DELETE /admin/catalog-index`, `POST/DELETE /admin/catalog-index/import` | catalog-index | see [local-search-index.md](./local-search-index.md) |
+| `GET/POST /me/shares`, `DELETE /me/shares/:id`; `GET /admin/shares`, `DELETE /admin/shares/:id` | share | the caller's links (`ShareLinkPage`, newest first) or everyone's with `createdBy`; create answers the link's `url` (`/s/<token>`) once; at most `SHARE_LIMIT` (500) per user, past it 409 `too_many_shares`; 403 `sharing_disabled` while sharing is off; see "Share links" |
+| `GET /share/:token`, `GET /share/:token/tracks/:id/playback`, `GET /share/stream?key=` | share | no session; `PublicShare`, then a sealed song URL (`ShareTrackPlayback`) and its audio; rate limited per address; 404 `share_not_found` for every link that does not work |
 | `/rest/*` | subsonic | OpenSubsonic, XML and JSON |
+
+### Share links
+
+The `share` module (`modules/share/`) gives signed-in users public links to an album, a playlist they can see, or a track. A link is a row in `shares`: who made it, what it points at (catalog ids, followed through merges when read), an optional expiry (`1d`, `7d`, `30d` or `never`), and how often it was opened.
+
+- **Tokens.** 32 random bytes, base64url, from `randomToken`. Only `hashToken`'s SHA-256 is stored (`shares.token_hash`), as with sessions, so the link is returned once, on create, as the path `/s/<token>`; clients put their server's origin in front.
+- **One 404.** `shareForToken` answers 404 `share_not_found`, with the same body, for a malformed or unknown token, an expired or revoked link, a creator who is disabled, a playlist its creator can no longer see (someone else's made private, or deleted, which also deletes the link), and every link while `sharingEnabled` is off. Revoking deletes the row; turning sharing off deletes nothing.
+- **The public page.** `GET /share/:token` builds `PublicShare` field by field from the catalog summaries, as the creator sees them, so nothing a summary carries for a viewer (hearts, library state, artist ids, credits) leaves the server. It has no usernames, no playlist description, no file ids or paths. A playlist shows its current items, not a copy from when the link was made. A track is `available` only when the server has a present file (`server` availability); on-demand music is never fetched for a link.
+- **Audio.** `GET /share/:token/tracks/:id/playback` refuses a track the item does not hold now (404 `not_available`) and, with `sharePlayback` `off`, everything (403 `share_playback_off`). Otherwise it picks the file with streaming's `selectFile` at `high` quality and seals `{ share, file, profile, expiry }` with `encrypt('share-stream', …)` into the URL `/api/v1/share/stream?key=…`, valid for three hours. Sealing rather than signing keeps the file id out of the page, and the key is in the query because Fastify allows path parameters only 100 characters. Each request to it opens the key, checks the link is still live, that the mode still allows the profile (a whole-file key under `previews` is 403 `share_previews_only`), and that the file's recording is still in the item, then serves through streaming's `openStream` with the share as the encoder's user (`share:<id>`), so listeners of one link share one user's encoder allowance.
+- **Previews.** With `sharePlayback` `previews` (the default) the key's profile is `preview`: ffmpeg writes the first `SHARE_PREVIEW_MS` (30 s), faded out over its last two seconds, to a 160 kbps MP3 under `<data>/previews/`, renamed into place when done, then served with Range like any file. Cutting the audio is what makes the limit hold; limiting bytes would not, since bytes do not map to time in a VBR or lossless file and a client can ask for any range. At most two previews are cut at once per process, one per file however many ask, and 32 more wait before 503 `transcoder_busy`.
+- **Limits.** The three public routes are rate limited per `addressKey` (60 page loads, 120 playback requests and 600 audio requests a minute), in the API process's memory like the sign-in limits. Unknown tokens count against the same budget.
+- **Housekeeping.** `share.sweep` (daily, 04:35) deletes links that expired more than 30 days ago (until then their creators see them marked expired) and previews not played for a week; a served preview's mtime is refreshed at most hourly.
+- **Clients.** `SetupStatus.sharingEnabled` tells clients whether to offer Share; changing it invalidates `queryKeys.setupStatus()` and `queryKeys.shares()` for everyone. Creating and revoking invalidate `queryKeys.shares()` for the creator and `queryKeys.adminShares()` for admins. The web app's public page is the route `/s/:token`, outside the signed-in shell and its session, with an `<audio>` element of its own; it runs under the server's Content-Security-Policy like the rest of the app.
 
 ### Availability
 
