@@ -69,7 +69,8 @@ export type LyricsStatus = 'none' | 'loading' | 'failed' | 'ready'
  * its songs by name, so a first song that cannot be had is passed over. Shuffle always is.
  */
 export type PlayOptions = { shuffle?: boolean; collection?: boolean }
-export type RadioSeed = { type: 'track' | 'artist'; id: string }
+/** `sonic`: a radio of songs that sound like the track (`POST /radio/sonic/:id`). */
+export type RadioSeed = { type: 'track' | 'artist' | 'sonic'; id: string }
 
 /** The commands the UI sends. They mirror `SessionCommand` in the contracts. */
 export type PlayerControls = {

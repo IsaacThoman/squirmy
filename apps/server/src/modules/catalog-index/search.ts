@@ -1,6 +1,8 @@
 import { getSql } from '../../database/client.js'
 import type { CatalogIndexKind } from '../../database/schema.js'
 import { matchKey } from '../../lib/text.js'
+import { hasUnicode, prefixEnd, readings } from '../search/keys.js'
+import { validCatalogSearchIndexes } from './indexes.js'
 
 export type CatalogIndexResult = {
   kind: CatalogIndexKind
@@ -38,12 +40,6 @@ export async function isCatalogIndexReady(): Promise<boolean> {
   return row?.ready ?? false
 }
 
-/** The smallest string greater than every string that starts with `prefix`, in C collation. */
-function prefixEnd(prefix: string): string {
-  const last = prefix.codePointAt(prefix.length - 1)!
-  return prefix.slice(0, prefix.length - String.fromCodePoint(last).length) + String.fromCodePoint(last + 1)
-}
-
 /**
  * Searches the local index for artists, albums and recordings, best first, at most
  * `limit` of each kind. Returns nothing when the index is empty.
@@ -75,30 +71,56 @@ export async function searchCatalogIndex(query: string, options: CatalogIndexSea
     // A sequential scan would ignore the stored popularity order; parallel workers would interleave it.
     await sql`select set_config('enable_seqscan', 'off', true), set_config('max_parallel_workers_per_gather', '0', true),
                      set_config('pg_trgm.word_similarity_threshold', ${String(wordSimilarityThreshold)}, true)`
-    const candidates = kinds.flatMap((kind) => [
-      // The kind and `head` are literals so the planner can use the partial index. The
-      // show_trgm guard skips the scan when the query has no trigrams (non-Latin text
-      // in a database whose locale treats it as punctuation), which would read the whole index.
-      sql`(select kind, mbid, name, artist_name, album_name, name_key, score from catalog_index
-           where kind = ${sql.unsafe(`'${kind}'`)} and head and ${key} <% name_key and cardinality(show_trgm(${key})) > 0
-           limit ${fuzzyCandidates})`,
-      sql`(select kind, mbid, name, artist_name, album_name, name_key, score from catalog_index
-           where kind = ${sql.unsafe(`'${kind}'`)} and name_key collate "C" >= ${key} and name_key collate "C" < ${end}
-           order by kind, name_key collate "C" limit ${prefixCandidates})`,
-    ])
+    const unicode = hasUnicode(key)
+    const splits = readings(key).filter((reading) => reading.context !== null)
+    // Without these indexes the extra lookups can scan millions of rows.
+    const valid = unicode || (splits.length && kinds.some((kind) => kind !== 'artist'))
+      ? await validCatalogSearchIndexes(sql)
+      : undefined
+    const similarity = unicode
+      ? sql`search_unicode_score(search_unicode_bigrams(${key}), search_unicode_bigrams(name_key))`
+      : sql`word_similarity(${key}, name_key)`
+    const fuzzy = unicode
+      ? sql`search_unicode_bigrams(name_key) && search_unicode_bigrams(${key}) and ${similarity} >= 0.5`
+      : sql`${key} <% name_key`
+    const columns = sql`kind, mbid, name, artist_name, album_name, name_key, score`
+    const candidates = kinds.flatMap((kind) => {
+      // The kind and head are literals so the planner can use the partial indexes.
+      const kindSql = sql.unsafe(`'${kind}'`)
+      const byContext = (column: 'artist_name' | 'album_name') => splits.map(({ context, title }) => {
+        const field = sql(column)
+        const contexts = column === 'artist_name' ? [context, `the ${context}`] : [context]
+        return sql`(select ${columns}, case when name_key = ${title} then 1.0 else 0.8 end as composite
+          from catalog_index where kind = ${kindSql} and ${field} is not null
+            and search_name_key(${field}) collate "C" = any(${contexts}::text[])
+            and name_key collate "C" >= ${title} and name_key collate "C" < ${prefixEnd(title)}
+          order by name_key collate "C" limit ${prefixCandidates})`
+      })
+      return [
+        ...(!unicode || valid?.has('unicode') ? [
+          sql`(select ${columns}, 0.0 as composite from catalog_index
+               where kind = ${kindSql} and head and ${fuzzy} limit ${fuzzyCandidates})`,
+        ] : []),
+        sql`(select ${columns}, 0.0 as composite from catalog_index
+             where kind = ${kindSql} and name_key collate "C" >= ${key} and name_key collate "C" < ${end}
+             order by kind, name_key collate "C" limit ${prefixCandidates})`,
+        ...(kind !== 'artist' && valid?.has('artist_title') ? byContext('artist_name') : []),
+        ...(kind === 'recording' && valid?.has('album_title') ? byContext('album_name') : []),
+      ]
+    })
     const union = candidates.reduce((all, part) => sql`${all} union all ${part}`)
     const rows = await sql<{ kind: CatalogIndexKind; mbid: string; name: string; artist_name: string | null; album_name: string | null; relevance: number; popularity: number }[]>`
       with candidates as (${union}),
       ranked as (
         select distinct on (kind, mbid) kind, mbid, name, artist_name, album_name, score as popularity,
-               (0.8 * word_similarity(${key}, name_key)
+               greatest(composite, 0.8 * ${similarity}
                 + 0.1 * (' ' || name_key like ${`% ${key}%`})::int
                 + 0.1 * (name_key in (${key}, ${`the ${key}`}))::int) * (0.5 + 0.5 * score) as relevance
         from candidates
-        order by kind, mbid
+        order by kind, mbid, relevance desc
       ),
       limited as (
-        select *, row_number() over (partition by kind order by relevance desc, name) as position from ranked
+        select *, row_number() over (partition by kind order by relevance desc, name, mbid) as position from ranked
       )
       select kind, mbid, name, artist_name, album_name, relevance, popularity from limited
       where position <= ${limit}

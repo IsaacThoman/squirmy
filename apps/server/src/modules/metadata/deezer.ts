@@ -43,6 +43,11 @@ export type DeezerTrack = {
   edited?: boolean
   /** Deezer's popularity score; higher is more played. */
   rank: number | null
+  /**
+   * Deezer's tempo estimate. Only a single-track lookup (`getTrack`, `getTrackByIsrc`)
+   * carries it; absent when Deezer says 0 (unknown). Often double or half the felt tempo.
+   */
+  bpm?: number
   isrc: string | null
   artist: { id: number; name: string }
   /** Every credited artist (main and featured), when Deezer lists them; else just `artist`. */
@@ -92,6 +97,7 @@ type RawTrack = {
   /** 0 not explicit, 1 explicit, 2 unknown, 3 edited, 4 partially explicit, 6 no advice. */
   explicit_content_lyrics?: number
   rank?: number
+  bpm?: number
   isrc?: string
   track_position?: number
   disk_number?: number
@@ -279,6 +285,7 @@ function track(raw: RawTrack, album?: RawAlbum): DeezerTrack {
     explicit: raw.explicit_lyrics ?? false,
     ...(raw.explicit_content_lyrics === undefined ? {} : { edited: raw.explicit_content_lyrics === 3 }),
     rank: raw.rank ?? null,
+    ...(raw.bpm && raw.bpm > 0 ? { bpm: raw.bpm } : {}),
     isrc: raw.isrc ?? null,
     artist: { id: raw.artist.id, name: text(raw.artist.name) },
     artists: credited(raw),
