@@ -5,8 +5,8 @@
  * - An unowned recording is `on_demand` when the acquisition seam says a provider can
  *   supply it, else `none`.
  * - An album counts owned recordings on its track list (`albumTrackList` in pages.ts): its
- *   canonical release, plus owned recordings filed under the album that the release does
- *   not list. All is `full`, some is `partial`. With none owned it is `on_demand` when
+ *   canonical release, plus owned recordings of files of that edition that the release
+ *   does not list (a file of another edition the server holds counts on that edition). All is `full`, some is `partial`. With none owned it is `on_demand` when
  *   any track is (decision 6: dimmed only when nothing on it plays; one track a provider
  *   missed must not gray out an EP whose other songs play), else `none`. An album with a present, linked file is therefore never
  *   `none`, which is what keeps a library album from showing gray. An album with no track
@@ -176,7 +176,12 @@ function savedAlbumHolds(recording: string, userId: string): SQL {
  * its canonical release, or for an album without one, its release with the most tracks.
  */
 export function canonicalRelease(album: string): SQL {
-  return sql.raw(`coalesce(${album}.canonical_release_id, (select fallback.id from releases fallback where fallback.album_id = ${album}.id order by fallback.track_count desc, fallback.id limit 1))`)
+  return sql.raw(canonicalReleaseText(album))
+}
+
+/** `canonicalRelease` as text, for other raw fragments. */
+export function canonicalReleaseText(album: string): string {
+  return `coalesce(${album}.canonical_release_id, (select fallback.id from releases fallback where fallback.album_id = ${album}.id order by fallback.track_count desc, fallback.id limit 1))`
 }
 
 /** Availability of each existing recording id. Ids must already be redirect-resolved. */
@@ -194,7 +199,7 @@ export async function trackAvailability(recordingIds: readonly string[]): Promis
 
 export type AlbumAvailabilityInfo = {
   availability: AlbumAvailability
-  /** Tracks on the album's track list: the canonical release, then owned extras. */
+  /** Tracks on the album's track list: the canonical release, then owned extras of that edition. */
   trackCount: number
   /** Of those, the ones whose recording is owned. */
   ownedTrackCount: number
@@ -220,6 +225,11 @@ export async function albumAvailability(albumIds: readonly string[]): Promise<Ma
         and not exists (
           select 1 from release_tracks listed
           where listed.release_id = ${canonicalRelease('a')} and listed.recording_id = f.recording_id
+        )
+        -- A file of another edition the server holds counts on that edition, not here.
+        and not exists (
+          select 1 from releases other
+          where other.id = f.release_id and other.mbid is not null and other.album_id = a.id and other.id <> ${canonicalRelease('a')}
         )
     ) extras
     where a.id = any(${uuidArray(ids)})

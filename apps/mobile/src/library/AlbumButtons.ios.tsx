@@ -1,4 +1,4 @@
-import { Button, Host, HStack, Image, Menu, ProgressView, Text } from '@expo/ui/swift-ui';
+import { Button, Host, HStack, Image, Menu, ProgressView, Section, Text, Toggle } from '@expo/ui/swift-ui';
 import {
   accessibilityHidden, accessibilityLabel, background, buttonBorderShape, buttonStyle, clipShape, contentShape, controlSize, disabled as disabledModifier,
   dynamicTypeSize, font, foregroundStyle, frame, lineLimit, menuIndicator, opacity, padding, progressViewStyle, shapes, tint,
@@ -12,7 +12,7 @@ import { useBrowseBackLabel } from './links';
 type SymbolName = ComponentProps<typeof Image>['systemName'];
 const hitShape = contentShape(shapes.rectangle());
 
-export function AlbumNavButton({ icon, label, onPress, menu, selected, busy, failed }: AlbumNavProps) {
+export function AlbumNavButton({ icon, label, onPress, menu, choices, selected, busy, failed }: AlbumNavProps) {
   const colors = useColors();
   const glass = isLiquidGlassAvailable();
   // The glass adds its own padding around the content: 30 inside makes the button 44 across,
@@ -28,17 +28,32 @@ export function AlbumNavButton({ icon, label, onPress, menu, selected, busy, fai
     ? <ProgressView modifiers={[progressViewStyle('circular'), controlSize('regular'), tint(colors.text), size, hitShape]} />
     // The button carries the label; left alone, the image would announce its symbol's name.
     : <Image systemName={icon as SymbolName} size={20} color={failed ? colors.danger : selected ? colors.accent : colors.text} modifiers={[size, hitShape, accessibilityHidden(true)]} />;
+  const items = menu
+    ? menu.map(action => <Button key={action.title} label={action.title} systemImage={action.icon as SymbolName}
+      role={action.destructive ? 'destructive' : undefined} onPress={action.onPress} />)
+    : choices && <NavChoices choices={choices} />;
   return (
     <Host style={{ width: 44, height: 44 }}>
       {/* A menu, such as an album's ⋯, is the system's own, as on a song row. */}
-      {menu
-        ? <Menu label={content} modifiers={[...look, menuIndicator('hidden')]}>
-          {menu.map(action => <Button key={action.title} label={action.title} systemImage={action.icon as SymbolName}
-            role={action.destructive ? 'destructive' : undefined} onPress={action.onPress} />)}
-        </Menu>
+      {items
+        ? <Menu label={content} modifiers={[...look, menuIndicator('hidden')]}>{items}</Menu>
         : <Button onPress={onPress} modifiers={look}>{content}</Button>}
     </Host>
   );
+}
+
+/**
+ * A menu's choices as the system draws a picker's: the chosen one checked, each subtitle under
+ * its title. A toggle is how a SwiftUI menu checks an item; choosing the checked one again
+ * leaves it so.
+ */
+function NavChoices({ choices }: Pick<Required<AlbumNavProps>, 'choices'>) {
+  return choices.map((group, index) => <Section key={index} title={group.heading}>
+    {group.options.map(choice => <Toggle key={choice.id} isOn={choice.checked} onIsOnChange={choice.onPress}>
+      <Text>{choice.title}</Text>
+      {choice.subtitle ? <Text>{choice.subtitle}</Text> : null}
+    </Toggle>)}
+  </Section>);
 }
 
 /** Back, naming the page it returns to ("‹ Library") when there is one; a plain chevron otherwise. */

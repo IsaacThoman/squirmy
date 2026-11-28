@@ -66,6 +66,14 @@ The exact rules are written out at the top of `apps/server/src/modules/library/g
 
 Squirmy also recognizes a file by a hash of its audio stream, computed without decoding. Moving or retagging a file therefore keeps its identity, its match and everything that points at it.
 
+## Several copies of one album
+
+You may have more than one copy of an album: the LP you ripped and the 2011 remaster, or the same edition as FLAC and as MP3. Squirmy keeps them as one album and remembers which edition each folder was matched to. Matching a second edition, or matching a folder again, never changes which edition the album is shown as: the first edition matched stays, as long as files of it are on the server.
+
+The album page then has a **Versions** control. A version is an edition in one quality: **Hi-Res Lossless** (lossless above 48 kHz or 16-bit), **Lossless**, or lossy (MP3, AAC and the like). Each version shows its year and media (or MusicBrainz's note, such as "2011 remaster"), label, catalogue number, country, how many of its songs you have, and the quality of its files. Copies whose folder was not matched to a MusicBrainz edition (built from tags, or fetched by a provider) count as the album's own edition and say **Unidentified edition**.
+
+Each user picks which version plays by default, on every device: the web, iOS, downloads and [Subsonic apps](./subsonic.md). **Automatic** lists the album's own edition and plays each song from the best copy the device can play. Picking a version lists that edition's songs (when two editions list different recordings, a remaster MusicBrainz lists as new recordings, each edition shows only its own) and plays its files. **Track info** lists the versions of the playing song, so one song can be set to another copy, including a copy on another album such as the single. A pick stays when its files are missing for a while (an unplugged drive) and applies again when they return. A [share link](./sharing.md) plays the versions its creator picked, and in [Listen together](../use/web.md#listening-together) everyone hears the host's version of each song, so the jam stays in step.
+
 ## Missing files and the grace period
 
 A file that disappears is marked **missing** rather than deleted from the library, so an unmounted drive or a NAS that is offline for a weekend does not empty your library. After **Keep missing files for** (default 14 days, in **Admin → Server settings → Library**) a daily job at 05:30 UTC removes it. A file that comes back before then simply returns.

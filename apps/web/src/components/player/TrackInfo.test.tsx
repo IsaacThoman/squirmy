@@ -1,11 +1,12 @@
 import type { SignalPath } from '@squirmy/contracts'
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { track } from '@/fixtures/catalog'
 import { devices, thisDeviceId } from '@/fixtures/server'
 import type { Player, PlayerControls, PlayerState } from '@/player/player-context'
+import { fakeServices } from '@/test/fake-services'
 import { renderWithApp } from '@/test/render'
 import { QualityBadge, TrackInfoDialog } from './TrackInfo'
 
@@ -83,6 +84,42 @@ describe('track info', () => {
     expect(within(dialog).getByText('This browser')).toBeInTheDocument()
     expect(within(dialog).getByText('Transcoded to AAC 256 kbps')).toBeInTheDocument()
     expect(within(dialog).getByText('The device can’t play the original format')).toBeInTheDocument()
+  })
+
+  it('lists the song’s versions, marks the one playing, and switches the song to another', async () => {
+    const { services, api } = fakeServices()
+    const base = { title: 'Low Tide', disambiguation: null, releaseDate: '2024-05-01', country: null, label: null, catalogNumber: null, format: 'CD', identified: true }
+    const versions = [
+      { ...base, id: `${song.id}:hi_res_lossless`, albumId: song.album!.id, albumTitle: song.album!.title, quality: { tier: 'hi_res_lossless' as const, codec: 'flac', sampleRate: 96_000, bitDepth: 24, bitrate: 3_000_000 } },
+      { ...base, id: `${song.id}:lossy`, albumId: 'single', albumTitle: 'Amber (single)', format: 'Digital Media', quality: { tier: 'lossy' as const, codec: 'aac', sampleRate: 44_100, bitDepth: null, bitrate: 256_000 } },
+    ]
+    api.catalog.trackVersions.mockResolvedValue({ trackId: song.id, versions, versionId: null, albumVersionId: null })
+    const forgetPlayback = vi.fn()
+    const value = player({ signal: { ...hiRes, source: { ...hiRes.source!, versionId: versions[0]!.id } } })
+    value.controls = { forgetPlayback } as unknown as PlayerControls
+    renderWithApp(<TrackInfoDialog player={value} open onOpenChange={() => {}} />, '/', services)
+    const group = await screen.findByRole('radiogroup', { name: 'Versions' })
+    const [automatic, own, single] = within(group).getAllByRole('radio')
+    expect(automatic).toHaveAttribute('aria-checked', 'true')
+    expect(own).toHaveTextContent('2024 · CD')
+    expect(own).toHaveTextContent('Hi-Res Lossless · FLAC 24-bit/96 kHz')
+    expect(own).toHaveTextContent('Playing')
+    expect(single).toHaveTextContent('AAC · 256 kbps · Amber (single)')
+    expect(single).not.toHaveTextContent('Playing')
+
+    api.catalog.trackVersions.mockResolvedValue({ trackId: song.id, versions, versionId: versions[1]!.id, albumVersionId: null })
+    await userEvent.click(single!)
+    expect(api.catalog.pickVersion).toHaveBeenCalledWith('track', song.id, versions[1]!.id)
+    expect(forgetPlayback).toHaveBeenCalledWith(song.id)
+    await waitFor(() => expect(within(group).getAllByRole('radio')[2]).toHaveAttribute('aria-checked', 'true'))
+    await userEvent.click(within(group).getAllByRole('radio')[0]!)
+    expect(api.catalog.clearVersion).toHaveBeenCalledWith('track', song.id)
+  })
+
+  it('shows no versions for a song the server holds once', async () => {
+    renderWithApp(<TrackInfoDialog player={player({ signal: hiRes })} open onOpenChange={() => {}} />)
+    await screen.findByRole('dialog', { name: 'Track info' })
+    expect(screen.queryByRole('radiogroup')).toBeNull()
   })
 
   it('says so when the device playing did not report', () => {
