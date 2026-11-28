@@ -79,3 +79,33 @@ export function downloadIndex(account: string): DownloadIndex {
     },
   };
 }
+
+/** Bytes and songs each account has downloaded, by account. */
+export function downloadUsage(): Map<string, { bytes: number; count: number }> {
+  const rows = open().getAllSync<{ account: string; bytes: number | null; count: number }>(
+    'SELECT account, SUM(bytes) AS bytes, COUNT(*) AS count FROM downloads WHERE file IS NOT NULL GROUP BY account');
+  return new Map(rows.map(row => [row.account, { bytes: row.bytes ?? 0, count: row.count }]));
+}
+
+/**
+ * Removes the downloads of an account that is not the one in use (that one's manager
+ * removes its own). Rows go first, then only the files they named that no other account
+ * uses, so the running manager's transfers are left alone.
+ */
+export function removeAccountDownloads(account: string, remove: (name: string) => void): void {
+  const db = open();
+  const names = new Set<string>();
+  for (const row of db.getAllSync<{ file: string | null; art: string | null }>('SELECT file, art FROM downloads WHERE account = ?', account)) {
+    if (row.file) names.add(row.file);
+    if (row.art) names.add(row.art);
+  }
+  for (const row of db.getAllSync<{ art: string }>('SELECT art FROM download_collections WHERE account = ?', account)) {
+    for (const name of JSON.parse(row.art) as string[]) names.add(name);
+  }
+  db.withTransactionSync(() => {
+    db.runSync('DELETE FROM downloads WHERE account = ?', account);
+    db.runSync('DELETE FROM download_collections WHERE account = ?', account);
+  });
+  const referenced = downloadIndex(account).referencedFiles();
+  for (const name of names) if (!referenced.has(name)) remove(name);
+}
