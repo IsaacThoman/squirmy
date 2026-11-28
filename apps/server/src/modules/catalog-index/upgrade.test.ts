@@ -102,7 +102,9 @@ describe('search index upgrades', () => {
       await catalogIndexModule.start!({ role: 'api' })
       expect(await getCatalogIndexStatus()).toMatchObject({ searchUpgrade: 'pending' })
       await catalogIndexModule.start!({ role: 'worker' })
-      await expect.poll(async () => (await getCatalogIndexStatus()).searchUpgrade, { timeout: 10_000 }).toBe('building')
+      // The progress view can report a build before its invalid index is visible to other sessions.
+      await expect.poll(async () => (await searchIndexValidity(['catalog_index_unicode'])).get('catalog_index_unicode'), { timeout: 10_000 }).toBe(false)
+      expect(await getCatalogIndexStatus()).toMatchObject({ searchUpgrade: 'building' })
       expect(await catalog('宇多田')).toMatchObject([{ name: '宇多田ヒカル' }])
       expect(await catalog('宇多田ひかる')).toEqual([])
       await expect(dropCatalogIndex()).rejects.toMatchObject({ code: 'catalog_index_maintenance_running' })
