@@ -1,14 +1,26 @@
 import AudioToolbox
 import Foundation
 
+/// A seek to a frame this stream does not have yet (past what has arrived of a transcode
+/// still being sent) or at all (before where a stream asked for from a time begins).
+/// `Pipeline` asks the server for the stream from that time instead.
+struct SeekOutsideStream: Error {}
+
 /**
- * Server transcodes: `AudioFileStream` parses the bytes in order as they arrive, needing no
- * length, so a transcode still being encoded plays, and `AudioConverter` decodes the packets.
+ * Server transcodes, read in order as they arrive with no length needed, so a transcode still
+ * being encoded plays, and decoded by `AudioConverter`. Fragmented MP4 (the fragmented
+ * profiles) is read by `FragmentedMP4`, which also finds the fragment a seek lands in;
+ * Apple's `AudioFileStream` reads only its format there, and parses today's ADTS, MP3 and
+ * Ogg transcodes whole.
+ *
  * It trims with the descriptor's `gapless` numbers when they come: `primingFrames` from the
  * start and everything after `frames`, the end only when what is left is less than one of
  * the codec's frames, so a wrong number cannot cut a song short. Without them it uses what
  * the container says (an MP4's packet table, an Ogg Opus header's pre-skip). Today's ADTS
  * AAC and MP3 transcodes say nothing, and keep their encoders' gaps.
+ *
+ * A stream asked for from a time (`X-Squirmy-Start-Frame`) is numbered from where it begins
+ * in the track, after its own priming.
  */
 final class StreamDecoder: AudioDecoder {
   private static let chunkBytes = 32 * 1024
@@ -18,6 +30,12 @@ final class StreamDecoder: AudioDecoder {
 
   private let source: ByteSource
   private let gapless: Gapless?
+  /// The fragments of a fragmented MP4 stream; nil for the formats Apple's parser reads whole.
+  private var fragments: FragmentedMP4?
+  /// The track frame this stream's first real sample is.
+  let startFrame: Int64
+  /// A seek outside what has arrived throws `SeekOutsideStream` instead of waiting for it.
+  private let canRestart: Bool
   private var parser: AudioFileStreamID?
   private var converter: AudioConverterRef?
   private var format = AudioStreamBasicDescription()
@@ -46,15 +64,33 @@ final class StreamDecoder: AudioDecoder {
   private var finished = false
   private var output: [Float] = []
 
-  init(source: ByteSource, gapless: Gapless?) throws {
+  /// `canRestart`: the server can send the stream from a time, so a seek past what has arrived
+  /// need not wait for it.
+  init(source: ByteSource, gapless: Gapless?, canRestart: Bool = false) throws {
     self.source = source
     self.gapless = gapless
-    try openParser(hint: audioFileType(contentType: try source.info().contentType))
-    while !ready {
-      guard try feed() else { throw EngineError(message: "This stream’s format can’t be decoded") }
+    self.canRestart = canRestart
+    let info = try source.info()
+    startFrame = info.startFrame ?? 0
+    let hint = audioFileType(contentType: info.contentType)
+    if hint == kAudioFileM4AType || hint == 0, let fragments = try FragmentedMP4.open(source) {
+      self.fragments = fragments
+      try openParser(hint: kAudioFileM4AType)
+      // Apple's parser reads the format and the codec's settings from the `moov`.
+      try parseInit(upTo: fragments.initEnd)
+      guard format.mFormatID != 0, format.mSampleRate > 0 else { throw EngineError(message: "This stream’s format can’t be decoded") }
+      fragments.sampleRate = format.mSampleRate
+      if let parser { AudioFileStreamClose(parser) }
+      parser = nil
+    } else {
+      try openParser(hint: hint)
+      while !ready {
+        guard try feed() else { throw EngineError(message: "This stream’s format can’t be decoded") }
+      }
     }
     try makeConverter()
-    skip = primingFrames
+    skip = max(0, primingFrames - decoderDelay)
+    produced = startFrame
     limit = gapless?.frames ?? packetTable.flatMap { $0.mNumberValidFrames > 0 ? $0.mNumberValidFrames : nil }
   }
 
@@ -81,6 +117,28 @@ final class StreamDecoder: AudioDecoder {
     gapless?.primingFrames ?? packetTable.map { Int64($0.mPrimingFrames) } ?? oggPreSkip ?? 0
   }
 
+  /// Frames Apple's decoder leaves out of its output after a start or a reset: its Opus
+  /// decoder begins 2.5 ms into the stream (measured against ffmpeg on macOS 27 and the
+  /// iOS 27 simulator; Apple's file reader takes the same off Ogg Opus's pre-skip), so that
+  /// much less is dropped to reach a frame.
+  private var decoderDelay: Int64 {
+    format.mFormatID == kAudioFormatOpus ? Int64((0.0025 * format.mSampleRate).rounded()) : 0
+  }
+
+  /// The codec's frame: the format's, or (Opus says none) the longest packet seen.
+  private var codecFrames: Int64 {
+    format.mFramesPerPacket > 0 ? Int64(format.mFramesPerPacket) : fragments?.largestSampleFrames ?? 0
+  }
+
+  /// Decoded before a seek's target and dropped, so a lossy decoder has settled when the
+  /// target plays: three of its frames, and at least the 80 ms Opus asks for.
+  private var prerollFrames: Int64 {
+    switch format.mFormatID {
+    case kAudioFormatFLAC, kAudioFormatAppleLossless, kAudioFormatLinearPCM: return 0
+    default: return max(3 * codecFrames, Int64(0.08 * format.mSampleRate))
+    }
+  }
+
   func read(maxFrames: Int) throws -> [Float] {
     var out: [Float] = []
     out.reserveCapacity(maxFrames * 2)
@@ -98,6 +156,7 @@ final class StreamDecoder: AudioDecoder {
   }
 
   func seek(to frame: Int64) throws {
+    if let fragments { return try seekFragments(to: frame, fragments) }
     let priming = primingFrames
     let target = max(0, frame) + priming
     let framesPerPacket = Int64(format.mFramesPerPacket)
@@ -109,7 +168,7 @@ final class StreamDecoder: AudioDecoder {
       if AudioFileStreamSeek(parser, packet, &byteOffset, &flags) == noErr {
         reset(at: dataOffset + byteOffset)
         discontinuity = true
-        skip = target - packet * framesPerPacket
+        skip = max(0, target - packet * framesPerPacket - decoderDelay)
         landed = true
       }
     }
@@ -124,12 +183,48 @@ final class StreamDecoder: AudioDecoder {
       while !ready {
         guard try feed() else { throw EngineError(message: "This stream ended before it began") }
       }
-      skip = target
+      skip = max(0, target - decoderDelay)
     }
     produced = max(0, frame)
   }
 
+  /// Goes on from the fragment a little before `frame`, when that part of the stream is here.
+  private func seekFragments(to frame: Int64, _ fragments: FragmentedMP4) throws {
+    if frame < startFrame { throw SeekOutsideStream() }
+    let target = frame - startFrame + primingFrames
+    try fragments.scan(through: target, waiting: !canRestart)
+    if fragments.fragments.last.map({ $0.end <= target }) ?? true {
+      guard fragments.ended else { throw SeekOutsideStream() }
+      // Past the end: nothing more plays.
+      fragments.rewind(toFragment: fragments.fragments.count)
+      resetDecoding()
+      skip = 0
+      produced = frame
+      return
+    }
+    let index = fragments.fragmentIndex(holding: max(0, target - prerollFrames)) ?? 0
+    fragments.rewind(toFragment: index)
+    resetDecoding()
+    skip = max(0, target - fragments.fragments[index].start - decoderDelay)
+    produced = frame
+  }
+
   // MARK: - Parsing
+
+  /// Gives Apple's parser a fragmented stream's `ftyp` and `moov`, for the format.
+  private func parseInit(upTo end: Int64) throws {
+    let count = Int(end)
+    var bytes = [UInt8](repeating: 0, count: count)
+    var done = 0
+    while done < count {
+      let n = try bytes.withUnsafeMutableBytes { try source.read(at: Int64(done), count: count - done, into: $0.baseAddress! + done) }
+      guard n > 0 else { throw EngineError(message: "This stream ended before it began") }
+      done += n
+    }
+    let status = bytes.withUnsafeBytes { AudioFileStreamParseBytes(parser!, UInt32(bytes.count), $0.baseAddress!, []) }
+    if let error { throw error }
+    guard status == noErr else { throw EngineError.status(status, "This stream couldn’t be parsed") }
+  }
 
   private func openParser(hint: AudioFileTypeID) throws {
     let client = Unmanaged.passUnretained(self).toOpaque()
@@ -142,14 +237,25 @@ final class StreamDecoder: AudioDecoder {
   }
 
   private func reset(at offset: Int64) {
-    packets.removeAll()
-    nextPacket = 0
     readOffset = offset
     sourceEnded = false
+    resetDecoding()
+  }
+
+  /// Forgets what was parsed and decoded, for packets from somewhere else in the stream.
+  private func resetDecoding() {
+    packets.removeAll()
+    nextPacket = 0
     inputEnded = false
     finished = false
     held.removeAll()
-    if let converter { AudioConverterReset(converter) }
+    // A new converter rather than `AudioConverterReset`, which leaves Apple's Opus decoder
+    // part way through what it had (its output after a seek came out 48 frames late).
+    if let converter {
+      AudioConverterDispose(converter)
+      self.converter = nil
+      try? makeConverter()
+    }
   }
 
   /// Gives the parser the next bytes. False at the end of the stream.
@@ -271,7 +377,15 @@ final class StreamDecoder: AudioDecoder {
       while nextPacket >= packets.count, !inputEnded {
         packets.removeAll(keepingCapacity: true)
         nextPacket = 0
-        if try !feed() { inputEnded = true }
+        if let fragments {
+          if let packet = try fragments.next() {
+            packets.append((packet.data, AudioStreamPacketDescription(mStartOffset: 0, mVariableFramesInPacket: 0, mDataByteSize: UInt32(packet.data.count))))
+          } else {
+            inputEnded = true
+          }
+        } else if try !feed() {
+          inputEnded = true
+        }
       }
     } catch {
       self.error = error
@@ -320,7 +434,7 @@ final class StreamDecoder: AudioDecoder {
         held += decoded[(start + room) * 2..<frames * 2]
         keep = room
         // More past the length than one codec frame: the length was wrong. Play it all.
-        if held.count / 2 >= max(1, Int(format.mFramesPerPacket)) {
+        if held.count / 2 >= max(1, Int(codecFrames)) {
           self.limit = nil
           out += decoded[start * 2..<(start + keep) * 2]
           out += held

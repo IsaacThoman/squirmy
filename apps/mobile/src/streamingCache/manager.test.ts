@@ -864,6 +864,24 @@ describe('StreamingCache with the native engine', () => {
     expect(changed).toEqual([2]);
   });
 
+  it('plays the native engine’s fragmented MP4 copies only with that engine, and the classic player replaces them', async () => {
+    const native = (n: number) => row(n, { quality: 'high', file: `native-${n}.mp4`, descriptor: { ...row(n, { quality: 'high' }).descriptor, profile: 'opus_mp4_192', mime: 'audio/mp4', codec: 'opus' } });
+    expect(setup({ native: true, seed: [native(2)] }).cache.playback(id(2), 'high')?.url).toBe('file:///cache/native-2.mp4');
+
+    const { cache, index, files, source, finish, settle } = setup({ seed: [native(2)], settings: { wifiQuality: 'high' } });
+    expect(cache.playback(id(2), 'high')).toBeNull();
+    expect(cache.has(id(2))).toBe(false);
+    cache.setOutlook(outlook('active', 1, 2));
+    await settle();
+    expect(source.describes).toContain('2:high');
+    await finish();
+    expect(index.row(2, 'high')).toMatchObject({ descriptor: { profile: 'aac_256' } });
+    // Its file goes once the player can no longer be holding it.
+    cache.setOutlook(outlook('active', 5, 6));
+    await settle();
+    expect(files.disk.has('native-2.mp4')).toBe(false);
+  });
+
   it('with the classic player, keeps a file it may be playing rather than give it to a download', () => {
     const { cache } = setup({ seed: [row(2), row(5)] });
     cache.setOutlook(outlook('active', 2, 3));

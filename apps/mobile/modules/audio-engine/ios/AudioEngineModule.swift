@@ -70,6 +70,10 @@ public class AudioEngineModule: Module {
     Function("getStatus") { () -> [String: Any] in
       Self.payload(SharedEngine.shared.engine.status())
     }
+    // What to ask the server for: Opus only where Apple's decoder has it (`OpusProbe`).
+    Function("probeCodecs") { () -> [String] in
+      OpusProbe.codecs
+    }
     Function("prefetch") { (cacheKey: String, url: String) in
       guard let url = URL(string: url) else { throw Exception(name: "BadURL", description: "Not a URL: \(url)") }
       SharedEngine.shared.store.prefetch(cacheKey: cacheKey, url: url)

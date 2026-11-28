@@ -10,6 +10,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, StyleSheet } from 'react-native';
 import { closeSheet } from '../closeSheet';
+import { runningEngine } from '../player/engine';
 import { useNormalizationBoosts } from '../playback';
 import { engineNote, engineOptions, showsEngineSetting, useEngineSetting } from '../player/engine/setting';
 import { SheetFormHeader, SheetPickerRow } from '../SheetUI';
@@ -17,7 +18,7 @@ import { StorageSection } from '../streamingCache/StorageSection';
 import { useColors } from '../theme';
 import { serviceNames } from './scrobbling';
 import {
-  explicitLabel, explicitNote, explicitRestrictedNote, lastFmAdminNote, normalizationNote, normalizationOptions, normalizationTarget,
+  explicitLabel, explicitNote, explicitRestrictedNote, lastFmAdminNote, nativeQualityNote, normalizationNote, normalizationOptions, normalizationTarget,
   openListenBrainzSettings, qualityNote, qualityOptions, ratingsLabel, ratingsNote, scrobbleDetail, scrobbleFooter, serverMusicLabel, serverMusicNote, shareNowPlayingLabel,
   shareNowPlayingNote, targetOptions, useSettingsScreen,
 } from './settings';
@@ -52,7 +53,7 @@ export function SettingsScreen() {
               onChange={target => update({ normalizationTarget: target })} />}
             {engineChoice && <SheetPickerRow label="Engine" value={engine} options={engineOptions} onChange={setEngine} />}
           </Section>
-          <Section title="Streaming Quality" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{qualityNote}</Text>}>
+          <Section title="Streaming Quality" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{runningEngine() === 'native' ? nativeQualityNote : qualityNote}</Text>}>
             <SheetPickerRow label="Wi-Fi" value={settings.qualityWifi} options={qualityOptions} onChange={qualityWifi => update({ qualityWifi })} />
             <SheetPickerRow label="Cellular" value={settings.qualityCellular} options={qualityOptions}
               onChange={qualityCellular => update({ qualityCellular })} />

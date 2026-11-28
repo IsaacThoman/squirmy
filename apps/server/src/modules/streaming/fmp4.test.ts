@@ -32,6 +32,17 @@ vi.mock('node:child_process', async (importOriginal) => {
 const exec = promisify(execFile)
 const execOptions = { encoding: 'buffer', maxBuffer: 10 * 1024 * 1024 } as const
 
+/** How many packets of each duration the file's audio has. */
+async function packetDurations(file: string) {
+  const { stdout } = await exec(process.env.FFPROBE_PATH ?? 'ffprobe', [
+    '-v', 'error', '-select_streams', 'a', '-show_entries', 'packet=pts,duration', '-of', 'csv=p=0', file,
+  ], { encoding: 'utf8' })
+  const packets = stdout.trim().split('\n').map((line) => line.split(',').map(Number) as [number, number])
+  // Some ffprobe builds report no packet duration (N/A) for a fragment written as it streams;
+  // the step to the next packet's timestamp is the same number.
+  return packets.map(([pts, duration], index) => (Number.isFinite(duration) ? duration : (packets[index + 1]?.[0] ?? NaN) - pts))
+}
+
 async function decode(file: string, rate: number) {
   const { stdout } = await exec(process.env.FFMPEG_PATH ?? 'ffmpeg', [
     '-v', 'error', '-i', file, '-ar', String(rate), '-acodec', 'pcm_f32le', '-f', 'f32le', '-',
@@ -255,6 +266,8 @@ describe('fragmented MP4 delivery', () => {
       const reference = await decode(fixture.halves[0], fixture.rate)
       expect(decoded.length / 2).toBe(fixture.frames[0] - frame)
       expect(lag(decoded, 0, reference, frame)).toBe(0)
+      // Fixed FLAC blocks, though the seek starts part way into the source's block.
+      expect(new Set((await packetDurations(file)).slice(0, -1))).toEqual(new Set([4096]))
     } finally {
       await full
       encoder.throttle = false

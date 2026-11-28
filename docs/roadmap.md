@@ -133,7 +133,7 @@ Designed in [audio-engine.md](./audio-engine.md); each item is a pull request fr
 - [ ] C2. Undoing queue edits
 - [x] M1. The native iOS and tvOS engine, behind a setting
 - [x] M2. Streaming to the cache in one pass
-- [ ] M3. Fragmented MP4 transcodes and live seeking on iOS
+- [x] M3. Fragmented MP4 transcodes and live seeking on iOS
 - [x] M4. Normalization with boost and a true-peak limiter, with a target setting
 - [ ] M5. Equalizer
 - [ ] M6. Crossfade
