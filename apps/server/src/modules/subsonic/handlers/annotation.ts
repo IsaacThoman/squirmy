@@ -40,7 +40,7 @@ async function scrobble(context: Context) {
         reportNowPlaying(user.id, recordingId, client)
         continue
       }
-      const selection = await selectFile(recordingId, { quality: 'original' })
+      const selection = await selectFile(recordingId, { quality: 'original', userId: user.id })
       const recorded = await recordExternalPlay(user.id, recordingId, { playedAt: times[index] ?? new Date(), albumId: selection?.file.albumId ?? null })
       if (!recorded) throw notFound('Song')
       endNowPlaying(user.id, recordingId)

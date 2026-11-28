@@ -7,6 +7,7 @@ import type { SongListProps } from './SongList';
 export type SongRowItem = {
   key: string;
   track: TrackSummary;
+  addedByName?: string | null;
   /** Its index in the list's `tracks`. */
   index: number;
   /** The position shown instead of the cover, in a numbered list. */
@@ -67,7 +68,7 @@ export type LongSongListProps = {
   inset: number;
 };
 
-export function songRows({ tracks, numbered, playlist, album, artist, kind, opens = false }: Pick<SongListProps, 'tracks' | 'numbered' | 'playlist' | 'album' | 'artist' | 'kind'> & {
+export function songRows({ tracks, numbered, playlist, album, artist, kind, addedByNames, opens = false }: Pick<SongListProps, 'tracks' | 'numbered' | 'playlist' | 'album' | 'artist' | 'kind' | 'addedByNames'> & {
   /** The list has `onUnavailable`. */
   opens?: boolean;
 }): SongRowItem[] {
@@ -76,6 +77,7 @@ export function songRows({ tracks, numbered, playlist, album, artist, kind, open
     return {
       key: itemId ?? `${track.id}:${index}`,
       track,
+      addedByName: addedByNames?.[index],
       index,
       number: numbered ? track.position ?? index + 1 : undefined,
       playlist: playlist && itemId ? { id: playlist.id, itemId } : undefined,
@@ -130,5 +132,5 @@ export function pressVerb(current: 'playing' | 'paused' | null): string {
 export function sameRow(a: SongRowItem, b: SongRowItem) {
   return a === b || (a.key === b.key && a.track === b.track && a.index === b.index && a.number === b.number
     && a.playlist?.itemId === b.playlist?.itemId && a.playlist?.id === b.playlist?.id && a.showArtist === b.showArtist && a.album === b.album && a.artist === b.artist && a.kind === b.kind
-    && a.opens === b.opens);
+    && a.opens === b.opens && a.addedByName === b.addedByName);
 }

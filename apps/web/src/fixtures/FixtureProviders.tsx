@@ -92,6 +92,7 @@ export function FixtureProviders({ children, initial }: { children: ReactNode; i
       jam: async () => ({ ok: false, error: 'unsupported' }),
       dismissJamInvite: () => {},
       renameDevice: () => {},
+      forgetPlayback: () => {},
       tell,
     }
   }, [tell])

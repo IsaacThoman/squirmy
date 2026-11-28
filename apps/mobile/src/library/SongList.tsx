@@ -25,6 +25,7 @@ const swipeActionWidth = 78;
 
 export type SongListProps = {
   tracks: readonly TrackSummary[];
+  addedByNames?: readonly (string | null | undefined)[];
   /** Shows each track's position on its album instead of its cover. */
   numbered?: boolean;
   /** Said before each artist, where songs are listed among other kinds of result ("Song"). */
@@ -61,11 +62,11 @@ export function SongList(props: SongListProps) {
 
 /** The rows of a long list, for a virtualized list to render. */
 export function useSongListItems(props: SongListProps): SongListItems {
-  const { tracks, numbered, playlist, album, artist, kind, onUnavailable } = props;
+  const { tracks, numbered, playlist, album, artist, kind, addedByNames, onUnavailable } = props;
   const handlers = useSongRowHandlers(props, usePlaybackActions().toggleIfCurrent);
   const { run } = useTrackActionRunner();
   const opens = Boolean(onUnavailable);
-  const data = useMemo(() => songRows({ tracks, numbered, playlist, album, artist, kind, opens }), [album, artist, numbered, playlist, tracks, kind, opens]);
+  const data = useMemo(() => songRows({ tracks, numbered, playlist, album, artist, kind, addedByNames, opens }), [album, artist, numbered, playlist, tracks, kind, addedByNames, opens]);
   const renderItem = useCallback(({ item }: { item: SongRowItem }) => <SongRow item={item} handlers={handlers} run={run} />, [handlers, run]);
   return { data, renderItem, keyExtractor: songRowKey, rowHeight };
 }
@@ -153,7 +154,7 @@ const SongRow = memo(function SongRow({ item, handlers, run }: {
   >
     <View style={[styles.songRow, current && styles.songCurrent]}>
       <Pressable accessibilityRole="button"
-        accessibilityLabel={`${playable ? `${pressVerb(playing)} ` : ''}${track.title} by ${track.artistCredit}${track.explicit ? ', Explicit' : ''}${
+        accessibilityLabel={`${playable ? `${pressVerb(playing)} ` : ''}${track.title} by ${track.artistCredit}${item.addedByName ? `, added by ${item.addedByName}` : ''}${track.explicit ? ', Explicit' : ''}${
           spoken ? `, ${spoken}` : ''}${playable ? '' : `, ${unavailableReason(track, offline, viewer)}`}`}
         style={({ pressed }) => [styles.songInfo, pressed && styles.pressed]}
         onPress={playable ? onPlay : item.opens ? () => handlers.unavailable(index) : onMenu} onLongPress={onMenu}
@@ -174,7 +175,7 @@ const SongRow = memo(function SongRow({ item, handlers, run }: {
             {typeof number !== 'number' && loading !== 'none' ? <ActivityIndicator size="small" color={colors.accent} style={styles.rowSpinner} />
               : mark && <Icon name={mark} size={11} color={colors.muted} />}
             {(item.showArtist || loading === 'slow') && <Text numberOfLines={1} style={[styles.rowSub, styles.flex, !playable && styles.fadedCredit]}>
-              {loading === 'slow' ? STILL_LOADING_LABEL : item.kind ? `${item.kind} · ${track.artistCredit}` : track.artistCredit}
+              {loading === 'slow' ? STILL_LOADING_LABEL : [item.kind, track.artistCredit, item.addedByName && `Added by ${item.addedByName}`].filter(Boolean).join(' · ')}
             </Text>}
           </View>}
         </View>
