@@ -9,6 +9,7 @@ How people sign in to a Squirmy server, and what an admin can do when something 
 | [Passkey](#passkeys) | yes | not yet | no |
 | [Single sign-on](#single-sign-on-openid-connect) (OpenID Connect) | yes | iOS: yes; Apple TV: no | no |
 | [TV pairing](#apple-tv-pairing) | approve | iOS: approve, Apple TV: sign in | no |
+| [Speaker pairing](./speaker.md#pairing) | approve | iOS: approve | no |
 | [App password](./users.md#app-passwords) | no | no | yes |
 
 ## Sessions
@@ -26,6 +27,8 @@ An admin can do the same for anyone, from **Admin → Users & invites → Manage
 Connect the TV to a server. It shows a QR code and an eight-character code that expire in ten minutes. The QR uses `PUBLIC_URL` when configured, or the server address the TV used. Squirmy draws the QR locally. Approve from an existing Squirmy session in your phone’s browser or iOS app. Password, authenticator, passkey, and single sign-on sessions can approve a TV. API tokens and Subsonic app passwords cannot approve one.
 
 Only approve a request you started. Check the code against the TV screen and review the TV name, IP address seen by the server, and the account to be signed in. Approval and redemption each work once. Ending the approving session before the TV redeems the code cancels the approval. The TV appears in **Settings → Security → Where you're signed in**, where you can sign it out independently.
+
+A [Squirmy speaker](./speaker.md) pairs the same way. It shows its code in its log and on its status page, and the web app also takes it in **Settings → Security → Add a speaker**. The approval page says it is a speaker, and the speaker is listed as a Squirmy speaker, signed in by pairing.
 
 ### LAN discovery
 

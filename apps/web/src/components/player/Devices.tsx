@@ -13,6 +13,7 @@ import { useOpenJam } from './listen-together'
 import { VolumeControl } from './Transport'
 
 export function DeviceIcon({ kind, className }: { kind: DeviceInfo['kind']; className?: string }) {
+  // `speaker` (a Squirmy speaker) and `other`, and kinds a newer server adds, are speakers.
   const Icon = kind === 'web' ? AppWindow : kind === 'desktop' ? Laptop : kind === 'tv' ? Tv : kind === 'ios' || kind === 'android' ? Smartphone : Speaker
   return <Icon aria-hidden className={className} />
 }
@@ -284,5 +285,5 @@ function deviceDetail(player: Player, device: DeviceInfo) {
 }
 
 function deviceKind(kind: DeviceInfo['kind']) {
-  return { ios: 'iPhone app', android: 'Android app', tv: 'Apple TV', web: 'Web browser', desktop: 'Computer', other: 'Speaker' }[kind]
+  return { ios: 'iPhone app', android: 'Android app', tv: 'Apple TV', web: 'Web browser', desktop: 'Computer', speaker: 'Squirmy speaker', other: 'Speaker' }[kind] ?? 'Speaker'
 }

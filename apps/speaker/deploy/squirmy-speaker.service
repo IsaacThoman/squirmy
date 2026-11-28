@@ -1,0 +1,34 @@
+# A systemd unit for the Squirmy speaker, installed from a clone of the repository (see
+# docs/server/speaker.md). Copy it to /etc/systemd/system/, adjust the paths and settings,
+# then: sudo systemctl daemon-reload && sudo systemctl enable --now squirmy-speaker
+# The pairing code is in: journalctl -u squirmy-speaker -f
+
+[Unit]
+Description=Squirmy speaker
+Documentation=https://github.com/IsaacThoman/squirmy/blob/dev/docs/server/speaker.md
+Wants=network-online.target sound.target
+After=network-online.target sound.target
+
+[Service]
+Type=simple
+# Where you cloned and built the repository.
+WorkingDirectory=/opt/squirmy
+ExecStart=/usr/bin/node apps/speaker/dist/main.js
+# Keeps the device id and sign-in in /var/lib/squirmy-speaker.
+StateDirectory=squirmy-speaker
+DynamicUser=yes
+SupplementaryGroups=audio
+Environment=NODE_ENV=production
+# Environment=SQUIRMY_SERVER=http://music.local:4747
+Environment=SQUIRMY_SPEAKER_NAME=Living room
+# Environment=SQUIRMY_SPEAKER_DEVICE=hw:CARD=DAC,DEV=0
+# Environment=SQUIRMY_SPEAKER_MIXER=Digital
+Restart=always
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,41 @@
+{
+  "name": "@squirmy/speaker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "GPL-3.0-or-later",
+  "description": "A headless Squirmy Connect speaker: plays the session on a Linux box's sound card.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "squirmy-speaker": "./dist/main.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/main.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@squirmy/client-core": "0.0.0",
+    "@squirmy/contracts": "0.0.0",
+    "bonjour-service": "^1.4.4",
+    "socket.io-client": "^4.8.1",
+    "uqr": "^0.1.3",
+    "zod": "^4.0.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.2",
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.11"
+  }
+}

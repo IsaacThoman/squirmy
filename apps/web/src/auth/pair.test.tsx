@@ -1,12 +1,12 @@
 import { ApiError } from '@squirmy/client-core'
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { AppRoutes } from '@/App'
 import { fakeServices } from '@/test/fake-services'
 import { renderWithApp } from '@/test/render'
 
-describe('TV pairing page', () => {
+describe('TV and speaker pairing page', () => {
   it('keeps the pairing link through browser sign-in and offers the app link', async () => {
     const { services, api } = fakeServices({ user: null })
     renderWithApp(<AppRoutes />, '/pair?code=ABCD-2345', services)
@@ -24,7 +24,7 @@ describe('TV pairing page', () => {
   it('shows the code and address and sends approval only when confirmed', async () => {
     const { services, api } = fakeServices()
     renderWithApp(<AppRoutes />, '/pair', services)
-    await userEvent.type(await screen.findByLabelText('TV code'), 'abcd-2345')
+    await userEvent.type(await screen.findByLabelText('Code'), 'abcd-2345')
     await userEvent.click(screen.getByRole('button', { name: 'Continue' }))
     expect(await screen.findByRole('heading', { name: 'Sign in Living Room Apple TV?' })).toBeInTheDocument()
     expect(screen.getByText('192.168.1.20')).toBeInTheDocument()
@@ -44,6 +44,31 @@ describe('TV pairing page', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('This TV code has expired or was already used.')
     expect(screen.queryByRole('button', { name: 'Approve TV' })).toBeNull()
     await userEvent.click(screen.getByRole('link', { name: 'Enter another code' }))
-    expect(await screen.findByLabelText('TV code')).toBeInTheDocument()
+    expect(await screen.findByLabelText('Code')).toBeInTheDocument()
+  })
+
+  it('names a speaker as a speaker', async () => {
+    const { services, api } = fakeServices()
+    api.auth.lookupTvPairing.mockResolvedValueOnce({ id: '00000000-0000-4000-8000-000000000000', deviceName: 'Living room', ipAddress: '192.168.1.30', deviceKind: 'speaker' })
+    renderWithApp(<AppRoutes />, '/pair?code=ABCD-2345', services)
+    expect(await screen.findByRole('heading', { name: 'Sign in Living room?' })).toBeInTheDocument()
+    expect(screen.getByText(/This speaker will be signed in as/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Approve speaker' }))
+    expect(await screen.findByRole('heading', { name: 'Speaker approved' })).toBeInTheDocument()
+  })
+
+  it('takes a speaker’s code from Settings → Security to the approval', async () => {
+    const { services, api } = fakeServices()
+    api.auth.lookupTvPairing.mockResolvedValueOnce({ id: '00000000-0000-4000-8000-000000000000', deviceName: 'Living room', ipAddress: '192.168.1.30', deviceKind: 'speaker' })
+    renderWithApp(<AppRoutes />, '/settings/security', services)
+    await userEvent.click(await screen.findByRole('button', { name: 'Add a speaker' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Add a speaker' })
+    await userEvent.type(within(dialog).getByLabelText('Speaker code'), 'abcd-234')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Continue' }))
+    expect(within(dialog).getByText('Enter the eight characters the speaker shows.')).toBeInTheDocument()
+    await userEvent.type(within(dialog).getByLabelText('Speaker code'), '5')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Continue' }))
+    expect(await screen.findByRole('heading', { name: 'Sign in Living room?' })).toBeInTheDocument()
+    expect(api.auth.lookupTvPairing).toHaveBeenCalledWith({ code: 'ABCD2345' })
   })
 })

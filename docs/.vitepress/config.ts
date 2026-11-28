@@ -45,6 +45,7 @@ const sidebar = [
       { text: 'The web app', link: '/use/web' },
       { text: 'The iOS app', link: '/use/ios' },
       { text: 'The Apple TV app', link: '/use/apple-tv' },
+      { text: 'A Squirmy speaker', link: '/server/speaker' },
       { text: 'Keyboard shortcuts', link: '/use/keyboard-shortcuts' },
       { text: 'The wantlist', link: '/use/wantlist' },
       { text: 'Sharing music', link: '/use/sharing' },

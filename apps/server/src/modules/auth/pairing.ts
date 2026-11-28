@@ -20,11 +20,11 @@ import { createSession, toUser } from './service.js'
 const lifetimeMs = 10 * 60_000
 const initialInterval = 5
 const hashUserCode = (code: string) => sign('tv-pairing-code', code)
-const unavailable = () => notFound('This TV code has expired or was already used. Start a new pairing on the TV.', 'pairing_unavailable')
+const unavailable = () => notFound('This code has expired or was already used. Start a new pairing on the TV or speaker.', 'pairing_unavailable')
 
 function interactiveSession(request: FastifyRequest) {
   const user = requireUser(request)
-  if (!request.authSessionId) throw forbidden('Sign in to Squirmy to approve a TV.', 'interactive_session_required')
+  if (!request.authSessionId) throw forbidden('Sign in to Squirmy to approve a TV or speaker.', 'interactive_session_required')
   return { user, sessionId: request.authSessionId }
 }
 
@@ -58,7 +58,7 @@ export async function tvPairingRoutes(app: FastifyInstance) {
         const deviceCode = randomToken()
         const [row] = await db.insert(tvPairings).values({
           id: newId(), deviceCodeHash: hashToken(deviceCode), userCodeHash: hashUserCode(code),
-          deviceId: device.id, deviceName: device.name, ipAddress: request.ip,
+          deviceId: device.id, deviceName: device.name, deviceKind: device.kind, ipAddress: request.ip,
           userAgent: request.headers['user-agent']?.slice(0, 500),
           intervalSeconds: initialInterval, nextPollAt: new Date(now + initialInterval * 1000), expiresAt,
         }).onConflictDoNothing().returning({ id: tvPairings.id })
@@ -74,7 +74,7 @@ export async function tvPairingRoutes(app: FastifyInstance) {
     pairing.post('/lookup', { preHandler: lookupLimit }, async (request): Promise<TvPairingPreview> => {
       interactiveSession(request)
       const { code } = LookupTvPairing.parse(request.body)
-      const [preview] = await db.select({ id: tvPairings.id, deviceName: tvPairings.deviceName, ipAddress: tvPairings.ipAddress })
+      const [preview] = await db.select({ id: tvPairings.id, deviceName: tvPairings.deviceName, ipAddress: tvPairings.ipAddress, deviceKind: tvPairings.deviceKind })
         .from(tvPairings).where(and(
           eq(tvPairings.userCodeHash, hashUserCode(code)), isNull(tvPairings.approverSessionId), gt(tvPairings.expiresAt, new Date()),
         ))
@@ -113,9 +113,10 @@ export async function tvPairingRoutes(app: FastifyInstance) {
           eq(authSessions.id, row.approverSessionId), gt(authSessions.expiresAt, new Date()),
         )).for('share')
         if (!session || !user || user.disabledAt || row.expiresAt.getTime() <= Date.now()) throw unavailable()
+        const kind = row.deviceKind
         const { token } = await createSession(tx, {
-          userId: user.id, device: { id: row.deviceId, name: row.deviceName, kind: 'tv' },
-          clientKind: 'tv', userAgent: row.userAgent ?? undefined, method: 'tv_pairing',
+          userId: user.id, device: { id: row.deviceId, name: row.deviceName, kind },
+          clientKind: kind, userAgent: row.userAgent ?? undefined, method: kind === 'speaker' ? 'speaker_pairing' : 'tv_pairing',
         })
         await tx.delete(tvPairings).where(eq(tvPairings.id, row.id))
         return { status: 'approved', session: { user: toUser(user), token } }

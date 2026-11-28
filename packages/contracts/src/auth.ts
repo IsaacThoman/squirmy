@@ -54,6 +54,8 @@ export const SetupStatus = z.object({
   /** Older servers omit this and accept TVs that identify as `other`. */
   supportsTvDevices: z.literal(true).optional(),
   supportsTvPairing: z.literal(true).optional(),
+  /** The pairing flow also signs in speakers (`StartTvPairing` with kind `speaker`). Older servers omit this. */
+  supportsSpeakerPairing: z.literal(true).optional(),
   /** Whether the sign-in page can offer passkeys: PUBLIC_URL is an https address (or localhost). */
   passkeysAvailable: z.boolean().default(false),
   /** The single sign-on provider's name for "Sign in with …", or null when it is off. */
@@ -63,11 +65,15 @@ export const SetupStatus = z.object({
 })
 export type SetupStatus = z.infer<typeof SetupStatus>
 
-/** Identifies the calling install. `id` is generated once per install and kept. */
+/**
+ * Identifies the calling install. `id` is generated once per install and kept. `speaker` is a
+ * headless Squirmy Connect speaker (`apps/speaker`); clients that do not know a kind show it
+ * as they show `other`.
+ */
 export const ClientDevice = z.object({
   id: z.string().min(8).max(80),
   name: z.string().min(1).max(80),
-  kind: z.enum(['ios', 'android', 'tv', 'web', 'desktop', 'other']),
+  kind: z.enum(['ios', 'android', 'tv', 'web', 'desktop', 'speaker', 'other']),
 })
 export type ClientDevice = z.infer<typeof ClientDevice>
 
@@ -96,8 +102,13 @@ export const PairingUserCode = z.string().trim().toUpperCase()
   .transform(code => code.replace('-', ''))
 const PairingDeviceCode = z.string().regex(/^[A-Za-z0-9_-]{43}$/)
 
+/** The devices that sign in by pairing: they show a code, and a signed-in phone or browser approves it. */
+export const PairingDeviceKind = z.enum(['tv', 'speaker'])
+export type PairingDeviceKind = z.infer<typeof PairingDeviceKind>
+
+/** Starts a pairing. A `speaker` needs a server with `supportsSpeakerPairing`. */
 export const StartTvPairing = z.object({
-  device: ClientDevice.extend({ kind: z.literal('tv'), name: ClientDevice.shape.name.trim().min(1) }),
+  device: ClientDevice.extend({ kind: PairingDeviceKind, name: ClientDevice.shape.name.trim().min(1) }),
 })
 export const TvPairing = z.object({
   deviceCode: PairingDeviceCode,
@@ -122,6 +133,8 @@ export const TvPairingPreview = z.object({
   id: Id,
   deviceName: z.string(),
   ipAddress: z.string(),
+  /** What is asking to sign in, so the approval names it. Older servers pair TVs only. */
+  deviceKind: PairingDeviceKind.default('tv'),
 })
 export type TvPairingPreview = z.infer<typeof TvPairingPreview>
 
@@ -231,7 +244,7 @@ export type CreateAppPasswordRequest = z.infer<typeof CreateAppPasswordRequest>
  * How a session was signed in. Null for sessions from before the server recorded it. Values a
  * newer server adds read as null, so an older client still lists the session.
  */
-export const SignInMethod = z.enum(['password', 'two_factor', 'recovery_code', 'passkey', 'sso', 'tv_pairing'])
+export const SignInMethod = z.enum(['password', 'two_factor', 'recovery_code', 'passkey', 'sso', 'tv_pairing', 'speaker_pairing'])
 export type SignInMethod = z.infer<typeof SignInMethod>
 
 /** One signed-in browser or app. `current` is the session making the request. */
