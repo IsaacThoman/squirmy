@@ -1,5 +1,5 @@
 import type { PlaybackContext, PlaylistDetail, TrackSummary } from '@squirmy/contracts'
-import { Globe, Heart, ListMusic, Lock, MoreHorizontal, Pencil, Play, Shuffle, Trash2 } from 'lucide-react'
+import { Globe, Heart, ListMusic, Lock, MoreHorizontal, Pencil, Play, Share2, Shuffle, Trash2 } from 'lucide-react'
 import { useCallback, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import type { MoreFailure } from '@/api/queries'
@@ -15,6 +15,7 @@ import { LoadError } from '@/components/ui/query-state'
 import { isPlayable } from '@/lib/catalog'
 import { formatTotalDuration, plural } from '@/lib/format'
 import { useMediaQuery } from '@/lib/use-media-query'
+import { useLibrary } from '@/player/library-context'
 import { useViewer } from '@/player/on-demand-context'
 import { usePlayerControls, type PlayOptions } from '@/player/player-context'
 import { useTrackActions } from '@/player/use-track-actions'
@@ -38,6 +39,11 @@ export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete
   const getItemKey = useCallback((index: number) => playlist.items[index].itemId, [playlist.items])
   // A finger cannot drag a song onto the sidebar (on a phone it is a drawer over the songs), so touch screens are told the menu's way.
   const touch = useMediaQuery('(pointer: coarse)')
+  const library = useLibrary()
+  // Anyone who can see the playlist can share it; the link follows its songs as they change.
+  const share: MenuEntry[] = library.sharingEnabled
+    ? [{ label: 'Share…', icon: <Share2 />, onSelect: () => library.share({ kind: 'playlist', id: playlist.id, title: playlist.name }) }]
+    : []
   return (
     <TrackCollection
       kind={playlist.isPublic ? 'Public playlist' : 'Playlist'}
@@ -59,9 +65,10 @@ export function PlaylistView({ playlist, owned, onEdit, onTogglePublic, onDelete
         playlist.isPublic
           ? { label: 'Make private', icon: <Lock />, onSelect: onTogglePublic }
           : { label: 'Make public', icon: <Globe />, onSelect: onTogglePublic },
+        ...share,
         { kind: 'separator' },
         { label: 'Delete playlist', icon: <Trash2 />, danger: true, onSelect: onDelete },
-      ] : undefined}
+      ] : share}
       empty={(
         <EmptyState
           icon={<ListMusic />}

@@ -130,6 +130,8 @@ function useFixtureLibrary(): LibraryActions {
     addToPlaylist: async () => true,
     // New playlists need the server.
     newPlaylist: () => {},
+    sharingEnabled: true,
+    share: () => {},
   }), [wanted])
 }
 

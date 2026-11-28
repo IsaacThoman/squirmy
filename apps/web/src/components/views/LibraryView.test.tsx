@@ -430,13 +430,13 @@ describe('Library', () => {
       await userEvent.click(within(grid).getByRole('button', { name: 'More options for Blue Hour' }))
       // The one library entry waits for the album, which says it is saved.
       expect(await screen.findByRole('menuitem', { name: 'Remove from library' })).toBeEnabled()
-      expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Play', 'Shuffle', 'Play next', 'Add to queue', 'Add to playlist', 'Remove from library', 'Go to Mira Vale'])
+      expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Play', 'Shuffle', 'Play next', 'Add to queue', 'Add to playlist', 'Remove from library', 'Share…', 'Go to Mira Vale'])
       await userEvent.keyboard('{Escape}')
       await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
 
       fireEvent.contextMenu(within(grid).getByRole('link', { name: 'Glass City' }))
       expect(await screen.findByRole('menuitem', { name: 'Save to library' })).toBeEnabled()
-      expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Play', 'Shuffle', 'Play next', 'Add to queue', 'Add to playlist', 'Save to library', 'Go to North Index'])
+      expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Play', 'Shuffle', 'Play next', 'Add to queue', 'Add to playlist', 'Save to library', 'Share…', 'Go to North Index'])
     })
 
     it('queue an album and save it from the menu', async () => {

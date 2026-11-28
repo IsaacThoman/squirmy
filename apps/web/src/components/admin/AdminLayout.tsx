@@ -15,6 +15,7 @@ const sections = [
   { to: '/admin/search-index', label: 'Search index' },
   { to: '/admin/providers', label: 'Providers' },
   { to: '/admin/users', label: 'Users & invites' },
+  { to: '/admin/sharing', label: 'Sharing' },
   { to: '/admin/settings', label: 'Server settings' },
   { to: '/admin/jobs', label: 'Jobs' },
 ]

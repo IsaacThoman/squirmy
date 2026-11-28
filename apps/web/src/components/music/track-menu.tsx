@@ -1,5 +1,5 @@
 import type { CreditRole, TrackSummary } from '@squirmy/contracts'
-import { ArrowDown, ArrowUp, Disc3, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, Users, Plus, Radio, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Disc3, ListEnd, ListMusic, ListPlus, ListStart, MicVocal, Users, Plus, Radio, Share2, Trash2 } from 'lucide-react'
 import type { MenuEntry } from '@/components/ui/menu'
 import { librarySaveEntry, wantEntry } from './library-save-entry'
 import type { PlaylistChoice, TrackAction } from './TrackList'
@@ -12,6 +12,8 @@ export type TrackMenuOptions = {
   /** Resolves (or rejects) for the actions that answer later, which their entries wait for. */
   act: (action: TrackAction) => void | Promise<unknown>
   navigate: (to: string) => void
+  /** The server lets members make public links: Share makes one to the song. */
+  canShare?: boolean
   extraMenu?: MenuEntry[]
   /** The row's place in a list the user may reorder. */
   reorder?: { index: number; count: number }
@@ -55,7 +57,7 @@ export function trackCreditEntries(track: TrackSummary, navigate: TrackMenuOptio
  * A song's menu, the same wherever a song is listed (track lists, search results): on a touch
  * screen its whole title and credit, then play next, queue, playlists, radio, saving it (the heart), the Wantlist, its album and artists.
  */
-export function trackMenuEntries(track: TrackSummary, { unavailable, wanted, playlists, act, navigate, extraMenu, reorder, onAlbumPage = false, queued }: TrackMenuOptions): MenuEntry[] {
+export function trackMenuEntries(track: TrackSummary, { unavailable, wanted, playlists, act, navigate, canShare = false, extraMenu, reorder, onAlbumPage = false, queued }: TrackMenuOptions): MenuEntry[] {
   const playNext: MenuEntry[] = queued && queued.index === 0 ? [] : [{ label: 'Play next', icon: <ListStart />, onSelect: () => act('play-next'), done: 'Playing next', disabled: unavailable }]
   const toEnd: MenuEntry[] = !queued
     ? [{ label: 'Add to queue', icon: <ListEnd />, onSelect: () => act('enqueue'), done: 'Added to queue', disabled: unavailable }]
@@ -78,6 +80,7 @@ export function trackMenuEntries(track: TrackSummary, { unavailable, wanted, pla
       ],
     }] : []),
     { label: 'Start radio', icon: <Radio />, onSelect: () => act('radio'), disabled: unavailable },
+    ...(canShare ? [{ label: 'Share…', icon: <Share2 />, onSelect: () => act('share') }] : []),
     { kind: 'separator' },
     librarySaveEntry(track, () => act('like')),
     // Undefined `wanted` means the server has the wantlist off. It is for music that does not play.

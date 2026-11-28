@@ -1,5 +1,5 @@
 import type { ArtistRef, PlaylistSummary } from '@squirmy/contracts'
-import { ListEnd, ListMusic, ListPlus, ListStart, MicVocal, Play, Plus, Shuffle } from 'lucide-react'
+import { ListEnd, ListMusic, ListPlus, ListStart, MicVocal, Play, Plus, Share2, Shuffle } from 'lucide-react'
 import type { MenuEntry } from '@/components/ui/menu'
 import { librarySaveEntry, wantEntry } from './library-save-entry'
 
@@ -28,6 +28,8 @@ export type AlbumMenuOptions = {
   /** For music that does not play, while the server has the Wantlist on. */
   want?: { wanted: boolean; onToggle: () => void | Promise<unknown> }
   onGoToArtist: (artist: ArtistRef) => void
+  /** Makes a public link to the album, while the server allows sharing. */
+  onShare?: () => void
 }
 
 /**
@@ -35,7 +37,7 @@ export type AlbumMenuOptions = {
  * add it to a playlist, the one library entry, the Wantlist for what does not play, and its artists.
  */
 export function albumMenuEntries(options: AlbumMenuOptions): MenuEntry[] {
-  const { artists, playable, onPlay, onShuffle, onEnqueue, playlists, onAddToPlaylist, songsKnown = true, liked, onToggleSaved, want, onGoToArtist } = options
+  const { artists, playable, onPlay, onShuffle, onEnqueue, playlists, onAddToPlaylist, songsKnown = true, liked, onToggleSaved, want, onGoToArtist, onShare } = options
   return [
     ...(onPlay ? [{ label: 'Play', icon: <Play />, disabled: !playable, onSelect: onPlay }] : []),
     ...(onShuffle ? [{ label: 'Shuffle', icon: <Shuffle />, disabled: !playable, onSelect: onShuffle }] : []),
@@ -55,6 +57,7 @@ export function albumMenuEntries(options: AlbumMenuOptions): MenuEntry[] {
     },
     { ...librarySaveEntry({ liked: liked ?? false }, onToggleSaved), disabled: liked === undefined },
     ...(want ? [wantEntry(want.wanted, want.onToggle)] : []),
+    ...(onShare ? [{ label: 'Share…', icon: <Share2 />, onSelect: onShare }] : []),
     { kind: 'separator' },
     ...artists.map(artist => ({ label: `Go to ${artist.name}`, icon: <MicVocal />, onSelect: () => onGoToArtist(artist) })),
   ]

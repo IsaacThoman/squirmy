@@ -123,6 +123,7 @@ export function AlbumView({ album, artist, onPlayAlbum, onRefresh }: AlbumViewPr
                   onToggleSaved: toggleSaved,
                   want: library.wantlistEnabled && dimmed ? { wanted, onToggle: want } : undefined,
                   onGoToArtist: artist => void navigate(`/artist/${artist.id}`),
+                  onShare: library.sharingEnabled ? () => library.share({ kind: 'album', id: album.id, title: album.title }) : undefined,
                 }),
                 ...(user.role === 'admin' && owned ? [{ kind: 'separator' }, { label: 'Fix match…', icon: <Wand2 />, onSelect: () => setFixing(true) }] satisfies MenuEntry[] : []),
               ]}

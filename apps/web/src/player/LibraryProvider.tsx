@@ -8,9 +8,10 @@ import { failedStep } from '@/api/errors'
 import { patchEntity } from '@/api/patch'
 import { playlistQuery, usePlaylists, useWants } from '@/api/queries'
 import { useApi } from '@/api/services'
-import { useCurrentUser, useWantlistEnabled } from '@/auth/session'
+import { useCurrentUser, useSharingEnabled, useWantlistEnabled } from '@/auth/session'
 import { AlreadyInPlaylistDialog, type RepeatedAdd } from '@/components/layout/AlreadyInPlaylistDialog'
 import { PlaylistDialog } from '@/components/layout/PlaylistDialog'
+import { ShareDialog, type ShareTarget } from '@/components/share/ShareDialog'
 import { plural } from '@/lib/format'
 import { LibraryContext, LibraryFailures, LibraryFailuresContext, type LibraryActions, type LibraryTarget, type WantTarget } from './library-context'
 
@@ -58,6 +59,8 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
   const user = useCurrentUser()
   const wantlistEnabled = useWantlistEnabled()
+  const sharingEnabled = useSharingEnabled()
+  const [sharing, setSharing] = useState<ShareTarget | null>(null)
   const wants = useWants(wantlistEnabled).data
   const allPlaylists = usePlaylists().data
   const [draft, setDraft] = useState<{ tracks: TrackSummary[] } | null>(null)
@@ -192,7 +195,9 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     playlists,
     addToPlaylist: (playlist, tracks) => handled(addToPlaylist(playlist, tracks)),
     newPlaylist: (tracks = []) => openDraft(tracks),
-  }), [wantlistEnabled, wantedIds, playlists, setSaved, setWanted, addToPlaylist, openDraft])
+    sharingEnabled,
+    share: setSharing,
+  }), [wantlistEnabled, wantedIds, playlists, setSaved, setWanted, addToPlaylist, openDraft, sharingEnabled])
 
   return (
     <LibraryContext value={actions}>
@@ -216,6 +221,16 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
         onOpenChange={open => { if (!open) setDraft(null) }}
         description={draft?.tracks.length ? `It starts with ${songs(draft.tracks)}.` : undefined}
         onSubmit={request => create.mutateAsync({ request, tracks: draft?.tracks ?? [] })}
+      />
+      <ShareDialog
+        target={sharing}
+        onOpenChange={open => { if (!open) setSharing(null) }}
+        onCreate={async request => {
+          const link = await api.share.create(request)
+          // The server tells this user's other screens; this one need not wait for it.
+          void queryClient.invalidateQueries({ queryKey: queryKeys.shares() })
+          return link
+        }}
       />
     </LibraryContext>
   )

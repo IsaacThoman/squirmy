@@ -257,6 +257,7 @@ function Results({ term, filter, list, onChoose }: ResultsProps) {
                 unavailable: !isPlayable(track, viewer),
                 wanted: actions.isWanted?.(track),
                 playlists: actions.playlists,
+                canShare: actions.canShare,
                 act: action => actions.onAction(action, track, tracks.indexOf(track)),
                 navigate: to => void navigate(to),
               }) : undefined}
