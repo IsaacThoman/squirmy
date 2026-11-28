@@ -92,6 +92,49 @@ export const PlaybackContext = z.object({
 })
 export type PlaybackContext = z.infer<typeof PlaybackContext>
 
+/**
+ * Sleep timer.
+ *
+ * A sleep timer belongs to the session, not to a device: set from any controller, it stops
+ * whatever device plays the session, and it stays through a transfer. The server enforces it,
+ * so it works while the device that set it sleeps or is gone.
+ *
+ * - `time`: playback pauses at `endsAt` (server epoch milliseconds). The server pauses the
+ *   session then (`endSleepTimer`) and clears the timer, whether or not it was playing.
+ *   `durationMs` is the length that was chosen, for display.
+ * - `track`: playback stops when the current entry ends naturally (`trackEnded`): the session
+ *   moves on to what would play next and pauses on it. Skipping keeps the timer: it stops at
+ *   the end of whatever song is playing.
+ * - `queue`: the same at the end of the last entry of the queue, before a repeat-all cycle
+ *   or the autoplay queue would start.
+ *
+ * The device that plays fades its own output (never the session's volume) over the last
+ * `SLEEP_FADE_MS` before the stop, where it can tell when that is.
+ *
+ * Servers without the `sleepTimer` capability neither send the field nor accept
+ * `setSleepTimer`. Clients that do not know the field ignore it; the server still pauses
+ * playback on them.
+ */
+export const SleepTimer = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('time'), endsAt: z.number(), durationMs: z.number().int().positive() }),
+  z.object({ kind: z.literal('track') }),
+  z.object({ kind: z.literal('queue') }),
+])
+export type SleepTimer = z.infer<typeof SleepTimer>
+
+/** Longest `time` sleep timer `setSleepTimer` takes. */
+export const SLEEP_TIMER_MAX_MS = 24 * 60 * 60_000
+/** How long before a sleep timer stops playback the playing device starts fading out. */
+export const SLEEP_FADE_MS = 10_000
+
+/** What `setSleepTimer` asks for: a length of time from now, or the end of the song or of the queue. */
+export const SleepTimerRequest = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('time'), durationMs: z.number().int().positive().max(SLEEP_TIMER_MAX_MS) }),
+  z.object({ kind: z.literal('track') }),
+  z.object({ kind: z.literal('queue') }),
+])
+export type SleepTimerRequest = z.infer<typeof SleepTimerRequest>
+
 /** The small, frequently changing half of the session. */
 export const SessionState = z.object({
   current: QueueEntry.nullable(),
@@ -109,6 +152,8 @@ export const SessionState = z.object({
   context: PlaybackContext.nullable(),
   /** Per-device volume, 0..1, keyed by device id. */
   volumes: z.record(z.string(), z.number().min(0).max(1)),
+  /** Absent while no sleep timer is set, and from servers without the `sleepTimer` capability. See "Sleep timer". */
+  sleepTimer: SleepTimer.optional(),
 })
 export type SessionState = z.infer<typeof SessionState>
 
@@ -245,6 +290,12 @@ export const SessionCommand = z.discriminatedUnion('type', [
   z.object({ type: z.literal('transfer'), deviceId: z.string(), play: z.boolean().optional() }),
   z.object({ type: z.literal('setVolume'), deviceId: z.string(), value: z.number().min(0).max(1) }),
   /**
+   * Sets the session's sleep timer, replacing any, or turns it off with `null`. A `time` timer
+   * ends `durationMs` after the command takes effect. Only servers with the `sleepTimer`
+   * capability accept it. See "Sleep timer".
+   */
+  z.object({ type: z.literal('setSleepTimer'), timer: SleepTimerRequest.nullable() }),
+  /**
    * Active device only: the current entry finished naturally and the device has advanced.
    * Ignored unless `entryId` is the current entry, so replays are harmless. With repeat
    * one, the track restarts under a fresh entry id.
@@ -273,6 +324,11 @@ export const ServerSessionCommand = z.discriminatedUnion('type', [
     albums: z.array(z.object({ albumId: Id, id: Id })).optional(),
   }),
   z.object({ type: z.literal('setAutoplayQueue'), tracks: z.array(QueueSeed) }),
+  /**
+   * A `time` sleep timer ran out: pause where playback is and clear the timer. Ignored unless
+   * such a timer is set and has ended by `now`.
+   */
+  z.object({ type: z.literal('endSleepTimer') }),
   /** The active device disconnected and did not return within the grace period. */
   z.object({ type: z.literal('deviceLost'), deviceId: z.string() }),
   /**
@@ -414,8 +470,11 @@ export const SessionHello = z.object({
 })
 export type SessionHello = z.infer<typeof SessionHello>
 
-/** What a server can do beyond the base protocol. `detach`: `session:detach`, `session:attach` and all they imply. */
-export const SessionCapability = z.enum(['detach'])
+/**
+ * What a server can do beyond the base protocol. `detach`: `session:detach`, `session:attach`
+ * and all they imply. `sleepTimer`: `setSleepTimer` and `SessionState.sleepTimer`.
+ */
+export const SessionCapability = z.enum(['detach', 'sleepTimer'])
 export type SessionCapability = z.infer<typeof SessionCapability>
 
 export const SessionHelloAck = z.object({

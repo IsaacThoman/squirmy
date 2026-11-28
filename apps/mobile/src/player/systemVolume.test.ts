@@ -34,7 +34,7 @@ function harness({ active = true, system: start = 0.5, session: level }: { activ
 
   const { state, queue } = splitSession(createInitialSession());
   let snapshot: SessionClientSnapshot = {
-    session: { ...state, volumes: level === undefined ? {} : { [PHONE]: level } }, queue, devices: [], connection: 'online', isActiveDevice: active, detached: false, canDetach: false, outage: null, away: null,
+    session: { ...state, volumes: level === undefined ? {} : { [PHONE]: level } }, queue, devices: [], connection: 'online', isActiveDevice: active, detached: false, canDetach: false, canSetSleepTimer: false, outage: null, away: null,
   };
   const sessionListeners = new Set<() => void>();
   const session = {

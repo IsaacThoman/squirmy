@@ -1,6 +1,7 @@
 import type { Href } from 'expo-router';
 import { useImperativeHandle, useRef, type ComponentRef, type ReactElement, type Ref } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useMenuSheet } from '../MenuSheet';
 import { Icon } from '../ui';
 import { collectionLabel } from './collectionLabel';
 import { createThemedStyles, unavailableOpacity, useColors } from '../theme';
@@ -18,8 +19,8 @@ export type SearchFieldProps = {
 
 export type BrowseButtonProps = { label: string; icon?: string; title?: string; glass?: boolean; onPress: () => void };
 export type FilterProps<T extends string> = { options: readonly T[]; value: T; onChange: (option: T) => void };
-/** An entry of a row's menu. `icon` is an SF Symbol name. */
-export type RowAction = { title: string; icon: string; onPress: () => void };
+/** An entry of a row's menu. `icon` is an SF Symbol name. `destructive`: it deletes something, and is drawn in red. */
+export type RowAction = { title: string; icon: string; onPress: () => void; destructive?: boolean };
 /**
  * A collection that opens `href` when pressed. On iOS the page zooms out of its cover. `dim`
  * grays it: the cover fades, and the title and subtitle take the faded colors, which stay
@@ -79,20 +80,24 @@ export function LibraryFilters<T extends string>({ options, value, onChange }: F
 }
 
 export function LibrarySort<T extends string>({ options, value, onChange }: FilterProps<T>) {
-  return <BrowseButton label={`Sort library, ${value}`} title={value} icon="arrow.up.arrow.down"
-    onPress={() => Alert.alert('Sort your library', undefined, options.map(option => ({ text: option, onPress: () => onChange(option) })), { cancelable: true })} />;
+  const menu = useMenuSheet();
+  return <>
+    <BrowseButton label={`Sort library, ${value}`} title={value} icon="arrow.up.arrow.down"
+      onPress={() => menu.open('Sort your library', options.map(option => ({
+        title: option, icon: option === value ? 'checkmark' : undefined, onPress: () => onChange(option),
+      })))} />
+    {menu.sheet}
+  </>;
 }
 
 export function CollectionTile({ href, ...props }: CollectionButtonProps) {
   return <ZoomLink href={href}><TileButton {...props} /></ZoomLink>;
 }
 
-/** A menu of `actions` under `title`, for a long press. */
-function actionMenu(title: string, actions: readonly RowAction[] | undefined) {
-  return actions?.length ? () => Alert.alert(title, undefined, [
-    ...actions.map(action => ({ text: action.title, onPress: action.onPress })),
-    { text: 'Cancel', style: 'cancel' as const },
-  ], { cancelable: true }) : undefined;
+/** A menu of `actions` under `title`, for a long press: `open` is undefined when there are none. */
+function useActionMenu(title: string, actions: readonly RowAction[] | undefined) {
+  const menu = useMenuSheet();
+  return { open: actions?.length ? () => menu.open(title, actions) : undefined, sheet: menu.sheet };
 }
 
 /** A pinned collection's subtitle starts with a pin. */
@@ -105,11 +110,13 @@ function Subtitle({ subtitle, pinned, dim, lines }: { subtitle: string; pinned?:
 
 function TileButton({ title, subtitle, cover, size, dim, pinned, onPress, actions }: LinkedButtonProps<CollectionButtonProps>) {
   const styles = useStyles();
-  return <Pressable accessibilityRole="button" accessibilityLabel={collectionLabel({ title, subtitle, pinned })} onPress={onPress} onLongPress={actionMenu(title, actions)}
+  const menu = useActionMenu(title, actions);
+  return <Pressable accessibilityRole="button" accessibilityLabel={collectionLabel({ title, subtitle, pinned })} onPress={onPress} onLongPress={menu.open}
     style={({ pressed }) => [{ width: size }, pressed && styles.pressed]}>
     <View style={dim && styles.dim}>{cover}</View>
     <Text numberOfLines={4} style={[styles.collectionTitle, { marginTop: 7 }, dim && styles.fadedTitle]}>{title}</Text>
     <Subtitle subtitle={subtitle} pinned={pinned} dim={dim} lines={2} />
+    {menu.sheet}
   </Pressable>;
 }
 
@@ -127,7 +134,7 @@ export function CollectionRow({ href, ...props }: CollectionButtonProps) {
 function RowButton({ title, subtitle, cover, dim, pinned, onPress, onSelect, actions }: LinkedButtonProps<CollectionButtonProps>) {
   const colors = useColors();
   const styles = useStyles();
-  const menu = actionMenu(title, actions);
+  const { open: menu, sheet } = useActionMenu(title, actions);
   return <Pressable accessibilityRole="button" accessibilityLabel={collectionLabel({ title, subtitle, pinned })}
     onPress={() => { onSelect?.(); onPress?.(); }} onLongPress={menu}
     style={({ pressed }) => [styles.collectionRow, pressed && styles.pressed]}>
@@ -139,6 +146,7 @@ function RowButton({ title, subtitle, cover, dim, pinned, onPress, onSelect, act
     {menu
       ? <Pressable accessibilityRole="button" accessibilityLabel={`More options for ${title}`} onPress={menu} hitSlop={10}><Icon name="ellipsis" size={18} color={colors.muted} /></Pressable>
       : <Icon name="chevron.right" size={12} color={colors.muted} />}
+    {sheet}
   </Pressable>;
 }
 

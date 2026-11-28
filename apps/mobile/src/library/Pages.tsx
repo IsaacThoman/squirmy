@@ -3,7 +3,7 @@ import { albumNote, artistAvailabilityNote, canFetch, formatReleaseDate, related
 import { LinearGradient } from 'expo-linear-gradient';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useMemo, useState, type ReactElement, type ReactNode } from 'react';
-import { ActionSheetIOS, ActivityIndicator, Alert, Platform, Pressable, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, Pressable, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, {
   Extrapolation, interpolate, interpolateColor, useAnimatedRef, useAnimatedScrollHandler, useAnimatedStyle, useScrollOffset, useSharedValue,
 } from 'react-native-reanimated';
@@ -37,7 +37,7 @@ import {
   QueryState, recentCollection, SectionTitle, tapFeedback, useCollectionDim, type Collection,
 } from './shared';
 import { albumPlaylistSheet, useCollectionActions } from './collectionActions';
-import { albumActions } from './albumActions';
+import { albumActions, playActions } from './albumActions';
 import { confirmQueued } from './queued';
 import { uniqueTracks } from './loadAll';
 import { useStartGuard } from './pending';
@@ -414,17 +414,32 @@ function TrackListPage({ item, title, info, tracks, complete = true, playAll, co
   props: PageProps;
 }) {
   const actions = usePlaybackActions();
+  const { canPlay } = useAvailability();
+  /** The whole list, loading the rest of it first when it is shown in part. */
+  const withAll = (shuffle: boolean, start: number | undefined, run: (all: readonly TrackSummary[]) => void) => {
+    if (playAll) playAll.run(start, shuffle, run);
+    else run(tracks);
+  };
   const play = (shuffle?: boolean, start?: number) => {
     tapFeedback();
-    const playTracks = (all: readonly TrackSummary[]) => actions.playTracks(all, { start, shuffle, context });
-    if (playAll) playAll.run(start, Boolean(shuffle), playTracks);
-    else playTracks(tracks);
+    withAll(Boolean(shuffle), start, all => actions.playTracks(all, { start, shuffle, context }));
   };
   const songs = useSongListItems({ tracks, artist: context.type === 'artist' ? context.id ?? undefined : undefined,
     onPlay: start => play(undefined, start), onTrackMenu: track => props.onTrackMenu(track) });
-  // Play or Shuffle could load only part of the list: it says so under them, for a few seconds.
-  return <DetailPage item={item} tint={null} title={title} info={info} 
-    nav={download ? [download.nav] : []} status={<>{playAll?.failed && <FailureLine message={playAllFailure} />}{download?.status}</>}
+  // The ⋯ menu plays the whole list, as an album's does.
+  const menu = playActions(tracks.some(canPlay), {
+    play: shuffle => play(shuffle),
+    enqueue: placement => withAll(false, undefined, all => {
+      actions.enqueue(all, placement);
+      confirmQueued(placement);
+    }),
+  });
+  // Playing could load only part of the list: it says so under the header, for a few seconds.
+  return <DetailPage item={item} tint={null} title={title} info={info}
+    nav={[
+      download?.nav ?? false,
+      menu.length > 0 && { icon: 'ellipsis', label: playAll?.busy ? `Loading ${title}` : `More options for ${title}`, busy: Boolean(playAll?.busy), menu },
+    ]} status={<>{playAll?.failed && <FailureLine message={playAllFailure} />}{download?.status}</>}
     onBack={props.onBack} onEndReached={loadMore} bottomInset={props.bottomInset ?? 155}
     list={tracks.length ? { ...songs, footer: loadingMore && <ActivityIndicator style={{ marginVertical: 20 }} /> } : undefined}>
     {tracks.length ? <TrackSection title="Songs" detail={songCount(tracks, undefined, complete)} />
@@ -470,6 +485,7 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
   const data = isNotFound(playlist.error) ? undefined : playlist.data ?? kept;
   const actions = usePlaybackActions();
   const { offline } = useRealtime();
+  const { canPlay } = useAvailability();
   const edits = usePlaylistActions();
   // A removal, move or deletion the server refused: put back, and said under the header.
   const failure = usePlaylistFailure(id);
@@ -509,22 +525,20 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
       edits.remove(data.id).then(onBack, () => setDeleting(false));
     } },
   ]);
-  const manage = () => {
-    tapFeedback();
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions({
-        title: data.name, options: ['Rename', 'Delete Playlist', 'Cancel'], destructiveButtonIndex: 1, cancelButtonIndex: 2,
-      }, index => {
-        if (index === 0) rename();
-        if (index === 1) remove();
-      });
-    } else {
-      Alert.alert(data.name, undefined, [
-        { text: 'Delete Playlist', style: 'destructive', onPress: remove },
-        { text: 'Cancel', style: 'cancel' },
-      ]);
-    }
-  };
+  // The ⋯ menu, as an album's: play the playlist, queue it, and for its owner rename or delete it.
+  const menu = [
+    ...playActions(tracks.some(canPlay), {
+      play: shuffle => play(shuffle),
+      enqueue: placement => {
+        actions.enqueue(tracks, placement);
+        confirmQueued(placement);
+      },
+    }),
+    ...mine ? [
+      { title: 'Rename', icon: 'pencil', onPress: rename },
+      { title: 'Delete Playlist', icon: 'trash', destructive: true, onPress: remove },
+    ] : [],
+  ];
 
   return <DetailPage item={playlistCollection(data, link)} tint={data.artworks[0]?.color ?? null} title={data.name}
     artist={state.status === 'signedIn' && data.ownerId === state.user.id ? undefined : data.ownerName} info="Playlist"
@@ -534,7 +548,9 @@ function UserPlaylistScreen({ id, onBack, onOpen, onTrackMenu, link, bottomInset
       control.nav,
       mine && Platform.OS === 'ios' && tracks.length > 1 && { icon: editing ? 'checkmark' : 'arrow.up.arrow.down',
         label: editing ? 'Finish reordering' : 'Reorder songs', selected: editing, onPress: () => { tapFeedback(); setEditing(!editing); } },
-      mine && { icon: 'ellipsis', label: deleting ? `Deleting ${data.name}` : `Manage ${data.name}`, busy: deleting, onPress: deleting ? () => undefined : manage },
+      // While the playlist is deleted the button waits for the server, with nothing to choose.
+      deleting ? { icon: 'ellipsis', label: `Deleting ${data.name}`, busy: true, onPress: () => undefined }
+        : menu.length > 0 && { icon: 'ellipsis', label: `More options for ${data.name}`, menu },
       { icon: 'square.and.arrow.up', label: `Share ${data.name}`, onPress: () => share(data.name) },
     ]}
     // Reordering drags rows within one native list, so while editing every row is drawn.

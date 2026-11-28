@@ -246,16 +246,40 @@ export function useArtistReleases(artistId: string, section: ArtistSectionKey, e
     (api, cursor) => api.catalog.artistReleases(artistId, { section, cursor, limit: pageSize }), enabled);
 }
 
-/** Synced or plain lyrics, or null when the server has none for the track. */
-export function useLyrics(track: TrackSummary | undefined) {
-  return useApiQuery(queryKeys.lyrics(track?.id ?? ''), async (api): Promise<Lyrics | null> => {
-    try {
-      return await api.catalog.lyrics(track!.id);
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 404) return null;
-      throw error;
-    }
-  }, { enabled: Boolean(track?.hasLyrics) });
+/**
+ * Lyrics kept on the phone with a downloaded track (`DownloadManager.lyrics`): `lyrics` is
+ * undefined when none are kept, and `keep` stores what the server answered.
+ */
+export type KeptLyrics = { lyrics: Lyrics | null | undefined; keep: (lyrics: Lyrics | null) => void; offline: boolean };
+
+/**
+ * Synced or plain lyrics, or null when the server has none for the track. Kept lyrics show
+ * at once and answer offline, or when the server can't be reached; online the server is
+ * asked too, and its answer is kept for next time.
+ */
+export function useLyrics(track: TrackSummary | undefined, kept?: KeptLyrics) {
+  const api = useSignedInApi();
+  const stored = kept?.lyrics;
+  return useQuery({
+    queryKey: queryKeys.lyrics(track?.id ?? ''),
+    queryFn: async (): Promise<Lyrics | null> => {
+      if (kept?.offline && stored !== undefined) return stored;
+      try {
+        const lyrics = await api!.catalog.lyrics(track!.id);
+        kept?.keep(lyrics);
+        return lyrics;
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) {
+          kept?.keep(null);
+          return null;
+        }
+        if (stored !== undefined) return stored;
+        throw error;
+      }
+    },
+    enabled: Boolean(api) && Boolean(track?.hasLyrics),
+    initialData: stored,
+  });
 }
 
 /** The value of `value` once it has stopped changing for `delayMs`. */
