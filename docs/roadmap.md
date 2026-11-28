@@ -137,8 +137,8 @@ Designed in [audio-engine.md](./audio-engine.md); each item is a pull request fr
 - [ ] M7. Playback speed, with the rate in the session
 - [ ] M8. AirPlay 2 buffering
 - [ ] M9. The native engine by default, and `expo-audio` removed
-- [ ] W1. Ramped gain changes on the web
-- [ ] W2. Gapless web playback through Media Source Extensions
+- [x] W1. Ramped gain changes on the web
+- [x] W2. Gapless web playback through Media Source Extensions (Chromium; Firefox and Safari keep today's engine)
 - [ ] W3. Limiter, equalizer and output device on the web
 - [ ] W4. Crossfade on the web
 

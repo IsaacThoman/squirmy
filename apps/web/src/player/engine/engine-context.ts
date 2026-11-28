@@ -1,16 +1,16 @@
 import { createContext, useCallback, useContext, useEffect, useSyncExternalStore } from 'react'
-import type { WebPlayerEngine } from './web-engine'
+import type { BrowserEngine } from './types'
 
-export type EngineSlot = { engine: WebPlayerEngine; replace: (engine: WebPlayerEngine | null) => void }
+export type EngineSlot = { engine: BrowserEngine; replace: (engine: BrowserEngine | null) => void }
 
 export const EngineContext = createContext<EngineSlot | null>(null)
 
-export function useEngine(): WebPlayerEngine | null {
+export function useEngine(): BrowserEngine | null {
   return useContext(EngineContext)?.engine ?? null
 }
 
 /** Makes `engine` the page's engine while the calling component is mounted (the dev page's instrumented one). */
-export function useEngineOverride(engine: WebPlayerEngine) {
+export function useEngineOverride(engine: BrowserEngine) {
   const replace = useContext(EngineContext)?.replace
   useEffect(() => {
     replace?.(engine)
