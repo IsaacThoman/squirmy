@@ -10,6 +10,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, StyleSheet } from 'react-native';
 import { closeSheet } from '../closeSheet';
+import { engineNote, engineOptions, showsEngineSetting, useEngineSetting } from '../player/engine/setting';
 import { SheetFormHeader, SheetPickerRow } from '../SheetUI';
 import { StorageSection } from '../streamingCache/StorageSection';
 import { useColors } from '../theme';
@@ -28,6 +29,8 @@ export function SettingsScreen() {
   const screen = useSettingsScreen();
   const { settings, update } = screen;
   const lastFm = screen.lastFm;
+  const [engine, setEngine] = useEngineSetting();
+  const engineChoice = showsEngineSetting();
 
   return <KeyboardAvoidingView behavior="padding" style={styles.page}>
     <Host style={styles.page}>
@@ -37,9 +40,12 @@ export function SettingsScreen() {
             values take `muted`: the form's own secondary gray is about 3.2:1 on this sheet in Light. */}
         <Form modifiers={[scrollDismissesKeyboard('interactively'), scrollContentBackground('hidden'), tint(colors.accent)]}>
         {settings ? <>
-          <Section title="Playback" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{normalizationNote}</Text>}>
+          <Section title="Playback" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>
+            {engineChoice ? `${normalizationNote}\n\n${engineNote}` : normalizationNote}
+          </Text>}>
             <SheetPickerRow label="Volume Normalization" value={settings.normalization} options={normalizationOptions}
               onChange={normalization => update({ normalization })} />
+            {engineChoice && <SheetPickerRow label="Engine" value={engine} options={engineOptions} onChange={setEngine} />}
           </Section>
           <Section title="Streaming Quality" footer={<Text modifiers={[foregroundStyle(colors.muted)]}>{qualityNote}</Text>}>
             <SheetPickerRow label="Wi-Fi" value={settings.qualityWifi} options={qualityOptions} onChange={qualityWifi => update({ qualityWifi })} />
