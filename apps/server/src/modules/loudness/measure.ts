@@ -52,11 +52,13 @@ export function parseEbur128(log: string): Loudness | null {
   }
 }
 
-const ffmpegOptions = ['-hide_banner', '-nostdin', '-nostats', '-xerror', '-abort_on', 'empty_output']
+const ffmpegOptions = ['-hide_banner', '-nostdin', '-nostats', '-abort_on', 'empty_output']
 const meterOptions = { timeout: 60 * 60_000, maxBuffer: 64 * 1024 * 1024, killSignal: 'SIGKILL' } as const
 const meterLog = ['-v', 'level+info']
 const audioStream = ['-map', '0:a:0']
-const decodeInput = (file: string) => ['-err_detect', 'crccheck+explode', ...audioInput(file)]
+// Decoding stays lenient, as playback is: a damaged frame or a short tail still plays, so
+// it is measured. Only a file ffmpeg cannot decode at all is a failure.
+const decodeInput = audioInput
 
 /** EBU R128 integrated loudness and true peak of one file's first audio stream. */
 export async function measureLoudness(file: string): Promise<Loudness> {

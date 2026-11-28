@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { link, mkdtemp, rm, stat, truncate } from 'node:fs/promises'
+import { link, mkdtemp, rm, stat, truncate, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -117,11 +117,17 @@ describe('loudness', () => {
     expect(await measureAlbumLoudness(files, false)).toBeCloseTo((await cliLoudness(continuous)).lufs, 1)
   })
 
-  it('records a truncated input as a failed job and measures the repaired file', async () => {
-    const brokenRoot = path.join(root, 'broken')
-    const tone = { path: 'truncated.wav', durationSec: 1, volumeDb: -30 }
-    const damaged = await makeTone(brokenRoot, tone)
+  it('measures a file with a damaged tail, as playback would still play it', async () => {
+    const damaged = await makeTone(path.join(root, 'tail'), { path: 'short.wav', durationSec: 1, volumeDb: -30 })
     await truncate(damaged, (await stat(damaged)).size - 1)
+    expect((await measureLoudness(damaged)).lufs).toBeGreaterThan(SILENT_LUFS)
+  })
+
+  it('records an undecodable input as a failed job and measures the repaired file', async () => {
+    const brokenRoot = path.join(root, 'broken')
+    const tone = { path: 'unreadable.wav', durationSec: 1, volumeDb: -30 }
+    const damaged = await makeTone(brokenRoot, tone)
+    await writeFile(damaged, Buffer.alloc(4096, 0x5a))
     await expect(measureLoudness(damaged)).rejects.toThrow(/corrupt|invalid/i)
     await expect(measureAlbumLoudness([tones.soft, damaged], false)).rejects.toThrow(/corrupt|invalid/i)
 
@@ -137,7 +143,7 @@ describe('loudness', () => {
     await enqueue('loudness.measure', { fileId }, { singletonKey: fileId })
     await drainJobs()
     const failed = await readFile()
-    expect(failed).toMatchObject({ loudnessLufs: null, truePeakDb: null, probeError: expect.stringMatching(/^Loudness measurement failed: .*corrupt/i) })
+    expect(failed).toMatchObject({ loudnessLufs: null, truePeakDb: null, probeError: expect.stringMatching(/^Loudness measurement failed: .*(corrupt|invalid)/i) })
     expect(await normalizationFor(failed)).toBeNull()
     expect(await attempts()).toEqual([{ state: 'failed', retry_count: 2 }])
 
