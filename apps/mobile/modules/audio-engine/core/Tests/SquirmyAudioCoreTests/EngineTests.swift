@@ -176,6 +176,131 @@ final class EngineTests: XCTestCase {
     XCTAssertEqual(harness.status.positionMs, 1200, accuracy: 25)
   }
 
+  func testSkippingFlushesTheAirPlayLeadAndFadesIntoThePreloadedEntry() throws {
+    let harness = Harness(fadeIn: 0.005)
+    let pair = Fixtures.pair("flac", "flac")
+    harness.engine.routeChanged(airPlay: true, sampleRate: Fixtures.rate)
+    harness.engine.load(harness.item("a", pair.a), autoplay: false)
+    harness.engine.preload(harness.item("b", pair.b))
+    harness.settle()
+    harness.engine.play()
+    harness.settle()
+    XCTAssertGreaterThan(harness.output.queuedEnd, Int64(split), "the old lead already contains the next entry")
+    let first = decodeFile(pair.a)
+    let cut = advanceToCut(harness, first)
+
+    harness.engine.load(harness.item("b", pair.b), autoplay: true)
+    harness.settle()
+    XCTAssertEqual(harness.status.entryId, "b")
+    XCTAssertEqual(harness.status.positionMs, 0)
+    try checkTransition(harness, at: cut, outgoing: first, incoming: decodeFile(pair.b), from: 0)
+  }
+
+  func testPlayingSeekFadesOutBeforeTheFiveMillisecondFadeIn() throws {
+    let harness = Harness(fadeIn: 0.005)
+    let url = Fixtures.pair("flac", "flac").a
+    harness.engine.load(harness.item("a", url), autoplay: false)
+    harness.settle()
+    harness.engine.play()
+    harness.settle()
+    let whole = decodeFile(url)
+    let cut = advanceToCut(harness, whole)
+
+    harness.engine.seek(toMs: 1000)
+    harness.settle()
+    XCTAssertEqual(harness.status.positionMs, 1000)
+    harness.engine.queue.sync {
+      harness.output.advance(150)
+      harness.output.flush()
+      harness.output.onEvent?(.flushedAutomatically(at: Int64(cut + 150)))
+    }
+    try checkTransition(harness, at: cut, outgoing: whole, incoming: whole, from: 44_100)
+  }
+
+  func testStopPlaysOnlyTheFadeBeforeStoppingTheClock() {
+    let harness = Harness()
+    let url = Fixtures.pair("flac", "flac").a
+    harness.engine.load(harness.item("a", url), autoplay: false)
+    harness.settle()
+    harness.engine.play()
+    harness.settle()
+    let cut = advanceToCut(harness, decodeFile(url))
+    harness.engine.stop()
+    harness.engine.tickNow()
+    XCTAssertEqual(harness.status.state, .idle)
+    XCTAssertEqual(harness.output.queuedEnd, Int64(cut + 441))
+    harness.engine.queue.sync { harness.output.advance(441) }
+    harness.engine.tickNow()
+    XCTAssertEqual(harness.output.rate, 0)
+    XCTAssertEqual(harness.output.starved, 0)
+    XCTAssertEqual(Array(harness.output.heard.suffix(2)), [0, 0])
+    XCTAssertTrue(harness.ended.isEmpty)
+  }
+
+  func testPausedReplacementWaitsAfterTheOutgoingFade() {
+    let harness = Harness(fadeIn: 0.005)
+    let pair = Fixtures.pair("flac", "flac")
+    harness.engine.load(harness.item("a", pair.a), autoplay: false)
+    harness.engine.preload(harness.item("b", pair.b))
+    harness.settle()
+    harness.engine.play()
+    harness.settle()
+    let cut = advanceToCut(harness, decodeFile(pair.a))
+    harness.engine.load(harness.item("b", pair.b), autoplay: false)
+    harness.settle()
+    // A feed tick may arrive after the tail has drained.
+    harness.engine.queue.sync { harness.output.advance(600) }
+    harness.engine.tickNow()
+    XCTAssertEqual(harness.output.heard.count, (cut + 441) * 2)
+    XCTAssertEqual(harness.output.rate, 0)
+    XCTAssertEqual(harness.status.state, .paused)
+    XCTAssertEqual(harness.status.positionMs, 0)
+    harness.engine.play()
+    harness.engine.tickNow()
+    harness.engine.queue.sync { harness.output.advance(222) }
+    XCTAssertEqual(Array(harness.output.heard.suffix(2)), Array(decodeFile(pair.b)[442..<444]))
+  }
+
+  /// Cut near a crest, with a fade that straddles two output buffers.
+  private func advanceToCut(_ harness: Harness, _ samples: [Float]) -> Int {
+    let boundary = 2048 * 7
+    let cut = ((boundary - 300)..<(boundary - 100)).max { abs(samples[$0 * 2]) < abs(samples[$1 * 2]) }!
+    harness.engine.queue.sync { harness.output.advance(cut) }
+    harness.settle()
+    return cut
+  }
+
+  private func checkTransition(_ harness: Harness, at cut: Int, outgoing: [Float], incoming: [Float], from target: Int) throws {
+    let outFrames = 441
+    let inFrames = 221
+    let after = 32
+    harness.engine.queue.sync {
+      let end = cut + outFrames + inFrames + after
+      harness.output.advance(end - Int(harness.output.currentFrame()))
+    }
+    harness.engine.tickNow()
+    XCTAssertEqual(harness.status.positionMs, Double(target + inFrames + after) / Fixtures.rate * 1000, accuracy: 0.001)
+    XCTAssertEqual(harness.output.starved, 0)
+    XCTAssertTrue(harness.ended.isEmpty)
+    let heard = harness.output.heard
+    guard heard.count == (cut + outFrames + inFrames + after) * 2 else { return XCTFail("missing transition frames") }
+    for channel in 0..<2 {
+      let sample = { (frame: Int) in heard[frame * 2 + channel] }
+      for i in 0..<outFrames {
+        let level = Float(outFrames - 1 - i) / Float(outFrames - 1)
+        XCTAssertEqual(sample(cut + i), outgoing[(cut + i) * 2 + channel] * level, accuracy: 1e-7)
+      }
+      for i in 0..<(inFrames + after) {
+        let level = min(1, Float(i) / Float(inFrames))
+        XCTAssertEqual(sample(cut + outFrames + i), incoming[(target + i) * 2 + channel] * level, accuracy: 1e-7)
+      }
+      let jumps = (cut..<(cut + outFrames + inFrames + after)).map { abs(sample($0) - sample($0 - 1)) }
+      let maxJump = try XCTUnwrap(jumps.max())
+      let abruptJump = abs(outgoing[(cut - 1) * 2 + channel])
+      XCTAssertLessThan(maxJump, abruptJump / 2, "the transition should be smoother than an abrupt cut to the fade-in")
+    }
+  }
+
   func testAFailureToFetchIsAnErrorForTheLoadedEntryAndSilentForThePreload() {
     let harness = Harness()
     let pair = Fixtures.pair("flac", "flac")
