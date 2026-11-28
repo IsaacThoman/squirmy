@@ -134,7 +134,7 @@ Designed in [audio-engine.md](./audio-engine.md); each item is a pull request fr
 - [ ] M3. Fragmented MP4 transcodes and live seeking on iOS
 - [x] M4. Normalization with boost and a true-peak limiter, with a target setting
 - [x] M5. Equalizer, with presets on the phone and the TV and a custom curve on the phone
-- [ ] M6. Crossfade
+- [x] M6. Crossfade, never within an album played in order
 - [ ] M7. Playback speed, with the rate in the session
 - [ ] M8. AirPlay 2 buffering
 - [ ] M9. The native engine by default, and `expo-audio` removed

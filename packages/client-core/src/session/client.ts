@@ -317,6 +317,8 @@ export class SessionClient {
   private serverJams = false
   /** Moves the gain along a sleep timer's fade; see `followFade`. */
   private fadeTimer: unknown = null
+  /** The fade last given to an engine with `setFade`; null when it has to be given again. */
+  private fade: number | null = null
   private move: Move | null = null
   private heldQueue: { version: number; queue: SessionQueue } | null = null
   /** The `queueVersion` of the newest queue held (`heldQueue`'s, else the server state's). Null before the first hello. */
@@ -1195,6 +1197,7 @@ export class SessionClient {
     this.preloadTarget = null
     this.preloadTrackId = null
     this.gain = null
+    this.fade = null
     this.inEngine.clear()
     if (this.player.engine.getStatus().state !== 'idle') this.player.engine.stop()
   }
@@ -1240,6 +1243,8 @@ export class SessionClient {
     const unloaded = this.unloaded
     this.unloaded = null
     const waited = unloaded?.entryId === entry.id && unloaded.anchorAt === session.anchorAt && unloaded.anchorMs === session.positionMs
+    // What the engine fades by carries over from whatever played before; this entry starts at today's.
+    this.applyFade()
     engine.load({
       entryId: entry.id,
       url: streamUrl(baseUrl, descriptor),
@@ -1289,7 +1294,10 @@ export class SessionClient {
       descriptor => {
         if (token !== this.preloadToken || this.preloadTarget !== next.id || !this.isActive()) return
         this.hold(next.id, descriptor)
-        engine.preload({ entryId: next.id, url: streamUrl(baseUrl, descriptor), gain: this.gainOf(next, descriptor, predicted), media: mediaOf(descriptor) })
+        engine.preload({
+          entryId: next.id, url: streamUrl(baseUrl, descriptor), gain: this.gainOf(next, descriptor, predicted), media: mediaOf(descriptor),
+          albumRun: this.continuesAlbum(current, next, session, predicted),
+        })
       },
       error => {
         // A refusal is the server's answer for this entry; asking again on every session
@@ -1331,7 +1339,8 @@ export class SessionClient {
   private gainOf(entry: QueueEntry, descriptor: PlaybackDescriptor | undefined, session: Session): number {
     const volume = this.player?.systemVolume ? 1 : session.volumes[this.device.id] ?? 1
     const albumContext = this.inAlbumContext(entry, session)
-    const fade = entry.id === session.current?.id ? this.fadeOf(session) : 1
+    // An engine that fades everything itself gets the sleep timer's fade on its own (`applyGain`).
+    const fade = entry.id === session.current?.id && !this.player?.engine.setFade ? this.fadeOf(session) : 1
     return volume * fade * appliedGain(this.normalization, descriptor?.normalization, this.gainContext(albumContext)).gain
   }
 
@@ -1342,6 +1351,15 @@ export class SessionClient {
 
   private inAlbumContext(entry: QueueEntry, session: Session): boolean {
     return !session.shuffle && session.context?.type === 'album' && session.context.id === entry.albumId
+  }
+
+  /**
+   * `next` follows `current` on their album, in the album's order: both are played as part of
+   * it (`inAlbumContext`) and `next` was not slotted in with Play next. Such a pair is never
+   * crossfaded, so an album meant to play gapless does.
+   */
+  private continuesAlbum(current: QueueEntry, next: QueueEntry, session: Session, predicted: Session): boolean {
+    return !next.queued && current.albumId !== null && current.albumId === next.albumId && this.inAlbumContext(current, session) && this.inAlbumContext(next, predicted)
   }
 
   /**
@@ -1379,10 +1397,21 @@ export class SessionClient {
   }
 
   private applyGain(entry: QueueEntry): void {
+    this.applyFade()
     const gain = this.gainOf(entry, this.inEngine.get(entry.id) ?? this.descriptors.get(descriptorKey(entry)), this.local)
     if (gain === this.gain) return
     this.gain = gain
     this.player!.engine.setGain(gain)
+  }
+
+  /** The sleep timer's fade, to an engine that applies it over everything it plays. */
+  private applyFade(): void {
+    const engine = this.player?.engine
+    if (!engine?.setFade) return
+    const fade = this.fadeOf(this.local)
+    if (fade === this.fade) return
+    this.fade = fade
+    engine.setFade(fade)
   }
 
   private engineIsPlaying(): boolean {

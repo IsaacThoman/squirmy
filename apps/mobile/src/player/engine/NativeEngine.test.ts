@@ -53,6 +53,12 @@ class FakeNative implements SquirmyAudio {
   setEqualizer(curve: NativeEqualizer | null) {
     this.calls.push(['setEqualizer', curve]);
   }
+  setCrossfade(seconds: number) {
+    this.calls.push(['setCrossfade', seconds]);
+  }
+  setFade(level: number) {
+    this.calls.push(['setFade', level]);
+  }
   getStatus() {
     return { ...this.status };
   }
@@ -112,6 +118,23 @@ function setup() {
 const load = { entryId: 'a', url: 'https://music.test/stream/a', startMs: 0, autoplay: true, gain: 1 };
 
 describe('NativeEngine', () => {
+  it('crossfades, never into a preload that continues the album, and fades everything for the sleep timer', () => {
+    const { native, engine } = setup();
+    expect(engine.crossfade).toBe(true);
+    engine.setCrossfade(6);
+    engine.preload({ entryId: 'b', url: 'https://music.test/stream/b', gain: 1, albumRun: true });
+    expect(native.preloaded).toMatchObject({ entryId: 'b', albumRun: true });
+    engine.preload({ entryId: 'c', url: 'https://music.test/stream/c', gain: 1 });
+    expect(native.preloaded).toMatchObject({ entryId: 'c', albumRun: false });
+    engine.setFade!(0.25);
+    engine.setFade!(Number.NaN);
+    expect(native.calls.filter(([name]) => name === 'setCrossfade' || name === 'setFade')).toEqual([['setCrossfade', 6], ['setFade', 0.25], ['setFade', 1]]);
+    // A build without them: no crossfade, and the client puts the fade in the gains as before.
+    const older = new NativeEngine({ native: { ...native, setCrossfade: undefined, setFade: undefined, addListener: native.addListener.bind(native) } as never });
+    expect(older.crossfade).toBe(false);
+    expect(older.setFade).toBeUndefined();
+  });
+
   it('hands the equalizer to the native engine, which an older build may not have', () => {
     const { native, engine } = setup();
     expect(engine.equalizer).toBe(true);

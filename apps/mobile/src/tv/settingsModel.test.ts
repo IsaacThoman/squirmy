@@ -56,6 +56,7 @@ describe('isChoice', () => {
 
   it('knows the settings that belong to the device', () => {
     expect(isDeviceChoice('equalizer')).toBe(true);
+    expect(isDeviceChoice('crossfade')).toBe(true);
     expect(isDeviceChoice('quality')).toBe(false);
   });
 });

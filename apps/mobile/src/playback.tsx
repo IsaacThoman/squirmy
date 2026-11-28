@@ -46,6 +46,8 @@ type Runtime = {
   boosts: boolean;
   /** The engine has the equalizer. */
   equalizer: boolean;
+  /** The engine crossfades. */
+  crossfade: boolean;
 };
 type PlayOptions = { start?: number; shuffle?: boolean; context?: PlaybackContext };
 
@@ -364,7 +366,8 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       client.start();
       followPlaying();
       holdWhilePreparing();
-      setRuntime({ client, device, loading, seeks, boosts: engine.canBoost && engine.limiter, equalizer: engine.equalizer === true });
+      setRuntime({ client, device, loading, seeks, boosts: engine.canBoost && engine.limiter, equalizer: engine.equalizer === true,
+        crossfade: engine.crossfade === true });
       teardown = () => {
         // Saved for the account as it leaves (sign-out or a switch keeps what it saved), so
         // opening it again offline finds the queue as it was.
@@ -623,6 +626,11 @@ export function useNormalizationBoosts(): boolean {
 /** Whether this device's engine has the equalizer (the native one), for Settings to offer it. False before playback starts. */
 export function useEqualizerAvailable(): boolean {
   return useContext(RuntimeContext)?.equalizer ?? false;
+}
+
+/** Whether this device's engine crossfades (the native one), for Settings to offer it. False before playback starts. */
+export function useCrossfadeAvailable(): boolean {
+  return useContext(RuntimeContext)?.crossfade ?? false;
 }
 
 /** `useLoading` for a row: its phase while `trackId` is the current entry's track, otherwise `none`. */

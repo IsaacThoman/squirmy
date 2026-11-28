@@ -10,12 +10,13 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, StyleSheet } from 'react-native';
 import { closeSheet } from '../closeSheet';
-import { useEqualizerAvailable, useNormalizationBoosts } from '../playback';
+import { useCrossfadeAvailable, useEqualizerAvailable, useNormalizationBoosts } from '../playback';
+import { crossfadeNote, crossfadeOptions } from '../player/engine/crossfade';
 import {
   automaticPreamp, clampGain, customEqualizerNote, equalizerBands, equalizerNote, equalizerOptions, equalizerRangeDb, formatGain,
   maxPreampDb, type EqualizerSetting,
 } from '../player/engine/equalizer';
-import { useEqualizerSetting } from '../player/engine/output';
+import { useCrossfadeSetting, useEqualizerSetting } from '../player/engine/output';
 import { engineNote, engineOptions, showsEngineSetting, useEngineSetting } from '../player/engine/setting';
 import { SheetFormHeader, SheetPickerRow } from '../SheetUI';
 import { StorageSection } from '../streamingCache/StorageSection';
@@ -39,8 +40,12 @@ export function SettingsScreen() {
   const engineChoice = showsEngineSetting();
   const equalizerAvailable = useEqualizerAvailable();
   const [equalizer, setEqualizer] = useEqualizerSetting();
-  const playbackNote = [normalizationNote(useNormalizationBoosts()), equalizerAvailable ? equalizerNote : null, engineChoice ? engineNote : null]
-    .filter(Boolean).join('\n\n');
+  const crossfadeAvailable = useCrossfadeAvailable();
+  const [crossfade, setCrossfade] = useCrossfadeSetting();
+  const playbackNote = [
+    normalizationNote(useNormalizationBoosts()), equalizerAvailable ? equalizerNote : null, crossfadeAvailable ? crossfadeNote : null,
+    engineChoice ? engineNote : null,
+  ].filter(Boolean).join('\n\n');
 
   return <KeyboardAvoidingView behavior="padding" style={styles.page}>
     <Host style={styles.page}>
@@ -59,6 +64,7 @@ export function SettingsScreen() {
             {/* The device's own, so it changes at once and needs no account settings. */}
             {equalizerAvailable && <SheetPickerRow label="Equalizer" value={equalizer.preset} options={equalizerOptions}
               onChange={preset => setEqualizer({ ...equalizer, preset })} />}
+            {crossfadeAvailable && <SheetPickerRow label="Crossfade" value={crossfade} options={crossfadeOptions} onChange={setCrossfade} />}
             {engineChoice && <SheetPickerRow label="Engine" value={engine} options={engineOptions} onChange={setEngine} />}
           </Section>
           {equalizerAvailable && equalizer.preset === 'custom' && <CustomEqualizer setting={equalizer} onChange={setEqualizer} />}

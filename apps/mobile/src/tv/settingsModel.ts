@@ -64,10 +64,10 @@ export function isChoice(value: unknown): value is Choice {
 }
 
 /** A setting of this Apple TV's own, kept on it rather than in the account. */
-export type DeviceChoice = 'equalizer';
+export type DeviceChoice = 'equalizer' | 'crossfade';
 
 export function isDeviceChoice(value: unknown): value is DeviceChoice {
-  return value === 'equalizer';
+  return value === 'equalizer' || value === 'crossfade';
 }
 
 /** The label of the chosen option, or nothing for a value this app doesn't know. */

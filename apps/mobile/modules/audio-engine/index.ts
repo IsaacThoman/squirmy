@@ -16,7 +16,7 @@ export type NativeItem = {
   gapless: NativeGapless | null;
   /** `stream` for server transcodes, `file` for originals and downloads. */
   decoder: 'file' | 'stream';
-  /** The next item continues this one's album: never crossfaded into. */
+  /** For a preload: it continues the loaded item's album in album order, so it is never crossfaded into. */
   albumRun: boolean;
 };
 
@@ -43,6 +43,10 @@ export type SquirmyAudio = {
   holdAudioSession(hold: boolean): void;
   /** The equalizer's curve, or null for none; heard after the lead. Missing in builds before it. */
   setEqualizer?(curve: NativeEqualizer | null): void;
+  /** How long the next item overlaps the loaded one's end, in seconds; 0 for none. Missing in builds before it. */
+  setCrossfade?(seconds: number): void;
+  /** A level from 0 to 1 over everything that plays (the sleep timer's fade). Missing in builds before it. */
+  setFade?(level: number): void;
   /** Synchronous, with the position read from the clock now. */
   getStatus(): NativeStatus;
   /** A TestFlight build, which shows the engine setting as development builds do. */

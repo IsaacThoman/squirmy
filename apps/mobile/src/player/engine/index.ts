@@ -22,6 +22,9 @@ export type AppEngine = PlayerEngine & {
   /** The native engine's equalizer, where the build has it. */
   readonly equalizer?: boolean;
   setEqualizer?(curve: NativeEqualizer | null): void;
+  /** The native engine's crossfade, where the build has it. */
+  readonly crossfade?: boolean;
+  setCrossfade?(seconds: number): void;
 };
 
 /** Native playback reports position this often, in milliseconds. */
