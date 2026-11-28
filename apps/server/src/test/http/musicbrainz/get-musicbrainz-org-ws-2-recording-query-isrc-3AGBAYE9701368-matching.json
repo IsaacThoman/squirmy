@@ -1,0 +1,106 @@
+{
+  "note": "Indexed ISRC search built from recorded releases of Karma Police. The deluxe edition has the wrong track count.",
+  "request": {
+    "method": "GET",
+    "url": "https://musicbrainz.org/ws/2/recording?query=isrc%3AGBAYE9701368&limit=25&fmt=json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json": {
+      "recordings": [
+        {
+          "id": "9e2ad5bc-c6f9-40d2-a36f-3122ee2072a3",
+          "title": "Karma Police",
+          "length": 262426,
+          "releases": [
+            {
+              "id": "d6dc018d-5caa-4e6f-8e9d-d889fcd585f4",
+              "title": "OK Computer: OKNOTOK 1997 2017",
+              "status": "Official",
+              "date": "2017-06-23",
+              "barcode": "634904086824",
+              "release-group": {
+                "title": "OK Computer",
+                "secondary-type-ids": [],
+                "id": "b1392450-e666-3926-a536-22c65f834433",
+                "primary-type": "Album",
+                "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+                "first-release-date": "1997-05-21",
+                "artist-credit": [
+                  {
+                    "joinphrase": "",
+                    "name": "Radiohead",
+                    "artist": {
+                      "country": "GB",
+                      "disambiguation": "",
+                      "name": "Radiohead",
+                      "sort-name": "Radiohead",
+                      "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b",
+                      "type": "Group"
+                    }
+                  }
+                ],
+                "disambiguation": "",
+                "secondary-types": []
+              },
+              "media": [
+                {
+                  "format": "CD",
+                  "track-count": 12
+                },
+                {
+                  "format": "CD",
+                  "track-count": 11
+                }
+              ],
+              "track-count": 23
+            },
+            {
+              "id": "52709206-8816-3c12-9ff6-f957f2f1eecf",
+              "title": "OK Computer",
+              "status": "Official",
+              "date": "1997-06-16",
+              "barcode": "724385522925",
+              "release-group": {
+                "title": "OK Computer",
+                "artist-credit": [
+                  {
+                    "name": "Radiohead",
+                    "joinphrase": "",
+                    "artist": {
+                      "sort-name": "Radiohead",
+                      "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+                      "type": "Group",
+                      "country": "GB",
+                      "name": "Radiohead",
+                      "disambiguation": "",
+                      "type-id": "e431f5f6-b5d2-343d-8b36-72607fffb74b"
+                    }
+                  }
+                ],
+                "secondary-type-ids": [],
+                "id": "b1392450-e666-3926-a536-22c65f834433",
+                "secondary-types": [],
+                "disambiguation": "",
+                "primary-type": "Album",
+                "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+                "first-release-date": "1997-05-21"
+              },
+              "media": [
+                {
+                  "format": "CD",
+                  "track-count": 12
+                }
+              ],
+              "track-count": 12
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

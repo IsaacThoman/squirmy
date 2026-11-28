@@ -69,7 +69,7 @@ Other calls:
 A provider says how it covers music, which decides what turns from gray to playable:
 
 - **`must_resolve`**: a track is shown as playable on demand only after the provider confirmed it has it. The server asks about tracks as lists and pages show them, in batches of up to 100, and remembers the answers: offers for 30 days, "nothing" for a day. Lists update a moment later, once the answers arrive. Cold storage works this way.
-- **`assume_available`**: every track you do not own shows as playable on demand, and so does an album found by search before its track list is known. When a request finds nothing, or a delivery fails, that track turns gray for a day, unless the provider is failing: then its tracks stay playable, and the ones that failed just before it counted as failing turn playable again.
+- **`assume_available`**: tracks you do not own initially show as playable on demand, and so does an album found by search before its track list is known. Opening an album checks the tracks in the background, and the server checks up to five tracks ahead as it prepares the playback queue. A track grays out live if no provider can supply it, and playback skips it if already queued. The server remembers misses for a day and reuses offers for up to an hour. An outage or a busy response leaves an unanswered track's availability as it was. If consecutive delivery failures mark a provider as failing, the tracks affected by that streak become playable again.
 
 ### Tracks a provider could not supply
 
@@ -79,7 +79,7 @@ A track a provider could not supply (it found nothing, refused, or delivered the
 - you turn it off and on again, or give it a new address or secret;
 - you press **Retry unavailable tracks (N)** on its card. Use this when you fixed something the provider cannot report, such as its source's settings.
 
-Then its tracks are playable on demand again, and it is asked for them the next time they are played. The old records stay, for the history, until they expire. A provider that is only busy or rate limited never makes a track unavailable: the server asks again after a few seconds, longer each time, and the request waits.
+Then its tracks can be checked again when someone opens an album or prepares them for playback. The old records stay, for the history, until they expire. A provider that is only busy or rate limited never makes a track unavailable: the server asks again after a few seconds, longer each time, and the request waits.
 
 ### Setting the mode
 

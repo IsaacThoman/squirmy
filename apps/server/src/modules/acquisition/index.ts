@@ -12,7 +12,7 @@ import { acquisitionRoutes } from './routes.js'
  * Acquisition providers: on-demand fetching of music the server does not have, through
  * operator-run services that speak docs/provider-protocol.md. Off until an admin adds a
  * provider. Jobs:
- *   acquisition.resolve  { providerId, recordingIds }  asks a must_resolve provider what it has
+ *   acquisition.resolve  { providerId, recordingIds }  checks what a provider has before playback
  *   acquisition.start    { jobId }                     picks an offer and hands it to the provider
  *   acquisition.finish   { jobId }                     waits for the delivery's import and checks it
  *   acquisition.sweep    {}                            timeouts, quiet providers, restart recovery
@@ -25,7 +25,7 @@ export const acquisitionModule: ServerModule = {
   routes: acquisitionRoutes,
   async jobs(jobs) {
     jobs.define<ResolveJob>('acquisition.resolve', { concurrency: 2, retryLimit: 1, timeoutSeconds: 120 }, runResolveJob)
-    jobs.define<StartJob>('acquisition.start', { concurrency: 4, timeoutSeconds: 300 }, async ({ jobId, attempt }) => startJob(jobId, attempt))
+    jobs.define<StartJob>('acquisition.start', { concurrency: 4, timeoutSeconds: 300 }, async ({ jobId, attempt, upcoming }) => startJob(jobId, attempt, upcoming))
     // Waits on the import, which waits on identification: allow as long as that may take.
     jobs.define<StartJob>('acquisition.finish', { concurrency: 4, timeoutSeconds: 3 * 60 * 60 }, async ({ jobId }) => finishDelivery(jobId))
     jobs.define('acquisition.sweep', { retryLimit: 1 }, async () => sweepJobs())
