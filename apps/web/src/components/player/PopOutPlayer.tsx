@@ -6,7 +6,7 @@ import { IconButton } from '@/components/ui/icon-button'
 import { formatDuration } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useLibrary } from '@/player/library-context'
-import { usePlayer, usePosition } from '@/player/player-context'
+import { hostControls, usePlayer, usePosition } from '@/player/player-context'
 import { PlayerStatusLine } from './PlayerStatus'
 import { progressPosition } from './progress'
 import { setWindowTitle } from './pop-out'
@@ -22,19 +22,21 @@ function PopOutContent({ target }: { target: Window }) {
   const library = useLibrary()
   const item = state.current
   const track = item?.track
+  // The host plays, pauses and skips in a jam this user follows, as in the main window.
+  const transport = Boolean(item) && !hostControls(state)
 
   // Space plays and pauses there too; the window has no other controls that want it.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       // Not `keyIsTaken`: the window's elements are not this window's `Element`s.
       const focused = event.target as { closest?: (selector: string) => unknown } | null
-      if (event.key !== ' ' || event.repeat || event.metaKey || event.ctrlKey || event.altKey || focused?.closest?.('button, a[href], input')) return
+      if (!transport || event.key !== ' ' || event.repeat || event.metaKey || event.ctrlKey || event.altKey || focused?.closest?.('button, a[href], input')) return
       event.preventDefault()
       controls.togglePlay()
     }
     target.addEventListener('keydown', onKeyDown)
     return () => target.removeEventListener('keydown', onKeyDown)
-  }, [target, controls])
+  }, [target, controls, transport])
 
   useEffect(() => setWindowTitle(target, track ? `${track.title} · ${track.artistCredit}` : 'Squirmy'), [target, track])
 
@@ -63,9 +65,9 @@ function PopOutContent({ target }: { target: Window }) {
       </div>
       <Progress durationMs={item?.entry.durationMs ?? 0} />
       <div className="flex items-center justify-center gap-2">
-        <IconButton label="Previous" tooltip={false} shape="round" disabled={!item} onClick={controls.previous} className="text-foreground"><SkipBack fill="currentColor" /></IconButton>
-        <PlayPauseButton playing={state.playing} loading={state.waiting} disabled={!item} onClick={controls.togglePlay} />
-        <IconButton label="Next" tooltip={false} shape="round" disabled={!item} onClick={controls.next} className="text-foreground"><SkipForward fill="currentColor" /></IconButton>
+        <IconButton label="Previous" tooltip={false} shape="round" disabled={!transport} onClick={controls.previous} className="text-foreground"><SkipBack fill="currentColor" /></IconButton>
+        <PlayPauseButton playing={state.playing} loading={state.waiting} disabled={!transport} onClick={controls.togglePlay} />
+        <IconButton label="Next" tooltip={false} shape="round" disabled={!transport} onClick={controls.next} className="text-foreground"><SkipForward fill="currentColor" /></IconButton>
       </div>
     </div>
   )
