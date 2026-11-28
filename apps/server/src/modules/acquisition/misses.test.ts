@@ -4,7 +4,7 @@ import { createMockProvider, type MockProvider } from '@squirmy/adapter-mock'
 import { AcquisitionProviderList, ClearProviderMissesResponse } from '@squirmy/contracts'
 import { eq, sql } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../../app.js'
 import { db } from '../../database/client.js'
 import { acquisitionJobs, acquisitionMisses, acquisitionProviders } from '../../database/schema.js'
@@ -198,10 +198,11 @@ describe('provider misses', () => {
 
     const events = await listenRealtime()
     const cleared = body(await clear(admin.headers), ClearProviderMissesResponse)
+    // The change goes out after the response, so wait for it before closing the socket.
+    await vi.waitFor(() => expect(events.availability.get(ids[0]!)).toBe('on_demand'))
     await events.stop()
     expect(cleared).toMatchObject({ cleared: 3, provider: { id: providerId, unavailableTracks: 0 } })
     expect(await onDemandRecordings(ids)).toEqual(new Set(ids))
-    expect(events.availability.get(ids[0]!)).toBe('on_demand')
     expect(await db.$count(acquisitionMisses, eq(acquisitionMisses.providerId, providerId))).toBe(3)
     expect(body(await clear(admin.headers), ClearProviderMissesResponse).cleared).toBe(0)
   })
